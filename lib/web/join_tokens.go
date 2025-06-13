@@ -56,7 +56,7 @@ type nodeJoinToken struct {
 	//  ID is token ID.
 	ID string `json:"id"`
 	// Expiry is token expiration time.
-	Expiry time.Time `json:"expiry,omitempty"`
+	Expiry time.Time `json:"expiry"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
 	// SuggestedLabels contains the set of labels we expect the node to set when using this token
@@ -92,7 +92,7 @@ type GetTokensResponse struct {
 	Items []webui.JoinToken `json:"items"`
 }
 
-func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,7 +113,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 	}, nil
 }
 
-func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	token := r.Header.Get(HeaderTokenName)
 	if token == "" {
 		return nil, trace.BadParameter("requires a token to delete")
@@ -135,7 +135,7 @@ type CreateTokenRequest struct {
 	Content string `json:"content"`
 }
 
-func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	tokenId := r.Header.Get(HeaderTokenName)
 	if tokenId == "" {
 		return nil, trace.BadParameter("requires a token name to edit")
@@ -247,7 +247,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 // createTokenForDiscoveryHandle creates tokens used during guided discover flows.
 // V2 endpoint processes "suggestedLabels" field.
-func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,7 +367,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	}, nil
 }
 
-func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
@@ -392,7 +392,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 	return nil, nil
 }
 
-func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
@@ -439,7 +439,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
-func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
@@ -463,7 +463,7 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 	return nil, nil
 }
 
-func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 	const discoveryGroupQueryParam = "discoveryGroup"

@@ -50,7 +50,7 @@ func makeTableColumnTitles(row any) (out []string) {
 	re := regexp.MustCompile(`([a-z])([A-Z])`)
 
 	t := reflect.TypeOf(row)
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		title := field.Tag.Get("title")
 		if title == "" {
@@ -66,7 +66,7 @@ func makeTableRows[T any](rows []T) [][]string {
 	for _, row := range rows {
 		var columnValues []string
 		v := reflect.ValueOf(row)
-		for i := 0; i < v.NumField(); i++ {
+		for i := range v.NumField() {
 			columnValues = append(columnValues, fmt.Sprintf("%v", v.Field(i)))
 		}
 		out = append(out, columnValues)

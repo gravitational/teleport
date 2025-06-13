@@ -38,10 +38,10 @@ type TeleportOpenSSHServerV2Spec types.ServerSpecV2
 // TeleportOpenSSHServerV2 is the Schema for the roles API
 type TeleportOpenSSHServerV2 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportOpenSSHServerV2Spec `json:"spec,omitempty"`
-	Status resources.Status            `json:"status,omitempty"`
+	Spec   TeleportOpenSSHServerV2Spec `json:"spec"`
+	Status resources.Status            `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportOpenSSHServerV2 struct {
 // TeleportOpenSSHServerV2List contains a list of TeleportOpenSSHServerV2
 type TeleportOpenSSHServerV2List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportOpenSSHServerV2 `json:"items"`
 }
 

@@ -854,7 +854,7 @@ func TestCADownloaderGetVersion(t *testing.T) {
 				desc:        "without support to ETag returns error",
 				database:    rds,
 				supportEtag: false,
-				expectError: func(t require.TestingT, err error, _ ...interface{}) {
+				expectError: func(t require.TestingT, err error, _ ...any) {
 					require.Error(t, err)
 					require.True(t, trace.IsNotImplemented(err), "expected trace.NotImplementedError but received %T", err)
 				},

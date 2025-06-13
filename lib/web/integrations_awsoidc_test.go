@@ -1139,10 +1139,7 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 
 	sliceStart := pageSize * (requestedPage - 1)
-	sliceEnd := pageSize * requestedPage
-	if sliceEnd > totalResources {
-		sliceEnd = totalResources
-	}
+	sliceEnd := min(pageSize*requestedPage, totalResources)
 
 	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
 	if sliceEnd < totalResources {
@@ -1305,7 +1302,7 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 			},
 			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
 				var ret []ui.AWSOIDCDeployedDatabaseService
-				for i := 0; i < 1_024; i++ {
+				for i := range 1_024 {
 					ret = append(ret, ui.AWSOIDCDeployedDatabaseService{
 						Name:                fmt.Sprintf("database-service-vpc-%d", i),
 						DashboardURL:        "url",
@@ -1347,7 +1344,7 @@ func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabel
 
 func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
 	var ret []*integrationv1.DeployedDatabaseService
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ret = append(ret, &integrationv1.DeployedDatabaseService{
 			Name:                fmt.Sprintf("database-service-vpc-%d", i),
 			ServiceDashboardUrl: "url",

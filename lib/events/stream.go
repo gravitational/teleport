@@ -571,10 +571,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		case <-flushCh:
 			now := clock.Now().UTC()
-			inactivityPeriod := now.Sub(lastEvent)
-			if inactivityPeriod < 0 {
-				inactivityPeriod = 0
-			}
+			inactivityPeriod := max(now.Sub(lastEvent), 0)
 			if inactivityPeriod >= w.proto.cfg.InactivityFlushPeriod {
 				// inactivity period exceeded threshold,
 				// there is no need to schedule a timer until the next
@@ -769,7 +766,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			return
 		}
 
-		for i := 0; i < defaults.MaxIterationLimit; i++ {
+		for i := range defaults.MaxIterationLimit {
 			log := log.With("attempt", i)
 
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)

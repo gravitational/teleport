@@ -117,7 +117,7 @@ func TestListDatabases(t *testing.T) {
 
 		allInstances := make([]rdsTypes.DBInstance, 0, totalDBs)
 		for i, vpcID := range vpcIDs {
-			for j := 0; j < databasesPerVPC; j++ {
+			for j := range databasesPerVPC {
 				allInstances = append(allInstances, rdsTypes.DBInstance{
 					DBInstanceStatus:     stringPointer("available"),
 					DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i*databasesPerVPC+j)),
@@ -150,7 +150,7 @@ func TestListDatabases(t *testing.T) {
 				VpcId:     "",
 				NextToken: "",
 			}
-			for i := 0; i < totalDBs/int(listDatabasesPageSize); i++ {
+			for range totalDBs / int(listDatabasesPageSize) {
 				resp, err := ListDatabases(ctx, mockListClient, logger, req)
 				require.NoError(t, err)
 				require.Len(t, resp.Databases, int(listDatabasesPageSize))

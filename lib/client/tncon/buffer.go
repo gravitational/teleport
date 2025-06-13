@@ -27,7 +27,7 @@ func newBufferedChannelPipe(len int) *bufferedChannelPipe {
 
 // Write will write all of p to the buffer unless the buffer is closed
 func (b *bufferedChannelPipe) Write(p []byte) (n int, err error) {
-	for n = 0; n < len(p); n++ {
+	for n = range p {
 		select {
 		// blocking behavior
 		case b.ch <- p[n]:

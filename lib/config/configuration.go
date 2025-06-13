@@ -2753,7 +2753,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.Hostname = hostname
 	cfg.OpenSSH.InstanceAddr = clf.Address
 	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
-	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
+	for principal := range strings.SplitSeq(clf.AdditionalPrincipals, ",") {
 		if principal == "" {
 			continue
 		}

@@ -31,6 +31,7 @@ import (
 	"os"
 	"path" // SFTP requires UNIX-style path separators
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -164,10 +165,8 @@ type FileSystem interface {
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
 func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error) {
-	for _, srcPath := range src {
-		if srcPath == "" {
-			return nil, trace.BadParameter("source path is empty")
-		}
+	if slices.Contains(src, "") {
+		return nil, trace.BadParameter("source path is empty")
 	}
 	if dst == "" {
 		return nil, trace.BadParameter("destination path is empty")

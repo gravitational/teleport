@@ -38,10 +38,10 @@ type TeleportRoleSpec types.RoleSpecV6
 // TeleportRole is the Schema for the roles API
 type TeleportRole struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportRoleSpec `json:"spec,omitempty"`
-	Status resources.Status `json:"status,omitempty"`
+	Spec   TeleportRoleSpec `json:"spec"`
+	Status resources.Status `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportRole struct {
 // TeleportRoleList contains a list of TeleportRole
 type TeleportRoleList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportRole `json:"items"`
 }
 

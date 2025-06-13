@@ -387,7 +387,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 
 Outer:
-	for i := 0; i < len(names); i++ {
+	for range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime2,
 			To:       baseTime2.Add(time.Second),

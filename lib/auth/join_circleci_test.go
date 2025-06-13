@@ -85,12 +85,12 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	}
 
 	// helpers for error assertions
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 		messageMatch := assert.ErrorContains(t, err, "id token claims did not match any allow rules")
 		typeMatch := assert.True(t, trace.IsAccessDenied(err))
 		require.True(t, messageMatch && typeMatch)
 	})
-	tokenNotMatched := func(t require.TestingT, err error, i ...interface{}) {
+	tokenNotMatched := func(t require.TestingT, err error, i ...any) {
 		require.ErrorIs(t, err, errMockInvalidToken)
 	}
 	tests := []struct {
@@ -163,7 +163,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 					},
 				},
 			}),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "IDToken not provided")
 			},

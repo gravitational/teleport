@@ -151,7 +151,7 @@ func sortPrivateKeys(keys []*accessgraphsecretsv1pb.PrivateKey) {
 func newPrivateKeys(t *testing.T, deviceID string) []*accessgraphsecretsv1pb.PrivateKey {
 	t.Helper()
 	var pks []*accessgraphsecretsv1pb.PrivateKey
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		pk, err := accessgraph.NewPrivateKey(
 			&accessgraphsecretsv1pb.PrivateKeySpec{
 				PublicKeyFingerprint: "key" + strconv.Itoa(i),

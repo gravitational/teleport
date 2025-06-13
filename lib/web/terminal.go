@@ -732,7 +732,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	}()
 
 	var directErr, mfaErr error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			mfaCancel()

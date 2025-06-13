@@ -140,12 +140,12 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 	node_ids := make([]string, 0, c.count)
 
-	for i := 0; i < c.count; i++ {
+	for range c.count {
 		node_ids = append(node_ids, uuid.New().String())
 	}
 
 	labels := make(map[string]string, c.labels)
-	for i := 0; i < c.labels; i++ {
+	for range c.labels {
 		labels[uuid.New().String()] = uuid.New().String()
 	}
 
@@ -177,7 +177,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 	infof("Estimated serialized node size: %d (bytes)", len(sn))
 
-	for i := 0; i < c.concurrency; i++ {
+	for range c.concurrency {
 		go func() {
 			for id := range workch {
 				_, err = client.UpsertNode(ctx, mknode(id))
@@ -211,7 +211,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 		default:
 		}
 
-		for i := 0; i < c.churn; i++ {
+		for range c.churn {
 			node_ids = append(node_ids, uuid.New().String())
 		}
 
@@ -240,7 +240,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) error {
 	var kinds []types.WatchKind
-	for _, kind := range strings.Split(c.kind, ",") {
+	for kind := range strings.SplitSeq(c.kind, ",") {
 		kind = strings.TrimSpace(kind)
 		if kind == "" {
 			continue
@@ -252,7 +252,7 @@ func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) 
 	}
 
 	ops := make(map[types.OpType]struct{})
-	for _, op := range strings.Split(c.ops, ",") {
+	for op := range strings.SplitSeq(c.ops, ",") {
 		op = strings.TrimSpace(op)
 		if op == "" {
 			continue

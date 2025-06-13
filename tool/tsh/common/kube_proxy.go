@@ -275,11 +275,11 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
 	if isReexec {
-		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]interface{}{
+		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]any{
 			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
-	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]interface{}{
+	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]any{
 		"addr":           localProxy.GetAddr(),
 		"format":         c.format,
 		"randomPort":     c.port == "",

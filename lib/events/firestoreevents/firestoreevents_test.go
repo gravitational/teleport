@@ -53,7 +53,7 @@ func setupFirestoreContext(t *testing.T) *firestoreContext {
 	fakeClock := clockwork.NewFakeClock()
 
 	config := EventsConfig{}
-	config.SetFromParams(map[string]interface{}{
+	config.SetFromParams(map[string]any{
 		"collection_name":                   "tp-events-test",
 		"project_id":                        "tp-testproj",
 		"endpoint":                          "localhost:8618",

@@ -206,8 +206,7 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 // TestReadCorruptedRecording tests that the streamer can successfully decode the kind of corrupted
 // recordings that some older bugged versions of teleport might end up producing when under heavy load/throttling.
 func TestReadCorruptedRecording(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	f, err := os.Open("testdata/corrupted-session")
 	require.NoError(t, err)

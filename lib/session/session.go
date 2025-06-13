@@ -22,6 +22,7 @@ package session
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -154,7 +155,7 @@ func (s *Session) Participants() []string {
 func (s *Session) RemoveParty(pid ID) bool {
 	for i := range s.Parties {
 		if s.Parties[i].ID == pid {
-			s.Parties = append(s.Parties[:i], s.Parties[i+1:]...)
+			s.Parties = slices.Delete(s.Parties, i, i+1)
 			return true
 		}
 	}

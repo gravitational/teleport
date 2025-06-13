@@ -1729,10 +1729,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// on the side of slowness, which is preferable for this kind of periodic.
 	instanceRate := slowRate
 	if ci := a.inventory.ConnectedInstances(); ci > 0 {
-		localDynamicRate := dynamicPeriod / time.Duration(ci)
-		if localDynamicRate < fastRate {
-			localDynamicRate = fastRate
-		}
+		localDynamicRate := max(dynamicPeriod/time.Duration(ci), fastRate)
 
 		if localDynamicRate < instanceRate {
 			instanceRate = localDynamicRate
@@ -4787,6 +4784,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		req.AdditionalPrincipals = utils.ReplaceInSlice(
 			req.AdditionalPrincipals,
 			defaults.AnyAddress,
@@ -4910,7 +4908,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		PublicKey: cryptoPubKey,
 		Subject:   subject,
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
-		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
+		DNSNames:  slices.Clone(req.AdditionalPrincipals),
 	}
 
 	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
@@ -7702,7 +7700,7 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.CertAuthority, newKeys types.CAKeySet, needsUpdate func(types.CertAuthority) (bool, error)) error {
 	const maxIterations = 64
 
-	for i := 0; i < maxIterations; i++ {
+	for range maxIterations {
 		if update, err := needsUpdate(ca); err != nil || !update {
 			return trace.Wrap(err)
 		}

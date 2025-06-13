@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -432,12 +433,7 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 // watchers, aka legacy database discovery done by the db service.
 // The lock must be held when calling this function.
 func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
-	for i := range m.cloud {
-		if m.cloud[i] == database {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.cloud, database)
 }
 
 // isDiscoveryResource_Locked returns whether a database was discovered by the
@@ -451,12 +447,7 @@ func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database)
 // object.
 // The lock must be held when calling this function.
 func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
-	for i := range m.resources {
-		if m.resources[i] == database {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.resources, database)
 }
 
 // getLocked returns a slice containing all of the monitored databases.

@@ -337,7 +337,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			initReq: makeInitReq(),
 			solver:  makeSolver(incorrectPublicKey),
 
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "wrong public key")
 			},
@@ -375,7 +375,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			}),
 			solver: makeSolver(incorrectPublicKey),
 
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "wrong public key")
 			},
@@ -412,7 +412,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),
 
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "bad backend state")
 			},
@@ -431,7 +431,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			}),
 			solver: makeSolver(correctPublicKey),
 
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "bot instance mismatch")
 			},
@@ -467,7 +467,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			token:   makeToken(withRecovery("standard", 1, 2, "id")),
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "previous join state is required")
 			},
 		},
@@ -476,7 +476,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			token:   makeToken(withRecovery("standard", 2, 2, "id")),
 			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 2, 2, "id")))),
 			solver:  makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "no recovery attempts remaining")
 			},
 		},
@@ -486,7 +486,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			token:   makeToken(withRecovery("standard", 2, 3, "id")),
 			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 3, "id")))),
 			solver:  makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
@@ -497,7 +497,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				r.PreviousJoinState = []byte("asdf")
 			}),
 			solver: makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
@@ -506,7 +506,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			token:   makeToken(withRecovery("standard", 1, 2, "id")),
 			initReq: makeInitReq(withJoinState(invalidJWTSigner, withToken(withRecovery("standard", 1, 2, "id")))),
 			solver:  makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
@@ -515,7 +515,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			token:   makeToken(withRecovery("standard", 1, 2, "foo")),
 			initReq: makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")))),
 			solver:  makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
@@ -526,7 +526,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				s.ClusterName = "wrong-cluster"
 			})),
 			solver: makeSolver(correctPublicKey),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
@@ -665,7 +665,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),
 
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "requesting a new public key")
 			},
 			assertSolverState: func(t *testing.T, s *wrappedSolver) {
@@ -690,7 +690,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey, withRotatedPubKey(correctPublicKey)),
 
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "public key may not be reused after rotation")
 			},
 			assertSolverState: func(t *testing.T, s *wrappedSolver) {

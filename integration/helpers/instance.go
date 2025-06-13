@@ -909,7 +909,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for j := 0; j < len(configs); j++ {
+	for range configs {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)

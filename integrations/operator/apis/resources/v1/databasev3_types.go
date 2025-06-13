@@ -38,10 +38,10 @@ type TeleportDatabaseV3Spec types.DatabaseSpecV3
 // TeleportDatabaseV3 is the Schema for the roles API
 type TeleportDatabaseV3 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportDatabaseV3Spec `json:"spec,omitempty"`
-	Status resources.Status       `json:"status,omitempty"`
+	Spec   TeleportDatabaseV3Spec `json:"spec"`
+	Status resources.Status       `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportDatabaseV3 struct {
 // TeleportDatabaseV3List contains a list of TeleportDatabaseV3
 type TeleportDatabaseV3List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportDatabaseV3 `json:"items"`
 }
 

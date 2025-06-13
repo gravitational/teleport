@@ -31,7 +31,7 @@ import (
 // so it makes sense to reset the writer and reuse the
 // internal buffers to avoid too many objects on the heap
 var writerPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		gz := gzip.NewWriter(io.Discard)
 		return gz
 	},

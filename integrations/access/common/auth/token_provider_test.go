@@ -154,8 +154,7 @@ func TestRotatedAccessTokenProvider(t *testing.T) {
 			},
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		provider := newProvider(ctx, mockStore, refresher, clock, initialCreds)
 

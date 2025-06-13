@@ -6028,7 +6028,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			name:        "no access role",
 			overrideTTL: true,
 			roles:       RoleSet{roleNoAccess},
-			wantError: func(t require.TestingT, err error, i ...interface{}) {
+			wantError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
 			},
 		},
@@ -6045,7 +6045,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			overrideTTL: false,
 			ttl:         sessionLong,
 			roles:       RoleSet{roleReadOnly},
-			wantError: func(t require.TestingT, err error, i ...interface{}) {
+			wantError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "this user cannot access Azure API for 3h0m0s")
 			},
 		},
@@ -6082,7 +6082,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			overrideTTL:    true,
 			roles:          RoleSet{roleFullAccess, roleDenyAll},
 			wantIdentities: nil,
-			wantError: func(t require.TestingT, err error, i ...interface{}) {
+			wantError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
 			},
 		},
@@ -6218,7 +6218,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			name:        "no access role",
 			overrideTTL: true,
 			roles:       RoleSet{roleNoAccess},
-			wantError: func(t require.TestingT, err error, i ...interface{}) {
+			wantError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
 			},
 		},
@@ -6235,7 +6235,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			overrideTTL: false,
 			ttl:         sessionLong,
 			roles:       RoleSet{roleReadOnly},
-			wantError: func(t require.TestingT, err error, i ...interface{}) {
+			wantError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access for 3h0m0s")
 			},
 		},
@@ -6272,7 +6272,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			overrideTTL:  true,
 			roles:        RoleSet{roleFullAccess, roleDenyAll},
 			wantAccounts: nil,
-			wantError: func(t require.TestingT, err error, i ...interface{}) {
+			wantError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
 			},
 		},
@@ -6348,7 +6348,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 			name:                "no roles",
 			roles:               RoleSet{},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "No roles assigned to user")
 			},
 		},
@@ -6415,7 +6415,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					}}),
 			},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
 			},
 		},
@@ -6432,7 +6432,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					}}),
 			},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
 			},
 		},
@@ -6445,7 +6445,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					}}),
 			},
 			authPrefSamlEnabled: false,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.AccessDenied("SAML IdP is disabled at the cluster level"))
 			},
 		},
@@ -6468,7 +6468,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 					}}),
 			},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7labelsNotMatched"))
 			},
 		},
@@ -6527,7 +6527,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredAlways,
 				MFAVerified: true,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "User does not have permissions")
 			},
 		},
@@ -6546,7 +6546,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredPerRole,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -6579,7 +6579,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredAlways,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -6613,7 +6613,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredPerRole,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -6644,7 +6644,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredAlways,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -7314,7 +7314,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	servers := make([]*types.ServerV2, 0, 4000)
 
 	// Create 4,000 servers with random IDs.
-	for i := 0; i < 4000; i++ {
+	for range 4000 {
 		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
@@ -7333,7 +7333,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	// Create RoleSet with four generic roles that have five logins
 	// each and only have access to the a:b label.
 	var set RoleSet
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		set = append(set, &types.RoleV6{
 			Kind:    types.KindRole,
 			Version: types.V3,
@@ -7361,7 +7361,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 
 	// Check access to all 4,000 nodes.
 	for b.Loop() {
-		for i := 0; i < 4000; i++ {
+		for i := range 4000 {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark
 				// is testing the performance of failed RBAC checks

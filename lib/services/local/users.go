@@ -537,7 +537,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -1110,10 +1110,7 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := l.scopeCount[scope] + n
-	if v < 0 {
-		v = 0
-	}
+	v := max(l.scopeCount[scope]+n, 0)
 	l.scopeCount[scope] = v
 	return v
 }

@@ -2317,7 +2317,7 @@ func onLogout(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
-	profiles := append([]*client.ProfileStatus{}, available...)
+	profiles := slices.Clone(available)
 	if active != nil {
 		profiles = append(profiles, active)
 	}

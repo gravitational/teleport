@@ -152,7 +152,7 @@ func (c *AttobjCommand) Run() error {
 
 	// Print attestation certificates.
 	if x5c, ok := ao.AttStatement["x5c"]; ok {
-		if x5cArray, ok := x5c.([]interface{}); ok {
+		if x5cArray, ok := x5c.([]any); ok {
 			for i, certI := range x5cArray {
 				certDER, ok := certI.([]byte)
 				if !ok {

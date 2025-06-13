@@ -940,7 +940,7 @@ For more information:
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1023,7 +1023,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1063,7 +1063,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

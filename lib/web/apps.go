@@ -51,7 +51,7 @@ type GetAppDetailsResponse struct {
 // its app details.
 //
 // GET /v1/webapi/apps/:fqdnHint/:clusterName/:publicAddr
-func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
 	values := r.URL.Query()
 
 	isRedirectFlow := values.Get("required-apps") != ""
@@ -132,7 +132,7 @@ type CreateAppSessionResponse struct {
 // createAppSession creates a new application session.
 //
 // POST /v1/webapi/sessions/app
-func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
 	var req CreateAppSessionRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

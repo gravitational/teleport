@@ -164,7 +164,7 @@ func (o *WorkloadIdentityAWSRAService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityAWSRAService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityAWSRAService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityAWSRAService
 	return withTypeHeader((*raw)(o), WorkloadIdentityAWSRAType)
 }
