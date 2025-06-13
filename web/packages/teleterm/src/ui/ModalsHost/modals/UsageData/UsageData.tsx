@@ -62,11 +62,11 @@ export function UsageData(props: {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P color="text.slightlyMuted">
+          <P>
             Do you agree to Teleport Connect collecting anonymized usage data?
             This will help us improve the product.
           </P>
-          <P color="text.slightlyMuted">
+          <P>
             To learn more, see{' '}
             <Link
               href="https://goteleport.com/docs/faq/#teleport-connect"
