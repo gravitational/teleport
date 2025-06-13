@@ -230,6 +230,12 @@ message AutoUpdateAgentRolloutStatusGroup {
   // to the done state if:
   // - the ratio present_count/initial_count is above 0.9 (no more than 10% of the nodes dropped during update)
   uint64 up_to_date_count = 12;
+  // canary_count represents how many canaries this group should have to leave the AUTO_UPDATE_AGENT_GROUP_STATE_CANARY
+  // state.
+  uint64 canary_count = 13;
+  // canaries is the list of canary agents that should be updated.
+  // This list is empty until we enter the AUTO_UPDATE_AGENT_GROUP_STATE_CANARY state.
+  repeated Canary canaries = 14;
 }
 
 // AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
@@ -247,6 +253,9 @@ enum AutoUpdateAgentGroupState {
   // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK represents that the group has been rolled back.
   // New agents should run v1, existing agents should update to v1.
   AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK = 4;
+  // AUTO_UPDATE_AGENT_GROUP_STATE_CANARY represents that the group is updating a few canary nodes, but that most nodes
+  // have not started updating yet.
+  AUTO_UPDATE_AGENT_GROUP_STATE_CANARY = 5;
 }
 
 // AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
@@ -304,4 +313,19 @@ message AutoUpdateAgentReportSpecGroupVersion {
 message AutoUpdateAgentReportSpecOmitted {
   int64 count = 1;
   string reason = 2;
+}
+
+// Canary describes a node that is acting as a canary and being updated before other nodes in its group.
+message Canary {
+  // updater_id is reported by the agent in its control stream Hello. This allows us to uniquely identify an updater so
+  // the proxy can modulate its answer when the request comes from this specific updater.
+  string updater_id = 1;
+  // host_id is the node Host ID, reported by the agent in its control stream Hello.
+  string host_id = 2;
+  // hostname is the server hostname reported by the agent in its control stream Hello.
+  // This is purely for debugging purposes: if the agent drops, we won't be able to query the inventory to know which
+  // agent it was.
+  string hostname = 3;
+  // success represents if the agent successfully connected back, running the target version.
+  bool success = 4;
 }
