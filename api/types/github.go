@@ -73,6 +73,12 @@ type GithubConnector interface {
 	GetAPIEndpointURL() string
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+	// match for identifier-first login.
+	GetUserMatchers() []string
+	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+	// for identifier-first login.
+	SetUserMatchers([]string)
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -321,6 +327,23 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 		}
 	}
 	return utils.Deduplicate(roles), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+}
+
+// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+// match for identifier-first login.
+func (r *GithubConnectorV3) GetUserMatchers() []string {
+	if r.Spec.UserMatchers == nil {
+		return nil
+	}
+	return r.Spec.UserMatchers
+}
+
+// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+// for identifier-first login.
+func (r *GithubConnectorV3) SetUserMatchers(userMatchers []string) {
+	if r.Spec.UserMatchers != nil {
+		r.Spec.UserMatchers = userMatchers
+	}
 }
 
 // SetExpiry sets expiry time for the object

@@ -121,6 +121,12 @@ type OIDCConnector interface {
 	SetPKCEMode(mode constants.OIDCPKCEMode)
 	// GetPKCEMode will return the PKCEMode of the connector.
 	GetPKCEMode() constants.OIDCPKCEMode
+	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+	// match for identifier-first login.
+	GetUserMatchers() []string
+	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+	// for identifier-first login.
+	SetUserMatchers([]string)
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -569,6 +575,23 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 		Value: o.Spec.MFASettings.MaxAge,
 	}
 	return nil
+}
+
+// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+// match for identifier-first login.
+func (r *OIDCConnectorV3) GetUserMatchers() []string {
+	if r.Spec.UserMatchers == nil {
+		return nil
+	}
+	return r.Spec.UserMatchers
+}
+
+// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+// for identifier-first login.
+func (r *OIDCConnectorV3) SetUserMatchers(userMatchers []string) {
+	if r.Spec.UserMatchers != nil {
+		r.Spec.UserMatchers = userMatchers
+	}
 }
 
 // Check returns nil if all parameters are great, err otherwise

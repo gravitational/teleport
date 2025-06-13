@@ -117,6 +117,12 @@ type SAMLConnector interface {
 	GetForceAuthn() bool
 	// GetPreferredRequestBinding returns PreferredRequestBinding.
 	GetPreferredRequestBinding() string
+	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+	// match for identifier-first login.
+	GetUserMatchers() []string
+	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+	// for identifier-first login.
+	SetUserMatchers([]string)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -446,6 +452,23 @@ func (o *SAMLConnectorV2) WithMFASettings() error {
 // GetForceAuthn returns ForceAuthn
 func (o *SAMLConnectorV2) GetForceAuthn() bool {
 	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
+}
+
+// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+// match for identifier-first login.
+func (r *SAMLConnectorV2) GetUserMatchers() []string {
+	if r.Spec.UserMatchers == nil {
+		return nil
+	}
+	return r.Spec.UserMatchers
+}
+
+// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+// for identifier-first login.
+func (r *SAMLConnectorV2) SetUserMatchers(userMatchers []string) {
+	if r.Spec.UserMatchers != nil {
+		r.Spec.UserMatchers = userMatchers
+	}
 }
 
 const (
