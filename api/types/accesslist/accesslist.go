@@ -538,3 +538,122 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
 	a.Spec.Audit.NextAuditDate = clock.Now()
 	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
 }
+
+// NormalizeSemanticallyEqualFields normalizes semantically equal fields in the AccessList
+// to ensure that they are strictly equal when compared.
+func (a *AccessList) NormalizeSemanticallyEqualFields(b *AccessList) {
+	normalizeSlicesIfEqual(&a.Spec.MembershipRequires.Roles, &b.Spec.MembershipRequires.Roles)
+	normalizeSlicesIfEqual(&a.Spec.OwnershipRequires.Roles, &b.Spec.OwnershipRequires.Roles)
+	normalizeSlicesIfEqual(&a.Spec.Grants.Roles, &b.Spec.Grants.Roles)
+	normalizeSlicesIfEqual(&a.Spec.OwnerGrants.Roles, &b.Spec.OwnerGrants.Roles)
+	normalizeTraitsIfEqual(&a.Spec.Grants.Traits, &b.Spec.Grants.Traits)
+	normalizeTraitsIfEqual(&a.Spec.OwnerGrants.Traits, &b.Spec.OwnerGrants.Traits)
+	normalizeTraitsIfEqual(&a.Spec.MembershipRequires.Traits, &b.Spec.MembershipRequires.Traits)
+	normalizeTraitsIfEqual(&a.Spec.OwnershipRequires.Traits, &b.Spec.OwnershipRequires.Traits)
+}
+
+// IsEqual returns whether the Access List is equal to another Access List, ignoring
+// ephemeral fields such as `Status`, `Metadata.Revision`, and `IneligibleStatus` on Owners.
+func (a *AccessList) IsEqual(b *AccessList) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	// Create copies, clear ephemeral fields for accurate comparison.
+	aCopy := clearEphemeralFields(a)
+	bCopy := clearEphemeralFields(b)
+
+	// Treat nil slices and maps as == to empty slices and maps.
+	replaceNilWithEmpty(aCopy)
+	replaceNilWithEmpty(bCopy)
+
+	return deriveTeleportEqualAccessList(aCopy, bCopy)
+}
+
+// clearEphemeralFields returns a copy of the AccessList with ephemeral fields
+// (Status, Metadata.Revision, and IneligibleStatus on Owners) cleared.
+func clearEphemeralFields(a *AccessList) *AccessList {
+	aCopy := *a
+	aCopy.Status = Status{}
+	aCopy.Metadata.Revision = ""
+	for i := range aCopy.Spec.Owners {
+		aCopy.Spec.Owners[i].IneligibleStatus = ""
+	}
+	return &aCopy
+}
+
+func replaceNilWithEmpty(a *AccessList) {
+	replaceNilWithEmptySlice(&a.Spec.Grants.Roles)
+	replaceNilWithEmptySlice(&a.Spec.OwnerGrants.Roles)
+	replaceNilWithEmptySlice(&a.Spec.MembershipRequires.Roles)
+	replaceNilWithEmptySlice(&a.Spec.OwnershipRequires.Roles)
+	replaceNilWithEmptyTraits(&a.Spec.Grants.Traits)
+	replaceNilWithEmptyTraits(&a.Spec.OwnerGrants.Traits)
+	replaceNilWithEmptyTraits(&a.Spec.MembershipRequires.Traits)
+	replaceNilWithEmptyTraits(&a.Spec.OwnershipRequires.Traits)
+}
+
+func replaceNilWithEmptyTraits(m *trait.Traits) {
+	if *m == nil {
+		*m = make(map[string][]string)
+	}
+}
+
+func replaceNilWithEmptySlice[T comparable](s *[]T) {
+	if *s == nil {
+		*s = []T{}
+	}
+}
+
+func normalizeTraitsIfEqual(a, b *trait.Traits) {
+	if mapsAreSemanticallyEqual(*a, *b) {
+		*a = *b
+	}
+}
+
+func mapsAreSemanticallyEqual[T comparable](a, b map[string][]T) bool {
+	if a == nil {
+		a = map[string][]T{}
+	}
+	if b == nil {
+		b = map[string][]T{}
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	for key, value := range a {
+		if bValue, ok := b[key]; !ok || !slicesAreSemanticallyEqual(value, bValue) {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeSlicesIfEqual[T comparable](a, b *[]T) {
+	if slicesAreSemanticallyEqual(*a, *b) {
+		*a = *b
+	}
+}
+
+func slicesAreSemanticallyEqual[T comparable](a, b []T) bool {
+	if a == nil {
+		a = []T{}
+	}
+	if b == nil {
+		b = []T{}
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	count := map[T]int{}
+	for _, s := range a {
+		count[s]++
+	}
+	for _, s := range b {
+		if count[s] == 0 {
+			return false
+		}
+		count[s]--
+	}
+	return true
+}

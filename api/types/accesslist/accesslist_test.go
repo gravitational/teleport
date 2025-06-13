@@ -381,3 +381,184 @@ func TestAccessList_setInitialReviewDate(t *testing.T) {
 		})
 	}
 }
+
+func TestAccessList_IsEqual(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		a    *AccessList
+		b    *AccessList
+		want bool
+	}{
+		{
+			name: "both nil",
+			a:    nil,
+			b:    nil,
+			want: true,
+		},
+		{
+			name: "one nil",
+			a: &AccessList{
+				Spec: Spec{
+					Title: "Access List A",
+				},
+			},
+			b:    nil,
+			want: false,
+		},
+		{
+			name: "nil and empty slice",
+			a: &AccessList{
+				Spec: Spec{
+					OwnershipRequires: Requires{
+						Roles:  []string{},
+						Traits: map[string][]string{},
+					},
+				},
+			},
+			b: &AccessList{
+				Spec: Spec{
+					OwnershipRequires: Requires{
+						Roles:  nil,
+						Traits: nil,
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "nil and no empty slice",
+			a: &AccessList{
+				Spec: Spec{
+					OwnershipRequires: Requires{
+						Roles: []string{"role1"},
+					},
+				},
+			},
+			b: &AccessList{
+				Spec: Spec{
+					OwnershipRequires: Requires{
+						Roles: nil,
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "nil and no empty slice",
+			a: &AccessList{
+				Spec: Spec{
+					OwnershipRequires: Requires{
+						Traits: map[string][]string{"trait1": {"value1"}},
+					},
+				},
+			},
+			b: &AccessList{
+				Spec: Spec{
+					OwnershipRequires: Requires{},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "ephemeral fields",
+			a: &AccessList{
+				Spec: Spec{
+					Owners: []Owner{
+						{
+							IneligibleStatus: "ineligible",
+						},
+					},
+				},
+			},
+			b: &AccessList{
+				Spec: Spec{
+					Owners: []Owner{
+						{
+							IneligibleStatus: "not-ineligible",
+						},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if test.a == nil {
+				test.a = &AccessList{}
+			}
+			if test.b == nil {
+				test.b = &AccessList{}
+			}
+			require.Equal(t, test.want, test.a.IsEqual(test.b), "AccessList equality check failed for '%s'", test.name)
+		})
+	}
+}
+
+func TestAccessList_NormalizeSemanticallyEqualFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		a    *AccessList
+		b    *AccessList
+		want bool
+	}{
+		{
+			name: "equal lists with different role order",
+			a: &AccessList{
+				Spec: Spec{
+					Grants: Grants{
+						Roles: []string{"role1", "role2"},
+					},
+				},
+			},
+			b: &AccessList{
+				Spec: Spec{
+					Grants: Grants{
+						Roles: []string{"role2", "role1"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "different trait values",
+			a: &AccessList{
+				Spec: Spec{
+					MembershipRequires: Requires{
+						Traits: map[string][]string{"env": {"prod"}},
+					},
+				},
+			},
+			b: &AccessList{
+				Spec: Spec{
+					MembershipRequires: Requires{
+						Traits: map[string][]string{"env": {"dev"}},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if test.a == nil {
+				test.a = &AccessList{}
+			}
+			if test.b == nil {
+				test.b = &AccessList{}
+			}
+			test.b.NormalizeSemanticallyEqualFields(test.a)
+			require.Equal(t, test.want, test.b.IsEqual(test.a), "AccessList normalization failed for '%s'", test.name)
+		})
+	}
+}
