@@ -566,7 +566,7 @@ func TestUnknownIdentifier(t *testing.T) {
 			name:               "unknown variable",
 			expression:         "unknown",
 			knownVariablesOnly: true,
-			parseAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			parseAssertion: func(t require.TestingT, err error, i ...any) {
 				var u typical.UnknownIdentifierError
 				require.ErrorAs(t, err, &u, i...)
 				require.ErrorAs(t, trace.Wrap(err), &u, i...)

@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1159,7 +1160,7 @@ func (s *server) onSiteTunnelClose(site siteCloser) error {
 
 	for i := range s.remoteSites {
 		if s.remoteSites[i].domainName == site.GetName() {
-			s.remoteSites = append(s.remoteSites[:i], s.remoteSites[i+1:]...)
+			s.remoteSites = slices.Delete(s.remoteSites, i, i+1)
 			return trace.Wrap(site.Close())
 		}
 	}

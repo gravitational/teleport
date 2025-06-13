@@ -210,7 +210,7 @@ func TestBackends(t *testing.T) {
 			const numKeys = 3
 			rawPrivateKeys := make([][]byte, numKeys)
 			publicKeys := make([]crypto.PublicKey, numKeys)
-			for i := 0; i < numKeys; i++ {
+			for i := range numKeys {
 				var signer crypto.Signer
 				var err error
 				rawPrivateKeys[i], signer, err = backend.generateSigner(ctx, cryptosuites.ECDSAP256)

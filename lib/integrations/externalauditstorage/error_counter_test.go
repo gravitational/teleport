@@ -37,8 +37,7 @@ import (
 
 func TestErrorCounter(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testError := errors.New("test error")
 	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
@@ -197,7 +196,7 @@ func TestErrorCounter(t *testing.T) {
 			}
 
 			for _, step := range tc.steps {
-				for i := 0; i < max(step.repeat, 1); i++ {
+				for range max(step.repeat, 1) {
 					step.action(pack)
 				}
 				// Reliably advancing the clock and waiting for the run loop to

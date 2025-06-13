@@ -238,7 +238,7 @@ func (s *remoteSite) nextConn() (*remoteConn, error) {
 
 	s.removeInvalidConns()
 
-	for i := 0; i < len(s.connections); i++ {
+	for range s.connections {
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
 		// connection could have been initiated, but agent
@@ -972,7 +972,7 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	// connection over the "reverse tunnel".
 	var conn *sshutils.ChConn
 	var err error
-	for i := 0; i < s.connectionCount(); i++ {
+	for range s.connectionCount() {
 		conn, err = s.chanTransportConn(req)
 		if err == nil {
 			return conn, nil

@@ -1997,7 +1997,7 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 				},
 			},
 			expectedErr: require.NoError,
-			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			expectedDB: func(t require.TestingT, i any, _ ...any) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
@@ -2052,7 +2052,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				},
 			},
 			expectedErr: require.NoError,
-			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			expectedDB: func(t require.TestingT, i any, _ ...any) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 

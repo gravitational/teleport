@@ -261,7 +261,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
@@ -527,7 +527,7 @@ func TestTrackActiveConnections(t *testing.T) {
 
 	// Create a few connections, increasing the active connections. Keep track
 	// of the closer functions, so we can close them later.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(i + 1)
 		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 		require.NoError(t, err)
@@ -542,7 +542,7 @@ func TestTrackActiveConnections(t *testing.T) {
 	}
 
 	// For each connection we close, the active connections should drop too.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(numActiveConnections - (i + 1))
 		require.NoError(t, closeFuncs[i]())
 

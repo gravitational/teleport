@@ -1330,7 +1330,7 @@ func TestRedisPipeline(t *testing.T) {
 	pipeliner := redisClient.Pipeline()
 
 	// Set multiple keys using pipelining.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		err := pipeliner.Set(ctx, fmt.Sprintf("foo%d", i), i, 0).Err()
 		require.NoError(t, err)
 	}
@@ -1342,7 +1342,7 @@ func TestRedisPipeline(t *testing.T) {
 		require.NoError(t, cmd.Err())
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		err := pipeliner.Get(ctx, fmt.Sprintf("foo%d", i)).Err()
 		require.NoError(t, err)
 	}
@@ -1397,7 +1397,7 @@ func TestRedisTransaction(t *testing.T) {
 			return err
 		}
 
-		for i := 0; i < maxRetries; i++ {
+		for range maxRetries {
 			err := redisClient.Watch(ctx, txf, key)
 			if err == nil {
 				// Success.
@@ -1422,7 +1422,7 @@ func TestRedisTransaction(t *testing.T) {
 	asyncErrors := make(chan error, concurrentConnections)
 	defer close(asyncErrors)
 
-	for i := 0; i < concurrentConnections; i++ {
+	for range concurrentConnections {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

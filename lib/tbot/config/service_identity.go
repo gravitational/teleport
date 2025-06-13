@@ -173,7 +173,7 @@ func (o *IdentityOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o *IdentityOutput) MarshalYAML() (interface{}, error) {
+func (o *IdentityOutput) MarshalYAML() (any, error) {
 	type raw IdentityOutput
 	return withTypeHeader((*raw)(o), IdentityOutputType)
 }

@@ -159,7 +159,7 @@ func retry(ctx context.Context, attempts int, fn func() error) error {
 		return trace.Errorf("retry attempts must be > 0")
 	}
 
-	for i := 0; i < attempts; i++ {
+	for range attempts {
 		err = fn()
 		if err == nil {
 			return nil

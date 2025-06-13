@@ -549,8 +549,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 }
 
 func TestLocalProxyRequirement(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
@@ -1404,8 +1403,7 @@ func TestChooseOneDatabase(t *testing.T) {
 			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) matches multiple databases`,
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			cf := &CLIConf{

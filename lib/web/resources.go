@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -86,7 +86,7 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 	}, nil
 }
 
-func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +100,7 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +110,7 @@ func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, param
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +126,7 @@ func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprou
 	return ri, trace.Wrap(err)
 }
 
-func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -140,13 +140,13 @@ func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, param
 // this server. These are hard-coded for a given Teleport version, so this
 // should have the same security implications as the Teleport version exposed
 // via the public ping endpoint.
-func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	presets := auth.GetPresetRoles()
 	return ui.NewRoles(presets)
 }
 
 // getGithubConnectorHandle returns a GitHub connector by name.
-func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,7 +160,7 @@ func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return ui.NewResourceItem(connector)
 }
 
-func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +237,7 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	return ui.NewGithubConnectors(connectors)
 }
 
-func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,7 +271,7 @@ func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, 
 	return OK(), nil
 }
 
-func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -281,7 +281,7 @@ func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -291,7 +291,7 @@ func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -309,7 +309,7 @@ func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resou
 	return ui.NewTrustedClusters(trustedClusters)
 }
 
-func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -323,7 +323,7 @@ func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, p
 	return OK(), nil
 }
 
-func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -606,7 +606,7 @@ func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeprot
 
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
-	Items interface{} `json:"items"`
+	Items any `json:"items"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
 	// TotalCount is the total count of resources available
@@ -616,7 +616,7 @@ type listResourcesGetResponse struct {
 
 type listResourcesWithoutCountGetResponse struct {
 	// Items is a list of resources retrieved.
-	Items interface{} `json:"items"`
+	Items any `json:"items"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
 }

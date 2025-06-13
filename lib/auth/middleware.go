@@ -273,7 +273,7 @@ func (t *TLSServer) Close() error {
 		errC <- nil
 	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errors = append(errors, <-errC)
 	}
 	errors = append(errors, t.mux.Close())
@@ -292,7 +292,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		errC <- nil
 	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errors = append(errors, <-errC)
 	}
 	return trace.NewAggregate(errors...)
@@ -312,7 +312,7 @@ func (t *TLSServer) Serve() error {
 		errC <- t.grpcServer.server.Serve(t.mux.HTTP2())
 	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errors = append(errors, <-errC)
 	}
 	return trace.NewAggregate(errors...)
@@ -539,7 +539,7 @@ func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
 // withAuthenticatedUserUnaryInterceptor is a gRPC unary server interceptor
 // which sets the ContextUser field on the request context to the caller's user
 // identity as authenticated by their client TLS certificate.
-func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	ctx, err := a.withAuthenticatedUser(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,7 +550,7 @@ func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, 
 // withAuthenticatedUserUnaryInterceptor is a gRPC stream server interceptor
 // which sets the ContextUser field on the request context to the caller's user
 // identity as authenticated by their client TLS certificate.
-func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv any, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx, err := a.withAuthenticatedUser(serverStream.Context())
 	if err != nil {
 		return trace.Wrap(err)

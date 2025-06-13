@@ -548,7 +548,7 @@ type mySQLConn struct {
 	conn *mysqlclient.Conn
 }
 
-func (c *mySQLConn) Execute(command string, args ...interface{}) (*mysql.Result, error) {
+func (c *mySQLConn) Execute(command string, args ...any) (*mysql.Result, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn.Execute(command, args...)

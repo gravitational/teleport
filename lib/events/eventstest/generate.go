@@ -126,7 +126,7 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 
 	genEvents := []apievents.AuditEvent{&sessionStart}
 	i := int64(0)
-	for i = 0; i < params.PrintEvents; i++ {
+	for i = range params.PrintEvents {
 		event := &apievents.SessionPrint{
 			Metadata: apievents.Metadata{
 				Index: i + 1,
@@ -144,8 +144,7 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 		genEvents = append(genEvents, event)
 	}
 
-	i++
-	sessionEnd.Metadata.Index = i
+	sessionEnd.Metadata.Index = int64(len(genEvents))
 	genEvents = append(genEvents, &sessionEnd)
 
 	return genEvents

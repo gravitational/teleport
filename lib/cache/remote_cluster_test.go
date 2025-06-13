@@ -129,7 +129,7 @@ func TestTunnelConnections(t *testing.T) {
 		},
 	})
 
-	for i := 0; i < 17; i++ {
+	for i := range 17 {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+1), types.TunnelConnectionSpecV2{
 			ClusterName:   clusterName,
 			ProxyName:     "p1",
@@ -140,7 +140,7 @@ func TestTunnelConnections(t *testing.T) {
 		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+100), types.TunnelConnectionSpecV2{
 			ClusterName:   "other-cluster",
 			ProxyName:     "p1",

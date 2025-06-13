@@ -871,7 +871,7 @@ func (s *localSite) removeRemoteConn(rconn *remoteConn) {
 	conns := s.remoteConns[key]
 	for i, conn := range conns {
 		if conn == rconn {
-			s.remoteConns[key] = append(conns[:i], conns[i+1:]...)
+			s.remoteConns[key] = slices.Delete(conns, i, i+1)
 			if len(s.remoteConns[key]) == 0 {
 				delete(s.remoteConns, key)
 			}
@@ -1028,10 +1028,7 @@ func (s *localSite) sshTunnelStats() error {
 	if len(missing) > 0 {
 		// Don't show all the missing nodes, thousands could be missing, just show
 		// the first 10.
-		n := len(missing)
-		if n > 10 {
-			n = 10
-		}
+		n := min(len(missing), 10)
 		s.logger.DebugContext(s.srv.ctx, "Cluster is missing some tunnels. A small number of missing tunnels is normal, for example, a node could have just been shut down, the proxy restarted, etc. However, if this error persists with an elevated number of missing tunnels, it often indicates nodes can not discover all registered proxies. Check that all of your proxies are behind a load balancer and the load balancer is using a round robin strategy",
 			"cluster", s.domainName,
 			"missing_count", len(missing),

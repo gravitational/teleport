@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"slices"
 	"strings"
@@ -1295,9 +1296,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// make a shallow copy of traits to avoid modifying the original
 	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
-	for k, v := range unmappedIdentity.Traits {
-		traits[k] = v
-	}
+	maps.Copy(traits, unmappedIdentity.Traits)
 
 	// Prior to Teleport 6.2 the only trait passed to the remote cluster
 	// was the "logins" trait set to the SSH certificate principals.

@@ -83,7 +83,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString()),
 					})

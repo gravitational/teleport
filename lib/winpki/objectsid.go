@@ -77,9 +77,9 @@ func decodeADSID(b []byte) (adSID, error) {
 	// Get the SubAuthorityCount number of 32-bit, little-endian sub authorities
 	var offset = 8
 	var size = 4
-	for i := 0; i < sid.SubAuthorityCount; i++ {
+	for range sid.SubAuthorityCount {
 		var subAuthority int
-		for k := 0; k < size; k++ {
+		for k := range size {
 			index := offset + k
 			if index >= len {
 				return adSID{}, trace.BadParameter("AD SID response was too short to decode")

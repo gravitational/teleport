@@ -19,6 +19,7 @@
 package reversetunnel
 
 import (
+	"slices"
 	"sync"
 )
 
@@ -53,7 +54,7 @@ func (s *agentStore) unsafeRemove(agent Agent) bool {
 		if s.agents[i] != agent {
 			continue
 		}
-		s.agents = append(s.agents[:i], s.agents[i+1:]...)
+		s.agents = slices.Delete(s.agents, i, i+1)
 		return true
 	}
 

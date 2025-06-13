@@ -33,6 +33,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -538,13 +539,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return trace.Wrap(err)
 	}
 
-	found := false
-	for _, localUserGroup := range groups {
-		if localUserGroup == group.Gid {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(groups, group.Gid)
 
 	if !found {
 		// Check if the new user guid matches the TeleportDropGroup. If not
@@ -1139,7 +1134,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// to the grandchild.
 		if c.ExtraFilesLen > 0 {
 			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
-			for i := 0; i < c.ExtraFilesLen; i++ {
+			for i := range c.ExtraFilesLen {
 				fd := FirstExtraFile + uintptr(i)
 				f := os.NewFile(fd, strconv.Itoa(int(fd)))
 				if f == nil {

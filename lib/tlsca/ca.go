@@ -32,6 +32,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -607,9 +608,9 @@ func (id *Identity) Subject() (pkix.Name, error) {
 
 	subject := pkix.Name{
 		CommonName:         id.Username,
-		Organization:       append([]string{}, id.Groups...),
-		OrganizationalUnit: append([]string{}, id.Usage...),
-		Locality:           append([]string{}, id.Principals...),
+		Organization:       slices.Clone(id.Groups),
+		OrganizationalUnit: slices.Clone(id.Usage),
+		Locality:           slices.Clone(id.Principals),
 
 		// TODO: create ASN.1 extensions for traits and RouteToCluster
 		// and move away from using StreetAddress and PostalCode

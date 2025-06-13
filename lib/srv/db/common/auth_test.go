@@ -295,7 +295,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				}, nil /* scaleSetAPI */),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -372,7 +372,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},

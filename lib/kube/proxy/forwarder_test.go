@@ -1307,8 +1307,7 @@ func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.R
 }
 
 func TestKubernetesConnectionLimit(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	type testCase struct {
 		name        string
@@ -1380,7 +1379,7 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 				},
 			}
 
-			for i := 0; i < testCase.connections; i++ {
+			for i := range testCase.connections {
 				err = forwarder.acquireConnectionLockWithIdentity(ctx, identity)
 				if i == testCase.connections-1 {
 					testCase.assert(t, err)
@@ -1463,7 +1462,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 					string(entitlements.K8s): {Enabled: false},
 				},
 			},
-			assertErrFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErrFunc: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				var kubeErr *kubeerrors.StatusError
 				require.ErrorAs(tt, err, &kubeErr)

@@ -660,7 +660,7 @@ func TestMatchMySQLConn(t *testing.T) {
 	tests := []struct {
 		name    string
 		protos  []string
-		version interface{}
+		version any
 	}{
 		{
 			name:    "success",

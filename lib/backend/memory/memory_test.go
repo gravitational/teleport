@@ -71,15 +71,14 @@ func TestMemory(t *testing.T) {
 }
 
 func TestIterateRange(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := New(Config{})
 	require.NoError(t, err)
 
 	// set up a generic bulk range to iterate
 	expectedKeys := make(map[string]struct{})
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		key := backend.NewKey("bulk", strconv.Itoa(i))
 		expectedKeys[key.String()] = struct{}{}
 
@@ -112,7 +111,7 @@ func TestIterateRange(t *testing.T) {
 
 	// set up a collection of keys that are suffixes of one another (ensures we aren't suffering from the classic 'pagination bug', where
 	// page breaks landing on some key K skip subsequent keys with prefix K).
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		_, err = bk.Put(ctx, backend.Item{
 			Key:   backend.NewKey("suff", strings.Repeat("s", i+1)),
 			Value: []byte("s"),

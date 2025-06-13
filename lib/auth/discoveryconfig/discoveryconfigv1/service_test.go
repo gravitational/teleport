@@ -46,7 +46,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...interface{}) {
+		return func(tt require.TestingT, err error, i ...any) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -130,7 +130,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -313,7 +313,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -346,7 +346,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...interface{}) {
+		return func(tt require.TestingT, err error, i ...any) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}

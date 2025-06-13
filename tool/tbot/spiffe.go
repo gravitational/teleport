@@ -35,7 +35,7 @@ type logger struct {
 	l *slog.Logger
 }
 
-func (l logger) Debugf(format string, args ...interface{}) {
+func (l logger) Debugf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}
@@ -44,7 +44,7 @@ func (l logger) Debugf(format string, args ...interface{}) {
 	l.l.DebugContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
-func (l logger) Infof(format string, args ...interface{}) {
+func (l logger) Infof(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
 		return
 	}
@@ -53,7 +53,7 @@ func (l logger) Infof(format string, args ...interface{}) {
 	l.l.InfoContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
-func (l logger) Warnf(format string, args ...interface{}) {
+func (l logger) Warnf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelWarn) {
 		return
 	}
@@ -62,7 +62,7 @@ func (l logger) Warnf(format string, args ...interface{}) {
 	l.l.WarnContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
-func (l logger) Errorf(format string, args ...interface{}) {
+func (l logger) Errorf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
 		return
 	}

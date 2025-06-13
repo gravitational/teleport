@@ -982,7 +982,7 @@ func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Contex
 	}
 	a.mu.Unlock()
 
-	val, err, _ := a.group.Do(key, func() (interface{}, error) {
+	val, err, _ := a.group.Do(key, func() (any, error) {
 		// Recheck the cache in case we've just missed a previous group
 		// completing
 		a.mu.Lock()

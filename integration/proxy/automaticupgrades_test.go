@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -111,8 +110,7 @@ func NewServerMock(path string) *ServerMock {
 
 func TestVersionServer(t *testing.T) {
 	// Test setup
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testVersion := "v12.2.6"
 	testVersionMajorTooHigh := "v99.1.3"
@@ -221,8 +219,7 @@ func TestVersionServer(t *testing.T) {
 }
 func TestDefaultVersionServer(t *testing.T) {
 	// Test setup
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	channels := automaticupgrades.Channels{}
 

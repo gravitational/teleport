@@ -509,7 +509,7 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 
 	localResourceService, err := local.NewStaticHostUserService(backend)
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		_, err := localResourceService.CreateStaticHostUser(ctx, makeStaticHostUser(i))
 		require.NoError(t, err)
 	}

@@ -53,7 +53,7 @@ Should be equivalent to running:
 
 This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the database.
 */
-func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnelclient.RemoteSite, token types.ProvisionToken) (interface{}, error) {
+func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnelclient.RemoteSite, token types.ProvisionToken) (any, error) {
 	if !token.GetRoles().Include(types.RoleDatabase) {
 		return nil, trace.AccessDenied("required '%s' role was not provided by the token", types.RoleDatabase)
 	}
