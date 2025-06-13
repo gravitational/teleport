@@ -616,6 +616,10 @@ message AD {
   string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
   // KDCHostName is the host name for a KDC for x509 Authentication.
   string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
+  // LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountName = 7 [(gogoproto.jsontag) = "ldap_service_account_name,omitempty"];
+  // LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountSID = 8 [(gogoproto.jsontag) = "ldap_service_account_sid,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
