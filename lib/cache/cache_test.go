@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -47,17 +48,12 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -1875,59 +1871,41 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
 
-				// unwrap the RFD 153 resource if necessary
-				switch uw := event.Resource.(type) {
-				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.Account]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.Account]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*provisioningv1.PrincipalState]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*provisioningv1.PrincipalState]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*usertasksv1.UserTask]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*usertasksv1.UserTask]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentReport]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentReport]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*notificationsv1.Notification]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.Notification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				default:
-					require.Empty(t, cmp.Diff(resource, event.Resource))
+				require.IsType(t, resource, event.Resource)
+
+				// this is a very long winded way to check that resource
+				// implements [types.Resource153UnwrapperT] for some T (and if
+				// we had T we could verify that unwrapT.Type().Out(0) is
+				// reflect.TypeFor[T]())
+				if unwrapT := reflect.ValueOf(resource).MethodByName("UnwrapT"); unwrapT.IsValid() {
+					// technically this check could be for
+					// [types.ProtoResource153] but [protocmp.Transform] is
+					// harmless on a non-proto message anyway
+					if unwrapT.Type().NumIn() == 0 &&
+						unwrapT.Type().NumOut() == 1 &&
+						unwrapT.Type().Out(0).Implements(reflect.TypeFor[types.Resource153]()) {
+						unwrappedResource := unwrapT.Call(nil)[0].Interface()
+						// same type, so MethodByName will succeed
+						unwrappedEventResource := reflect.ValueOf(event.Resource).MethodByName("UnwrapT").Call(nil)[0].Interface()
+						require.Empty(t, cmp.Diff(unwrappedResource, unwrappedEventResource, protocmp.Transform()))
+						continue
+					}
 				}
+
+				// "legacy" resource
+				require.Empty(t, cmp.Diff(resource, event.Resource))
 			}
 		})
 	}
 }
+
+type resource153UnwrapperTHasExactlyOneMethod struct{}
+
+func (resource153UnwrapperTHasExactlyOneMethod) UnwrapT() types.Resource153
+
+// this assertion is to enforce that the reflect-y check in
+// TestCacheWatchKindExistsInEvents is correct
+var _ types.Resource153UnwrapperT[types.Resource153] = resource153UnwrapperTHasExactlyOneMethod{}
 
 // TestPartialHealth ensures that when an event source confirms only some resource kinds specified on the watch request,
 // Cache operates in partially healthy mode in which it serves reads of the confirmed kinds from the cache and
