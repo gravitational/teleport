@@ -1755,6 +1755,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = pivCmd.agent.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
 		err = mcpCmd.dbStart.run(&cf)
+	case mcpCmd.connect.FullCommand():
+		err = mcpCmd.connect.run()
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
 	case mcpCmd.config.FullCommand():
