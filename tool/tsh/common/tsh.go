@@ -730,23 +730,25 @@ const (
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
-	siteEnvVar               = "TELEPORT_SITE"
-	userEnvVar               = "TELEPORT_USER"
-	addKeysToAgentEnvVar     = "TELEPORT_ADD_KEYS_TO_AGENT"
-	useLocalSSHAgentEnvVar   = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar    = "TELEPORT_GLOBAL_TSH_CONFIG"
-	mfaModeEnvVar            = "TELEPORT_MFA_MODE"
-	mlockModeEnvVar          = "TELEPORT_MLOCK_MODE"
-	identityFileEnvVar       = "TELEPORT_IDENTITY_FILE"
-	gcloudSecretEnvVar       = "TELEPORT_GCLOUD_SECRET"
-	awsAccessKeyIDEnvVar     = "TELEPORT_AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyEnvVar = "TELEPORT_AWS_SECRET_ACCESS_KEY"
-	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
-	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
-	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
-	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
-	noResumeEnvVar           = "TELEPORT_NO_RESUME"
-	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
+	siteEnvVar                = "TELEPORT_SITE"
+	userEnvVar                = "TELEPORT_USER"
+	addKeysToAgentEnvVar      = "TELEPORT_ADD_KEYS_TO_AGENT"
+	useLocalSSHAgentEnvVar    = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar     = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar             = "TELEPORT_MFA_MODE"
+	mlockModeEnvVar           = "TELEPORT_MLOCK_MODE"
+	identityFileEnvVar        = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar        = "TELEPORT_GCLOUD_SECRET"
+	awsAccessKeyIDEnvVar      = "TELEPORT_AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar  = "TELEPORT_AWS_SECRET_ACCESS_KEY"
+	awsRegionEnvVar           = "TELEPORT_AWS_REGION"
+	awsKeystoreEnvVar         = "TELEPORT_AWS_KEYSTORE"
+	awsWorkgroupEnvVar        = "TELEPORT_AWS_WORKGROUP"
+	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
+	noResumeEnvVar            = "TELEPORT_NO_RESUME"
+	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
+	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
+	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 
 	clusterHelp = "Specify the Teleport cluster to connect."
 	browserHelp = "Set to 'none' to suppress browser opening on login."
@@ -1757,8 +1759,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = pivCmd.agent.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
 		err = mcpCmd.dbStart.run(&cf)
+	case mcpCmd.connect.FullCommand():
+		err = mcpCmd.connect.run()
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
+	case mcpCmd.config.FullCommand():
+		err = mcpCmd.config.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
