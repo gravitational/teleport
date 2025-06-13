@@ -15,7 +15,7 @@ Crown Jewels, and how to see permission changes for these resources.
 <Admonition type="tip">
 
 For an improved experience, we recommend using Crown Jewels in conjunction with Teleport local users or integrating with
-[Okta](../../identity-governance/okta/okta.mdx) or [Microsoft Entra ID](./integrations/entra-id.mdx).
+[Okta](../identity-governance/okta/okta.mdx) or [Microsoft Entra ID](./integrations/entra-id.mdx).
 This setup helps minimize the number of access path change entries generated when highly privileged ephemeral users
 log in via Teleport Auth Connectors.
 
@@ -53,15 +53,15 @@ To create a Crown Jewel, you need to mark a resource or user as critical. Only c
 and users will be logged by Identity Security.
 To mark a resource or user as Crown Jewel, open the Access Graph and navigate to the "Crown Jewels" tab.
 
-![Create Page](../../../img/access-graph/crown-jewels/create-page.webp)
+![Create Page](../../img/access-graph/crown-jewels/create-page.webp)
 
 Click on "Create Crown Jewel" and select the resource or user you want to mark as critical.
 
-![Create Selector](../../../img/access-graph/crown-jewels/create-selector.webp)
+![Create Selector](../../img/access-graph/crown-jewels/create-selector.webp)
 
 Pick a name for the Crown Jewel and click "Create".
 
-![Create Matcher Name](../../../img/access-graph/crown-jewels/create-matcher-name.webp)
+![Create Matcher Name](../../img/access-graph/crown-jewels/create-matcher-name.webp)
 
 The Crown Jewel will now be created, and you will see it in the list of Crown Jewels. Access Graph will now create
 audit events in Teleport's audit log and new entries in the "Access Changes" tab in the "Crown Jewels" menu whenever
@@ -72,7 +72,7 @@ access path to a resource or a user changes.
 To view permission changes, open the Access Graph and navigate to the "Crown Jewels" tab.
 Here you can see a list of all Crown Jewels and the changes that have been made to them.
 
-![Changes](../../../img/access-graph/crown-jewels/changes.webp)
+![Changes](../../img/access-graph/crown-jewels/changes.webp)
 
 The generated changes have a diff format showing removed nodes with "-" and added nodes with "+".
 Every time a change is made to a Crown Jewel, a new entry will be added to the list and an audit event
@@ -99,4 +99,4 @@ Here is what an example audit event looks like:
 ```
 
 You can export the audit event using the event handler.
-The setup is described [here](../management/export-audit-events/export-audit-events.mdx).
+The setup is described [here](../admin-guides/management/export-audit-events/export-audit-events.mdx).
