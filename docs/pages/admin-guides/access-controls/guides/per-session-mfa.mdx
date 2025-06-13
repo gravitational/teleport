@@ -199,6 +199,32 @@ $ tsh db connect prod-mysql-instance
 # mysql>
 ```
 
+Jerry can also execute a query against multiple databases with a single MFA check
+using the `tsh db exec` command:
+```code
+$ tsh db exec "select 1" --labels env=prod --db-user teleport-user --output-dir=logs
+Searching databases ...
+Found 2 database(s):
+
+Name                  Description Protocol Labels
+--------------------- ----------- -------- --------
+prod-mysql-instance-1             mysql    env=prod
+prod-mysql-instance-2             mysql    env=prod
+
+Do you want to proceed with 2 database(s)? [y/N]: y
+Executing command for "prod-mysql-instance-1". Output will be saved at "logs/prod-mysql-instance-1.output".
+MFA is required to access Database "prod-mysql-instance-1"
+Tap any security key
+Detected security key tap
+Executing command for "prod-mysql-instance-2". Output will be saved at "logs/prod-mysql-instance-2.output".
+
+Summary: 2 of 2 succeeded.
+Summary is saved at "logs/summary.json".
+```
+
+Note that each MFA check remains valid for up to 5 minutes. After the 5-minutes
+window, a new MFA check will be requested for new connections.
+
 </Admonition>
 
 ## Limitations
@@ -213,6 +239,7 @@ Current limitations for this feature are:
   [multi-port](../../../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports)
   TCP application through [VNet](../../../connect-your-client/vnet.mdx), the first connection over
   each port triggers an MFA check.
+- For the `tsh db exec` command, only WebAuthn devices are supported.
 
 ## Next steps
 
