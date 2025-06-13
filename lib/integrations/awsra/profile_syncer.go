@@ -138,7 +138,7 @@ type AppServerUpserter interface {
 	UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error)
 }
 
-// StartAWSRolesAnywherProfileSyncer starts the AWS Roles Anywhere Profile Syncer.
+// RunAWSRolesAnywherProfileSyncer starts the AWS Roles Anywhere Profile Syncer.
 // It will iterate over all AWS IAM Roles Anywhere integrations, and for each one:
 // 1. Check if the Profile Sync is enabled.
 // 2. Generate AWS credentials using the integration.
@@ -146,7 +146,7 @@ type AppServerUpserter interface {
 // 4. For each profile, check if it is enabled and has associated roles.
 // 5. Create an AppServer for each profile, using the profile name as the AppServer name.
 // AppServer name can be overridden by the `TeleportApplicationName` tag on the Profile.
-func StartAWSRolesAnywherProfileSyncer(ctx context.Context, params AWSRolesAnywherProfileSyncerParams) error {
+func RunAWSRolesAnywherProfileSyncer(ctx context.Context, params AWSRolesAnywherProfileSyncerParams) error {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -260,6 +260,8 @@ func buildAWSRolesAnywhereClientForIntegration(ctx context.Context, params AWSRo
 		return nil, trace.Wrap(err)
 	}
 
+	// If a custom client is provided, use it instead.
+	// This must only be used for testing purposes.
 	if params.rolesAnywhereClient != nil {
 		return params.rolesAnywhereClient, nil
 	}
