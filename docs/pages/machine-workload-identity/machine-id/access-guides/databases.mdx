@@ -16,10 +16,10 @@ used to access a database configured in Teleport.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - If you have not already put your database behind the Teleport Database Service,
-  follow the [database access getting started guide](../../database-access/getting-started.mdx).
+  follow the [database access getting started guide](../../../enroll-resources/database-access/getting-started.mdx).
   The Teleport Database Service supports databases like PostgreSQL, MongoDB,
   Redis, and much more. See our [database access
-  guides](../../database-access/guides/guides.mdx) for a complete list.
+  guides](../../../enroll-resources/database-access/guides/guides.mdx) for a complete list.
 - (!docs/pages/includes/tctl.mdx!)
 - The `tsh` binary must be installed on the machine that will access the
   database. Depending on how `tbot` was installed, this may already be
@@ -81,7 +81,7 @@ This rule will allow the bot to do two things:
 The `'*': '*'` label selector grants access to any database server configured in Teleport.
 In production, consider restricting the bot's access using a more specific
 label selector; see the
-[Database Access RBAC guide](../../database-access/rbac.mdx)
+[Database Access RBAC guide](../../../enroll-resources/database-access/rbac.mdx)
 for a full reference of database-related role options.
 
 ## Step 2/4. Configure a database `tbot` output
