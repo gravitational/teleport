@@ -51,7 +51,7 @@ func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBStartCommand {
 }
 
 func (c *mcpDBStartCommand) run(cf *CLIConf) error {
-	logger, err := initLogger(cf, utils.LoggingForMCP, parseLoggingOptsFromEnvAndArgv(cf))
+	logger, err := initLogger(cf, utils.LoggingForMCP, getLoggingOptsForMCPServer(cf))
 	if err != nil {
 		return trace.Wrap(err)
 	}
