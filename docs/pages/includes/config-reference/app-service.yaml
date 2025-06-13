@@ -103,3 +103,13 @@ app_service:
         ## Default: roles-and-traits
         # jwt_claims: roles-and-traits
 
+      # Contains MCP server-related configurations.
+      mcp:
+        # Command to launch stdio-based MCP servers.
+        command: "docker"
+        # Args to execute with the command.
+        args: ["run", "-i", "--rm", "mcp/everything"]
+        # Name of the host user account under which the command will be
+        # executed. Required for stdio-based MCP servers.
+        run_as_host_user: "docker"
+
