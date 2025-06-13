@@ -176,12 +176,20 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 			return nil, trace.Wrap(err)
 		}
 
-		// Only return an error if the endpoint url is set and the build is OSS
-		// so that the enterprise marshaler can call this marshaler to produce
-		// the final output without receiving an error.
-		if modules.GetModules().IsOSSBuild() &&
-			githubConnector.Spec.EndpointURL != "" {
-			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
+		// Return an error for OSS build if the endpoint url is set, but it is
+		// not the public GitHub endpoint. Empty endpoint url is also allowed.
+		//
+		// Note that the enterprise marshaler also calls this marshaler to
+		// produce the final output.
+		if modules.GetModules().IsOSSBuild() {
+			if githubConnector.Spec.EndpointURL != "" &&
+				githubConnector.Spec.EndpointURL != types.GithubURL {
+				return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
+			}
+			if githubConnector.Spec.APIEndpointURL != "" &&
+				githubConnector.Spec.APIEndpointURL != types.GithubAPIURL {
+				return nil, fmt.Errorf("GitHub API endpoint URL is set: %w", ErrRequiresEnterprise)
+			}
 		}
 		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, githubConnector))
 	default:
