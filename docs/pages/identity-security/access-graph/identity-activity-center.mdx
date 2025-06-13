@@ -93,7 +93,7 @@ Execute the following Terraform script to create the required infrastructure.
 
 `variables.tf` file includes the description of the required Terraform variables.
 
-```terraform
+```hcl
 (!examples/identity-activity-center/variables.tf!)
 ```
 
@@ -103,7 +103,7 @@ Execute the following Terraform script to create the required infrastructure.
 that Terraform will create and manage. This includes AWS KMS keys, AWS S3 Buckets
 for transient and long-term storage, and AWS Glue table and database.
 
-```
+```hcl
 (!examples/identity-activity-center/identity_activity_center.tf!)
 ```
 
@@ -113,7 +113,7 @@ for transient and long-term storage, and AWS Glue table and database.
 be attached to the AWS identity that the Identity Security service runs as,
 enabling it to access the resources and execute queries.
 
-```
+```hcl
 (!examples/identity-activity-center/policy.tf!)
 ```
 
