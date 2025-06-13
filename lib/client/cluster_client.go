@@ -615,7 +615,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	}
 
 	if params.ReusableMFAResponse != nil {
-		log.Debug( "MFA is required, using reusable MFA response")
+		log.Debug("MFA is required, using reusable MFA response")
 		params.ExistingCreds = keyRing
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		switch {
