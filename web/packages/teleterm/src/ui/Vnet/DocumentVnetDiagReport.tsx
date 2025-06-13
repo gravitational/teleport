@@ -441,8 +441,8 @@ function CheckReportSSHConfiguration({
           The user's default SSH configuration file does not include VNet's
           generated SSH configuration file. SSH clients will not be able to make
           connections to VNet SSH addresses by default. Add the following line
-          to <code>{userOpensshConfigPath}</code> to configure OpenSSH-compatible clients for
-          VNet:
+          to <code>{userOpensshConfigPath}</code> to configure
+          OpenSSH-compatible clients for VNet:
         </P2>
         <TextSelectCopy text={`Include "${vnetSshConfigPath}"`} bash={false} />
       </Stack>
