@@ -75,7 +75,7 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newRemoteOSConfigProvider(
+	osConfigProvider, err := newOSConfigProvider(
 		clt,
 		tunName,
 		networkStackConfig.ipv6Prefix.String(),

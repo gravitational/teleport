@@ -98,16 +98,16 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
 	})
-	osConfigProvider := NewLocalOSConfigProvider(&LocalOSConfigProviderConfig{
+	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
-		clientApplication:     clientApplication,
-		fqdnResolver:          fqdnResolver,
-		localOSConfigProvider: osConfigProvider,
-		clock:                 clock,
+		clientApplication:            clientApplication,
+		fqdnResolver:                 fqdnResolver,
+		unifiedClusterConfigProvider: unifiedClusterConfigProvider,
+		clock:                        clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,11 +123,11 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	})
 
 	userProcess := &UserProcess{
-		clientApplication:        clientApplication,
-		osConfigProvider:         osConfigProvider,
-		clientApplicationService: clientApplicationService,
-		clock:                    clock,
-		processManager:           processManager,
+		clientApplication:            clientApplication,
+		unifiedClusterConfigProvider: unifiedClusterConfigProvider,
+		clientApplicationService:     clientApplicationService,
+		clock:                        clock,
+		processManager:               processManager,
 	}
 	if err := userProcess.runPlatformUserProcess(processCtx); err != nil {
 		return nil, trace.Wrap(err)
@@ -140,9 +140,9 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 type UserProcess struct {
 	clientApplication ClientApplication
 
-	clock                    clockwork.Clock
-	osConfigProvider         *LocalOSConfigProvider
-	clientApplicationService *clientApplicationService
+	clock                        clockwork.Clock
+	unifiedClusterConfigProvider *UnifiedClusterConfigProvider
+	clientApplicationService     *clientApplicationService
 
 	processManager   *ProcessManager
 	networkStackInfo *vnetv1.NetworkStackInfo
@@ -163,6 +163,6 @@ func (p *UserProcess) NetworkStackInfo() *vnetv1.NetworkStackInfo {
 // GetTargetOSConfiguration returns the LocalOSConfigProvider which clients may
 // use to report the proxied DNS zones, run diagnostics, etc. The returned
 // *LocalOSConfigProvider will remain valid even if the UserProcess is closed.
-func (p *UserProcess) GetOSConfigProvider() *LocalOSConfigProvider {
-	return p.osConfigProvider
+func (p *UserProcess) GetUnifiedClusterConfigProvider() *UnifiedClusterConfigProvider {
+	return p.unifiedClusterConfigProvider
 }

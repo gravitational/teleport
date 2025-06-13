@@ -225,15 +225,15 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 		s.mu.Unlock()
 		return nil, trace.CompareFailed("VNet is not running")
 	}
-	osConfigProvider := s.vnetProcess.GetOSConfigProvider()
+	unifiedClusterConfigProvider := s.vnetProcess.GetUnifiedClusterConfigProvider()
 	s.mu.Unlock()
 
-	targetOSConfig, err := osConfigProvider.GetTargetOSConfiguration(ctx)
+	unifiedClusterConfig, err := unifiedClusterConfigProvider.GetUnifiedClusterConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &api.ListDNSZonesResponse{
-		DnsZones: targetOSConfig.GetDnsZones(),
+		DnsZones: unifiedClusterConfig.AppDNSZones(),
 	}, nil
 }
 
