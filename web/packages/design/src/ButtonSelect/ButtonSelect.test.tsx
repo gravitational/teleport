@@ -22,9 +22,9 @@ import { ButtonSelect } from './ButtonSelect';
 
 describe('ButtonSelect', () => {
   const options = [
-    { key: '1', label: 'Option 1' },
-    { key: '2', label: 'Option 2' },
-    { key: '3', label: 'Option 3' },
+    { value: '1', label: 'Option 1' },
+    { value: '2', label: 'Option 2' },
+    { value: '3', label: 'Option 3' },
   ];
   const activeOption = '1';
 
@@ -46,17 +46,20 @@ describe('ButtonSelect', () => {
     expect(buttons[0]).toHaveTextContent('Option 1');
     expect(buttons[1]).toHaveTextContent('Option 2');
     expect(buttons[2]).toHaveTextContent('Option 3');
+    expect(buttons[0]).toHaveAttribute('aria-label', 'Option 1');
+    expect(buttons[1]).toHaveAttribute('aria-label', 'Option 2');
+    expect(buttons[2]).toHaveAttribute('aria-label', 'Option 3');
   });
 
   it('applies data-active attribute correctly', () => {
     const { buttons } = renderButtonSelect();
     expect(buttons).toHaveLength(options.length);
-    expect(buttons[0]).toHaveAttribute('data-active', 'true');
-    expect(buttons[1]).toHaveAttribute('data-active', 'false');
-    expect(buttons[2]).toHaveAttribute('data-active', 'false');
+    expect(buttons[0]).toHaveAttribute('aria-checked', 'true');
+    expect(buttons[1]).toHaveAttribute('aria-checked', 'false');
+    expect(buttons[2]).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('calls onChange with the correct key when a button is clicked', () => {
+  it('calls onChange with the correct value when a button is clicked', () => {
     const { buttons, onChange } = renderButtonSelect();
     buttons[1].click();
     expect(onChange).toHaveBeenCalledWith('2');

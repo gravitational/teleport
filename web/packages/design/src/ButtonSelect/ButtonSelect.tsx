@@ -22,25 +22,19 @@ import Flex from 'design/Flex';
 
 import { Button } from '../Button/Button';
 
-interface ButtonSelectProps {
-  // The options to display in the button select.
-  // Each option should have a unique `key` and a `label` to display on the button.
-  options: { key: string; label: string }[];
-  // The key of the active option
-  activeOption: string;
-  // Callback function that is called when the active button changes. It receives the key of the newly selected button.
-  onChange: (selectedKey: string) => void;
-}
-
 /**
  * ButtonSelect is a segmented button that allows users to select one of the provided options.
  *
- * Each option must have a unique `key` and a `label` that will be displayed on the button.
+ * Each option must have a unique `value` and a `label` that will be displayed on the button.
+ *
+ * @property options - The options to display in the button select. Each option should have a unique `value` and a `label` to display on the button.
+ * @property activeOption - The value of the currently active option.
+ * @property onChange - Callback function that is called when the active button changes. Receives the value of the newly selected button.
  *
  * @example
  * const options = [
- *   { key: '1', label: 'Option 1' },
- *   { key: '2', label: 'Option 2' },
+ *   { value: '1', label: 'Option 1' },
+ *   { value: '2', label: 'Option 2' },
  * ];
  * const [activeOption, setActiveOption] = useState('1');
  * return (
@@ -55,7 +49,11 @@ export const ButtonSelect = ({
   options,
   activeOption,
   onChange,
-}: ButtonSelectProps) => {
+}: {
+  options: { value: string; label: string }[];
+  activeOption: string;
+  onChange: (selectedvalue: string) => void;
+}) => {
   const updateValue = (newOption: string) => {
     if (activeOption !== newOption) {
       onChange(newOption);
@@ -65,12 +63,13 @@ export const ButtonSelect = ({
   return (
     <Wrapper>
       {options.map(option => {
-        const isActive = activeOption === option.key;
+        const isActive = activeOption === option.value;
         return (
           <ButtonSelectButton
-            key={option.key}
-            onClick={() => updateValue(option.key)}
-            data-active={isActive}
+            key={option.value}
+            aria-label={option.label}
+            aria-checked={isActive}
+            onClick={() => updateValue(option.value)}
             intent={isActive ? 'primary' : 'neutral'}
           >
             {option.label}
