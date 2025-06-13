@@ -173,15 +173,63 @@ In order to keep the implementation modular, each logical section of the page fe
 
 #### Web APIs
 
-| **New**                                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fetch join tokens linked to a bot by name       | `GET /v1/webapi/sites/:site/machine-id/bot/:name/token`<br><br>**Logic**<br>Use `Service.ListResourcesWithFilter` to retrieve a paginated list of `token` resources which have a role of "Bot" and `bot_name` matching the bot being queried.<br><br>**Performance**<br>Pagination is not required, so pages will be retrieved one after the other until the end of the list. It is not anticipated that any bot will have more than 20 join methods. |
-| Update roles, traits, config and lock state     | `PUT /v1/webapi/sites/:site/machine-id/bot/:name`<br><br>**Logic**<br>Not all items of data are saved to the same resource. As such, it's important to ensure the update happens atomically and rolled back on failure.                                                                                                                                                                                                                               |
-|                                                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Existing**                                    |                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Fetch a bot by name, including roles and traits | `GET /v1/webapi/sites/:site/machine-id/bot/:name`                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Delete a bot                                    | `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Fetch active instances for a bot by name        | `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name&page_size=20&page=/bot-instance/:bot_name/:instance_id`                                                                                                                                                                                                                                                                                                                          |
+##### `GET /v1/webapi/sites/:site/machine-id/bot/:name`
+
+Fetch a bot by name, including roles and traits. Endpoint exists and will be reused. Additional fields for lock state will be added to the Bot resource and populated from the underlying User resource.
+
+``` protobuf
+message BotStatus {
+  // IsLocked indicates if the bot user is locked
+  bool IsLocked = 4
+  // LockedMessage contains the message to display when the bot user is locked
+  string LockedMessage = 5
+  // LockedTime contains the time when bot user was locked
+  google.protobuf.Timestamp LockedTime = 6
+  // LockExpires contains the time this lock will expire
+  google.protobuf.Timestamp LockExpires = 7
+}
+```
+
+##### `GET /v1/webapi/tokens?filter_role=Bot&filter_bot_name=:name`
+
+Fetch join tokens linked to a bot by name.
+
+**Approach**
+Existing endpoint with additional filters added. Filter params will be added; `filter_role` and `filter_bot_name`
+
+``` protobuf
+// GetTokensRequest is used to request a list of tokens. Filtering by role and bot_name are supported
+message GetTokensRequest {
+    // FilterRole allows filtering the returned items by the token's role (e.g. 'static', 'node', 'bot', etc)
+    string FilterRole = 1 [(gogoproto.jsontag) = "filter_role"];
+    // FilterBotName allows filtering the returned items by the name of the associated bot. This is a no-op unless FilterRole is 'bot'.
+    string FilterBotName = 2 [(gogoproto.jsontag) = "filter_bot_name"];
+}
+
+service AuthService {
+  // GetTokens retrieves all tokens.
+  rpc GetTokens(GetTokensRequest) returns (types.ProvisionTokenV2List);
+}
+```
+_api/proto/teleport/legacy/client/proto/authservice.proto_
+
+**Performance**
+The existing endpoint does not support pagination. It is not anticipated that use of the endpoint for the Bot Details page will increase usage or load significantly, as such, the endpoint will be used as-is. A bot is likely to have fewer than 20 associated join methods.
+
+##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name&page_size=20&page=/bot-instance/:bot_name/:instance_id`
+
+Fetch active instances for a bot by name. Endpoint exists.
+
+##### `PUT /v1/webapi/sites/:site/machine-id/bot/:name`
+
+Update roles, traits and config (`max_session_ttl`).
+
+**Approach**
+Existing endpoint with additional capabilities added. Currently only updating roles is supported. Support for updating traits and `max_session_ttl` are already supported by the underlying RPC and will be exposed by this endpoint. Not all items of data are saved to the same resource. As such, it's important to ensure the update happens atomically and rolled back on failure.
+
+##### `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`
+
+Delete a bot. Existing endpoint.
 
 #### UI
 
