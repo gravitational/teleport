@@ -18,9 +18,7 @@ package kerberos
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
-	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -29,13 +27,14 @@ import (
 	"github.com/jcmturner/gokrb5/v8/keytab"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
 )
 
 type clientProvider struct {
-	AuthClient windows.AuthInterface
-
+	AuthClient            windows.AuthInterface
+	Logger                *slog.Logger
 	kinitCommandGenerator kinit.CommandGenerator
 }
 
@@ -45,18 +44,17 @@ type ClientProvider interface {
 	GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error)
 }
 
-func NewClientProvider(authClient windows.AuthInterface) ClientProvider {
-	return newClientProvider(authClient)
+// NewClientProvider returns new instance of ClientProvider.
+func NewClientProvider(authClient windows.AuthInterface, logger *slog.Logger) ClientProvider {
+	return newClientProvider(authClient, logger)
 }
 
-func newClientProvider(authClient windows.AuthInterface) *clientProvider {
+func newClientProvider(authClient windows.AuthInterface, logger *slog.Logger) *clientProvider {
 	return &clientProvider{
 		AuthClient: authClient,
+		Logger:     logger,
 	}
 }
-
-var errBadCertificate = errors.New("invalid certificate was provided via AD configuration")
-var errBadKerberosConfig = errors.New("configuration must have either keytab_file or kdc_host_name and ldap_cert")
 
 func (c *clientProvider) GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error) {
 	switch {
@@ -74,7 +72,7 @@ func (c *clientProvider) GetKerberosClient(ctx context.Context, ad types.AD, use
 		return kt, nil
 
 	}
-	return nil, trace.Wrap(errBadKerberosConfig)
+	return nil, trace.BadParameter("configuration must have either keytab_file or kdc_host_name and ldap_cert")
 }
 
 // keytabClient returns a kerberos client using a keytab file
@@ -107,24 +105,14 @@ func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Cli
 
 // kinitClient returns a kerberos client using a kinit ccache
 func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface) (*client.Client, error) {
-	ldapPem, _ := pem.Decode([]byte(ad.LDAPCert))
-
-	if ldapPem == nil {
-		return nil, trace.Wrap(errBadCertificate)
+	if _, err := tlsutils.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
+		return nil, trace.Wrap(err, "invalid certificate was provided via AD configuration")
 	}
-
-	cert, err := x509.ParseCertificate(ldapPem.Bytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	certGetter := &kinit.DBCertGetter{
-		Auth:            auth,
-		KDCHostName:     strings.ToUpper(ad.KDCHostName),
-		RealmName:       ad.Domain,
-		AdminServerName: ad.KDCHostName,
-		UserName:        username,
-		LDAPCA:          cert,
+		Auth:     auth,
+		Logger:   c.Logger,
+		ADConfig: ad,
+		UserName: username,
 	}
 
 	realmName := strings.ToUpper(ad.Domain)
@@ -135,18 +123,15 @@ func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username 
 			Realm:       realmName,
 			KDCHost:     ad.KDCHostName,
 			AdminServer: ad.Domain,
-			LDAPCA:      cert,
 			LDAPCAPEM:   ad.LDAPCert,
 			Command:     c.kinitCommandGenerator,
 			CertGetter:  certGetter,
 		}))
-
 	// create the kinit credentials cache using the previously prepared cert/key pair
 	cc, conf, err := k.UseOrCreateCredentialsCache(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// Create Kerberos client from ccache. No need to login, `kinit` will have already done that.
 	return client.NewFromCCache(cc, conf, client.DisablePAFXFAST(true))
 }
