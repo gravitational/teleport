@@ -29,8 +29,8 @@ export default {
 
 export const TwoOptions = () => {
   const options = [
-    { key: '1', label: 'Option 1' },
-    { key: '2', label: 'Option 2' },
+    { value: '1', label: 'Option 1' },
+    { value: '2', label: 'Option 2' },
   ];
 
   const [activeOption, setActiveOption] = useState('1');
@@ -49,10 +49,10 @@ export const TwoOptions = () => {
 
 export const FourOptions = () => {
   const options = [
-    { key: '1', label: 'Option 1' },
-    { key: '2', label: 'Option 2' },
-    { key: '3', label: 'Option 3' },
-    { key: '4', label: 'Option 4' },
+    { value: '1', label: 'Option 1' },
+    { value: '2', label: 'Option 2' },
+    { value: '3', label: 'Option 3' },
+    { value: '4', label: 'Option 4' },
   ];
 
   const [activeOption, setActiveOption] = useState('1');
