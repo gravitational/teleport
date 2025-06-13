@@ -3517,6 +3517,42 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 	return nil
 }
 
+// GetRelayServer returns the relay server heartbeat with a given name.
+func (c *Client) GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error) {
+	req := &presencepb.GetRelayServerRequest{
+		Name: name,
+	}
+	resp, err := c.PresenceServiceClient().GetRelayServer(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetRelayServer(), nil
+}
+
+// ListRelayServers returns a paginated list of relay server heartbeats.
+func (c *Client) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error) {
+	req := &presencepb.ListRelayServersRequest{
+		PageSize:  int64(pageSize),
+		PageToken: pageToken,
+	}
+
+	resp, err := c.PresenceServiceClient().ListRelayServers(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.GetRelays(), resp.GetNextPageToken(), nil
+}
+
+// DeleteRelayServer deletes a relay server heartbeat by name.
+func (c *Client) DeleteRelayServer(ctx context.Context, name string) error {
+	req := &presencepb.DeleteRelayServerRequest{
+		Name: name,
+	}
+	_, err := c.PresenceServiceClient().DeleteRelayServer(ctx, req)
+	return trace.Wrap(err)
+}
+
 func (c *Client) GetDesktopBootstrapScript(ctx context.Context) (string, error) {
 	resp, err := c.grpc.GetDesktopBootstrapScript(ctx, &emptypb.Empty{})
 	if err != nil {
