@@ -40,12 +40,7 @@ export function DocumentVnetInfo(props: {
 }) {
   const { doc } = props;
   const { mainProcessClient } = useAppContext();
-  const {
-    startAttempt,
-    stop: stopVnet,
-    stopAttempt,
-    status,
-  } = useVnetContext();
+  const { startAttempt, stop: stopVnet, stopAttempt, state } = useVnetContext();
   const { launchVnetWithoutFirstTimeCheck } = useVnetLauncher();
   const userAtHost = useMemo(() => {
     const { hostname, username } = mainProcessClient.getRuntimeSettings();
@@ -106,17 +101,17 @@ export function DocumentVnetInfo(props: {
             flexWrap="wrap"
           >
             <Button
-              intent={status.value === 'stopped' ? 'primary' : 'neutral'}
+              intent={state.value === 'stopped' ? 'primary' : 'neutral'}
               size="large"
               minWidth="fit-content"
               type="button"
-              onClick={status.value === 'stopped' ? startVnet : stopVnet}
+              onClick={state.value === 'stopped' ? startVnet : stopVnet}
               disabled={
                 startAttempt.status === 'processing' ||
                 stopAttempt.status === 'processing'
               }
             >
-              {status.value === 'stopped' ? 'Start VNet' : 'Stop VNet'}
+              {state.value === 'stopped' ? 'Start VNet' : 'Stop VNet'}
             </Button>
             <Button
               size="large"

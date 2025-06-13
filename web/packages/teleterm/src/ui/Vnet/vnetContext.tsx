@@ -28,7 +28,10 @@ import {
   useState,
 } from 'react';
 
-import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import {
+  BackgroundItemStatus,
+  StatusResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -55,13 +58,13 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet diagnostics.
    */
   isDiagSupported: boolean;
-  status: VnetStatus;
+  state: VnetState;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
-  listDNSZones: () => Promise<[string[], Error]>;
-  listDNSZonesAttempt: Attempt<string[]>;
+  fetchStatus: () => Promise<[StatusResponse, Error]>;
+  statusAttempt: Attempt<StatusResponse>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -108,7 +111,7 @@ export type VnetContext = {
   hasEverStarted: boolean;
 };
 
-export type VnetStatus =
+export type VnetState =
   | { value: 'running' }
   | { value: 'stopped'; reason: VnetStoppedReason };
 
@@ -121,7 +124,7 @@ export const VnetContext = createContext<VnetContext>(null);
 export const VnetContextProvider: FC<
   PropsWithChildren<{ diagnosticsIntervalMs?: number }>
 > = ({ diagnosticsIntervalMs = defaultDiagnosticsIntervalMs, children }) => {
-  const [status, setStatus] = useState<VnetStatus>({
+  const [state, setState] = useState<VnetState>({
     value: 'stopped',
     reason: { value: 'regular-shutdown-or-not-started' },
   });
@@ -172,7 +175,7 @@ export const VnetContextProvider: FC<
         await mainProcessClient.forceFocusWindow({ wait: true });
       }
 
-      setStatus({ value: 'running' });
+      setState({ value: 'running' });
       setAppState({ autoStart: true, hasEverStarted: true });
     }, [vnet, setAppState, appCtx, mainProcessClient])
   );
@@ -219,7 +222,7 @@ export const VnetContextProvider: FC<
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
-      setStatus({
+      setState({
         value: 'stopped',
         reason: { value: 'regular-shutdown-or-not-started' },
       });
@@ -234,11 +237,8 @@ export const VnetContextProvider: FC<
     ])
   );
 
-  const [listDNSZonesAttempt, listDNSZones] = useAsync(
-    useCallback(
-      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
-      [vnet]
-    )
+  const [statusAttempt, fetchStatus] = useAsync(
+    useCallback(() => vnet.status({}).then(({ response }) => response), [vnet])
   );
 
   /**
@@ -250,12 +250,12 @@ export const VnetContextProvider: FC<
    */
   const getDisabledDiagnosticsReason = useCallback(
     (runDiagnosticsAttempt: Attempt<Report>) =>
-      status.value !== 'running'
+      state.value !== 'running'
         ? 'VNet must be running to run diagnostics'
         : runDiagnosticsAttempt.status === 'processing'
           ? 'Generating diagnostic report…'
           : '',
-    [status.value]
+    [state.value]
   );
 
   const rootClusterUri = useStoreSelector(
@@ -336,7 +336,7 @@ export const VnetContextProvider: FC<
     function handleUnexpectedShutdown() {
       const removeListener = appCtx.addUnexpectedVnetShutdownListener(
         ({ error }) => {
-          setStatus({
+          setState({
             value: 'stopped',
             reason: { value: 'unexpected-shutdown', errorMessage: error },
           });
@@ -430,7 +430,7 @@ export const VnetContextProvider: FC<
         return;
       }
 
-      if (status.value !== 'running') {
+      if (state.value !== 'running') {
         return;
       }
 
@@ -454,7 +454,7 @@ export const VnetContextProvider: FC<
       isDiagSupported,
       diagnosticsIntervalMs,
       runDiagnosticsAndShowNotification,
-      status.value,
+      state.value,
       resetHasActedOnPreviousNotification,
     ]
   );
@@ -464,13 +464,13 @@ export const VnetContextProvider: FC<
       value={{
         isSupported,
         isDiagSupported,
-        status,
+        state,
         start,
         startAttempt,
         stop,
         stopAttempt,
-        listDNSZones,
-        listDNSZonesAttempt,
+        fetchStatus,
+        statusAttempt,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,

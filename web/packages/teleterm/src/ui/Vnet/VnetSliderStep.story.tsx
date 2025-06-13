@@ -38,8 +38,10 @@ import { VnetSliderStep as Component } from './VnetSliderStep';
 type StoryProps = {
   startVnet: 'success' | 'error' | 'processing';
   autoStart: boolean;
-  dnsZones: string[];
-  listDnsZones:
+  appDnsZones: string[];
+  clusters: string[];
+  sshConfigured: boolean;
+  fetchStatus:
     | 'success'
     | 'error'
     | 'processing'
@@ -68,10 +70,13 @@ const meta: Meta<StoryProps> = {
       control: { type: 'inline-radio' },
       options: ['success', 'error', 'processing'],
     },
-    dnsZones: {
+    appDnsZones: {
       control: { type: 'object' },
     },
-    listDnsZones: {
+    clusters: {
+      control: { type: 'object' },
+    },
+    fetchStatus: {
       control: { type: 'inline-radio' },
       options: [
         'success',
@@ -96,8 +101,10 @@ const meta: Meta<StoryProps> = {
   args: {
     startVnet: 'success',
     autoStart: true,
-    dnsZones: ['teleport.example.com', 'company.test'],
-    listDnsZones: 'success',
+    appDnsZones: ['teleport.example.com', 'company.test'],
+    clusters: ['teleport.example.com'],
+    sshConfigured: false,
+    fetchStatus: 'success',
     vnetDiag: true,
     runDiagnostics: 'success',
     diagReport: 'ok',
@@ -148,22 +155,30 @@ export function VnetSliderStep(props: StoryProps) {
     };
   }
 
-  if (props.listDnsZones === 'processing') {
-    appContext.vnet.listDNSZones = () => pendingPromise;
+  if (props.fetchStatus === 'processing') {
+    appContext.vnet.status = () => pendingPromise;
   } else {
     let firstCall = true;
-    appContext.vnet.listDNSZones = () => {
-      if (props.listDnsZones === 'processing-with-previous-results') {
+    appContext.vnet.status = () => {
+      if (props.fetchStatus === 'processing-with-previous-results') {
         if (firstCall) {
           firstCall = false;
-          return new MockedUnaryCall({ dnsZones: props.dnsZones });
+          return new MockedUnaryCall({
+            appDnsZones: props.appDnsZones,
+            clusters: props.clusters,
+            sshConfigured: props.sshConfigured,
+          });
         }
         return pendingPromise;
       }
 
       return new MockedUnaryCall(
-        { dnsZones: props.dnsZones },
-        props.listDnsZones === 'error'
+        {
+          appDnsZones: props.appDnsZones,
+          clusters: props.clusters,
+          sshConfigured: props.sshConfigured,
+        },
+        props.fetchStatus === 'error'
           ? new Error('something went wrong')
           : undefined
       );
@@ -204,8 +219,8 @@ export function VnetSliderStep(props: StoryProps) {
     >
       <ConnectionsContextProvider>
         <VnetContextProvider>
-          {props.listDnsZones === 'processing-with-previous-results' && (
-            <RerequestDNSZones />
+          {props.fetchStatus === 'processing-with-previous-results' && (
+            <RerequestStatus />
           )}
           <Component
             refCallback={noop}
@@ -221,14 +236,14 @@ export function VnetSliderStep(props: StoryProps) {
   );
 }
 
-const RerequestDNSZones = () => {
-  const { listDNSZones, listDNSZonesAttempt } = useVnetContext();
+const RerequestStatus = () => {
+  const { fetchStatus, statusAttempt } = useVnetContext();
 
   useEffect(() => {
-    if (listDNSZonesAttempt.status === 'success') {
-      listDNSZones();
+    if (statusAttempt.status === 'success') {
+      fetchStatus();
     }
-  }, [listDNSZonesAttempt, listDNSZones]);
+  }, [statusAttempt, fetchStatus]);
 
   return null;
 };
