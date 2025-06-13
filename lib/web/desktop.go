@@ -552,7 +552,6 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				log.DebugContext(ctx, "sending latency stats", "client", stats.Client, "server", stats.Server)
 				return trace.Wrap(tdpConnProxy.SendToClient(tdp.LatencyStats{
 					ClientLatency: uint32(stats.Client),
 					ServerLatency: uint32(stats.Server),
