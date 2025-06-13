@@ -63,7 +63,7 @@ export const ButtonSelect = ({
   };
 
   return (
-    <Flex>
+    <Wrapper>
       {options.map(option => {
         const isActive = activeOption === option.key;
         return (
@@ -77,9 +77,15 @@ export const ButtonSelect = ({
           </ButtonSelectButton>
         );
       })}
-    </Flex>
+    </Wrapper>
   );
 };
+
+const Wrapper = styled(Flex)`
+  & > * {
+    min-width: fit-content;
+  }
+`;
 
 const ButtonSelectButton = styled(Button)`
   border-radius: 0px;
