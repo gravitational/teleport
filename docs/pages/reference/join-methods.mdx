@@ -7,7 +7,7 @@ tocDepth: 3
 ---
 
 This guide explains the core concepts behind the Teleport joining process,
-references all support join methods and classifies them based on their
+references all supported join methods and classifies them based on their
 security properties. This guide does not explain step-by-step how to
 join an instance with each join method, but links to the relevant How-To
 guides when possible.
@@ -322,6 +322,10 @@ to access Teleport-protected resources in Azure DevOps pipelines without the
 use of long-lived secrets.
 
 (!docs/pages/includes/provision-token/azure-devops-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Azure DevOps](../enroll-resources/machine-id/deployment/azure-devops.mdx)
+</Admonition>
 
 ### GCP service account: `gcp`
 

@@ -35,7 +35,6 @@ import (
 
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
-	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/google/uuid"
@@ -2068,7 +2067,7 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 }
 
 // elasticsearchClient returns an Elasticsearch test DB client.
-func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elasticsearch.TestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolElasticsearch,
@@ -3210,12 +3209,15 @@ func withSelfHostedMongoWithAdminUser(name, adminUsername string, opts ...mongod
 
 func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		}, opts...)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3309,11 +3311,14 @@ func withClickhouseHTTP(name string) withDatabaseOption {
 
 func withElastiCacheRedis(name string, token, engineVersion string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3346,11 +3351,14 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 
 func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3383,11 +3391,14 @@ func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOpt
 
 func withAzureRedis(name string, token string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
