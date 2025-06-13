@@ -152,11 +152,35 @@ const api = {
    * It returns the JSON data if it is a valid JSON and
    * there were no response errors.
    *
-   * If a response had an error and it contained a MFA authn
-   * required message, then a retry is attempted after a user
-   * successfully re-authenticates with an MFA device.
+   * The field "mfaResponse" may be required if the cluster auth setting is
+   * set to: `auth_service.authentication.second_factor: webauthn` which
+   * require users to re-authenticate before performing admin actions like
+   * creating join tokens or deleting users etc.
    *
-   * All other errors will be thrown.
+   * Generally, mfaResponse is not needed because this func will first attempt
+   * a fetch without it and if the response had an error and it contained a MFA
+   * authn required message, then this func will fetch a challenge and prompt
+   * the user to re-authn. After successfully re-authenticating, a retry fetch
+   * with the original URL is attempted.
+   *
+   * There are a few cases where providing a mfaResponse is required and it
+   * starts by creating a MFA challenge with `allowReuse` set to true:
+   *
+   *     services > auth > auth.ts > getMfaChallengeResponseForAdminAction
+   *
+   * This allow users to require re-authenticating ONCE for the following:
+   *   - In the web app, we can be calling multiple endpoints back to back,
+   *     and some or all endpoints require re-authenticating. If a non reusable
+   *     mfaResponse was provided, or mfaResponse wasn't provided then each
+   *     fetch will ask the user to re-authenticate.
+   *   - We can make a single fetch without a mfaResponse, re-authenticate
+   *     successfully as required, but the retry attempt still fails with a
+   *     vague "access denied" error. This is because there are some endpoints
+   *     where it's in the backend that are calling multiple endpoints that
+   *     require re-authenticating. Providing a reusable mfaResponse resolves
+   *     this issue.
+   *
+   * The mfaResponse with reuse is good for about 5 minutes.
    */
   async fetchJsonWithMfaAuthnRetry(
     url: string,
