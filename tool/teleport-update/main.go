@@ -496,11 +496,16 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 
+	return statusExitCode(ccfg, status), nil
+}
+
+// statusExitCode returns the desired exit code for the status command.
+func statusExitCode(ccfg *cliConfig, status autoupdate.Status) int {
 	// Implement --is-up-to-date
-	if ccfg.StatusWithExitCode && status.InWindow && status.Active.Version != status.Target.Version {
-		return notUpToDateExitCode, nil
+	if ccfg.StatusWithExitCode && status.InWindow && status.Active.String() != status.Target.String() {
+		return notUpToDateExitCode
 	}
-	return 0, nil
+	return 0
 }
 
 // cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
