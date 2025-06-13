@@ -404,7 +404,9 @@ it('passes props with stable identity to <Resources>', async () => {
         <MockWorkspaceContextProvider>
           <ResourcesContextProvider>
             <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
-              {children}
+              <ConnectionsContextProvider>
+                <VnetContextProvider>{children}</VnetContextProvider>
+              </ConnectionsContextProvider>
             </ConnectMyComputerContextProvider>
           </ResourcesContextProvider>
         </MockWorkspaceContextProvider>
