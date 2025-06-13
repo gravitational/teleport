@@ -1754,6 +1754,16 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			},
 		)
 		return resp, trace.Wrap(err)
+	case types.KindSAMLIdPServiceProvider:
+		resp, err := buildListResourcesResponse(
+			c.collections.samlIdPServiceProviders.store.resources(samlIdPServiceProviderNameIndex, req.StartKey, ""),
+			limit,
+			filter,
+			func(d types.SAMLIdPServiceProvider) types.ResourceWithLabels {
+				return d.CloneResource()
+			},
+		)
+		return resp, trace.Wrap(err)
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
