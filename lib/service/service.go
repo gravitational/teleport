@@ -160,6 +160,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -5045,9 +5046,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register ALPN handler that will be accepting connections for plain
 	// TCP applications.
+	// Use the same handler for MCP protocols, for now.
 	if alpnRouter != nil {
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
+			Handler:   webServer.HandleConnection,
+		})
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
 			Handler:   webServer.HandleConnection,
 		})
 	}
@@ -6172,6 +6178,14 @@ func (process *TeleportProcess) initApps() {
 			}
 
 			applications = append(applications, a)
+		}
+
+		if os.Getenv(mcp.InMemoryServerEnvVar) == "true" {
+			if mcpInMemoryServer, err := mcp.NewInMemoryServerApp(); err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to create in-memory MCP server app")
+			} else {
+				applications = append(applications, mcpInMemoryServer)
+			}
 		}
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
