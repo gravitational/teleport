@@ -658,7 +658,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetRelayServer(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
