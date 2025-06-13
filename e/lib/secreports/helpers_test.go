@@ -3,6 +3,7 @@ package secreports
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 
@@ -34,12 +35,7 @@ func (f *mockChecker) CheckAccessToRule(context services.RuleContext, namespace 
 
 // HasRole checks if the checker includes the role
 func (f *mockChecker) HasRole(target string) bool {
-	for _, role := range f.roles {
-		if role == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.roles, target)
 }
 
 type mockAuthorizer struct {

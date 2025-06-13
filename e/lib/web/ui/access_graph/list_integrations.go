@@ -52,7 +52,7 @@ type IntegrationStatus struct {
 	// DiscoveredResources holds the count of the discovered resources in the previous iteration.
 	DiscoveredResources uint64 `json:"discovered_resources"`
 	// LastSyncTime is the timestamp when the Discovery Config was last sync.
-	LastSyncTime time.Time `json:"last_sync_time,omitempty"`
+	LastSyncTime time.Time `json:"last_sync_time"`
 }
 
 // Spec is the specification of the AWS integration.
@@ -109,7 +109,7 @@ type PluginStatus struct {
 	// in the interaction with the external service.
 	LastRawError string `json:"last_raw_error,omitempty"`
 	// LastSyncTime is the timestamp when the plugin was last sync.
-	LastSyncTime time.Time `json:"last_sync_time,omitempty"`
+	LastSyncTime time.Time `json:"last_sync_time"`
 	// Details is the details of the plugin.
 	Details *PluginDetails `json:"details,omitempty"`
 }

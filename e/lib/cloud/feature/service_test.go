@@ -177,8 +177,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test case: Successfully fetch and store features from the mocked Cloud client.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {

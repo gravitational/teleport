@@ -73,7 +73,7 @@ func (p *Plugin) registerSCIMHandlers() {
 }
 
 func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, httprouter.Params) error) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 		p.Logger.Log(r.Context(), logutils.TraceLevel, "Handling SCIM request", "method", r.Method, "url", r.URL, teleport.ComponentKey, "scim")
 
 		var err error

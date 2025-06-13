@@ -22,7 +22,7 @@ func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile
 	}
 	process.Config.Logger.InfoContext(ctx, "Finished starting enterprise auth services")
 
-	process.OnExit("enterprise.auth.services.stop", func(_ interface{}) {
+	process.OnExit("enterprise.auth.services.stop", func(_ any) {
 		process.Config.Logger.InfoContext(ctx, "Cleaning up enterprise auth services.")
 		cleanup()
 		process.Config.Logger.InfoContext(ctx, "Finished cleaning up enterprise auth services.")

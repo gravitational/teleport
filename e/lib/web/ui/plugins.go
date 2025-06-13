@@ -120,7 +120,7 @@ type PluginStatusV1 struct {
 	// Code is the status code of the plugin
 	Code types.PluginStatusCode `json:"code,omitempty"`
 	// LastSyncTime is the time the plugin was last run
-	LastSyncTime time.Time `json:"lastRun,omitempty"`
+	LastSyncTime time.Time `json:"lastRun"`
 	// ErrorMessage is the last error message from the plugin
 	ErrorMessage string `json:"errorMessage,omitempty"`
 	// Details contains provider-specific status information

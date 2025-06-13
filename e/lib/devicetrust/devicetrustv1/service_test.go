@@ -334,7 +334,7 @@ func (c *ruleVerifyingChecker) CheckAccessToRule(ruleCtx services.RuleContext, n
 
 	for i, want := range c.want {
 		if want.rule == rule && want.verb == verb {
-			c.want = append(c.want[:i], c.want[i+1:]...) // cut
+			c.want = slices.Delete(c.want, i, i+1) // cut
 			return nil
 		}
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) listDevicesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) listDevicesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -50,7 +50,7 @@ func (p *Plugin) listDevicesHandle(w http.ResponseWriter, r *http.Request, param
 	}, nil
 }
 
-func (p *Plugin) listDevicesByUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) listDevicesByUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	// most defaults in the web UI are 30 for tables
 	clt, err := ctx.GetClient()
 	if err != nil {

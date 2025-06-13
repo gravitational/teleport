@@ -71,7 +71,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "",
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "missing parameter Name")
 			},
 		},
@@ -83,7 +83,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "https://example.com/saml/acs",
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, types.ErrEmptyEntityDescriptorAndEntityID)
 			},
 		},
@@ -95,7 +95,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "",
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, types.ErrEmptyEntityDescriptorAndACSURL)
 			},
 		},
@@ -108,7 +108,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "https://example.com/saml/metadata",
 				AttributeMapping: []*types.SAMLAttributeMapping{{Name: "", NameFormat: "", Value: "user.spec.roles"}},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "attribute name is required")
 			},
 		},
@@ -121,7 +121,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "https://example.com/saml/metadata",
 				AttributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: ""}},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "attribute value is required")
 			},
 		},
@@ -134,7 +134,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "https://example.com/saml/metadata",
 				AttributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: "user.spec.roles"}, {Name: "roles", NameFormat: "", Value: "user.spec.roles"}},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, types.ErrDuplicateAttributeName)
 			},
 		},
@@ -147,7 +147,7 @@ func TestCreateSAMLIdpServiceProviderHandle(t *testing.T) {
 				ACSURL:           "https://example.com/saml/metadata",
 				Preset:           "unsupported-preset",
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, types.ErrUnsupportedPresetName)
 			},
 		},
@@ -247,7 +247,7 @@ func TestUpdateSAMLIdpServiceProviderHandle(t *testing.T) {
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
 			param: "sp_not_available",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "doesn't exist")
 			},
 		},
@@ -260,7 +260,7 @@ func TestUpdateSAMLIdpServiceProviderHandle(t *testing.T) {
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
 			param: "sp1",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "resource renaming is not supported")
 			},
 		},
@@ -273,7 +273,7 @@ func TestUpdateSAMLIdpServiceProviderHandle(t *testing.T) {
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
 			param: "sp1",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "has the same entity")
 			},
 		},
@@ -286,7 +286,7 @@ func TestUpdateSAMLIdpServiceProviderHandle(t *testing.T) {
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
 			param: "sp2",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid entity descriptor for SAML IdP Service Provider")
 			},
 		},
@@ -299,7 +299,7 @@ func TestUpdateSAMLIdpServiceProviderHandle(t *testing.T) {
 				AttributeMapping: []*types.SAMLAttributeMapping{},
 			},
 			param: "sp2",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "parsed from the entity descriptor does not match the entity")
 			},
 		},

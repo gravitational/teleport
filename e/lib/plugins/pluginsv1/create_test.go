@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -24,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockAuthorizer struct {
@@ -229,12 +229,8 @@ func TestPluginCreateDelete(t *testing.T) {
 		pluginLabel := credRefLabels[eteleport.PluginLabel]
 		require.NotEmpty(t, pluginLabel)
 
-		expectedLabels := utils.CopyStringsMap(staticCredentials.GetStaticLabels())
-		for k := range expectedLabels {
-			if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
-				delete(expectedLabels, k)
-			}
-		}
+		expectedLabels := maps.Clone(staticCredentials.GetStaticLabels())
+		maps.DeleteFunc(expectedLabels, func(k, v string) bool { return strings.HasPrefix(k, types.TeleportInternalLabelPrefix) })
 		expectedLabels[eteleport.PluginLabel] = pluginLabel
 		require.Equal(t, expectedLabels, credRefLabels)
 
@@ -349,7 +345,7 @@ func TestPluginCreateDelete(t *testing.T) {
 		pluginLabel := credRefLabels[eteleport.PluginLabel]
 		require.NotEmpty(t, pluginLabel)
 
-		expectedLabels := utils.CopyStringsMap(credIdentityLabels)
+		expectedLabels := maps.Clone(credIdentityLabels)
 		expectedLabels[eteleport.PluginLabel] = pluginLabel
 		require.Equal(t, expectedLabels, credRefLabels)
 

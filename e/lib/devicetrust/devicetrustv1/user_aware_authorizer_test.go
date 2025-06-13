@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/metadata"
@@ -46,13 +47,7 @@ func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, er
 	username := users[0]
 
 	// Fail Authorize for unknown users.
-	found := false
-	for _, known := range a.knownUsers {
-		if username == known {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(a.knownUsers, username)
 	if !found {
 		return nil, trace.AccessDenied("unknown user")
 	}
@@ -120,10 +115,5 @@ func (c *userAwareChecker) HasRole(wantRole string) bool {
 	}
 
 	identity := c.identity.GetIdentity()
-	for _, role := range identity.SystemRoles {
-		if role == wantRole {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(identity.SystemRoles, wantRole)
 }

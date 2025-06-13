@@ -341,7 +341,7 @@ func TestGetAccessMonitoringRules_WithAccessRequestFilter(t *testing.T) {
 		types.KindAccessRequest,
 	}
 
-	for i := 0; i < len(randomSubjects); i++ {
+	for i := range randomSubjects {
 		rule, err := services.NewAccessMonitoringRuleWithLabels(fmt.Sprintf("rule%v", i), nil, &pb.AccessMonitoringRuleSpec{
 			Subjects:  []string{randomSubjects[i]},
 			Condition: "true",

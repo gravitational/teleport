@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 )
@@ -29,13 +30,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
 		func(r listUsersResponse) ([]User, error) {
 			var users []User
 			for _, u := range r.UsersList {
-				isDisabled := false
-				for _, dl := range u.DisabledLogin {
-					if dl == "true" {
-						isDisabled = true
-						break
-					}
-				}
+				isDisabled := slices.Contains(u.DisabledLogin, "true")
 				email := ""
 				for _, sa := range u.SecondaryAttributes {
 					const emailKey = "Email"

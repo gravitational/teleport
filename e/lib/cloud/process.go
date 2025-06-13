@@ -121,7 +121,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 	// Activate cloud API methods
 	cfg.AuthPlugin.EnableCloud(cloudClient)
 
-	process.OnExit("cloud.shutdown", func(payload interface{}) {
+	process.OnExit("cloud.shutdown", func(payload any) {
 		cloudClient.Close()
 	})
 

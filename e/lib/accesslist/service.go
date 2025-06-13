@@ -1361,7 +1361,7 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 			)
 
 			if upsertErr == nil {
-				for i := 0; i < len(modifiedMembers.created); i++ {
+				for i := range modifiedMembers.created {
 					s.emitUpsertAccessListMemberUsageEvent(ctx, false, accessListName, modifiedMembers.created[i])
 				}
 			}
@@ -1372,7 +1372,7 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 			)
 
 			if upsertErr == nil {
-				for i := 0; i < len(modifiedMembers.updated); i++ {
+				for i := range modifiedMembers.updated {
 					s.emitUpsertAccessListMemberUsageEvent(ctx, true, accessListName, modifiedMembers.updated[i])
 				}
 			}
@@ -1383,7 +1383,7 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 			)
 
 			if upsertErr == nil {
-				for i := 0; i < len(modifiedMembers.deleted); i++ {
+				for range modifiedMembers.deleted {
 					s.emitDeleteAccessListMemberUsageEvent(ctx, accessListName)
 				}
 			}
@@ -2298,12 +2298,9 @@ func batchAccessListMemberMetadata(accessListName string, accessListTitle string
 	numBatches := int(math.Ceil(float64(numMembers) / float64(eventMemberBatches)))
 	batches := make([]apievents.AccessListMemberMetadata, numBatches)
 
-	for i := 0; i < numBatches; i++ {
+	for i := range numBatches {
 		startIndex := i * eventMemberBatches
-		endIndex := startIndex + eventMemberBatches
-		if endIndex > numMembers {
-			endIndex = numMembers
-		}
+		endIndex := min(startIndex+eventMemberBatches, numMembers)
 		batches[i] = apievents.AccessListMemberMetadata{
 			AccessListName:  accessListName,
 			Members:         members[startIndex:endIndex],

@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) getSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -26,7 +26,7 @@ func (p *Plugin) getSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.
 	return sp, nil
 }
 
-func (p *Plugin) createSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) createSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -49,7 +49,7 @@ func (p *Plugin) createSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *ht
 	return spV1, nil
 }
 
-func (p *Plugin) updateSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) updateSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,7 +77,7 @@ func (p *Plugin) updateSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *ht
 	return spV1, nil
 }
 
-func (p *Plugin) deleteSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) deleteSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -245,7 +245,7 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 			identity: auth.TestUser("someuser").I,
 			roles:    []string{},
 			expected: nil,
-			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
 			},
 		},
@@ -269,7 +269,7 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 				"label1": "value1",
 			},
 			expected: nil,
-			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
 			},
 		},

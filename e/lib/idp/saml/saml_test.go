@@ -75,7 +75,7 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	}
 
 	fakeRateLimiter := func(fn httplib.HandlerFunc) httprouter.Handle {
-		return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 			return fn(w, r, p)
 		})
 	}

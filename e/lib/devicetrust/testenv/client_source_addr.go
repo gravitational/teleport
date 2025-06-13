@@ -53,7 +53,7 @@ func sourceAddrFromIncoming(ctx context.Context) (*net.TCPAddr, bool) {
 
 // clientSourceAddrUnaryInterceptor works in tandem with
 // [WithOutgoingClientSourceAddr].
-func clientSourceAddrUnaryInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func clientSourceAddrUnaryInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	if sourceAddr, ok := sourceAddrFromIncoming(ctx); ok {
 		ctx = authz.ContextWithClientSrcAddr(ctx, sourceAddr)
 	}
@@ -62,7 +62,7 @@ func clientSourceAddrUnaryInterceptor(ctx context.Context, req interface{}, _ *g
 
 // clientSourceAddrStreamInterceptor works in tandem with
 // [WithOutgoingClientSourceAddr].
-func clientSourceAddrStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func clientSourceAddrStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx := ss.Context()
 	if sourceAddr, ok := sourceAddrFromIncoming(ctx); ok {
 		ss = &ctxStream{

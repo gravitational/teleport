@@ -160,10 +160,7 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context, reconcile 
 
 	// Use up to max num workers. If we have fewer assignments than workers,
 	// just use a worker per assignment.
-	numWorkers := maxNumWorkers
-	if numWorkers > numAssignments {
-		numWorkers = numAssignments
-	}
+	numWorkers := min(maxNumWorkers, numAssignments)
 	assignmentsCh := make(chan types.OktaAssignment, numWorkers)
 
 	// Use a fixed number of workers along with a rate limiter to ensure we don't smack into
@@ -176,7 +173,7 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context, reconcile 
 	// generally we expect to issue 10 Okta API calls per second (or less) when running through
 	// these assignments worst case. The assignment client will cache Okta state per run, so API
 	// calls will be minimized.
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

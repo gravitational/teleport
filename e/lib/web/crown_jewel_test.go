@@ -184,7 +184,7 @@ func TestListCrownJewelsIter(t *testing.T) {
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
 	ctx := context.Background()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		createCrownJewel(t, ctx, authClient, i)
 	}
 

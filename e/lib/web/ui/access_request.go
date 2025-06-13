@@ -33,9 +33,9 @@ type AccessRequest struct {
 	MaxDuration *time.Time `json:"maxDuration,omitempty"`
 	// RequestTTL is the expiration time of the request (how long it will await
 	// approval).
-	RequestTTL time.Time `json:"requestTTL,omitempty"`
+	RequestTTL time.Time `json:"requestTTL"`
 	// SessionTTL is the duration for how long the generated certificate will be valid.
-	SessionTTL time.Time `json:"sessionTTL,omitempty"`
+	SessionTTL time.Time `json:"sessionTTL"`
 	// Reviews are reviews applied to this access request.
 	Reviews []AccessRequestReview `json:"reviews"`
 	// SuggestedReviewers is a list of reviewers suggested.

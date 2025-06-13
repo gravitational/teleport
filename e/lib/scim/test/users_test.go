@@ -37,7 +37,7 @@ func TestUserList(t *testing.T) {
 		{
 			name:        "all",
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(1), list.StartIndex)
@@ -52,7 +52,7 @@ func TestUserList(t *testing.T) {
 			name:        "summary count",
 			page:        &scimpb.Page{StartIndex: 1, Count: 0},
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(17), list.TotalResults)
@@ -62,7 +62,7 @@ func TestUserList(t *testing.T) {
 			name:        "filtered (matching)",
 			filter:      `userName eq "test-user-012@example.com"`,
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(1), list.StartIndex)
@@ -74,7 +74,7 @@ func TestUserList(t *testing.T) {
 			name:        "filtered (empty)",
 			filter:      `userName eq "test-user-999@example.com"`,
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(1), list.StartIndex)
@@ -260,7 +260,7 @@ func TestUserGet(t *testing.T) {
 			name:        "valid user",
 			username:    "test-user-012@example.com",
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				res, ok := obj.(*scimpb.Resource)
 				require.True(t, ok, "invalid arg type")
 				require.Equal(t, "test-user-012@example.com", res.Id)
@@ -510,11 +510,11 @@ func TestUserUpdate(t *testing.T) {
 }
 
 // anyUser is an argument matcher for testify mocks that matches any user value
-var anyUser interface{} = mock.MatchedBy(func(types.User) bool { return true })
+var anyUser any = mock.MatchedBy(func(types.User) bool { return true })
 
 // isUserNamed is a testify mock argument matcher that matches any user with any
 // user with a given name
-func isUserNamed(name string) interface{} {
+func isUserNamed(name string) any {
 	return mock.MatchedBy(
 		func(u types.User) bool {
 			return u.GetName() == name
@@ -523,11 +523,11 @@ func isUserNamed(name string) interface{} {
 
 // anyListUserRequest is an argument matcher for testify mocks that matches any
 // non-nil ListUsersRequest value.
-var anyListUserRequest interface{} = mock.MatchedBy(func(r *userspb.ListUsersRequest) bool { return r != nil })
+var anyListUserRequest any = mock.MatchedBy(func(r *userspb.ListUsersRequest) bool { return r != nil })
 
 // listUserRequestWithPageToken is an argument matcher for testify mocks that
 // matches any ListUsersRequest with a given page token value
-func listUserRequestWithPageToken(token string) interface{} {
+func listUserRequestWithPageToken(token string) any {
 	return mock.MatchedBy(func(r *userspb.ListUsersRequest) bool { return r.PageToken == token })
 }
 

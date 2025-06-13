@@ -133,7 +133,7 @@ func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 	}
 
 	channels := &types.DiscordChannels{}
-	for _, text := range strings.Split(channelsText, ",") {
+	for text := range strings.SplitSeq(channelsText, ",") {
 		text = strings.TrimSpace(text)
 		if text != "" {
 			channels.ChannelIds = append(channels.ChannelIds, text)

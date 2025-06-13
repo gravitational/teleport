@@ -1482,7 +1482,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 			tlsPubKey:           tlsPubBytes,
 			expectTLSSubjectKey: tlsKey.Public(),
 			wantErr:             true,
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, &ErrNoHTTPPostBinding)
 			},
 		},
@@ -1666,7 +1666,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 			mutateSessionData: func(sd *services.SSOMFASessionData) {
 				sd.Username = "unknown"
 			},
-			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+			checkError: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
@@ -1675,7 +1675,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 			mutateSessionData: func(sd *services.SSOMFASessionData) {
 				sd.ConnectorID = "unknown"
 			},
-			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+			checkError: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
@@ -1684,7 +1684,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 			mutateSessionData: func(sd *services.SSOMFASessionData) {
 				sd.ConnectorType = "unknown"
 			},
-			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+			checkError: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},

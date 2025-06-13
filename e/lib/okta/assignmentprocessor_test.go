@@ -103,7 +103,7 @@ func TestProcessAssignments(t *testing.T) {
 					endingStatus:   constants.OktaAssignmentStatusFailed,
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, fmt.Sprintf(`app_server %q does not have an Okta App ID`, appName("app1")))
 			},
 		},
@@ -142,7 +142,7 @@ func TestProcessAssignments(t *testing.T) {
 					endingStatus:   constants.OktaAssignmentStatusFailed,
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "assignments for group group1 not found")
 			},
 		},
@@ -186,7 +186,7 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New[oktaUserID](),
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, `"assignment1" doesn't exist`)
 			},
 		},
@@ -218,7 +218,7 @@ func TestProcessAssignments(t *testing.T) {
 					endingStatus:   constants.OktaAssignmentStatusFailed,
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, `assignments for app app1 not found`)
 				require.ErrorContains(t, err, `assignments for group group1 not found`)
 			},

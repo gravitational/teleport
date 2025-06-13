@@ -63,7 +63,7 @@ func (s *Service) initRouter() (*httprouter.Router, error) {
 
 // withHighLimiter limits request based on WithHighLimiter from lib/web.
 func (h *Service) withHighLimiter(fn httprouter.Handle) httprouter.Handle {
-	return h.highLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return h.highLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		fn(w, r, p)
 		return nil, nil
 	})

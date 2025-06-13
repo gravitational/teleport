@@ -44,7 +44,7 @@ func TestGroupList(t *testing.T) {
 		{
 			name:        "all",
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(1), list.StartIndex)
@@ -62,7 +62,7 @@ func TestGroupList(t *testing.T) {
 			name:        "summary count",
 			page:        &scimpb.Page{StartIndex: 1, Count: 0},
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(17), list.TotalResults)
@@ -75,7 +75,7 @@ func TestGroupList(t *testing.T) {
 			name:        "filtered (matching)",
 			filter:      `groupName eq "Access-List-012"`,
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(1), list.StartIndex)
@@ -90,7 +90,7 @@ func TestGroupList(t *testing.T) {
 			name:        "filtered (empty)",
 			filter:      `groupName eq "Access-List-999"`,
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
 				require.Equal(t, int32(1), list.StartIndex)
@@ -194,7 +194,7 @@ func TestGroupGet(t *testing.T) {
 				mkTestMembers(t, testAccessLists[0], 5, clock), "", nil,
 			},
 			expectError: require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				r, ok := obj.(*scimpb.Resource)
 				require.True(t, ok, "expected resource")
 
@@ -264,7 +264,7 @@ func TestGroupGet(t *testing.T) {
 			getAccessListResult: []any{testAccessLists[2], nil},
 			getMemberListResult: []any{[]*accesslist.AccessListMember{}, "", nil},
 			expectError:         require.NoError,
-			expectValue: func(t require.TestingT, obj interface{}, _ ...interface{}) {
+			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				r, ok := obj.(*scimpb.Resource)
 				require.True(t, ok, "expected resource")
 
@@ -870,12 +870,12 @@ func rigFixtureForGroupTest(fix *testFixture) {
 
 // anyAccessList is a testify Mock argument matcher that matches any supplied
 // Teleport AccessList
-var anyAccessList interface{} = mock.MatchedBy(
+var anyAccessList any = mock.MatchedBy(
 	func(*accesslist.AccessList) bool { return true })
 
 // anyMemberList is a testify Mock argument matcher that matches any supplied
 // slice of supplied Teleport AccessListMembers
-var anyMemberList interface{} = mock.MatchedBy(
+var anyMemberList any = mock.MatchedBy(
 	func([]*accesslist.AccessListMember) bool { return true })
 
 // isAccessLis is a testify Mock argument matcher that recognizes a
@@ -1093,7 +1093,7 @@ func mkTestAccessListWithName(t *testing.T, name, title string, isSCIM bool) *ac
 
 func mkTestAccessLists(t *testing.T, n int, spacing int) []*accesslist.AccessList {
 	dst := make([]*accesslist.AccessList, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		dst[i] = mkTestAccessList(t, i, (i%spacing == 0))
 	}
 	return dst

@@ -271,10 +271,10 @@ type errorResponse struct {
 }
 
 type apiError struct {
-	Code        string      `json:"code"`
-	Description string      `json:"description"`
-	ID          string      `json:"id"`
-	Field       interface{} `json:"field"` // Only seen as `null`.
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Field       any    `json:"field"` // Only seen as `null`.
 }
 
 type authToken struct {
@@ -537,14 +537,8 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 	sort.Sort(sorter(a.inventory))
 
 	// Paginate results.
-	start := page * pageSize
-	if start > totalCount {
-		start = totalCount
-	}
-	end := start + pageSize
-	if end > totalCount {
-		end = totalCount
-	}
+	start := min(page*pageSize, totalCount)
+	end := min(start+pageSize, totalCount)
 	inv := a.inventory[start:end]
 
 	if a.simulatePagingGaps && len(inv) > 0 {

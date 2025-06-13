@@ -494,7 +494,7 @@ func Test_AuditLogExport_Bulk_BackfillManyDates(t *testing.T) {
 		synctest.Wait()
 		requireRequestsEqual(t, want[:1], server.receivedRequests()) // require the only chunk from day 1 as request before time is advance
 
-		time.Sleep(45 * time.Second) // Advance time by 45 seconds; each day waits 15s before submitting the batch, since we run event exporter with concurrency = 3, we must wait for 3 batches to complete leading to 45s for 7 days		
+		time.Sleep(45 * time.Second) // Advance time by 45 seconds; each day waits 15s before submitting the batch, since we run event exporter with concurrency = 3, we must wait for 3 batches to complete leading to 45s for 7 days
 		synctest.Wait()
 		requireBulkRequestsSame(t, want, server.receivedRequests()) // require all 4 day 1 chunks as requests
 

@@ -121,10 +121,7 @@ func windowResponse[T any](slice []T, nextIndex int) ([]T, int) {
 	// next index must be offseted by 1
 	nextIndex--
 
-	max := nextIndex + windowSize
-	if max > len(slice) {
-		max = len(slice)
-	}
+	max := min(nextIndex+windowSize, len(slice))
 	responseNextIndex := 0
 	if nextIndex+2 <= len(slice) {
 		responseNextIndex = nextIndex + windowSize + 1

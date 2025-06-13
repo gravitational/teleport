@@ -121,8 +121,7 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 		accessGraphSynchronizer: &fakeTAGSynchronizer{},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	go func() {
 		svc.Run(ctx)

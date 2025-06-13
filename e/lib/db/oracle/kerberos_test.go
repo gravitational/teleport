@@ -170,7 +170,7 @@ func Test_performKerberosAuth(t *testing.T) {
 		chErr <- performKerberosAuth(context.Background(), slog.Default(), "", authenticate, serverConn)
 	}()
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case err = <-chErr:
 			require.NoError(t, err)

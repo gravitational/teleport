@@ -641,7 +641,7 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 			name:    "fetch groups with assignment",
 			path:    aPack.clt.Endpoint("enterprise/pluginconfig/aws-ic/preview/groups-with-assignments"),
 			jsonReq: jsonReq,
-			errAssertion: func(t require.TestingT, err error, v ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, v ...any) {
 				require.ErrorContains(t, err, errMsg)
 			},
 		},
@@ -649,7 +649,7 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 			name:    "fetch accounts with perm sets",
 			path:    aPack.clt.Endpoint("enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets"),
 			jsonReq: jsonReq,
-			errAssertion: func(t require.TestingT, err error, v ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, v ...any) {
 				require.ErrorContains(t, err, errMsg)
 			},
 		},
@@ -657,7 +657,7 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 			name:    "fetch perm sets",
 			path:    aPack.clt.Endpoint("enterprise/pluginconfig/aws-ic/preview/permission-sets"),
 			jsonReq: jsonReq,
-			errAssertion: func(t require.TestingT, err error, v ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, v ...any) {
 				require.ErrorContains(t, err, errMsg)
 			},
 		},

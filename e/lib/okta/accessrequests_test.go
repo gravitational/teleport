@@ -95,7 +95,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	ap.setServiceCounts(map[types.SystemRole]uint64{})
 
 	// This will stop the reconciler.
-	for i := 0; i < maxOktaServiceConnectionFailures; i++ {
+	for range maxOktaServiceConnectionFailures {
 		clock.Advance(10 * time.Minute)
 		waitForResult(t, onServiceDisconnectedCh, struct{}{}, 1)
 	}
@@ -281,7 +281,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignmentStatus: constants.OktaAssignmentStatusPending,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -292,7 +292,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			assignmentStatus: constants.OktaAssignmentStatusPending,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -307,7 +307,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 				group(t, "group1", types.OriginDynamic, testOrgURL),
 				group(t, "group2", types.OriginDynamic, testOrgURL),
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, trace.NotFound("no Okta targets found in access request"), err)
 			},
 		},
@@ -387,7 +387,7 @@ func TestOnLogin(t *testing.T) {
 	// Access requests must be UUIDs, so we'll pre-define them here
 	// for later referencing.
 	arNames := make([]string, 2)
-	for i := 0; i < len(arNames); i++ {
+	for i := range arNames {
 		arNames[i] = uuid.NewString()
 	}
 

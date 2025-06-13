@@ -434,7 +434,7 @@ func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.
 	return resp, nil
 }
 
-func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req *authclient.ValidateOIDCAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

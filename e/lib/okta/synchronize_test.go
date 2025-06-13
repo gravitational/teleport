@@ -48,9 +48,9 @@ func TestSynchronizeGroups(t *testing.T) {
 			Name:   "app-name",
 			Status: "ACTIVE",
 			Label:  "app label",
-			Links: map[string]interface{}{
-				"appLinks": []interface{}{
-					map[string]interface{}{
+			Links: map[string]any{
+				"appLinks": []any{
+					map[string]any{
 						"name": "applink-name1",
 						"href": "https://www.link1.com",
 					},
@@ -300,9 +300,9 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 					Name:   fmt.Sprintf("An app called %q", appName),
 					Status: "ACTIVE",
 					Label:  fmt.Sprintf("label %s", appName),
-					Links: map[string]interface{}{
-						"appLinks": []interface{}{
-							map[string]interface{}{
+					Links: map[string]any{
+						"appLinks": []any{
+							map[string]any{
 								"name": "applink",
 								"href": "https://www.link1.com/" + appName,
 							},
@@ -381,9 +381,9 @@ func TestSynchronizeApplications(t *testing.T) {
 			Name:   "app-name",
 			Status: "ACTIVE",
 			Label:  "app label",
-			Links: map[string]interface{}{
-				"appLinks": []interface{}{
-					map[string]interface{}{
+			Links: map[string]any{
+				"appLinks": []any{
+					map[string]any{
 						"name": "applink-name1",
 						"href": "https://www.link1.com",
 					},
@@ -396,13 +396,13 @@ func TestSynchronizeApplications(t *testing.T) {
 			Name:   "app-name",
 			Status: "ACTIVE",
 			Label:  "app label",
-			Links: map[string]interface{}{
-				"appLinks": []interface{}{
-					map[string]interface{}{
+			Links: map[string]any{
+				"appLinks": []any{
+					map[string]any{
 						"name": "applink-name1",
 						"href": "https://www.link1.com",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"name": "applink-name2",
 						"href": "https://www.link2.com",
 					},
@@ -592,7 +592,7 @@ func mapOfAllApps(t *testing.T, svc *Service) map[string]types.Application {
 func genEventResources(numResources int, descPrefix string) []*apievents.OktaResource {
 	resources := make([]*apievents.OktaResource, numResources)
 
-	for i := 0; i < numResources; i++ {
+	for i := range numResources {
 		resources[i] = &apievents.OktaResource{
 			ID:          fmt.Sprintf("%d", i),
 			Description: fmt.Sprintf("%s %d", descPrefix, i),
@@ -605,7 +605,7 @@ func genEventResources(numResources int, descPrefix string) []*apievents.OktaRes
 func verifyEventResources(t *testing.T, resources []*apievents.OktaResource, offset, numResources int, descPrefix string) []*apievents.OktaResource {
 	require.Len(t, resources, numResources)
 
-	for i := 0; i < numResources; i++ {
+	for i := range numResources {
 		index := offset + i
 		require.Equal(t, fmt.Sprintf("%d", index), resources[i].ID)
 		require.Equal(t, fmt.Sprintf("%s %d", descPrefix, index), resources[i].Description)

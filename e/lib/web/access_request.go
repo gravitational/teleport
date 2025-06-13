@@ -43,7 +43,7 @@ func withClusterClientProvider(clusterClientProvider web.ClusterClientProvider) 
 	}
 }
 
-func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
+func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,7 +131,7 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 	return getAccessRequest(ctx, clt, req.GetMetadata().Name, opts...)
 }
 
-func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -170,7 +170,7 @@ func getResourceRequestRoles(ctx context.Context, clt authclient.ClientI, req []
 	return accessCaps.ApplicableRolesForResources, nil
 }
 
-func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
+func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -362,7 +362,7 @@ func getAccessRequestScope(scope string) types.AccessRequestScope {
 	}
 }
 
-func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
+func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -443,7 +443,7 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 	}, nil
 }
 
-func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
+func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -508,7 +508,7 @@ func reviewAccessRequest(ctx context.Context, clt accessReviewSubmitter, review 
 	return ui.NewAccessRequest(updatedRequest, ui.WithResourceDetails(resourceDetails))
 }
 
-func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -599,10 +599,10 @@ type accessRequestParameters struct {
 	// ResourceID is a unique identifier for a teleport resource.
 	ResourceIDs []ui.ResourceID `json:"resourceIds"`
 	// MaxDuration is the maximum duration for which the request is valid.
-	MaxDuration time.Time `json:"maxDuration,omitempty"`
+	MaxDuration time.Time `json:"maxDuration"`
 	// RequestTTL is the expiration time of the request (how long it will await
 	// approval).
-	RequestTTL time.Time `json:"requestTTL,omitempty"`
+	RequestTTL time.Time `json:"requestTTL"`
 	// DryRun is a flag that indicates whether the request is a dry run to check and set defaults,
 	// and return before actually creating the request in the backend.
 	DryRun bool `json:"dryRun,omitempty"`

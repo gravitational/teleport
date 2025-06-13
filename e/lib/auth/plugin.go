@@ -159,7 +159,7 @@ func (p *Plugin) GetCloudClient() cloudapi.TenantsServiceClient {
 }
 
 // RegisterProxyWebHandlers registers to proxy web handler
-func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
+func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	return nil
 }
 
@@ -715,7 +715,7 @@ func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer, cfg resou
 }
 
 // RegisterAuthWebHandlers plugs in new handlers into OSS auth server router
-func (p *Plugin) RegisterAuthWebHandlers(handler interface{}) error {
+func (p *Plugin) RegisterAuthWebHandlers(handler any) error {
 	apiServer, ok := handler.(*auth.APIServer)
 	if !ok {
 		return trace.BadParameter("unsupported auth web handler type %T", handler)
@@ -744,7 +744,7 @@ func (p *Plugin) getAccountUpgradeWindowStartHour(ctx context.Context) (int64, e
 func getDisabledPlugins() []types.PluginType {
 	disabledPluginsRaw := os.Getenv(envVarNameDisabledPlugins)
 	var disabledPlugins []types.PluginType
-	for _, disabledPluginRaw := range strings.Split(disabledPluginsRaw, ",") {
+	for disabledPluginRaw := range strings.SplitSeq(disabledPluginsRaw, ",") {
 		disabledPlugin := strings.TrimSpace(disabledPluginRaw)
 		if disabledPlugin == "" {
 			continue

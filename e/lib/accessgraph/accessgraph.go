@@ -582,10 +582,7 @@ func sendRoles(ctx context.Context, authServer interface {
 
 	chunkSize := apidefaults.DefaultChunkSize
 	for i := 0; i < len(roles); i += chunkSize {
-		end := i + chunkSize
-		if end > len(roles) {
-			end = len(roles)
-		}
+		end := min(i+chunkSize, len(roles))
 
 		if err := pushRolesToTAG(ctx, stream, roles[i:end]); err != nil {
 			return trace.Wrap(err)
@@ -883,10 +880,7 @@ func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGe
 
 	chunkSize := apidefaults.DefaultChunkSize
 	for i := 0; i < len(requests); i += chunkSize {
-		end := i + chunkSize
-		if end > len(requests) {
-			end = len(requests)
-		}
+		end := min(i+chunkSize, len(requests))
 
 		if err := pushAccessRequestToTAG(ctx, stream, requests[i:end]); err != nil {
 			return trace.Wrap(err)

@@ -259,7 +259,7 @@ func (dp *DataPacket) AuthParameters() (*ParamParseResult, error) {
 
 	parameters := map[string]ParamValue{}
 
-	for i := 0; i < paramCount; i++ {
+	for range paramCount {
 		key, val, tag, err := readKeyValueTag(readInt, r)
 		if err != nil {
 			// this can happen with low SDU, as the packet payload has been fragmented and the part that we want to read will arrive in the future.

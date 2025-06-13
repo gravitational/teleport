@@ -366,7 +366,7 @@ func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions
 func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
 	t.Helper()
 
-	for i := 0; i < numTimes; i++ {
+	for range numTimes {
 		select {
 		case val := <-ch:
 			require.Equal(t, expected, val)

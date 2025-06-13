@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -260,9 +261,7 @@ func TestS_BulkCreateDevices(t *testing.T) {
 			for _, d := range devsBefore { // Fill want with existing devs...
 				wantDevs[d.Id] = d.AssetTag
 			}
-			for k, v := range test.wantDevices(t, got) { //...then add the expected devs
-				wantDevs[k] = v
-			}
+			maps.Copy(wantDevs, test.wantDevices(t, got))
 			if diff := cmp.Diff(wantDevs, gotDevs); diff != "" {
 				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
 			}
@@ -2499,7 +2498,7 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 		{dev: dev1, num: dev1WantData - 1},
 		{dev: dev2, num: dev2WantData - 1},
 	} {
-		for i := 0; i < item.num; i++ {
+		for range item.num {
 			clockAdvance()
 			if err := s.RecordDeviceAuthnData(ctx, item.dev.Id, collectedDataForDevice(item.dev)); err != nil {
 				t.Fatalf("RecordDeviceAuthnData failed: %v", err)
@@ -2612,7 +2611,7 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 
 		// Write up to MaxCollectedDataPerDevice and then a bit more, so we know the
 		// cap keeps working.
-		for i := 0; i < storage.MaxCollectedDataPerDevice+2; i++ {
+		for range storage.MaxCollectedDataPerDevice + 2 {
 			clockAdvance()
 			if err := s.RecordDeviceAuthnData(ctx, dev1.Id, collectedDataForDevice(dev1)); err != nil {
 				t.Fatalf("RecordDeviceAuthnData failed: %v", err)
@@ -3704,7 +3703,7 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	// Add a few devices.
 	const allDevsNum = devicesLimit + 10
 	allDevs := make([]*devicepb.Device, allDevsNum)
-	for i := 0; i < allDevsNum; i++ {
+	for i := range allDevsNum {
 		dev, err := s.CreateDevice(ctx, &devicepb.Device{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: fmt.Sprintf("dev-%v", i),

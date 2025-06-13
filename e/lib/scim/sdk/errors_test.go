@@ -12,7 +12,7 @@ import (
 )
 
 func requireErrorContaining(text string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, args ...interface{}) {
+	return func(t require.TestingT, err error, args ...any) {
 		require.Error(t, err, args...)
 		require.Contains(t, err.Error(), text, args...)
 	}

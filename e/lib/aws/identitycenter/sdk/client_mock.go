@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
@@ -386,7 +387,7 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 
 	for i, assignment := range assignments {
 		if assignment.PermissionSetARN == req.PermissionSetARN && assignment.AccountID == req.AccountID {
-			curr[req.PrincipalID] = append(assignments[:i], assignments[i+1:]...)
+			curr[req.PrincipalID] = slices.Delete(assignments, i, i+1)
 			return &AccountAssignmentResponse{
 				RequestID: "mockRequestID",
 				Status:    ssoadmintypes.StatusValuesSucceeded,

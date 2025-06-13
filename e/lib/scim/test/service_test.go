@@ -154,9 +154,9 @@ func TestSCIMServiceFailsWithoutEntitlement(t *testing.T) {
 }
 
 // anyContext is an argument matcher for testify mocks that matches any context.
-var anyContext interface{} = mock.MatchedBy(func(context.Context) bool { return true })
+var anyContext any = mock.MatchedBy(func(context.Context) bool { return true })
 
-var anyResource interface{} = mock.MatchedBy(func(*scimpb.Resource) bool { return true })
+var anyResource any = mock.MatchedBy(func(*scimpb.Resource) bool { return true })
 
 const (
 	testPluginName          = "test"
@@ -213,15 +213,15 @@ func mkTestPlugin() types.Plugin {
 	}
 }
 
-func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
+func requireNotFound(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsNotFound(err), "Expected NotFound, got %s", err)
 }
 
-func requireAlreadyExists(t require.TestingT, err error, _ ...interface{}) {
+func requireAlreadyExists(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsAlreadyExists(err), "Expected AlreadyExists, got %s", err)
 }
 
-func requireBadParameter(t require.TestingT, err error, _ ...interface{}) {
+func requireBadParameter(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %s", err)
 }
 

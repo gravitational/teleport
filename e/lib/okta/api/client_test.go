@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
+func requireNotFound(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsNotFound(err), "Expected NotFound, got %s", err)
 }
 
@@ -196,11 +196,11 @@ func TestErrorConversion(t *testing.T) {
 	}
 }
 
-func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
+func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	require.True(t, trace.IsAccessDenied(err), "err should be access denied, was: %s", err)
 }
 
-func requireUrlError(t require.TestingT, err error, _ ...interface{}) {
+func requireUrlError(t require.TestingT, err error, _ ...any) {
 	require.Error(t, err)
 
 	var urlErr *url.Error
@@ -213,7 +213,7 @@ func simulateOktaError(httpStatus int, errorCode string, summary string) *http.R
 		ErrorSummary: summary,
 		ErrorLink:    errorCode,
 		ErrorId:      "someRandomString",
-		ErrorCauses:  []map[string]interface{}{},
+		ErrorCauses:  []map[string]any{},
 	}
 
 	body, err := json.Marshal(&oktaErr)

@@ -9,7 +9,7 @@ import (
 
 func TestBuildKerberosTokenPayload(t *testing.T) {
 	var token []byte
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		token = append(token, 0xAA, 0xBB, 0xCC, 0xDD)
 	}
 

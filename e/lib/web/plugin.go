@@ -162,7 +162,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, grpcServer any, getCl
 }
 
 // RegisterAuthWebHandlers plugs in new handlers into OSS auth server router
-func (p *Plugin) RegisterAuthWebHandlers(srv interface{}) error {
+func (p *Plugin) RegisterAuthWebHandlers(srv any) error {
 	return nil
 }
 
@@ -176,7 +176,7 @@ func (p *Plugin) RegisterSAMLIdP(samlIdP *samlidp.Service) {
 }
 
 // RegisterProxyWebHandlers registers to proxy web handler
-func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
+func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h, ok := handler.(*web.Handler)
 	if !ok {
 		return trace.BadParameter("unsupported handler type %T", handler)
@@ -433,7 +433,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 // param "Method=POST", we convert the GET request to the original POST request by responding
 // with an HTML POST form that will be auto submitted by the browser.
 func (p *Plugin) withSAMLAuth() httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 		p.samlIdPMu.RLock()
 		samlIdP := p.samlIdP
 		p.samlIdPMu.RUnlock()

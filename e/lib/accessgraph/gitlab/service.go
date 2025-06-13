@@ -351,10 +351,7 @@ func pushUpsertInBatches(
 	upsert *accessgraphv1alpha.GitlabResourceList,
 ) error {
 	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(upsert.Resources) {
-			end = len(upsert.Resources)
-		}
+		end := min(i+batchSize, len(upsert.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.GitlabEventsStreamRequest{
 				Operation: &accessgraphv1alpha.GitlabEventsStreamRequest_Upsert{
@@ -376,10 +373,7 @@ func pushDeleteInBatches(
 	toDel *accessgraphv1alpha.GitlabResourceList,
 ) error {
 	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(toDel.Resources) {
-			end = len(toDel.Resources)
-		}
+		end := min(i+batchSize, len(toDel.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.GitlabEventsStreamRequest{
 				Operation: &accessgraphv1alpha.GitlabEventsStreamRequest_Delete{

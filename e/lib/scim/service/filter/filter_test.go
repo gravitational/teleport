@@ -10,7 +10,7 @@ import (
 )
 
 func requireBadParamWith(text string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, _ ...interface{}) {
+	return func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %v", err)
 		require.Contains(t, err.Error(), text)
 	}

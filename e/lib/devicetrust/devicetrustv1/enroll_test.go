@@ -656,7 +656,7 @@ func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
 
 	// 1. Register limit+1 devices. This is allowed.
 	var allDevs []*devicepb.Device
-	for i := 0; i < devicesLimit+1; i++ {
+	for i := range devicesLimit + 1 {
 		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 			Device: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,

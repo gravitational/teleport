@@ -318,13 +318,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 	}
 
 	// Verify expected device IDs.
-	deviceFound := false
-	for _, deviceID := range storedToken.ExpectedDeviceIds {
-		if deviceID == dev.Id {
-			deviceFound = true
-			break
-		}
-	}
+	deviceFound := slices.Contains(storedToken.ExpectedDeviceIds, dev.Id)
 	if !deviceFound {
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),

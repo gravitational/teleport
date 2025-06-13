@@ -18,7 +18,7 @@ import (
 func TestBase36Encode(t *testing.T) {
 	charset := "0123456789abcdefghijklmnopqrstuvwxyz"
 
-	for i := 0; i < 36; i++ {
+	for i := range 36 {
 		require.Equal(t, string(charset[i]), base36Encode([]byte{byte(i)}))
 	}
 
@@ -101,7 +101,7 @@ func TestIsGroupValid(t *testing.T) {
 			group: &okta.Group{
 				Id: "group-id",
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("the okta group group-id has no profile"))
 			},
 		},
@@ -113,7 +113,7 @@ func TestIsGroupValid(t *testing.T) {
 					Name: oktaapi.OktaGroupEveryone,
 				},
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("group group-id is Everyone"))
 			},
 		},
@@ -148,13 +148,13 @@ func TestOktaAppToApplications(t *testing.T) {
 				Name:   "app-name",
 				Status: "ACTIVE",
 				Label:  "app label",
-				Links: map[string]interface{}{
-					"appLinks": []interface{}{
-						map[string]interface{}{
+				Links: map[string]any{
+					"appLinks": []any{
+						map[string]any{
 							"name": "applink-name1",
 							"href": "https://www.link1.com",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"name": "applink-name2",
 							"href": "https://www.link2.com",
 						},
@@ -209,13 +209,13 @@ func TestOktaAppToApplications(t *testing.T) {
 				Name:   "app-name",
 				Status: "ACTIVE",
 				Label:  "app label",
-				Links: map[string]interface{}{
-					"appLinks": []interface{}{
-						map[string]interface{}{
+				Links: map[string]any{
+					"appLinks": []any{
+						map[string]any{
 							"name": "applink-name1",
 							"href": "https://www.link1.com",
 						},
-						map[string]interface{}{
+						map[string]any{
 							"name": "applink-name2",
 							"href": "https://www.link2.com",
 						},
@@ -266,16 +266,16 @@ func TestOktaAppToApplications(t *testing.T) {
 				Id:     "app-id",
 				Status: "INACTIVE",
 				Label:  "app label",
-				Links: map[string]interface{}{
-					"appLinks": []interface{}{
-						map[string]interface{}{
+				Links: map[string]any{
+					"appLinks": []any{
+						map[string]any{
 							"name": "applink-name",
 							"href": "https://wwww.link.com",
 						},
 					},
 				},
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("application app-id (app label) is not active"))
 			},
 		},
@@ -286,7 +286,7 @@ func TestOktaAppToApplications(t *testing.T) {
 				Status: "ACTIVE",
 				Label:  "app label",
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("links is missing in okta application object app-id (app label)"))
 			},
 		},
@@ -296,11 +296,11 @@ func TestOktaAppToApplications(t *testing.T) {
 				Id:     "app-id",
 				Status: "ACTIVE",
 				Label:  "app label",
-				Links: map[string]interface{}{
-					"appLinks": []interface{}{},
+				Links: map[string]any{
+					"appLinks": []any{},
 				},
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("app links is empty in okta application object app-id (app label)"))
 			},
 		},
@@ -310,9 +310,9 @@ func TestOktaAppToApplications(t *testing.T) {
 				Id:     "app-id",
 				Status: "ACTIVE",
 				Label:  "app label",
-				Links: map[string]interface{}{
-					"appLinks": []interface{}{
-						map[string]interface{}{
+				Links: map[string]any{
+					"appLinks": []any{
+						map[string]any{
 							"name": "applink-name",
 							"href": "https://www.link.com",
 						},
@@ -380,7 +380,7 @@ func TestIsAppValid(t *testing.T) {
 				Label:  "app label",
 				Status: "INACTIVE",
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("application app-id (app label) is not active"))
 			},
 		},
@@ -391,7 +391,7 @@ func TestIsAppValid(t *testing.T) {
 				Label:  "Okta Admin Console",
 				Status: oktaapi.OktaActive,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("application app-id is the Okta admin console"))
 			},
 		},

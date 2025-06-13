@@ -3,6 +3,7 @@ package okta
 import (
 	"crypto"
 	"fmt"
+	"maps"
 	"math/big"
 
 	"github.com/gravitational/trace"
@@ -14,7 +15,6 @@ import (
 	oktaconvert "github.com/gravitational/teleport/e/lib/okta/convert"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/srv/app"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
@@ -119,7 +119,7 @@ func (s *Service) oktaAppToApps(oktaApplication *oktasdk.Application, groupIDs [
 			return nil, trace.Wrap(err)
 		}
 
-		copyLabels := utils.CopyStringsMap(labels)
+		copyLabels := maps.Clone(labels)
 		copyLabels[types.OktaAppDescriptionLabel] = appLink.Name
 
 		app, err := types.NewAppV3(
@@ -165,10 +165,7 @@ func AppName(id, appLinkName string) (string, error) {
 // the given length.
 func shortenedEncodedID(hashedID []byte, length int) string {
 	encodedID := base36Encode(hashedID)
-	prefixLen := len(encodedID)
-	if prefixLen > length {
-		prefixLen = length
-	}
+	prefixLen := min(len(encodedID), length)
 	return encodedID[:prefixLen]
 }
 

@@ -55,7 +55,7 @@ type Metadata struct {
 
 // AttributeSet is an arbitrary mapping on names to structured values. Used as
 // an intermediary format for parsing and formatting SCIM resources
-type AttributeSet map[string]interface{}
+type AttributeSet map[string]any
 
 // Resource represents the JSON wire format of a SCIM Resource, which is
 // essentially some metadata with a trailing collection of arbitrarily

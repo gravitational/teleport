@@ -187,7 +187,7 @@ func sendTeleportCredentialResetLink(r *http.Request, authClt userAPIGetter, clo
 	return nil
 }
 
-func (p *Plugin) sendTeleportInviteHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClt cloud.Client) (interface{}, error) {
+func (p *Plugin) sendTeleportInviteHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClt cloud.Client) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,7 +196,7 @@ func (p *Plugin) sendTeleportInviteHandle(w http.ResponseWriter, r *http.Request
 	return createAndInviteUsers(r, authClt, cloudClt, ctx.GetUser())
 }
 
-func (p *Plugin) sendTeleportCredentialResetHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClt cloud.Client) (interface{}, error) {
+func (p *Plugin) sendTeleportCredentialResetHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClt cloud.Client) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) listSecurityReports(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) listSecurityReports(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -32,7 +32,7 @@ func (p *Plugin) listSecurityReports(w http.ResponseWriter, r *http.Request, par
 	return convSecurityReports(resp), nil
 }
 
-func (p *Plugin) getSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -45,7 +45,7 @@ func (p *Plugin) getSecurityReport(w http.ResponseWriter, r *http.Request, param
 	return resp.Spec, trace.Wrap(err)
 }
 
-func (p *Plugin) getSecurityReportResult(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getSecurityReportResult(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,7 +98,7 @@ func convSecurityReports(reports []*secreports.Report) []secreports.ReportSpec {
 	return out
 }
 
-func (p *Plugin) getSchema(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getSchema(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,7 +109,7 @@ func (p *Plugin) getSchema(w http.ResponseWriter, r *http.Request, params httpro
 	return resp, trace.Wrap(err)
 }
 
-func (p *Plugin) runSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) runSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -133,7 +133,7 @@ func (p *Plugin) runSecurityReport(w http.ResponseWriter, r *http.Request, param
 
 }
 
-func (p *Plugin) getAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -148,7 +148,7 @@ func (p *Plugin) getAuditQuery(w http.ResponseWriter, r *http.Request, params ht
 	return resp.Spec, trace.Wrap(err)
 }
 
-func (p *Plugin) listAuditQueries(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) listAuditQueries(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -159,7 +159,7 @@ func (p *Plugin) listAuditQueries(w http.ResponseWriter, r *http.Request, params
 	return ui.ConvAuditQueries(resp), trace.Wrap(err)
 }
 
-func (p *Plugin) runAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) runAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -183,7 +183,7 @@ func (p *Plugin) runAuditQuery(w http.ResponseWriter, r *http.Request, params ht
 	return resp, nil
 }
 
-func (p *Plugin) upsertAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) upsertAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -209,7 +209,7 @@ func (p *Plugin) upsertAuditQuery(w http.ResponseWriter, r *http.Request, params
 	return nil, nil
 }
 
-func (p *Plugin) deleteAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) deleteAuditQuery(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -222,7 +222,7 @@ func (p *Plugin) deleteAuditQuery(w http.ResponseWriter, r *http.Request, params
 	return nil, nil
 }
 
-func (p *Plugin) upsertSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) upsertSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -254,7 +254,7 @@ func (p *Plugin) upsertSecurityReport(w http.ResponseWriter, r *http.Request, pa
 	return nil, nil
 }
 
-func (p *Plugin) deleteSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) deleteSecurityReport(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -266,7 +266,7 @@ func (p *Plugin) deleteSecurityReport(w http.ResponseWriter, r *http.Request, pa
 	return nil, nil
 }
 
-func (p *Plugin) getSecurityReportState(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getSecurityReportState(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -288,7 +288,7 @@ func (p *Plugin) getSecurityReportState(w http.ResponseWriter, r *http.Request, 
 	return resp.Spec, trace.Wrap(err)
 }
 
-func (p *Plugin) getQueryResult(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getQueryResult(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)

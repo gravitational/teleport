@@ -141,7 +141,7 @@ func getPluginOnboardingCookie(r *http.Request) (*pluginOnboardingCookie, error)
 	return &cookie, nil
 }
 
-func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	pluginsClt, err := getPluginClientFromSessionContext(ctx)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 // validatePluginConfig expects an html form request containing plugin config, and
 // validates that it is consistent, in whatever way is appropriate for the plugin
 // type.
-func (p *Plugin) validatePluginConfig(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) validatePluginConfig(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	pluginType := r.FormValue("type")
 	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {
@@ -184,7 +184,7 @@ func (p *Plugin) validatePluginConfig(w http.ResponseWriter, r *http.Request, pa
 //     https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action
 //     https://github.com/w3c/webappsec-csp/issues/8
 //   - For non-OAuth plugins: it creates plugin and responds with plugin status.
-func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	pluginType := r.FormValue("type")
 	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {
@@ -196,7 +196,7 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 
 // installPluginWithStaticAuthCredsHandle expects HTML form request and creates a plugin resource and responds with plugin status.
 // Handles plugins that does not require OAuth.
-func (p *Plugin) installPluginWithStaticAuthCredsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) installPluginWithStaticAuthCredsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	pluginType := r.FormValue("type")
 	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {
@@ -208,7 +208,7 @@ func (p *Plugin) installPluginWithStaticAuthCredsHandle(w http.ResponseWriter, r
 
 // startPluginOAuthHandle expects HTML form request, sets required cookie and returns a redirect URL will start a
 // OAuth2 code grant flow for authorizing access to plugin.
-func (p *Plugin) startPluginOAuthHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) startPluginOAuthHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	pluginType := r.FormValue("type")
 	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {
@@ -218,7 +218,7 @@ func (p *Plugin) startPluginOAuthHandle(w http.ResponseWriter, r *http.Request, 
 	return pd.HandleOAuthStart(r.Context(), sessCtx, w, r, p)
 }
 
-func (p *Plugin) updatePluginHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) updatePluginHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	var req ui.PluginUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, trace.Wrap(err)
@@ -236,7 +236,7 @@ func (p *Plugin) updatePluginHandler(w http.ResponseWriter, r *http.Request, par
 	return handler.HandleUpdateRequest(r.Context(), sessCtx, &req)
 }
 
-func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	const pageSize = apidefaults.DefaultChunkSize
 	pluginsClt, err := getPluginClientFromSessionContext(ctx)
 	if err != nil {
@@ -262,7 +262,7 @@ func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params
 	return plugins, nil
 }
 
-func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	pluginName := params.ByName("name")
 	if pluginName == "" {
 		return nil, trace.BadParameter("name must be specified")
@@ -281,7 +281,7 @@ func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, para
 	return web.OK(), nil
 }
 
-func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clearPluginOnboardingCookie(w)
 	typ := params.ByName("type")
 	if typ == "" {
@@ -372,7 +372,7 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 	return nil, nil
 }
 
-func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	pluginsClt, err := getPluginClientFromSessionContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -396,7 +396,7 @@ func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params 
 	return out, nil
 }
 
-func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	orgURL := r.FormValue("orgURL")
 	oktaAPICreds := getOktaCredsFromParams(&oktaPluginInputs{
 		oktaAPIToken:  r.FormValue("apiToken"),
@@ -428,7 +428,7 @@ func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params ht
 	return out, nil
 }
 
-func (p *Plugin) getOktaApps(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getOktaApps(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	orgURL := r.FormValue("orgURL")
 	oktaAPICreds := getOktaCredsFromParams(&oktaPluginInputs{
 		oktaAPIToken:  r.FormValue("apiToken"),
@@ -532,7 +532,7 @@ func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *plugin
 }
 
 // pluginNeedsCleanup expects a type and will return whether the plugin needs to be cleaned up.
-func (p *Plugin) pluginNeedsCleanup(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) pluginNeedsCleanup(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	pluginType := params.ByName("type")
 	_, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {
@@ -559,7 +559,7 @@ func (p *Plugin) pluginNeedsCleanup(w http.ResponseWriter, r *http.Request, para
 }
 
 // pluginCleanup expects a type and will cleanup the resources for the given plugin type.
-func (p *Plugin) pluginCleanup(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) pluginCleanup(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	pluginType := params.ByName("type")
 	_, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {

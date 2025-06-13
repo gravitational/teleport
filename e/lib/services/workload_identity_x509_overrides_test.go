@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -197,8 +196,7 @@ func crossSignedCA(t *testing.T, cn string, old tls.Certificate, parent tls.Cert
 func TestWorkloadIdentityX509IssuerOverrideCache(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{Context: ctx})
 	require.NoError(t, err)
@@ -265,8 +263,7 @@ func TestWorkloadIdentityX509IssuerOverrideCache(t *testing.T) {
 func TestWorkloadIdentityX509IssuerOverridePrefix(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{
 		Context:   ctx,

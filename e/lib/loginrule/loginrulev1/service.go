@@ -3,6 +3,7 @@ package loginrulev1
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -217,7 +218,7 @@ func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginR
 	out := make(map[string]*wrappers.StringValues, len(output.Traits))
 	for key, values := range output.Traits {
 		out[key] = &wrappers.StringValues{
-			Values: append([]string{}, values...),
+			Values: slices.Clone(values),
 		}
 	}
 

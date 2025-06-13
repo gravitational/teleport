@@ -43,7 +43,7 @@ func WithExternalIDFunc(f func(u types.User) string) UserResourceOption {
 }
 
 // WithAttributes sets the attributes for the user resource.
-func WithAttributes(attributes map[string]interface{}) UserResourceOption {
+func WithAttributes(attributes map[string]any) UserResourceOption {
 	return func(o *userResourceOptions) {
 		o.attributes = attributes
 	}

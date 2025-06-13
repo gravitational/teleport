@@ -210,7 +210,7 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 
 // AttestHardwareKey attests a hardware key, either with the given statement or
 // previously stored attestation data matching the given public key.
-func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI interface{}, att *hardwarekey.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
+func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI any, att *hardwarekey.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
 	// serverI is passed as a plain interface{} to make it more cryptic,
 	// and therefore difficult for OSS users to implement themselves 😈
 	server, ok := serverI.(ehardwarekey.AttestationServer)

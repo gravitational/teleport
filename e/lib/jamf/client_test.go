@@ -2,6 +2,7 @@ package jamf_test
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,9 +32,7 @@ func TestClient_redirectNotAllowed(t *testing.T) {
 	defer downgradeServer.Close()
 
 	redirServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for k, v := range r.Header {
-			w.Header()[k] = v
-		}
+		maps.Copy(w.Header(), r.Header)
 
 		url := downgradeServer.URL + r.URL.Path
 		http.Redirect(w, r, url, http.StatusFound)

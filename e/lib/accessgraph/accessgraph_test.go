@@ -111,7 +111,7 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	err := eventWatcher.Send(types.Event{Type: types.OpInit})
 	require.NoError(t, err)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		err := eventWatcher.Send(types.Event{Type: types.OpPut,
 			Resource: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}},
 		})
@@ -145,7 +145,7 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	require.Len(t, mock.events, 200)
 
 	// All events should be in order
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		require.Equal(t, strconv.Itoa(i), unpackEvent(t, mock.events[i]).GetName())
 	}
 }

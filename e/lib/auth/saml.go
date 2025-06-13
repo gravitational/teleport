@@ -916,7 +916,7 @@ func (sas *SAMLAuthService) postProcessUser(ctx context.Context, user types.User
 // validateSAMLResponseWeb provides a HTTP/JSON interface to
 // SAMLAuthService.ValidateSAMLResponse. It is called by a teleport proxy in
 // response to it receiving the SAML callback (ACS) from the identity provider.
-func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req *authclient.ValidateSAMLResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

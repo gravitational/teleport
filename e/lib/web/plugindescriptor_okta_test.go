@@ -683,8 +683,8 @@ func TestOktaPluginInstallWorksWithLegacySAMLConnector(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func requireEqualTo(expected interface{}) require.ValueAssertionFunc {
-	return func(t require.TestingT, value interface{}, msgAndArgs ...interface{}) {
+func requireEqualTo(expected any) require.ValueAssertionFunc {
+	return func(t require.TestingT, value any, msgAndArgs ...any) {
 		require.Equal(t, expected, value, msgAndArgs...)
 	}
 }
@@ -1191,7 +1191,7 @@ func response(statusCode int, contentType string, body []byte) (*http.Response, 
 	return resp, nil
 }
 
-func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
+func requireNotFound(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsNotFound(err), "Expected NotFound, got %s", err)
 }
 

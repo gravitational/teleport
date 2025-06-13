@@ -3,6 +3,7 @@ package pluginsv1
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -139,21 +140,15 @@ func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace 
 
 // HasRole checks if the checker includes the role
 func (f *fakeChecker) HasRole(target string) bool {
-	for _, role := range f.roles {
-		if role == target {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(f.roles, target)
 }
 
-func assertAccessDenied(t require.TestingT, err error, msg ...interface{}) {
+func assertAccessDenied(t require.TestingT, err error, msg ...any) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected error to be AccessDenied, got %v instead", err)
 }
 
-func assertNotFound(t require.TestingT, err error, msg ...interface{}) {
+func assertNotFound(t require.TestingT, err error, msg ...any) {
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected error to be NotFound, got %v instead", err)
 }

@@ -77,7 +77,7 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 	return response.RedirectURL
 }
 
-func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	logger := p.Logger.With("auth", "oidc")
 	logger.DebugContext(r.Context(), "Console login start")
 
@@ -230,7 +230,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 	return redirectURL.String()
 }
 
-func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprouter.Params) (resp interface{}, err error) {
+func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprouter.Params) (resp any, err error) {
 	logger := p.Logger.With("auth", "saml")
 	logger.DebugContext(r.Context(), "Web login start")
 
@@ -279,7 +279,7 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 	return
 }
 
-func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	logger := p.Logger.With("auth", "saml")
 	logger.DebugContext(r.Context(), "Console login start")
 

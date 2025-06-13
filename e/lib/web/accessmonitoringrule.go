@@ -16,7 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) getAccessMonitoringRules(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) getAccessMonitoringRules(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -73,7 +73,7 @@ func (p *Plugin) getAccessMonitoringRules(w http.ResponseWriter, r *http.Request
 	}, nil
 }
 
-func (p *Plugin) createAccessMonitoringRule(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) createAccessMonitoringRule(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -116,7 +116,7 @@ func (p *Plugin) createAccessMonitoringRule(w http.ResponseWriter, r *http.Reque
 	return uiRule, trace.Wrap(err)
 }
 
-func (p *Plugin) updateAccessMonitoringRule(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) updateAccessMonitoringRule(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -158,7 +158,7 @@ func (p *Plugin) updateAccessMonitoringRule(w http.ResponseWriter, r *http.Reque
 	return uiRule, trace.Wrap(err)
 }
 
-func (p *Plugin) deleteAccessMonitoringRule(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (p *Plugin) deleteAccessMonitoringRule(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)

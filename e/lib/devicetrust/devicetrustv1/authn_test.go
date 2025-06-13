@@ -1183,10 +1183,10 @@ type fakeTLSCert struct {
 }
 
 func (c *fakeTLSCert) Marshal() []byte {
-	return []byte(fmt.Sprintf(""+
+	return fmt.Appendf(nil, ""+
 		"<stand in for TLS cert:"+
 		"\n\tid=%v"+
 		"\n\tasset=%v"+
 		"\n\tcredential=%v>",
-		c.deviceID, c.assetTag, c.credentialID))
+		c.deviceID, c.assetTag, c.credentialID)
 }

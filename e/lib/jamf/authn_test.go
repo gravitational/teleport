@@ -138,7 +138,7 @@ func TestClient_authn(t *testing.T) {
 		// Further authn attempts should all fail.
 		req := &jamf.GetComputersInventoryRequest{}
 		const maxAttempts = 20 // We should reach an error before this.
-		for i := 0; i < maxAttempts; i++ {
+		for range maxAttempts {
 			if _, err := client.GetComputersInventory(ctx, req); errors.Is(err, jamf.ErrMaxAuthnAttemptsReached) {
 				return // Test successful
 			}

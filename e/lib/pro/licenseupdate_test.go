@@ -237,8 +237,7 @@ func TestLicenseUpdateServiceRun(t *testing.T) {
 		return &cloudapi.GetUpdatedLicenseResponse{}, nil
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	service, err := newLicenseUpdateService(licenseUpdateServiceConfig{
 		ServerID:    "ServerID",

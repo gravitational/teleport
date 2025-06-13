@@ -192,7 +192,7 @@ func BenchmarkUserAssignmentCreator(b *testing.B) {
 	ctx := context.Background()
 	suite := initUACSuite(b, ctx, clock)
 
-	for i := 0; i < 1234; i++ {
+	for i := range 1234 {
 		app1 := application(b, suite.uac.hash, "app"+strconv.Itoa(i), "link", types.OriginOkta, testOrgURL, testHostID)
 		mustUpsertApplicationServer(b, ctx, suite, app1)
 	}

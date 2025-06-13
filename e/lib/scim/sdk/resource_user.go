@@ -2,6 +2,7 @@ package scimsdk
 
 import (
 	"encoding/json"
+	"maps"
 
 	"github.com/gravitational/trace"
 )
@@ -77,9 +78,7 @@ func (r *User) MarshalJSON() ([]byte, error) {
 	if err := json.Unmarshal(attributes, &attrMap); err != nil {
 		return nil, err
 	}
-	for key, value := range attrMap {
-		baseMap[key] = value
-	}
+	maps.Copy(baseMap, attrMap)
 	return json.Marshal(baseMap)
 }
 

@@ -184,7 +184,7 @@ func TestProcessEvent(t *testing.T) {
 	}{
 		{
 			name: "no resource",
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("resource is empty"))
 			},
 			updates: []updateFn{
@@ -195,7 +195,7 @@ func TestProcessEvent(t *testing.T) {
 		},
 		{
 			name: "bad op",
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("only modification operations are supported"))
 			},
 			updates: []updateFn{
@@ -490,7 +490,7 @@ func TestProcessEvent(t *testing.T) {
 					}
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, `"non-existent-user" doesn't exist`)
 			},
 		},

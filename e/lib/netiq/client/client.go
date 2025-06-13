@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -184,7 +185,7 @@ func (c *Client) revokeToken(ctx context.Context, token tokenResponse) {
 		return
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		select {
 		case <-ctx.Done():
 			return
@@ -335,9 +336,7 @@ func (c *Client) createAuthenticatedRequest(ctx context.Context, urlBase string,
 	q := u.Query()
 	q.Set(sizeKey, sizeVal)
 
-	for key, val := range reqOpts.queryParams {
-		q[key] = val
-	}
+	maps.Copy(q, reqOpts.queryParams)
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, reqOpts.method, u.String(), reqOpts.body)

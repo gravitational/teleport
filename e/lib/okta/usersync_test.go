@@ -101,9 +101,9 @@ func (m *mockEventEmitter) EmitAuditEvent(ctx context.Context, event apievents.A
 var _ ReconcilerAccessPoint = (*mockReconcilerAP)(nil)
 
 // someContext is an argument matcher for testify mocks that matches any context.
-var someContext interface{} = mock.MatchedBy(func(context.Context) bool { return true })
+var someContext any = mock.MatchedBy(func(context.Context) bool { return true })
 
-var userSyncEvent interface{} = mock.MatchedBy(
+var userSyncEvent any = mock.MatchedBy(
 	func(e apievents.AuditEvent) bool {
 		return e.GetType() == events.OktaUserSyncEvent
 	})

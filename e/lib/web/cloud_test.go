@@ -290,7 +290,7 @@ func TestPlugin_withCloudCache(t *testing.T) {
 	webPlugin, err := NewPlugin(Config{})
 	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodGet, "/foo/bar", nil)
-	fn := func(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	fn := func(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
 		counter++
 		if counter == 1 {
 			return nil, errors.New("error")
@@ -335,7 +335,7 @@ func TestPlugin_withCloudClusterCache(t *testing.T) {
 	webPlugin, err := NewPlugin(Config{})
 	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodGet, "/foo/bar", nil)
-	fn := func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+	fn := func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 		counter++
 		if counter == 1 {
 			return nil, errors.New("error")

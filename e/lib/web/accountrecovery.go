@@ -38,7 +38,7 @@ func (p *Plugin) registerAccountRecoveryHandlers() {
 
 // getAccountRecoveryTokenHandle retrieves a recovery token.
 // If the recovery token type is approved, also returns a new qr code per retrieval.
-func (p *Plugin) getAccountRecoveryTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+func (p *Plugin) getAccountRecoveryTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error) {
 	token, err := p.h.GetProxyClient().GetAccountRecoveryToken(r.Context(), &proto.GetAccountRecoveryTokenRequest{
 		RecoveryTokenID: params.ByName("token"),
 	})
@@ -80,7 +80,7 @@ type startAccountRecoveryRequest struct {
 
 // startAccountRecoveryHandle is the first step of recovery process which obtains a recovery link and emails it to the requesting user.
 // If a user gets locked from too many incorrect attempts, an email will be sent to notify user.
-func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error) {
 	var req startAccountRecoveryRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -131,7 +131,7 @@ type verifyAccountRecoveryRequest struct {
 // verifyAccountRecoveryHandle is the second step in recovery process which obtains a recovery approved token
 // that will allow a user to make protected actions eg: set new authentication, delete device, and get new recovery codes.
 // If a user gets locked from too many incorrect attempts, an email will be sent to notify user.
-func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error) {
 	var req verifyAccountRecoveryRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -183,7 +183,7 @@ type completeAccountRecoveryRequest struct {
 
 // completeAccountRecoveryHandle sets a new password or mfa device for the user defined in token.
 // On success, emails the user that their account was successfully recovered.
-func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error) {
 	var req completeAccountRecoveryRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -239,7 +239,7 @@ type createAccountRecoveryCodes struct {
 }
 
 // createAccountRecoveryCodesHandle creates, upserts, and returns new set of recovery codes for the user defined in the token.
-func (p *Plugin) createAccountRecoveryCodesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+func (p *Plugin) createAccountRecoveryCodesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error) {
 	var req createAccountRecoveryCodes
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -268,7 +268,7 @@ func (p *Plugin) getIPAddress(r *http.Request) string {
 	return ip
 }
 
-func (p *Plugin) getAccountRecoveryCodesMetadataHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getAccountRecoveryCodesMetadataHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

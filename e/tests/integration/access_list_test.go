@@ -189,7 +189,7 @@ func TestAccessListMaxDepthValidation(t *testing.T) {
 		}
 
 		// Nest the lists.
-		for i := 0; i < len(lists)-1; i++ {
+		for i := range len(lists) - 1 {
 			parent := lists[i]
 			child := lists[i+1]
 

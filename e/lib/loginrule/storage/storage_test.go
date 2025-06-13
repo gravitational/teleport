@@ -278,7 +278,7 @@ func TestListLoginRules(t *testing.T) {
 			p := newTestPack(t)
 
 			var seededRules []*loginrulepb.LoginRule
-			for i := 0; i < tc.totalRules; i++ {
+			for i := range tc.totalRules {
 				ruleName := fmt.Sprintf("rule%d", i)
 				rule := &loginrulepb.LoginRule{
 					Metadata: &types.Metadata{
@@ -337,7 +337,7 @@ func TestDeleteLoginRule(t *testing.T) {
 	p := newTestPack(t)
 
 	seededRules := make(map[string]*loginrulepb.LoginRule)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		ruleName := fmt.Sprintf("rule%d", i)
 		rule := &loginrulepb.LoginRule{
 			Metadata: &types.Metadata{

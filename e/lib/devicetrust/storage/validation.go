@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/go-attestation/attest"
@@ -260,13 +261,7 @@ func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *d
 func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devicepb.DeviceProfile) error {
 	// OS username.
 	if len(profile.OsUsernames) > 0 {
-		found := false
-		for _, username := range profile.OsUsernames {
-			if username == cd.OsUsername {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(profile.OsUsernames, cd.OsUsername)
 		if !found {
 			return NewCollectedDataDriftError("device OS username not present in profile")
 		}

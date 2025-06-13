@@ -975,6 +975,6 @@ func expectOktaAccessRequesterSearchAsRoles(t *testing.T, ctx context.Context, a
 	require.ElementsMatch(t, expectedRoles, role.GetSearchAsRoles(types.Allow))
 }
 
-func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
+func requireNotFound(t require.TestingT, err error, _ ...any) {
 	require.True(t, trace.IsNotFound(err), "Expected NotFound, got %s", err)
 }

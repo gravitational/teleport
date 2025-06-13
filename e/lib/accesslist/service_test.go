@@ -1784,7 +1784,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 				require.True(t, event.Success)
 				require.Len(t, event.AccessListMemberMetadata.Members, membersCreated)
 			})
-			for i := 0; i < membersCreated; i++ {
+			for range membersCreated {
 				expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
 					require.Equal(t, accessList.GetName(), event.AccessListMemberCreate.Metadata.Id)
 				})
@@ -1795,7 +1795,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 				require.True(t, event.Success)
 				require.Len(t, event.AccessListMemberMetadata.Members, membersUpdated)
 			})
-			for i := 0; i < membersUpdated; i++ {
+			for range membersUpdated {
 				expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
 					require.Equal(t, accessList.GetName(), event.AccessListMemberUpdate.Metadata.Id)
 				})
@@ -1806,7 +1806,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 				require.True(t, event.Success)
 				require.Len(t, event.AccessListMemberMetadata.Members, membersDeleted)
 			})
-			for i := 0; i < membersDeleted; i++ {
+			for range membersDeleted {
 				expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
 					require.Equal(t, accessList.GetName(), event.AccessListMemberDelete.Metadata.Id)
 				})
@@ -1870,7 +1870,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		a3.Spec.Owners = append(a3.Spec.Owners, accesslist.Owner{
 			Name: "dummy",
 		})
-		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...any) {
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	})
@@ -1880,7 +1880,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		a3, err := conv.FromProto(conv.ToProto(a3))
 		require.NoError(t, err)
 		a3.Spec.Grants.Roles = append(a3.Spec.Grants.Roles, "dummy")
-		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...any) {
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	})
@@ -1889,7 +1889,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		a3, err := conv.FromProto(conv.ToProto(a3))
 		require.NoError(t, err)
 		a3.Spec.Grants.Traits["dummy"] = []string{"value1", "value2"}
-		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...any) {
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	})
@@ -1900,7 +1900,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		a3.Spec.MembershipRequires = accesslist.Requires{
 			Roles: []string{"some-new-role"},
 		}
-		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...any) {
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	})
@@ -1909,7 +1909,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		a3, err := conv.FromProto(conv.ToProto(a3))
 		require.NoError(t, err)
 		a3.Spec.Audit.NextAuditDate = a3.Spec.Audit.NextAuditDate.Add(24 * time.Hour * 365)
-		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+		upsertAccessListWithMembers(t, c.ownerCtx, a3, nil, func(t require.TestingT, err error, i ...any) {
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	})
@@ -1942,7 +1942,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		upsertAccessListWithMembers(t, memberCtx, a3, []*accesslist.AccessListMember{
 			newAccessListMember(t, a3.GetName(), member1, accesslist.MembershipKindUser, c.clock),
 			newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock),
-		}, func(t require.TestingT, err error, i ...interface{}) {
+		}, func(t require.TestingT, err error, i ...any) {
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	})
@@ -1955,7 +1955,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			a2m1,
 			a2m2,
 			ownerMember,
-		}, func(t require.TestingT, err error, i ...interface{}) {
+		}, func(t require.TestingT, err error, i ...any) {
 			require.ErrorIs(t, err, trace.AccessDenied("Adding yourself to an Access List is not allowed"))
 		})
 
@@ -1995,7 +1995,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			a2m2,
 			ownerMember,
 			newAccessListMember(t, a2.GetName(), "new-user1", accesslist.MembershipKindUser, c.clock),
-		}, func(t require.TestingT, err error, i ...interface{}) {
+		}, func(t require.TestingT, err error, i ...any) {
 			require.ErrorIs(t, err, trace.AccessDenied("Adding yourself to an Access List is not allowed"))
 		})
 
@@ -2150,7 +2150,7 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 			name:           "member context",
 			ctx:            memberCtx,
 			accessListName: a1.GetName(),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2158,7 +2158,7 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 			name:           "non-existent user context",
 			ctx:            nonExistentUser,
 			accessListName: a1.GetName(),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2203,7 +2203,7 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 			var members []*apievents.AccessListMember
 			if test.numberOfEvents > 0 {
 				members = make([]*apievents.AccessListMember, test.numberOfEvents)
-				for i := 0; i < test.numberOfEvents; i++ {
+				for i := range test.numberOfEvents {
 					members[i] = &apievents.AccessListMember{
 						MemberName: fmt.Sprintf("%d", i),
 					}
@@ -2213,12 +2213,9 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 			batches := batchAccessListMemberMetadata("test-access-list", "test-access-list", members)
 			require.Len(t, batches, test.expectedBatches)
 
-			for i := 0; i < test.expectedBatches; i++ {
+			for i := range test.expectedBatches {
 				startIndex := i * eventMemberBatches
-				endIndex := startIndex + eventMemberBatches
-				if endIndex > test.numberOfEvents {
-					endIndex = test.numberOfEvents
-				}
+				endIndex := min(startIndex+eventMemberBatches, test.numberOfEvents)
 
 				batchIndex := 0
 				for j := startIndex; j < endIndex; j++ {
@@ -2676,7 +2673,7 @@ func TestCanUpdateMembership(t *testing.T) {
 				AddedBy:          "owner",
 				IneligibleStatus: "ineligible",
 			}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2699,7 +2696,7 @@ func TestCanUpdateMembership(t *testing.T) {
 				AddedBy:          "owner",
 				IneligibleStatus: "ineligible",
 			}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},

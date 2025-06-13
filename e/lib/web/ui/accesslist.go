@@ -61,5 +61,5 @@ type ReviewAccessListRequest struct {
 
 // ReviewAccessList is a UI representation for reviewing an access list request.
 type ReviewAccessListResponse struct {
-	NextAuditDate time.Time `json:"nextAuditDate,omitempty"`
+	NextAuditDate time.Time `json:"nextAuditDate"`
 }

@@ -1,7 +1,6 @@
 package workloadidentityv1_test
 
 import (
-	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -21,8 +20,7 @@ import (
 )
 
 func TestSignX509IssuerCSR(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	process := testenv.MakeTestServer(t, testenv.WithConfig(func(cfg *servicecfg.Config) {
 		cfg.PluginRegistry = plugin.NewRegistry()

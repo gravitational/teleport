@@ -122,7 +122,7 @@ func MarshalResourceList(list *scimpb.ResourceList) ([]byte, error) {
 
 // stringToDateTimeHook parses an RFC3339 timestamp string into GO time.Time.
 // For use with mapstructure.Decode()
-func stringToDateTimeHook(from reflect.Type, to reflect.Type, data interface{}) (interface{}, error) {
+func stringToDateTimeHook(from reflect.Type, to reflect.Type, data any) (any, error) {
 	if from.Kind() != reflect.String {
 		return data, nil
 	}

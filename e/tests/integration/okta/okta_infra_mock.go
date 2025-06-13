@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -90,14 +91,14 @@ func createOktaSetup(t *testing.T, ctx context.Context, oktaClient *mockOktaAPIC
 		client: oktaClient,
 		ctx:    ctx,
 	}
-	for i := 0; i < defaultOptions.usersCount; i++ {
+	for i := range defaultOptions.usersCount {
 		user, _ := createOktaUser(t, ctx, oktaInfra.client, fmt.Sprintf("user-%d", i))
 		oktaInfra.Users = append(oktaInfra.Users, &oktaUserType{user})
 	}
-	for i := 0; i < defaultOptions.appCount; i++ {
+	for i := range defaultOptions.appCount {
 		oktaInfra.Apps = append(oktaInfra.Apps, createOktaApp(t, ctx, oktaInfra.client, fmt.Sprintf("app-%d", i)))
 	}
-	for i := 0; i < defaultOptions.groupsCount; i++ {
+	for i := range defaultOptions.groupsCount {
 		oktaInfra.Groups = append(oktaInfra.Groups, createOktaGroup(t, ctx, oktaInfra.client, fmt.Sprintf("group-%d", i)))
 	}
 
@@ -106,10 +107,8 @@ func createOktaSetup(t *testing.T, ctx context.Context, oktaClient *mockOktaAPIC
 
 func (s *oktaInfraSetup) isUserAssignedToGroup(t *testing.T, userID, groupID string) bool {
 	var found bool
-	for _, group := range s.getUserGroups(t, userID) {
-		if group == groupID {
-			return true
-		}
+	if slices.Contains(s.getUserGroups(t, userID), groupID) {
+		return true
 	}
 	return found
 }

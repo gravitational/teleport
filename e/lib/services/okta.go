@@ -204,7 +204,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 
 	var oktaServiceMu sync.Mutex
 
-	process.OnExit("okta.stop", func(payload interface{}) {
+	process.OnExit("okta.stop", func(payload any) {
 		if err := conn.Close(); err != nil {
 			logger.WarnContext(ctx, "Error while closing connection", "error", err)
 		}

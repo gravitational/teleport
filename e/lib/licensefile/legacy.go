@@ -16,7 +16,7 @@ type LegacyLicense struct {
 	// AccountID is the ID of the account the license was issued for
 	AccountID string `json:"account_id,omitempty"`
 	// Expiration is expiration time for the license
-	Expiration time.Time `json:"expiration,omitempty"`
+	Expiration time.Time `json:"expiration"`
 	// ProductName is the name of the product the license is for
 	ProductName string `json:"product_name,omitempty"`
 }

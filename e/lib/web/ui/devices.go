@@ -9,7 +9,7 @@ type Device struct {
 	OSType       string    `json:"osType,omitempty"`
 	EnrollStatus string    `json:"enrollStatus,omitempty"`
 	Owner        string    `json:"owner,omitempty"`
-	CreateTime   time.Time `json:"createTime,omitempty"`
+	CreateTime   time.Time `json:"createTime"`
 }
 
 // ListDevicesResponse is similar to types.ListResourcesResponse

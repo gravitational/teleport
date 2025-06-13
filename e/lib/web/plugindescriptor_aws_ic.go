@@ -434,7 +434,7 @@ func (a awsICPluginDescriptor) awsICPluginIdentityCenterClient(ctx context.Conte
 }
 
 // awsICPluginListPermissionSets lists Identity Center permissions sets.
-func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	// Only users who have access to create integration
 	// should be allowed to use OIDC credential and fetch AWS resources.
 	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
@@ -460,7 +460,7 @@ func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Re
 }
 
 // awsICPluginAccountsWithAssignedPermSets lists Identity Center accounts with assigned permission sets.
-func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	// Only users who have access to create integration
 	// should be allowed to use OIDC credential and fetch AWS resources.
 	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
@@ -492,7 +492,7 @@ func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, 
 }
 
 // awsICPluginGroupsWithAssignment lists Identity Center groups with assigned accounts and permission sets.
-func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
 	// Only users who have access to create integration
 	// should be allowed to use OIDC credential and fetch AWS resources.
 	if err := checkIntegrationCreateAccess(sessCtx); err != nil {

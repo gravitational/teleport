@@ -329,10 +329,7 @@ func pushUpsertInBatches(
 	upsert *accessgraphv1alpha.NetIQResourceList,
 ) error {
 	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(upsert.Resources) {
-			end = len(upsert.Resources)
-		}
+		end := min(i+batchSize, len(upsert.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.NetIQEventsStreamRequest{
 				Operation: &accessgraphv1alpha.NetIQEventsStreamRequest_Upsert{
@@ -354,10 +351,7 @@ func pushDeleteInBatches(
 	toDel *accessgraphv1alpha.NetIQResourceList,
 ) error {
 	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := i + batchSize
-		if end > len(toDel.Resources) {
-			end = len(toDel.Resources)
-		}
+		end := min(i+batchSize, len(toDel.Resources))
 		err := client.Send(
 			&accessgraphv1alpha.NetIQEventsStreamRequest{
 				Operation: &accessgraphv1alpha.NetIQEventsStreamRequest_Delete{

@@ -367,7 +367,7 @@ func (s *S) updateDeviceRefsIndex(
 
 	var lastErr error
 	const maxAttempts = 3 // arbitrary
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		var retry bool
 		current, getErr := s.backend.Get(ctx, key)
 		switch {

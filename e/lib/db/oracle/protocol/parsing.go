@@ -90,7 +90,7 @@ func readVarInt64(r *bytes.Reader) (int64, error) {
 
 	temp := make([]byte, 8)
 	offset := 8 - int(length)
-	for i := 0; i < int(length); i++ {
+	for i := range int(length) {
 		var next byte
 		next, err = r.ReadByte()
 		if err != nil {

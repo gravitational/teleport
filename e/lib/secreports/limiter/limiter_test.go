@@ -47,7 +47,7 @@ func TestLimiter(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(totalLimit)
-	for i := 0; i < totalLimit; i++ {
+	for range totalLimit {
 		go func() {
 			defer wg.Done()
 			update, err := l.AllocateLimit(ctx)

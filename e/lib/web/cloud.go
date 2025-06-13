@@ -31,13 +31,13 @@ import (
 const defaultCloudHTTPTimeout = 5 * time.Second
 
 // CloudHandler is an authenticated handler that is used to provide an initialized instance of the cloud client API
-type CloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error)
+type CloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error)
 
-type cloudPublicHandler func(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error)
+type cloudPublicHandler func(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (any, error)
 
 // ClusterCloudHandler is an authenticated handler that contains
 // a cloudClient authenticated against a remoteSite as specified by the ":site" url parameter.
-type ClusterCloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error)
+type ClusterCloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error)
 
 func (p *Plugin) registerCloudHandlers() {
 	features := p.h.GetClusterFeatures()
@@ -74,7 +74,7 @@ func (p *Plugin) registerCloudHandlers() {
 	p.h.DELETE("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.deleteClusterContactHandle))
 }
 
-func (p *Plugin) getBillingSummaryInformationHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) getBillingSummaryInformationHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
 	res, err := client.GetBillingSummaryInformation(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -83,7 +83,7 @@ func (p *Plugin) getBillingSummaryInformationHandle(w http.ResponseWriter, r *ht
 	return res, nil
 }
 
-func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
 	res, err := client.GetBillingInformation(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -94,7 +94,7 @@ func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Requ
 
 // Deprecated: use `getClusterUpgradeWindowStartHourHandle` instead
 // TODO(mcbattirola): remove in v18
-func (p *Plugin) getUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) getUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
 	res, err := client.GetAccountUpgradeWindowStartHour(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -105,7 +105,7 @@ func (p *Plugin) getUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.
 
 // Deprecated: use `updateClusterUpgradeWindowStartHourHandle` instead
 // TODO(mcbattirola): remove in v18
-func (p *Plugin) updateUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) updateUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
 	var req cloudapi.UpdateAccountUpgradeWindowStartHourRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -143,7 +143,7 @@ func (p *Plugin) updateUpgradeWindowStartHourHandle(w http.ResponseWriter, r *ht
 	return web.OK(), nil
 }
 
-func (p *Plugin) getClusterUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+func (p *Plugin) getClusterUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 	res, err := cloudClient.GetAccountUpgradeWindowStartHour(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -152,7 +152,7 @@ func (p *Plugin) getClusterUpgradeWindowStartHourHandle(w http.ResponseWriter, r
 	return res, nil
 }
 
-func (p *Plugin) updateClusterUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+func (p *Plugin) updateClusterUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 	var req cloudapi.UpdateAccountUpgradeWindowStartHourRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -191,7 +191,7 @@ func (p *Plugin) updateClusterUpgradeWindowStartHourHandle(w http.ResponseWriter
 	return web.OK(), nil
 }
 
-func (p *Plugin) surveyCompanyResponsesHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) surveyCompanyResponsesHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
 	res, err := client.GetSurveyCompany(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -200,7 +200,7 @@ func (p *Plugin) surveyCompanyResponsesHandler(w http.ResponseWriter, r *http.Re
 	return res, nil
 }
 
-func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
 	var req cloudapi.SetSurveyResultsRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -221,7 +221,7 @@ func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ct
 	return web.OK(), nil
 }
 
-func (p *Plugin) getClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+func (p *Plugin) getClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 	contacts, err := cloudClient.GetContacts(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -229,7 +229,7 @@ func (p *Plugin) getClusterContactHandle(w http.ResponseWriter, r *http.Request,
 	return contacts, nil
 }
 
-func (p *Plugin) createClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+func (p *Plugin) createClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 	var req cloudapi.CreateContactRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -242,7 +242,7 @@ func (p *Plugin) createClusterContactHandle(w http.ResponseWriter, r *http.Reque
 	return resp.Contact, nil
 }
 
-func (p *Plugin) deleteClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+func (p *Plugin) deleteClusterContactHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 	var req cloudapi.RemoveContactRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -313,7 +313,7 @@ func (p *Plugin) withCloudCache(fn CloudHandler) CloudHandler {
 
 // withCloudAuth authenticates and request and initializes an instance of the cloud client API
 func (p *Plugin) withCloudAuth(next CloudHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 		sctx, err := p.h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -384,7 +384,7 @@ func (p *Plugin) withCloudClusterCache(fn ClusterCloudHandler) ClusterCloudHandl
 // to the remoteSite as specified by the ":site" url parameter (the same as WithClusterAuth),
 // and creates a cloud Client to be able to make requests to the cloud API form the remote site.
 func (plugin *Plugin) withCloudClusterAuth(next ClusterCloudHandler) httprouter.Handle {
-	return plugin.h.WithClusterAuth(func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	return plugin.h.WithClusterAuth(func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 		clt, err := sctx.GetUserClient(r.Context(), site)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -426,7 +426,7 @@ func (plugin *Plugin) withCloudClusterAuth(next ClusterCloudHandler) httprouter.
 
 // withCloud provides an initialized instance of the cloud client API for public requests.
 func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 		client, err := p.getAuthClient()
 		if err != nil {
 			return nil, trace.Wrap(err)

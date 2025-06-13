@@ -333,7 +333,7 @@ func Test_PolicyResourceService_ListSigstorePolicies(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbCreate)
 
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			policy := testPolicy()
 			policy.Metadata.Name = fmt.Sprintf("policy-%d", i)
 

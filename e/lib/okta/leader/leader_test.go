@@ -33,7 +33,7 @@ func TestBecomeLeader(t *testing.T) {
 	semaphoreKind := "service"
 
 	ctx := context.Background()
-	for i := 0; i < numServices; i++ {
+	for i := range numServices {
 		item, err := New(Config{
 			SemaphoreName: semaphoreName,
 			SemaphoreKind: semaphoreKind,
@@ -48,7 +48,7 @@ func TestBecomeLeader(t *testing.T) {
 
 	var holderID string
 	// Each service should grab the semaphore as the other services are stopped.
-	for serviceCount := 0; serviceCount < numServices-1; serviceCount++ {
+	for range numServices - 1 {
 		// One semaphore lease should be retrieved.
 		var semaphores []types.Semaphore
 		require.Eventually(t, func() bool {

@@ -12,7 +12,7 @@ import (
 )
 
 // getNonBillableUsageSummaryHandle returns usage report for resources that are not tracked in Stripe.
-func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
 	authClt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

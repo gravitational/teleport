@@ -51,7 +51,7 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 	}
 
 	genUserFunc := mkUserGenerator()
-	for i := 0; i < 101; i++ {
+	for range 101 {
 		usersToCreate = append(usersToCreate, genUserFunc())
 	}
 

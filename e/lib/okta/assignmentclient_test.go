@@ -354,7 +354,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		// when multiple concurrent calls are made to the assignmentClient
 		// for the same user and app.
 		var wg sync.WaitGroup
-		for i := 0; i < numOfParallelCalls; i++ {
+		for range numOfParallelCalls {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -378,7 +378,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		// when multiple concurrent calls are made to the assignmentClient
 		// for the same user and app.
 		var wg sync.WaitGroup
-		for i := 0; i < numOfParallelCalls; i++ {
+		for range numOfParallelCalls {
 			wg.Add(2)
 			go func() {
 				defer wg.Done()

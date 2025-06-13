@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"maps"
 	"regexp"
 	"sort"
 	"strconv"
@@ -197,9 +198,7 @@ func interpolatedLabels(matches []string, label priorityAndLabels) (priorityAndL
 func aggregateLabels(p prioritizedLabels) map[string]string {
 	labels := map[string]string{}
 	for _, priorityAndLabels := range p {
-		for name, value := range priorityAndLabels.addLabels {
-			labels[name] = value
-		}
+		maps.Copy(labels, priorityAndLabels.addLabels)
 	}
 
 	return labels

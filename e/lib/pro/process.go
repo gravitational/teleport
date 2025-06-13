@@ -83,7 +83,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 		cfg.AuthPlugin.EnableCloud(cloudClient)
 
-		process.OnExit("cloudClient.shutdown", func(payload interface{}) {
+		process.OnExit("cloudClient.shutdown", func(payload any) {
 			cloudClient.Close()
 		})
 

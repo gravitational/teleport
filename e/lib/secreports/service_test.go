@@ -55,7 +55,7 @@ func TestListReportStates(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := make([]*secreports.ReportState, 0, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		rs := &secreports.ReportState{
 			ResourceHeader: header.ResourceHeader{
 				Kind: types.KindSecurityReportState,
@@ -437,7 +437,7 @@ func TestService(t *testing.T) {
 			}, nil
 		}
 
-		for i := 0; i < defaultMaxParallelUserQueries; i++ {
+		for range defaultMaxParallelUserQueries {
 			go func() {
 				_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
 					Query: "SELECT * FROM table",

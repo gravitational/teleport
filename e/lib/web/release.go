@@ -8,7 +8,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) getReleases(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getReleases(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, err

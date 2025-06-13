@@ -251,7 +251,7 @@ func TestSyncScheduler_scheduleCantBeExhausted(t *testing.T) {
 	// Run an arbitrarily high number of iterations, showing that the schedule
 	// loops perfectly and can't be exhausted.
 	const iterations = 400
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		w := want[i%len(want)]
 		got := scheduler.Next()
 		if diff := cmp.Diff(w.entry, got.Entry); diff != "" {

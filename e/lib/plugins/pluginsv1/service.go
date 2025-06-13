@@ -3,6 +3,7 @@ package pluginsv1
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -516,9 +517,7 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 
 		// Merge this credential's existing labels with the supplied credential-
 		// identifying label set
-		for k, v := range credLabels {
-			instanceLabels[k] = v
-		}
+		maps.Copy(instanceLabels, credLabels)
 		cred.SetStaticLabels(instanceLabels)
 
 		// And finally, write the cred to the back-end

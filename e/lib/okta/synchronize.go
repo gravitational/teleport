@@ -505,7 +505,7 @@ func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventC
 	updatedOffset := numResourcesAdded
 	deletedOffset := numResourcesAdded + numResourcesUpdated
 
-	for i := 0; i < total; i++ {
+	for i := range total {
 		if i%syncEventBatches == 0 {
 			currentBatch = &batch{}
 			batches = append(batches, currentBatch)

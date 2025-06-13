@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (p *Plugin) getAuthConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getAuthConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,7 +77,7 @@ func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resour
 }
 
 // getSAMLConnectorHandle returns a SAML connector by name.
-func (p *Plugin) getSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,7 +92,7 @@ func (p *Plugin) getSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, 
 }
 
 // getOIDCConnectorHandle returns an OIDC connector by name.
-func (p *Plugin) getOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -106,7 +106,7 @@ func (p *Plugin) getOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, 
 	return ui.NewResourceItem(connector)
 }
 
-func (p *Plugin) deleteSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) deleteSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -140,7 +140,7 @@ func (p *Plugin) deleteSAMLConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return web.OK(), nil
 }
 
-func (p *Plugin) createSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) createSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -150,7 +150,7 @@ func (p *Plugin) createSAMLConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return item, trace.Wrap(err)
 }
 
-func (p *Plugin) updateSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) updateSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,7 +160,7 @@ func (p *Plugin) updateSAMLConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return item, trace.Wrap(err)
 }
 
-func (p *Plugin) deleteOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) deleteOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -194,7 +194,7 @@ func (p *Plugin) deleteOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return web.OK(), nil
 }
 
-func (p *Plugin) createOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) createOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -204,7 +204,7 @@ func (p *Plugin) createOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return item, trace.Wrap(err)
 }
 
-func (p *Plugin) updateOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) updateOIDCConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

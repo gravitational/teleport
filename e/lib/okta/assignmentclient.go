@@ -59,7 +59,7 @@ func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID okta
 	// We need to make sure that we don't make multiple requests to Okta for the same group.
 	// After the first request, the result is cached and returned for subsequent requests.
 	key := fmt.Sprintf("group:%s", groupID)
-	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
+	items, err, _ := a.syncSingleFlight.Do(key, func() (any, error) {
 		cachedMembers, populated := a.groups.Load(groupID)
 		if populated {
 			return cachedMembers, nil
@@ -195,7 +195,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 	// We need to make sure that we don't make multiple requests to Okta for the same app.
 	// After the first request, the result is cached and returned for subsequent requests.
 	key := fmt.Sprintf("app:%s", appID)
-	items, err, _ := a.syncSingleFlight.Do(key, func() (interface{}, error) {
+	items, err, _ := a.syncSingleFlight.Do(key, func() (any, error) {
 		cached, populated := a.apps.Load(appID)
 		if populated {
 			return cached, nil
