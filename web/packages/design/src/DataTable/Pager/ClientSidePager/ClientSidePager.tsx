@@ -23,7 +23,25 @@ import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { StyledArrowBtn, StyledFetchMoreBtn } from '../StyledPager';
 import { Props, useClientSidePager } from './useClientSidePager';
 
+/**
+ * Displays pagination for client side tables
+ */
 export function ClientSidePager(props: Props) {
+  return (
+    <Flex justifyContent="flex-end" width="100%" alignItems="center" mb={1}>
+      <InnerClientSidePager {...props} />
+    </Flex>
+  );
+}
+
+/**
+ * Displays pagination for client side tables, intended to be used with content
+ * sibling and formatted wrapper.
+ *
+ * If using a pager without a content sibling, use ClientSidePager
+ * for proper formatting.
+ */
+export function InnerClientSidePager(props: Props) {
   const { nextPage, prevPage, onFetchMore, fetchStatus } = props;
   const { from, to, count, isNextDisabled, isPrevDisabled } =
     useClientSidePager(props);
@@ -34,7 +52,7 @@ export function ClientSidePager(props: Props) {
 
   const isFetchingEnabled = onFetchMore && fetchStatus !== 'disabled';
   return (
-    <Flex justifyContent="flex-end" width="100%" alignItems="center" mb={1}>
+    <Flex alignItems="center">
       <Flex mr={2}>
         <PageIndicatorText from={from + 1} to={to + 1} count={count} />
         {isFetchingEnabled && (

@@ -16,5 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { ClientSidePager } from './ClientSidePager/ClientSidePager';
+export {
+  ClientSidePager,
+  InnerClientSidePager,
+} from './ClientSidePager/ClientSidePager';
 export { ServerSidePager } from './ServerSidePager';

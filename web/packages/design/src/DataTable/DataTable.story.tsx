@@ -18,9 +18,15 @@
 
 import { useState } from 'react';
 
+import Flex from 'design/Flex';
+import { P2 } from 'design/Text';
+
+import { Info } from '../Icon';
 import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
+import { InnerClientSidePager } from './Pager';
+import { StyledTable } from './StyledTable';
 import Table from './Table';
-import { TableProps } from './types';
+import { PagedTableProps, TableProps } from './types';
 
 export default {
   title: 'Design/DataTable',
@@ -100,6 +106,45 @@ export const ClientSidePagination = () => {
 
   return <Table<DummyDataType> {...props} />;
 };
+
+export const ClientSidePaginationWithInnerPagerAndSibling = () => {
+  const props = getDefaultProps();
+  props.pagination = {
+    pageSize: 3,
+    CustomTable: InnerPagerTable,
+  };
+
+  return <Table<DummyDataType> {...props} />;
+};
+function InnerPagerTable<T>({
+  nextPage,
+  prevPage,
+  data,
+  pagination,
+  renderHeaders,
+  renderBody,
+}: PagedTableProps<T>) {
+  return (
+    <>
+      <StyledTable>
+        {renderHeaders()}
+        {renderBody(pagination.paginatedData[pagination.currentPage])}
+      </StyledTable>
+      <Flex justifyContent="space-between" alignItems="center">
+        <Flex gap={1}>
+          <Info />
+          <P2>Custom helper text that describes table data or actions</P2>
+        </Flex>
+        <InnerClientSidePager
+          nextPage={nextPage}
+          prevPage={prevPage}
+          data={data}
+          {...pagination}
+        />
+      </Flex>
+    </>
+  );
+}
 
 // `if (issearchable)` view with ISO date strings
 export function ISODateStrings() {
