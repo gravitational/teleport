@@ -36,7 +36,7 @@ func TestSSHConfigurator(t *testing.T) {
 	homePath := t.TempDir()
 
 	// This test gives a fake clock only to the SSH configurator and a real
-	// clock to everything else, so that fakeClock.BlockUntilContext will
+	// clock to everything else, so that fakeClock.BlockUntil will
 	// reliably only capture the SSH configuration loop and nothing else.
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	realClock := clockwork.NewRealClock()
@@ -90,7 +90,7 @@ func TestSSHConfigurator(t *testing.T) {
 
 	// Wait until the configurator has had a chance to write the initial config
 	// file and then get blocked in the loop.
-	fakeClock.BlockUntilContext(ctx, 1)
+	fakeClock.BlockUntil(1)
 	// Assert the config file contains both root clusters reported by
 	// fakeClientApp.
 	assertConfigFile("*.cluster1 *.cluster2 *.leaf1")
@@ -104,9 +104,9 @@ func TestSSHConfigurator(t *testing.T) {
 			"leaf2": {},
 		},
 	}
-	fakeClock.BlockUntilContext(ctx, 1)
+	fakeClock.BlockUntil(1)
 	fakeClock.Advance(sshConfigurationUpdateInterval)
-	fakeClock.BlockUntilContext(ctx, 1)
+	fakeClock.BlockUntil(1)
 	assertConfigFile("*.cluster1 *.cluster2 *.cluster3 *.leaf1 *.leaf2")
 
 	// Kill the configurator, wait for it to return, and assert that the config
