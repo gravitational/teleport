@@ -167,7 +167,7 @@
     },
     {
       "source": "/deploy-a-cluster/open-source/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
       "permanent": true
     },
     {
@@ -232,7 +232,7 @@
     },
     {
       "source": "/try-out-teleport/linux-server/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
       "permanent": true
     },
     {
@@ -608,6 +608,11 @@
     {
       "source": "/admin-guides/access-controls/okta/user-sync/",
       "destination": "/identity-governance/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
       "permanent": true
     }
   ]
