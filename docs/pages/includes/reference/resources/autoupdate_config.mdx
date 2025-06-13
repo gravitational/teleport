@@ -1,0 +1,65 @@
+```yaml
+kind: autoupdate_config
+metadata:
+  # autoupdate_config is a singleton resource. There can be only one instance
+  # of this resource in the Teleport cluster, and it must be named `autoupdate-config`.
+  name: autoupdate-config
+spec:
+  agents:
+    # mode allows users to enable, disable, or suspend agent updates at the
+    # cluster level. Disable agent automatic updates only if self-managed
+    # updates are in place. This value may also be set in autoupdate_version.
+    # If set in both places, disabled overrides suspended, which overrides enabled.
+    # Possible values: "enabled", "disabled", "suspended"
+    # Default: "disabled" (unless specified in autoupdate_version)
+    mode: enabled
+
+    # strategy used to roll out updates to agents. Applies to every group.
+    # The halt-on-error strategy ensures that groups earlier in the schedule are
+    # given the opportunity to update to the target_version before groups that are
+    # later in the schedule. (Currently, the schedule must be stopped manually by
+    # setting the mode to "suspended" or "disabled". In the future, errors will be
+    # detected automatically).
+    # The time-based strategy ensure that each group updates within a defined
+    # time window, with no dependence between groups.
+    # Possible values: "halt-on-error" or "time-based"
+    # Default: "halt-on-error"
+    strategy: halt-on-error
+
+    # maintenance_window_duration configures the duration after the start_hour
+    # when updates may occur. Only valid for the time-based strategy.
+    # maintenance_window_duration: 1h
+
+    # schedules define groups of agents with different update times.
+    # Currently, only the regular schedule is configurable.
+    schedules:
+      regular:
+
+        # name of each group, configured locally via "teleport-update enable --group"
+        - name: staging
+
+          # start_hour of the update, in UTC
+          start_hour: 4
+
+          # days that the update may occur on
+          # Days are not configurable for most Enterprise cloud-hosted users.
+          # Possible values: "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", and "*"
+          # Default: [ "Mon", "Tue", "Wed", "Thu" ]
+          days: [ "Mon", "Tue", "Wed", "Thu" ]
+
+        - name: production
+          start_hour: 5
+
+          # wait_hours ensures that the group executes at least a specific number of hours
+          # after the previous group. Only valid for the halt-on-error schedule.
+          # Default: 0
+          wait_hours: 24
+
+  tools:
+    # mode allows users to enable or disable client tool updates at the
+    # cluster level. Disable client tool automatic updates only if self-managed
+    # updates are in place.
+    # Possible values: "enabled" or "disabled"
+    # Default: "disabled"
+    mode: enabled
+```
