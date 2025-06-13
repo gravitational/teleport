@@ -35,6 +35,13 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
+// ConnectedProxyGetter provides the ability to retrieve which proxy instances
+// a particular agent might be connected to. This is particularly useful for
+// proxy peering scenarios.
+type ConnectedProxyGetter interface {
+	GetProxyIDs() []string
+}
+
 // DialParams is a list of parameters used to Dial to a node within a cluster.
 type DialParams struct {
 	// From is the source address.

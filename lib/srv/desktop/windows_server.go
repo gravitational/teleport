@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -209,7 +209,7 @@ type WindowsServiceConfig struct {
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	Labels               map[string]string
 	// ResourceMatchers match dynamic Windows desktop resources.
 	ResourceMatchers []services.ResourceMatcher
@@ -273,6 +273,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.ConnLimiter == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing ConnLimiter")
 	}
+	if cfg.ConnectedProxyGetter == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing ConnectedProxyGetter")
+	}
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -287,7 +290,6 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
-	cfg.ConnectedProxyGetter = cmp.Or(cfg.ConnectedProxyGetter, reversetunnel.NewConnectedProxyGetter())
 
 	return nil
 }

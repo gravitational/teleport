@@ -236,6 +236,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
 		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -1828,6 +1829,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1966,6 +1968,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -2180,6 +2183,7 @@ func TestLimiter(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -2655,6 +2659,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
 			SetSessionController(sessionController),
+			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 		)
 		require.NoError(t, err)
 		require.NoError(t, proxy.Start())
@@ -2914,6 +2919,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -3067,6 +3073,7 @@ func TestTargetMetadata(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	}
 
 	sshSrv, err := New(
@@ -3347,6 +3354,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
+		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 

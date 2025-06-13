@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -150,8 +151,9 @@ func TestLabelsDomainControllers(t *testing.T) {
 func TestDNSErrors(t *testing.T) {
 	s := &WindowsService{
 		cfg: WindowsServiceConfig{
-			Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
-			Clock:  clockwork.NewRealClock(),
+			Logger:               slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			Clock:                clockwork.NewRealClock(),
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 		},
 		dnsResolver: &net.Resolver{
 			PreferGo: true,
@@ -226,10 +228,11 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 					Heartbeat: HeartbeatConfig{
 						HostUUID: "1234",
 					},
-					Logger:      slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
-					Clock:       clockwork.NewFakeClock(),
-					AuthClient:  client,
-					AccessPoint: client,
+					Logger:               slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+					Clock:                clockwork.NewFakeClock(),
+					AuthClient:           client,
+					AccessPoint:          client,
+					ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 					ResourceMatchers: []services.ResourceMatcher{{
 						Labels: types.Labels{
 							"foo": {"bar"},

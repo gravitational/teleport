@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -168,7 +168,7 @@ type Config struct {
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
 	// DatabaseObjects manages database object importers.
@@ -271,6 +271,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing ConnectionMonitor")
 	}
+	if c.ConnectedProxyGetter == nil {
+		return trace.BadParameter("missing ConnectedProxyGetter")
+	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
 			AWSConfigProvider: c.AWSConfigProvider,
@@ -295,9 +298,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	if c.CloudUsers == nil {
