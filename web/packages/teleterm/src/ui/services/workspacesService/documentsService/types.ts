@@ -238,16 +238,25 @@ export interface DocumentVnetInfo extends DocumentBase {
    * Connect should continue the regular flow of connecting to a TCP app through VNet, which means
    * it should copy the address of the resource to the clipboard, hence this field.
    *
-   * app is removed when restoring persisted state. Let's say the user opens the doc through the
-   * "Connect" button of a specific app. If they close the app and then reopen the docs, we don't
+   * launcherArgs is removed when restoring persisted state. Let's say the user opens the doc through
+   * the "Connect" button of a specific app. If they close the app and then reopen the doc, we don't
    * want the "Start VNet" button to copy the address of the app from the prev session.
    */
   launcherArgs: VnetLauncherArgs | undefined;
 }
 
+/**
+ * Details about a user-selected resource that prompted the VNet launch, so
+ * that addrToCopy can be copied to the clipboard after VNet launches with a
+ * helpful message displayed in a notification.
+ */
 export type VnetLauncherArgs = {
+  // The address that's going to be copied to the clipboard.
   addrToCopy: string;
+  // The URI of the resource the user clicked.
   resourceUri: uri.ResourceUri;
+  // True if the user clicked a multi-port TCP app, used to render a slightly
+  // different message in the (copied to clipboard) notification.
   isMultiPortApp?: boolean;
 };
 
