@@ -44,6 +44,8 @@ const (
 	teleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
+// Middleware is authentication middleware that extracts user information
+// from the TLS handshake.
 type Middleware struct {
 	ClusterName string
 	// Handler is HTTP handler called after the middleware checks requests
