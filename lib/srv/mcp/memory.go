@@ -27,7 +27,6 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -65,26 +64,21 @@ func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx Ses
 	s.cfg.Log.DebugContext(ctx, "Started in-memory server session")
 	defer s.cfg.Log.DebugContext(ctx, "Completed in-memory server session")
 
+	session, err := s.makeSessionHandler(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	session.emitStartEvent(s.cfg.ParentContext)
+	defer session.emitEndEvent(s.cfg.ParentContext)
+
 	server := mcpserver.NewMCPServer("hello-test-server", "1.0.0")
 	stdioServer := mcpserver.NewStdioServer(server)
 	stdioServer.SetErrorLogger(slog.NewLogLogger(s.cfg.Log.Handler(), slog.LevelDebug))
 
-	checkAccess := func(toolName string) bool {
-		return sessionCtx.AuthCtx.Checker.CheckAccess(
-			sessionCtx.App,
-			services.AccessState{
-				MFAVerified: true,
-			},
-			&services.MCPToolMatcher{
-				Name: toolName,
-			},
-		) == nil
-	}
-
 	helloTool := mcp.NewTool("teleport-hello-test",
 		mcp.WithDescription("this is simple hello test and it always return \"hello client\""),
 	)
-	if checkAccess(helloTool.GetName()) {
+	if session.checkAccessToTool(ctx, helloTool.GetName()) == nil {
 		server.AddTool(helloTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent("hello client")},
@@ -96,7 +90,7 @@ func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx Ses
 		mcp.WithDescription("this is simple echo and it always return the input back"),
 		mcp.WithString("input", mcp.Required(), mcp.Description("input for echo")),
 	)
-	if checkAccess(echoTool.GetName()) {
+	if session.checkAccessToTool(ctx, echoTool.GetName()) == nil {
 		server.AddTool(echoTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			input, err := request.RequireString("input")
 			if err != nil {
