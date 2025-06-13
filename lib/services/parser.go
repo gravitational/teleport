@@ -317,8 +317,6 @@ const (
 	ResourceIdentifier = "resource"
 	// ResourceLabelsIdentifier refers to the static and dynamic labels in a resource.
 	ResourceLabelsIdentifier = "labels"
-	// ResourceHealthIdentifier refers to the resource's endpoint target health.
-	ResourceHealthIdentifier = "health"
 	// ResourceNameIdentifier refers to two different fields depending on the kind of resource:
 	//   - KindNode will refer to its resource.spec.hostname field
 	//   - All other kinds will refer to its resource.metadata.name field
@@ -765,6 +763,12 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 
 				return r.GetName(), nil
 			}),
+			"health.status": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
+				if r, ok := r.(types.TargetHealthStatusGetter); ok {
+					return string(r.GetTargetHealthStatus()), nil
+				}
+				return "", nil
+			}),
 		},
 		Functions: map[string]typical.Function{
 			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels](func(s, suffix string) (bool, error) {
@@ -787,17 +791,8 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			}),
 		},
 		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
-			switch fields[0] {
-			case ResourceIdentifier:
+			if fields[0] == ResourceIdentifier {
 				if f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:]); err == nil {
-					return f, nil
-				}
-			case ResourceHealthIdentifier:
-				var resourceHealth types.TargetHealth
-				if h, ok := env.(types.TargetHealthGetter); ok {
-					resourceHealth = h.GetTargetHealth()
-				}
-				if f, err := predicate.GetFieldByTag(resourceHealth, teleport.JSON, fields[1:]); err == nil {
 					return f, nil
 				}
 			}
