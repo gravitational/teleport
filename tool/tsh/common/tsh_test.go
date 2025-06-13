@@ -7464,8 +7464,6 @@ func Test_validateKingpinAppHelp(t *testing.T) {
 		[]string{"version"},
 		setHomePath(t.TempDir()),
 		func(cf *CLIConf) error {
-			cf.overrideStderr = io.Discard
-			cf.overrideStderr = io.Discard
 			require.NotNil(t, cf.kingpinApp)
 
 			issues := testutils.FindKingpinAppHelpIssues(cf.kingpinApp)

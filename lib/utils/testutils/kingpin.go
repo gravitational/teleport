@@ -26,7 +26,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 )
 
-func checkKingpinHelp(help, location string) (issues []KingpinHelpIssue) {
+func checkKingpinHelp(help, where string) (issues []KingpinHelpIssue) {
 	// Some hidden flags are empty.
 	if help == "" {
 		return nil
@@ -35,34 +35,34 @@ func checkKingpinHelp(help, location string) (issues []KingpinHelpIssue) {
 	// Help should end with `.`, or `.)` in case the sentence is in brackets.
 	if !strings.HasSuffix(help, ".") && !strings.HasSuffix(help, ".)") {
 		issues = append(issues, KingpinHelpIssue{
-			Location: location,
-			Value:    help,
-			Issue:    "help is missing period",
+			Where: where,
+			Value: help,
+			Issue: "help is missing period",
 		})
 	}
 
 	// Help should start with upper case letter.
 	if unicode.IsLower(rune(help[0])) {
 		issues = append(issues, KingpinHelpIssue{
-			Location: location,
-			Value:    help,
-			Issue:    "help starts with lower case letter",
+			Where: where,
+			Value: help,
+			Issue: "help starts with lower case letter",
 		})
 	}
 	return
 }
 
 func checkKingpinCmdHelps(cmd *kingpin.CmdModel) (issues []KingpinHelpIssue) {
-	cmdLocation := fmt.Sprintf("command %q", cmd.FullCommand)
-	issues = append(issues, checkKingpinHelp(cmd.Help, cmdLocation)...)
+	cmdWhere := fmt.Sprintf("command %q", cmd.FullCommand)
+	issues = append(issues, checkKingpinHelp(cmd.Help, cmdWhere)...)
 
 	for _, arg := range cmd.Args {
-		location := fmt.Sprintf("%s arg %q", cmdLocation, arg.Name)
-		issues = append(issues, checkKingpinHelp(arg.Help, location)...)
+		where := fmt.Sprintf("%s arg %q", cmdWhere, arg.Name)
+		issues = append(issues, checkKingpinHelp(arg.Help, where)...)
 	}
 	for _, flag := range cmd.Flags {
-		location := fmt.Sprintf("%s flag %q", cmdLocation, flag.Name)
-		issues = append(issues, checkKingpinHelp(flag.Help, location)...)
+		where := fmt.Sprintf("%s flag %q", cmdWhere, flag.Name)
+		issues = append(issues, checkKingpinHelp(flag.Help, where)...)
 	}
 	for _, subCmd := range cmd.Commands {
 		issues = append(issues, checkKingpinCmdHelps(subCmd)...)
@@ -71,13 +71,13 @@ func checkKingpinCmdHelps(cmd *kingpin.CmdModel) (issues []KingpinHelpIssue) {
 }
 
 type KingpinHelpIssue struct {
-	Location string
-	Value    string
-	Issue    string
+	Where string
+	Value string
+	Issue string
 }
 
 func (i KingpinHelpIssue) String() string {
-	return fmt.Sprintf("%s %s: %s", i.Location, i.Issue, i.Value)
+	return fmt.Sprintf("%s %s: %s", i.Where, i.Issue, i.Value)
 }
 
 // FindKingpinAppHelpIssues checks common app issues like help description
