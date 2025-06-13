@@ -6,6 +6,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
@@ -21,20 +22,20 @@ type AccountAssignmentLister interface {
 // pairs. If an error is encountered listing the account assignments then the
 // sequence will yield a non-nil error value and the sequence will end
 // immediately.
-func AllAccountAssignments(ctx context.Context, svc AccountAssignmentLister) iter.Seq2[services.IdentityCenterAccountAssignment, error] {
+func AllAccountAssignments(ctx context.Context, svc AccountAssignmentLister) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
 	const pageSize = 20
 
-	return func(yield func(services.IdentityCenterAccountAssignment, error) bool) {
+	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
 		var pageToken pagination.PageRequestToken
 		for {
 			page, nextPage, err := svc.ListAccountAssignments(ctx, pageSize, &pageToken)
 			if err != nil {
-				yield(services.IdentityCenterAccountAssignment{}, trace.Wrap(err))
+				yield(nil, trace.Wrap(err))
 				return
 			}
 
 			for _, accountAssignment := range page {
-				if !yield(accountAssignment, nil) {
+				if !yield(accountAssignment.AccountAssignment, nil) {
 					return
 				}
 			}

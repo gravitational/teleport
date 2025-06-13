@@ -57,7 +57,7 @@ type Account struct {
 	StartURL       string
 }
 
-func (a Account) Build() services.IdentityCenterAccount {
+func (a Account) Build() *identitycenterv1.Account {
 	if a.StartURL == "" {
 		a.StartURL = fmt.Sprintf("https://store1.awsapps.com/start/#/console?account_id=%s", a.ID)
 	}
@@ -66,26 +66,24 @@ func (a Account) Build() services.IdentityCenterAccount {
 		a.PermissionSets = slices.Values(([]*identitycenterv1.PermissionSet)(nil))
 	}
 
-	account := services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name:        string(a.ID),
-				Description: a.Name,
-				Labels: map[string]string{
-					common.OriginLabel: common.OriginAWSIdentityCenter,
-				},
+	account := &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:        string(a.ID),
+			Description: a.Name,
+			Labels: map[string]string{
+				common.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:                  string(a.ID),
-				Name:                a.Name,
-				Arn:                 a.ARN,
-				IsOrganizationOwner: a.IsOwner,
-				StartUrl:            a.StartURL,
-			},
-			Status: &identitycenterv1.AccountStatus{},
 		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                  string(a.ID),
+			Name:                a.Name,
+			Arn:                 a.ARN,
+			IsOrganizationOwner: a.IsOwner,
+			StartUrl:            a.StartURL,
+		},
+		Status: &identitycenterv1.AccountStatus{},
 	}
 
 	sortedPSs := slices.Collect(a.PermissionSets)
@@ -148,26 +146,24 @@ type AccountAssignment struct {
 	PermissionSetARN  string
 }
 
-func (a AccountAssignment) Build() services.IdentityCenterAccountAssignment {
-	return services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind:    types.KindIdentityCenterAccountAssignment,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: a.ID,
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
-				},
+func (a AccountAssignment) Build() *identitycenterv1.AccountAssignment {
+	return &identitycenterv1.AccountAssignment{
+		Kind:    types.KindIdentityCenterAccountAssignment,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: a.ID,
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
-				Display: a.DisplayName,
-				PermissionSet: &identitycenterv1.PermissionSetInfo{
-					Arn:  a.PermissionSetARN,
-					Name: a.PermissionSetName,
-				},
-				AccountName: a.AccountName,
-				AccountId:   string(a.AccountID),
+		},
+		Spec: &identitycenterv1.AccountAssignmentSpec{
+			Display: a.DisplayName,
+			PermissionSet: &identitycenterv1.PermissionSetInfo{
+				Arn:  a.PermissionSetARN,
+				Name: a.PermissionSetName,
 			},
+			AccountName: a.AccountName,
+			AccountId:   string(a.AccountID),
 		},
 	}
 }

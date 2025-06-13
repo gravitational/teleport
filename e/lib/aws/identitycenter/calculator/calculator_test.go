@@ -621,10 +621,10 @@ func makeTestAccessRequest(t *testing.T, fixture *ictest.Fixture, req types.Acce
 }
 
 type testResources struct {
-	accounts           []services.IdentityCenterAccount
+	accounts           []*identitycenterv1.Account
 	permissionSets     []*identitycenterv1.PermissionSet
 	assignments        []assignment
-	accountAssignments map[assignment]services.IdentityCenterAccountAssignment
+	accountAssignments map[assignment]*identitycenterv1.AccountAssignment
 	roles              map[assignment]types.Role
 }
 
@@ -701,9 +701,9 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 		permissionSets = append(permissionSets, ps)
 	}
 
-	accounts := make([]services.IdentityCenterAccount, 4)
+	accounts := make([]*identitycenterv1.Account, 4)
 	var assignments []assignment
-	accountAssignments := make(map[assignment]services.IdentityCenterAccountAssignment)
+	accountAssignments := make(map[assignment]*identitycenterv1.AccountAssignment)
 	accountAssignmentRoles := make(map[assignment]types.Role)
 	for i := range accounts {
 		accountID := strings.Repeat(strconv.Itoa(i), 8)
@@ -713,9 +713,9 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 			ARN:            fmt.Sprintf("arn:aws:iam::%s:account/Account%02d", accountID, i),
 			PermissionSets: slices.Values(permissionSets),
 		}.Build()
-		account, err = fixture.Auth.CreateIdentityCenterAccount(ctx, account)
+		ceated, err := fixture.Auth.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{Account: account})
 		require.NoError(t, err)
-		accounts[i] = account
+		accounts[i] = ceated.Account
 
 		for _, ps := range permissionSets {
 			key := assignment{accountID: accountID, permissionSetARN: ps.Spec.Arn}
@@ -728,9 +728,9 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 				PermissionSetName: ps.Spec.Name,
 				PermissionSetARN:  ps.Spec.Arn,
 			}.Build()
-			assignment, err = fixture.Auth.CreateAccountAssignment(ctx, assignment)
+			created, err := fixture.Auth.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{AccountAssignment: assignment})
 			require.NoError(t, err)
-			accountAssignments[key] = assignment
+			accountAssignments[key] = created.AccountAssignment
 
 			role, err := fixture.Auth.Services.Access.CreateRole(ctx,
 				ictest.AccountAssignmentRole{

@@ -10,11 +10,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSDataFetch asserts that the data fetched from AWS is converted into
@@ -93,7 +93,7 @@ func TestFetchAccountFilters(t *testing.T) {
 		name             string
 		awsAccounts      []*icsdk.Account
 		filters          icfilters.Filters
-		expectedAccounts []services.IdentityCenterAccount
+		expectedAccounts []*identitycenterv1.Account
 	}{
 		{
 			name: "unfiltered",
@@ -101,7 +101,7 @@ func TestFetchAccountFilters(t *testing.T) {
 				{Name: "alpha", ID: "1234567890", ARN: "arn:aws:iam:::account/alpha"},
 				{Name: "bravo", ID: "0987654321", ARN: "arn:aws:iam:::account/bravo"},
 			},
-			expectedAccounts: []services.IdentityCenterAccount{
+			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "alpha", ID: "1234567890", ARN: "arn:aws:iam:::account/alpha"}.Build(),
 				test.Account{Name: "bravo", ID: "0987654321", ARN: "arn:aws:iam:::account/bravo"}.Build(),
 			},
@@ -116,7 +116,7 @@ func TestFetchAccountFilters(t *testing.T) {
 			filters: icfilters.Filters{
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
 			},
-			expectedAccounts: []services.IdentityCenterAccount{
+			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"}.Build(),
 			},
 		},
@@ -130,7 +130,7 @@ func TestFetchAccountFilters(t *testing.T) {
 			filters: icfilters.Filters{
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^include-.*$"}},
 			},
-			expectedAccounts: []services.IdentityCenterAccount{
+			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
 				test.Account{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"}.Build(),
 			},
@@ -145,7 +145,7 @@ func TestFetchAccountFilters(t *testing.T) {
 			filters: icfilters.Filters{
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "include-*"}},
 			},
-			expectedAccounts: []services.IdentityCenterAccount{
+			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
 				test.Account{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"}.Build(),
 			},
@@ -162,7 +162,7 @@ func TestFetchAccountFilters(t *testing.T) {
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^name-match-.*$"}},
 			},
-			expectedAccounts: []services.IdentityCenterAccount{
+			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "name-match-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
 				test.Account{Name: "id-match-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"}.Build(),
 				test.Account{Name: "name-match-delta", ID: "4444444444", ARN: "arn:aws:iam:::account/delta"}.Build(),

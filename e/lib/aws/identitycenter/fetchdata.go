@@ -69,7 +69,7 @@ func (svc *Service) refreshExternalData(ctx context.Context) (*externalData, err
 				Arn:  ps.Spec.Arn,
 			})
 		}
-		acct.Account.Spec.PermissionSetInfo = pss
+		acct.Spec.PermissionSetInfo = pss
 	}
 
 	return result, nil

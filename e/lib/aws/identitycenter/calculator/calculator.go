@@ -426,7 +426,7 @@ func updatePrincipalAccountAssignments(
 }
 
 func assignmentMatchesExpressions(
-	candidate services.IdentityCenterAccountAssignment,
+	candidate *identitycenterv1.AccountAssignment,
 	expressions []types.IdentityCenterAccountAssignment,
 ) (bool, error) {
 	for _, exp := range expressions {

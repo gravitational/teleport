@@ -100,19 +100,19 @@ func TestPreprocessing(t *testing.T) {
 
 		// The only change to Account 1 should be the addition of assignment
 		// names to the resources
-		expectedAcct1 := proto.CloneOf(awsAccounts[acctOneID].Account)
+		expectedAcct1 := proto.CloneOf(awsAccounts[acctOneID])
 		expectedAcct1.Spec.PermissionSetInfo[0].AssignmentId = "1111111111--admin"
 		expectedAcct1.Spec.PermissionSetInfo[1].AssignmentId = "1111111111--readonly"
-		require.Equal(t, expectedAcct1, processedData.accounts[acctOneID].Account,
+		require.Equal(t, expectedAcct1, processedData.accounts[acctOneID],
 			"Account 1 should be passed through with only the assignment names added")
 
 		// Account 2 should be identified as the IC instance owner, as well as
 		// having the assignment names added to the permission set info
-		expectedAcct2 := proto.CloneOf(awsAccounts[acctTwoID].Account)
+		expectedAcct2 := proto.CloneOf(awsAccounts[acctTwoID])
 		expectedAcct2.Spec.IsOrganizationOwner = true
 		expectedAcct2.Spec.PermissionSetInfo[0].AssignmentId = "2222222222--admin"
 		expectedAcct2.Spec.PermissionSetInfo[1].AssignmentId = "2222222222--readonly"
-		require.Equal(t, expectedAcct2, processedData.accounts[acctTwoID].Account,
+		require.Equal(t, expectedAcct2, processedData.accounts[acctTwoID],
 			"Account 2 should be identified as the organization owner")
 	})
 
@@ -197,7 +197,7 @@ func TestPreprocessing(t *testing.T) {
 func (m accountResourceMap) deepCopy() accountResourceMap {
 	dst := make(accountResourceMap, len(m))
 	for k, v := range m {
-		dst[k] = services.IdentityCenterAccount{Account: proto.CloneOf(v.Account)}
+		dst[k] = proto.CloneOf(v)
 	}
 	return dst
 }

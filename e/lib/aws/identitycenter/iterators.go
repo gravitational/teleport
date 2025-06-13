@@ -47,21 +47,20 @@ func allPermissionSets(ctx context.Context, src permissionSetLister) iter.Seq2[*
 	}
 }
 
-func allAccountAssignments(ctx context.Context, src services.IdentityCenterAccountAssignments) iter.Seq2[services.IdentityCenterAccountAssignment, error] {
+func allAccountAssignments(ctx context.Context, src services.IdentityCenterAccountAssignments) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
 	const pageSize = 100
 
-	return func(yield func(services.IdentityCenterAccountAssignment, error) bool) {
+	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
 		var pageToken pagination.PageRequestToken
 		for {
 			pageItems, nextPage, err := src.ListAccountAssignments(ctx, pageSize, &pageToken)
 			if err != nil {
-				yield(services.IdentityCenterAccountAssignment{},
-					trace.Wrap(err, "enumerating identity center account assignment resources"))
+				yield(nil, trace.Wrap(err, "enumerating identity center account assignment resources"))
 				return
 			}
 
 			for _, asmt := range pageItems {
-				if !yield(asmt, nil) {
+				if !yield(asmt.AccountAssignment, nil) {
 					return
 				}
 			}
@@ -74,21 +73,20 @@ func allAccountAssignments(ctx context.Context, src services.IdentityCenterAccou
 	}
 }
 
-func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.Seq2[services.IdentityCenterAccount, error] {
+func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.Seq2[*identitycenterv1.Account, error] {
 	const pageSize = 100
 
-	return func(yield func(services.IdentityCenterAccount, error) bool) {
+	return func(yield func(*identitycenterv1.Account, error) bool) {
 		var pageToken pagination.PageRequestToken
 		for {
 			pageItems, nextPage, err := src.ListIdentityCenterAccounts(ctx, pageSize, &pageToken)
 			if err != nil {
-				yield(services.IdentityCenterAccount{},
-					trace.Wrap(err, "enumerating identity center account resources"))
+				yield(nil, trace.Wrap(err, "enumerating identity center account resources"))
 				return
 			}
 
 			for _, asmt := range pageItems {
-				if !yield(asmt, nil) {
+				if !yield(asmt.Account, nil) {
 					return
 				}
 			}

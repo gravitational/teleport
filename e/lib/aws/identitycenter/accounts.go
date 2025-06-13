@@ -17,11 +17,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func getAccountID(acct services.IdentityCenterAccount) services.IdentityCenterAccountID {
+func getAccountID(acct *identitycenterv1.Account) services.IdentityCenterAccountID {
 	return services.IdentityCenterAccountID(acct.GetMetadata().GetName())
 }
 
-type accountResourceMap map[services.IdentityCenterAccountID]services.IdentityCenterAccount
+type accountResourceMap map[services.IdentityCenterAccountID]*identitycenterv1.Account
 
 func (svc *Service) loadAccountResources(ctx context.Context) (accountResourceMap, error) {
 	accounts := make(accountResourceMap)
@@ -37,30 +37,30 @@ func (svc *Service) loadAccountResources(ctx context.Context) (accountResourceMa
 func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccounts accountResourceMap) (accountResourceMap, error) {
 	result := maps.Clone(oldAccounts)
 
-	createAccount := func(ctx context.Context, acct services.IdentityCenterAccount) error {
-		createdAcct, err := svc.icSvc.CreateIdentityCenterAccount(ctx, acct)
+	createAccount := func(ctx context.Context, acct *identitycenterv1.Account) error {
+		createdAcct, err := svc.icSvc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{Account: acct})
 		if err != nil {
 			return trace.Wrap(err, "creating Identity Center Account record")
 		}
 
-		result[getAccountID(createdAcct)] = createdAcct
+		result[getAccountID(createdAcct.Account)] = createdAcct.Account
 		return nil
 	}
 
-	updateAccount := func(ctx context.Context, newAcct, oldAcct services.IdentityCenterAccount) error {
+	updateAccount := func(ctx context.Context, newAcct, oldAcct *identitycenterv1.Account) error {
 		// Copy the revision from the old record to the new so as not to upset
 		// the conditional update in the Identity Center data service
 		newAcct.Metadata.Revision = oldAcct.Metadata.Revision
 
-		updatedAcct, err := svc.icSvc.UpdateIdentityCenterAccount(ctx, newAcct)
+		updatedAcct, err := svc.icSvc.UpdateIdentityCenterAccount(ctx, services.IdentityCenterAccount{Account: newAcct})
 		if err != nil {
 			return trace.Wrap(err, "updating Identity Center Account record")
 		}
-		result[getAccountID(updatedAcct)] = updatedAcct
+		result[getAccountID(updatedAcct.Account)] = updatedAcct.Account
 		return nil
 	}
 
-	deleteAccount := func(ctx context.Context, acct services.IdentityCenterAccount) error {
+	deleteAccount := func(ctx context.Context, acct *identitycenterv1.Account) error {
 		err := svc.icSvc.DeleteIdentityCenterAccount(ctx, getAccountID(acct))
 		if err != nil {
 			return trace.Wrap(err, "updating Identity Center Account record")
@@ -69,8 +69,8 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 		return nil
 	}
 
-	r, err := services.NewGenericReconciler(services.GenericReconcilerConfig[services.IdentityCenterAccountID, services.IdentityCenterAccount]{
-		Matcher:             func(services.IdentityCenterAccount) bool { return true },
+	r, err := services.NewGenericReconciler(services.GenericReconcilerConfig[services.IdentityCenterAccountID, *identitycenterv1.Account]{
+		Matcher:             func(*identitycenterv1.Account) bool { return true },
 		GetCurrentResources: passThrough(oldAccounts),
 		GetNewResources:     passThrough(newAccounts),
 		OnCreate:            createAccount,
@@ -90,29 +90,27 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 	return result, nil
 }
 
-func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN, idSource icsdk.IdentityStoreID) services.IdentityCenterAccount {
-	return services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name:        string(id),
-				Description: name,
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
-				},
+func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN, idSource icsdk.IdentityStoreID) *identitycenterv1.Account {
+	return &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:        string(id),
+			Description: name,
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:       string(id),
-				Arn:      arn.String(),
-				Name:     name,
-				StartUrl: fmt.Sprintf("https://%s.awsapps.com/start/#/console?account_id=%s", idSource, id),
-			},
-			Status: &identitycenterv1.AccountStatus{},
 		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:       string(id),
+			Arn:      arn.String(),
+			Name:     name,
+			StartUrl: fmt.Sprintf("https://%s.awsapps.com/start/#/console?account_id=%s", idSource, id),
+		},
+		Status: &identitycenterv1.AccountStatus{},
 	}
 }
 
-func compareAccounts(a, b services.IdentityCenterAccount) int {
-	return services.EqualFromBool(equal.AccountEqual(a.Account, b.Account))
+func compareAccounts(a, b *identitycenterv1.Account) int {
+	return services.EqualFromBool(equal.AccountEqual(a, b))
 }

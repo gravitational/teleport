@@ -172,10 +172,7 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 			}
 			roles[mkRoleKey(getAccountID(acct), ps.Arn, acct.GetSpec().GetId())] = role
 
-			asmt, err := newAccountAssignment(acct, ps)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating account assignment record")
-			}
+			asmt := newAccountAssignment(acct, ps)
 			accountAssignments[getAccountAssignmentID(asmt)] = asmt
 			ps.AssignmentId = asmt.GetMetadata().GetName()
 		}
