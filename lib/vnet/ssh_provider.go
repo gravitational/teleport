@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -241,18 +242,15 @@ type dialTarget struct {
 }
 
 func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialTarget {
-	targetCluster := matchedCluster.GetRootCluster()
-	targetHost := strings.TrimSuffix(fqdn, "."+matchedCluster.GetRootCluster()+".")
-	leafCluster := matchedCluster.GetLeafCluster()
-	if leafCluster != "" {
-		targetCluster = leafCluster
-		targetHost = strings.TrimSuffix(targetHost, "."+leafCluster)
-	}
+	// matchedCluster.LeafCluster will be set if the host was in a leaf
+	// cluster, else it will be unset and the target cluster is the root.
+	targetCluster := cmp.Or(matchedCluster.GetLeafCluster(), matchedCluster.GetRootCluster())
+	targetHost := strings.TrimSuffix(fqdn, "."+fullyQualify(targetCluster))
 	return dialTarget{
 		fqdn:        fqdn,
 		profile:     matchedCluster.GetProfile(),
 		rootCluster: matchedCluster.GetRootCluster(),
-		leafCluster: leafCluster,
+		leafCluster: matchedCluster.GetLeafCluster(),
 		cluster:     targetCluster,
 		hostname:    targetHost,
 		addr:        targetHost + ":0",
