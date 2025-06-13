@@ -116,7 +116,7 @@ func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 	}
 }
 
-func TestStartAWSRolesAnywherProfileSyncer(t *testing.T) {
+func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 	awsRolesAnywhereIntegration := func(t *testing.T, name string, syncEnabled bool) types.Integration {
 		t.Helper()
 
@@ -212,7 +212,7 @@ func TestStartAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := StartAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
 				assert.NoError(t, err)
 			}()
 
@@ -240,7 +240,7 @@ func TestStartAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := StartAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
 				assert.NoError(t, err)
 			}()
 
@@ -283,7 +283,7 @@ func TestStartAWSRolesAnywherProfileSyncer(t *testing.T) {
 		synctest.Run(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := StartAWSRolesAnywherProfileSyncer(ctx, params)
+				err := RunAWSRolesAnywherProfileSyncer(ctx, params)
 				assert.NoError(t, err)
 			}()
 

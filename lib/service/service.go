@@ -2629,7 +2629,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		runFunction := func(ctx context.Context) error {
-			return trace.Wrap(awsra.StartAWSRolesAnywherProfileSyncer(ctx, params))
+			return trace.Wrap(awsra.RunAWSRolesAnywherProfileSyncer(ctx, params))
 		}
 
 		waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
