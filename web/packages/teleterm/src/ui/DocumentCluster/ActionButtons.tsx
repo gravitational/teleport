@@ -71,14 +71,7 @@ export function ConnectServerActionButton(props: {
     const hostname = props.server.hostname;
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
     const clusterName = cluster?.name || '<cluster>';
-    let addr = `${hostname}.${clusterName}`;
-    if (cluster.leaf) {
-      const rootCluster = ctx.clustersService.findRootClusterByResource(
-        props.server.uri
-      );
-      const rootClusterName = rootCluster?.name || '<root-cluster>';
-      addr = `${hostname}.${clusterName}.${rootClusterName}`;
-    }
+    const addr = `${hostname}.${clusterName}`;
     launchVnet({
       addrToCopy: addr,
       resourceUri: props.server.uri,
