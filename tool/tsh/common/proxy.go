@@ -299,7 +299,7 @@ func requiresGCPMetadata(protocol string) bool {
 func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, extraOpts ...dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
 	var err error
 	opts := append([]dbcmd.ConnectCommandFunc{
-		dbcmd.WithLogger(logger),
+		dbcmd.WithLogger(log),
 		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}, extraOpts...)
 
