@@ -128,6 +128,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -4725,35 +4726,36 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			reversetunnel.Config{
 				ClientTLSCipherSuites:   process.Config.CipherSuites,
 				GetClientTLSCertificate: conn.ClientGetCertificate,
-
-				Context:               process.ExitContext(),
-				Component:             teleport.Component(teleport.ComponentProxy, process.id),
-				ID:                    process.Config.HostUUID,
-				ClusterName:           clusterName,
-				Listener:              rtListener,
-				GetHostSigners:        conn.ServerGetHostSigners,
-				LocalAuthClient:       conn.Client,
-				LocalAccessPoint:      accessPoint,
-				NewCachingAccessPoint: process.newLocalCacheForRemoteProxy,
-				Limiter:               reverseTunnelLimiter,
-				KeyGen:                cfg.Keygen,
-				Ciphers:               cfg.Ciphers,
-				KEXAlgorithms:         cfg.KEXAlgorithms,
-				MACAlgorithms:         cfg.MACAlgorithms,
-				DataDir:               process.Config.DataDir,
-				PollingPeriod:         process.Config.PollingPeriod,
-				FIPS:                  cfg.FIPS,
-				Emitter:               streamEmitter,
-				Logger:                process.logger,
-				LockWatcher:           lockWatcher,
-				PeerClient:            peerClient,
-				NodeWatcher:           nodeWatcher,
-				GitServerWatcher:      gitServerWatcher,
-				CertAuthorityWatcher:  caWatcher,
-				CircuitBreakerConfig:  process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
-				IngressReporter:       ingressReporter,
-				PROXYSigner:           proxySigner,
+				Context:                 process.ExitContext(),
+				Component:               teleport.Component(teleport.ComponentProxy, process.id),
+				ID:                      process.Config.HostUUID,
+				ClusterName:             clusterName,
+				Listener:                rtListener,
+				GetHostSigners:          conn.ServerGetHostSigners,
+				LocalAuthClient:         conn.Client,
+				LocalAccessPoint:        accessPoint,
+				NewCachingAccessPoint:   process.newLocalCacheForRemoteProxy,
+				Limiter:                 reverseTunnelLimiter,
+				KeyGen:                  cfg.Keygen,
+				Ciphers:                 cfg.Ciphers,
+				KEXAlgorithms:           cfg.KEXAlgorithms,
+				MACAlgorithms:           cfg.MACAlgorithms,
+				DataDir:                 process.Config.DataDir,
+				PollingPeriod:           process.Config.PollingPeriod,
+				FIPS:                    cfg.FIPS,
+				Emitter:                 streamEmitter,
+				Logger:                  process.logger,
+				LockWatcher:             lockWatcher,
+				PeerClient:              peerClient,
+				NodeWatcher:             nodeWatcher,
+				GitServerWatcher:        gitServerWatcher,
+				CertAuthorityWatcher:    caWatcher,
+				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+				IngressReporter:         ingressReporter,
+				PROXYSigner:             proxySigner,
+				EICEDialer:              awsoidc.DialInstance,
+				EICESigner:              awsoidc.GenerateAndUploadKey,
 			})
 		if err != nil {
 			return trace.Wrap(err)

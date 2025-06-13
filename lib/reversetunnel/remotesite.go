@@ -917,6 +917,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		TargetHostname:           params.Address,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
+		EICESigner:               s.srv.EICESigner,
 	}
 	// Ensure the hostname is set correctly if we have details of the target
 	if params.TargetServer != nil {
