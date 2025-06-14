@@ -671,7 +671,7 @@ func TestLegacyKubeResourceIDs(t *testing.T) {
 			desc: "namespace resource name with missing namespace and pod name",
 			expect: []ResourceID{{
 				ClusterName: "one",
-				Kind:        "kube:cw:namespaces",
+				Kind:        "namespaces",
 				Name:        "cluster",
 			}},
 			in:               `["/one/namespace/cluster"]`,
@@ -681,7 +681,7 @@ func TestLegacyKubeResourceIDs(t *testing.T) {
 			desc: "namespace resource name in cluster with slash",
 			expect: []ResourceID{{
 				ClusterName:     "one",
-				Kind:            "kube:cw:namespaces",
+				Kind:            "namespace",
 				Name:            "cluster",
 				SubResourceName: "namespace*",
 			}},
