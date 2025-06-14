@@ -1,0 +1,55 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package mcp
+
+import (
+	"errors"
+	"net"
+	"syscall"
+
+	"github.com/gravitational/trace"
+)
+
+// IsLikelyTemporaryNetworkError returns true if the error is likely a temporary
+// network error.
+func IsLikelyTemporaryNetworkError(err error) bool {
+	if trace.IsConnectionProblem(err) ||
+		isTemporarySyscallNetError(err) {
+		return true
+	}
+
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return dnsErr.Temporary()
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+
+	return false
+}
+
+func isTemporarySyscallNetError(err error) bool {
+	return errors.Is(err, syscall.EHOSTUNREACH) ||
+		errors.Is(err, syscall.ENETUNREACH) ||
+		errors.Is(err, syscall.ETIMEDOUT) ||
+		errors.Is(err, syscall.ECONNREFUSED)
+}

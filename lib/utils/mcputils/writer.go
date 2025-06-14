@@ -22,6 +22,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -49,4 +50,38 @@ func (s *SyncMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMes
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.w.WriteMessage(ctx, msg)
+}
+
+// MessageWriterFunc defines a message writer function that implements
+// MessageWriter.
+type MessageWriterFunc func(context.Context, mcp.JSONRPCMessage) error
+
+// WriteMessage writes an JSON RPC message.
+func (f MessageWriterFunc) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+	return f(ctx, msg)
+}
+
+// MultiMessageWriter creates a writer that duplicates its writes to all the
+// provided writers.
+//
+// Each write is written to each listed writer, one at a time. If a listed
+// writer returns an error, that overall writes operation stops and returns the
+// error; it does not continue down the list.
+type MultiMessageWriter struct {
+	writers []MessageWriter
+}
+
+// NewMultiMessageWriter creates a new MultiMessageWriter.
+func NewMultiMessageWriter(writers ...MessageWriter) *MultiMessageWriter {
+	return &MultiMessageWriter{writers: writers}
+}
+
+// WriteMessage writes the message to each listed writer, one at a time.
+func (w *MultiMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+	for _, writer := range w.writers {
+		if err := writer.WriteMessage(ctx, msg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

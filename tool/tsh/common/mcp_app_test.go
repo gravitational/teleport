@@ -425,6 +425,57 @@ func Test_mcpConfigCommand(t *testing.T) {
 	}
 }
 
+func Test_mcpConfigCommand_shouldAutoReconnect(t *testing.T) {
+	statelessApp := mustMakeMCPAppWithNameAndLabels(t, "stateless", nil)
+	statefulApp := mustMakeMCPAppWithNameAndLabels(t, "stateful", nil, func(mcp *types.MCP) {
+		mcp.StatefulSession = true
+	})
+
+	tests := []struct {
+		name  string
+		cmd   *mcpConfigCommand
+		app   types.Application
+		check require.BoolAssertionFunc
+	}{
+		{
+			name:  "stateless app",
+			cmd:   &mcpConfigCommand{},
+			app:   statelessApp,
+			check: require.True,
+		},
+		{
+			name:  "stateful app",
+			cmd:   &mcpConfigCommand{},
+			app:   statefulApp,
+			check: require.False,
+		},
+		{
+			name: "stateless app with no-auto-reconnect",
+			cmd: &mcpConfigCommand{
+				autoReconnectSetByUser: true,
+				autoReconnect:          false,
+			},
+			app:   statelessApp,
+			check: require.False,
+		},
+		{
+			name: "stateful app with auto-reconnect",
+			cmd: &mcpConfigCommand{
+				autoReconnectSetByUser: true,
+				autoReconnect:          true,
+			},
+			app:   statefulApp,
+			check: require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, tt.cmd.shouldAutoReconnect(tt.app))
+		})
+	}
+}
+
 type fakeResourcesClient struct {
 	resources []types.ResourceWithLabels
 }
@@ -452,8 +503,16 @@ func mustMakeNewAppServer(t *testing.T, app *types.AppV3, host string) types.App
 	return appServer
 }
 
-func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[string]string) *types.AppV3 {
+func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[string]string, opts ...func(*types.MCP)) *types.AppV3 {
 	t.Helper()
+	mcpSpec := &types.MCP{
+		Command:       "test",
+		Args:          []string{"arg"},
+		RunAsHostUser: "test",
+	}
+	for _, opt := range opts {
+		opt(mcpSpec)
+	}
 	return mustMakeNewAppV3(t,
 		types.Metadata{
 			Name:        name,
@@ -461,11 +520,7 @@ func mustMakeMCPAppWithNameAndLabels(t *testing.T, name string, labels map[strin
 			Labels:      labels,
 		},
 		types.AppSpecV3{
-			MCP: &types.MCP{
-				Command:       "test",
-				Args:          []string{"arg"},
-				RunAsHostUser: "test",
-			},
+			MCP: mcpSpec,
 		},
 	)
 }
