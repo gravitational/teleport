@@ -18,7 +18,6 @@ Keycloak groups. You can choose to configure other options.
 
 Before you get started, you’ll need:
 
-
 - An administrative account for the Keycloak Admin Console to manage realms 
   and perform administrative tasks.
 - To be in a realm other than the master realm.
@@ -32,7 +31,7 @@ Before you get started, you’ll need:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure Keycloak
+## Step 1/2. Configure Keycloak
 
 ### Create a SAML Client
 1. Select the Realm to be used for your SAML integration. Click **Clients** in the menu.
@@ -89,14 +88,14 @@ Before you get started, you’ll need:
 
    This enables using the username inside Teleport roles as the <nobr>`{{external.username}}`</nobr> property.
 
-## Step 2/3. Create a SAML connector
+## Step 2/2. Create a SAML connector
 
 Now, create a SAML connector resource using `tctl`.
 
 ```code
 $ tctl sso configure saml --name keycloak \
 --entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
---attributes-to-roles groups,/devops,dev \
+--attributes-to-roles groups,/devops,access \
 --audience https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak \
 --acs https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak > keycloak-connector.yaml
 ```
@@ -123,7 +122,7 @@ spec:
   attributes_to_roles:
   - name: groups
     roles:
-    - dev
+    - access
     value: /devops
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
@@ -143,7 +142,6 @@ This will be enabled at a later step as you proceed through the guide.
 
 ![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
 
-
 With the connector in place on the cluster, you can test it with `tctl`: 
 
 ```code
@@ -160,46 +158,6 @@ To create the connector using the `tctl` tool, run the following command:
 $ tctl create -f keycloak-connector.yaml
 ```
 
-## Step 3/3. Create a new Teleport role
-
-Create a Teleport role resource that will use external username data from the
-Keycloak connector to determine which Linux logins to allow on a host.
-
-Create a file called `dev.yaml` with the following content:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    # only allow login as either ubuntu or the 'windowsaccountname' claim
-    logins: [ '{{external.username}}', ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-Users with the `dev` role are only allowed to log in to nodes with the `access:
-relaxed` Teleport label. They can log in as either `ubuntu` or a username that
-is passed in from the keycloak connector using the `username`
-attribute.
-
-The login
-<nobr>`{{external.username}}`</nobr>
-configures Teleport to look at the `username`
-attribute and use that field as an allowed login for each user.
-
-Create the role:
-
-```code
-$ tctl create dev.yaml
-```
-
-(!docs/pages/includes/enterprise/samlauthentication.mdx!)
-
 ## Client Certificate Signature validation (Recommended)
 
 If Client Signature Required is enabled, 
@@ -210,7 +168,6 @@ or cert set up in the **Keys** tab.
 To have Keycloak require client signature validation from Teleport,
 you must configure the signing keys by generating and importing keys to Keycloak, 
 The client will sign their saml requests and responses and the signature will be validated.
-
 
 ### Create private keys for signing
 
