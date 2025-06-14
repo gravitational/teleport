@@ -48,9 +48,10 @@ type KeyStore interface {
 
 // ManagerConfig captures all of the dependencies required to instantiate a Manager.
 type ManagerConfig struct {
-	Backend  services.RecordingEncryption
-	KeyStore KeyStore
-	Logger   *slog.Logger
+	Backend    services.RecordingEncryption
+	KeyStore   KeyStore
+	Logger     *slog.Logger
+	LockConfig backend.RunWhileLockedConfig
 }
 
 // NewManager returns a new Manager using the given ManagerConfig.
@@ -70,6 +71,7 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 	return &Manager{
 		RecordingEncryption: cfg.Backend,
 		keyStore:            cfg.KeyStore,
+		lockConfig:          cfg.LockConfig,
 		logger:              cfg.Logger,
 	}, nil
 }
@@ -80,8 +82,9 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 type Manager struct {
 	services.RecordingEncryption
 
-	logger   *slog.Logger
-	keyStore KeyStore
+	logger     *slog.Logger
+	lockConfig backend.RunWhileLockedConfig
+	keyStore   KeyStore
 }
 
 // ensureActiveRecordingEncryption returns the configured RecordingEncryption resource if it exists with active keys. If it does not,
@@ -189,7 +192,21 @@ func (m *Manager) getRecordingEncryptionKeyPair(ctx context.Context, keys []*rec
 // recording encryption key pairs) will be fulfilled using their public key encryption keys.
 //
 // If there are no unfulfilled keys present, then nothing should be done.
-func (m *Manager) ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
+func (m *Manager) ResolveRecordingEncryption(ctx context.Context, postProcessFn func(context.Context, *recordingencryptionv1.RecordingEncryption) error) (encryption *recordingencryptionv1.RecordingEncryption, err error) {
+	err = backend.RunWhileLocked(ctx, m.lockConfig, func(ctx context.Context) error {
+		encryption, err = m.resolveRecordingEncryption(ctx)
+		if err != nil {
+			return err
+		}
+		if postProcessFn != nil {
+			return postProcessFn(ctx, encryption)
+		}
+		return nil
+	})
+	return encryption, trace.Wrap(err)
+}
+
+func (m *Manager) resolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
 	encryption, generatedKey, err := m.ensureActiveRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -312,9 +329,10 @@ func GetAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*ty
 	}
 }
 
-// Resolver resolves RecordingEncryption state
+// Resolver resolves RecordingEncryption state and passes the result to a postProcessFn callback to be called
+// before any locks are released.
 type Resolver interface {
-	ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
+	ResolveRecordingEncryption(ctx context.Context, postProcessFn func(context.Context, *recordingencryptionv1.RecordingEncryption) error) (*recordingencryptionv1.RecordingEncryption, error)
 }
 
 // WatchConfig captures required dependencies for building a RecordingEncryption watcher that
@@ -324,7 +342,6 @@ type WatchConfig struct {
 	Resolver      Resolver
 	ClusterConfig services.ClusterConfiguration
 	Logger        *slog.Logger
-	LockConfig    *backend.RunWhileLockedConfig
 }
 
 // A Watcher watches for changes to the RecordingEncryption resource and resolves the state for the calling
@@ -334,7 +351,6 @@ type Watcher struct {
 	resolver      Resolver
 	clusterConfig services.ClusterConfiguration
 	logger        *slog.Logger
-	lockConfig    *backend.RunWhileLockedConfig
 }
 
 // NewWatcher returns a new Watcher.
@@ -346,8 +362,6 @@ func NewWatcher(cfg WatchConfig) (*Watcher, error) {
 		return nil, trace.BadParameter("recording encryption resolver is required")
 	case cfg.ClusterConfig == nil:
 		return nil, trace.BadParameter("cluster config backend is required")
-	case cfg.LockConfig == nil:
-		return nil, trace.BadParameter("lock config is required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, "encryption-watcher")
@@ -358,7 +372,6 @@ func NewWatcher(cfg WatchConfig) (*Watcher, error) {
 		resolver:      cfg.Resolver,
 		clusterConfig: cfg.ClusterConfig,
 		logger:        cfg.Logger,
-		lockConfig:    cfg.LockConfig,
 	}, nil
 }
 
@@ -402,6 +415,7 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 		for {
 			err := w.handleRecordingEncryptionChange(ctx)
 			if err != nil {
+				w.logger.ErrorContext(ctx, "failure while resolving recording encryption state", "error", err)
 				if !shouldRetryAfterJitterFn() {
 					return nil
 				}
@@ -434,28 +448,28 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 // this helper handles reacting to individual Put events on the RecordingEncryption resource and updates the
 // SessionRecordingConfig with the results, if necessary
 func (w *Watcher) handleRecordingEncryptionChange(ctx context.Context) error {
-	return trace.Wrap(backend.RunWhileLocked(ctx, *w.lockConfig, func(ctx context.Context) error {
-		recConfig, err := w.clusterConfig.GetSessionRecordingConfig(ctx)
-		if err != nil {
-			return trace.Wrap(err, "fetching recording config")
-		}
+	recConfig, err := w.clusterConfig.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err, "fetching recording config")
+	}
 
-		if !recConfig.GetEncrypted() {
-			w.logger.DebugContext(ctx, "session recording encryption disabled, skip resolving keys")
+	if !recConfig.GetEncrypted() {
+		w.logger.DebugContext(ctx, "session recording encryption disabled, skip resolving keys")
+		return nil
+	}
+
+	_, err = w.resolver.ResolveRecordingEncryption(ctx, func(ctx context.Context, encryption *recordingencryptionv1.RecordingEncryption) error {
+		if !recConfig.SetEncryptionKeys(GetAgeEncryptionKeys(encryption.GetSpec().ActiveKeys)) {
 			return nil
 		}
 
-		encryption, err := w.resolver.ResolveRecordingEncryption(ctx)
-		if err != nil {
-			w.logger.ErrorContext(ctx, "failed to resolve recording encryption state", "error", err)
-			return trace.Wrap(err, "resolving recording encryption")
-		}
+		_, err = w.clusterConfig.UpdateSessionRecordingConfig(ctx, recConfig)
+		return trace.Wrap(err, "updating encryption keys")
+	})
 
-		if recConfig.SetEncryptionKeys(GetAgeEncryptionKeys(encryption.GetSpec().ActiveKeys)) {
-			_, err = w.clusterConfig.UpdateSessionRecordingConfig(ctx, recConfig)
-			return trace.Wrap(err, "updating encryption keys")
-		}
+	if err != nil {
+		return trace.Wrap(err, "resolving recording encryption")
+	}
 
-		return nil
-	}))
+	return nil
 }
