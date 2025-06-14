@@ -162,7 +162,10 @@ func FromGRPC(err error, args ...interface{}) error {
 	case codes.ResourceExhausted:
 		e = &trace.LimitExceededError{Message: message}
 	case codes.Unavailable:
-		e = &trace.ConnectionProblemError{Message: message}
+		e = &trace.ConnectionProblemError{
+			Message: message,
+			Err:     err,
+		}
 	case codes.Unimplemented:
 		e = &trace.NotImplementedError{Message: message}
 	default:

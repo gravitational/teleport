@@ -70,8 +70,8 @@ func NewStdioMessageWriter(w io.Writer) *StdioMessageWriter {
 }
 
 // WriteMessage writes a JSONRPC message in stdio transport.
-func (w *StdioMessageWriter) WriteMessage(_ context.Context, resp mcp.JSONRPCMessage) error {
-	bytes, err := json.Marshal(resp)
+func (w *StdioMessageWriter) WriteMessage(_ context.Context, msg mcp.JSONRPCMessage) error {
+	bytes, err := json.Marshal(msg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -244,5 +244,29 @@ func (r *StdioMessageReader) processNextLine(ctx context.Context, lineReader *bu
 			r.cfg.OnParseError(ctx, &rpcError),
 			"handling unknown message type error",
 		)
+	}
+}
+
+func ReadOneMessageFromStdioReader(reader io.Reader) (any, error) {
+	br := bufio.NewReader(reader)
+	line, err := br.ReadString('\n')
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var base baseJSONRPCMessage
+	if parseError := json.Unmarshal([]byte(line), &base); parseError != nil {
+		return nil, trace.Wrap(parseError)
+	}
+
+	switch {
+	case base.isNotification():
+		return base.makeNotification(), nil
+	case base.isRequest():
+		return base.makeRequest(), nil
+	case base.isResponse():
+		return base.makeResponse(), nil
+	default:
+		return nil, trace.BadParameter("unknown message type")
 	}
 }

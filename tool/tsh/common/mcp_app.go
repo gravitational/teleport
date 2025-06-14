@@ -24,11 +24,13 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"net"
 	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"github.com/mark3labs/mcp-go/mcp"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -37,10 +39,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	clientdbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -51,6 +56,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 	}
 
 	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
+	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).BoolVar(&cmd.autoReconnect)
 	return cmd
 }
 
@@ -77,6 +83,7 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Flag("all", "Select all MCP servers. Mutually exclusive with --labels or --query.").Short('R').BoolVar(&cf.ListAll)
 	cmd.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).IsSetByUser(&cmd.autoReconnectSetByUser).BoolVar(&cmd.autoReconnect)
 	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
@@ -260,8 +267,10 @@ func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWith
 
 type mcpConfigCommand struct {
 	*kingpin.CmdClause
-	clientConfig mcpClientConfigFlags
-	cf           *CLIConf
+	clientConfig           mcpClientConfigFlags
+	cf                     *CLIConf
+	autoReconnect          bool
+	autoReconnectSetByUser bool
 
 	mcpServerApps []types.Application
 
@@ -347,12 +356,29 @@ func (c *mcpConfigCommand) fetch() error {
 func (c *mcpConfigCommand) addMCPServersToConfig(config claudeConfig) error {
 	for _, app := range c.mcpServerApps {
 		localName := mcpServerAppConfigPrefix + app.GetName()
-		err := config.PutMCPServer(localName, makeLocalMCPServer(c.cf, []string{"mcp", "connect", app.GetName()}))
+		args := []string{"mcp", "connect", app.GetName()}
+		if c.shouldAutoReconnect(app) {
+			args = append(args, "--auto-reconnect")
+		} else {
+			args = append(args, "--no-auto-reconnect")
+		}
+		err := config.PutMCPServer(localName, makeLocalMCPServer(c.cf, args))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
+}
+
+func (c *mcpConfigCommand) shouldAutoReconnect(app types.Application) bool {
+	if c.autoReconnectSetByUser {
+		return c.autoReconnectSetByUser
+	}
+	mcpSpec := app.GetMCP()
+	if mcpSpec == nil {
+		return false
+	}
+	return !mcpSpec.StatefulSession
 }
 
 func (c *mcpConfigCommand) printJSONWithHint() error {
@@ -372,7 +398,10 @@ func (c *mcpConfigCommand) printJSONWithHint() error {
 	if err := config.Write(w, claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := fmt.Fprintln(w, ""); err != nil {
+	if err := c.printAutoReconnectHint(w); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(c.clientConfig.printHint(w))
@@ -395,26 +424,41 @@ func (c *mcpConfigCommand) updateClientConfig() error {
 		return trace.Wrap(err)
 	}
 
-	// TODO(greedy52) update hint once auto-reconnection is handled.
 	_, err = fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
 %s
 
 Teleport MCP servers will be prefixed with "teleport-mcp-" in this
 configuration.
-
-You may need to restart your client to reload these new configurations. If you
-encounter a "disconnected" error when tsh session expires, you may also need to
-restart your client after logging in a new tsh session.
 `, config.Path())
+
+	if err := c.printAutoReconnectHint(c.cf.Stdout()); err != nil {
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
-const mcpServerAppConfigPrefix = "teleport-mcp-"
+func (c *mcpConfigCommand) printAutoReconnectHint(w io.Writer) error {
+	_, err := fmt.Fprintf(w, `
+The --auto-reconnect/--no-auto-reconnect flag controls whether tsh should
+automatically starts a new remote MCP session when the previous remote session
+is interrupted by network issues or tsh session expirations. Use
+--auto-reconnect for better user experience if your MCP sessions are
+stateless across requests.`)
+	return trace.Wrap(err)
+}
+
+const (
+	mcpServerAppConfigPrefix = "teleport-mcp-"
+	mcpAutoReconnectHelp     = "Automatically starts a new remote MCP session " +
+		"when the previous remote session is interrupted " +
+		"by network issues or tsh session expirations."
+)
 
 // mcpConnectCommand implements `tsh mcp connect` command.
 type mcpConnectCommand struct {
 	*kingpin.CmdClause
-	cf *CLIConf
+	cf            *CLIConf
+	autoReconnect bool
 }
 
 func (c *mcpConnectCommand) run() error {
@@ -429,9 +473,76 @@ func (c *mcpConnectCommand) run() error {
 	}
 	tc.NonInteractive = true
 
+	if c.autoReconnect {
+		return c.runWithAutoReconnect(tc)
+	}
+
 	serverConn, err := tc.DialMCPServer(c.cf.Context, c.cf.AppName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(utils.ProxyConn(c.cf.Context, utils.CombinedStdio{}, serverConn))
+}
+
+func (c *mcpConnectCommand) runWithAutoReconnect(tc *client.TeleportClient) error {
+	clientResponseWriter := mcputils.NewStdioMessageWriter(utils.NewSyncWriter(c.cf.Stdout()))
+
+	serverConn, err := clientmcp.NewAutoReconnectStdioConn(clientmcp.AutoReconnectStdioConnConfig{
+		ParentCtx:            c.cf.Context,
+		ClientResponseWriter: clientResponseWriter,
+		DialServer: func(ctx context.Context) (net.Conn, error) {
+			conn, err := tc.DialMCPServer(ctx, c.cf.AppName)
+			return conn, trace.Wrap(err)
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientRequestReader, err := mcputils.NewStdioMessageReader(mcputils.StdioMessageReaderConfig{
+		SourceReadCloser: io.NopCloser(c.cf.Stdin()),
+		ParentContext:    c.cf.Context,
+		Logger:           logger.With("client", "stdin"),
+		OnParseError:     mcputils.ReplyParseError(clientResponseWriter),
+		OnNotification: func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+			// Spec says we should not reply to notifications. Just continue.
+			if writeError := serverConn.WriteMessage(ctx, notification); writeError != nil {
+				logger.WarnContext(ctx, "failed to write notification to server. Notification is dropped.", "error", writeError)
+			}
+			return nil
+		},
+		OnRequest: func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
+			if writeError := serverConn.WriteMessage(ctx, request); writeError != nil {
+				logger.WarnContext(ctx, "failed to write request to server", "error", writeError)
+				errResp := makeClientResponseOnReconnectError(request.ID, writeError)
+				return trace.Wrap(clientResponseWriter.WriteMessage(ctx, errResp))
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clientRequestReader.Run(c.cf.Context)
+	return nil
+}
+
+func makeClientResponseOnReconnectError(id mcp.RequestId, err error) mcp.JSONRPCError {
+	var userMessage string
+	switch {
+	case clientmcp.IsLikelyTemporaryNetworkError(err):
+		userMessage = "A network error occurred while trying to connect to Teleport." +
+			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +
+			" Please check your network and try again in a few moments." +
+			" If your network appears to be working, try restarting your AI tool to see if the problem is resolved."
+	case client.IsErrorResolvableWithRelogin(err):
+		userMessage = clientdbmcp.ReloginRequiredErrorMessage
+	default:
+		userMessage = "An error was encountered while sending the request to Teleport." +
+			" This does not appear to be a transient network error." +
+			" Please ensure your tsh session is valid and restart your AI tool to see if the problem is resolved."
+	}
+
+	userMessage += " If the issue persists, check the debug log for more details or contact your Teleport admin."
+	return mcp.NewJSONRPCError(id, mcp.INTERNAL_ERROR, userMessage, err)
 }
