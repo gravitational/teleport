@@ -2948,7 +2948,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: "*", Namespace: "*", Name: "*", Verbs: []string{"*"}},
+					{Kind: "namespace", Namespace: "*", Name: "*", Verbs: []string{"*"}},
 				},
 			},
 		},
