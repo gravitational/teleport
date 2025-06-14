@@ -2174,29 +2174,27 @@ func isRelevantWebsocketError(err error) bool {
 }
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	isWSSupported := false
-	if !sess.isLocalKubernetesCluster {
-		// We're forwarding it to another Teleport kube_service,
-		// which supports the websocket protocol.
-		isWSSupported = true
-	} else {
-		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
-		f.rwMutexDetails.RLock()
-		if details, ok := f.clusterDetails[sess.kubeClusterName]; ok {
-			details.rwMu.RLock()
-			isWSSupported = kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion)
-			details.rwMu.RUnlock()
-		}
-		f.rwMutexDetails.RUnlock()
+	wsExec, err := f.getWebsocketExecutor(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-
-	if isWSSupported {
-		wsExec, err := f.getWebsocketExecutor(sess, req)
-		return wsExec, trace.Wrap(err)
-	}
-
 	spdyExec, err := f.getSPDYExecutor(sess, req)
-	return spdyExec, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to create spdy executor")
+	}
+	return remotecommand.NewFallbackExecutor(
+		wsExec,
+		spdyExec,
+		func(err error) bool {
+			// If the error is a known upgrade failure, we can retry with the other protocol.
+			result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
+			if result {
+				// If the error is a known upgrade failure, we can retry with the other protocol.
+				// To do that, we need to reset the connection monitor context.
+				sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
+			}
+			return result
+		})
 }
 
 func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
