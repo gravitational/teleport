@@ -7,11 +7,17 @@ This guide will explain how to use the **GCP join method** to configure Teleport
 processes to join your Teleport cluster without sharing any secrets when they
 are running in a GCP VM.
 
+## How it works
+
 The GCP join method is available to any Teleport process running on a GCP VM.
 The VM must have a
 [service account](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances)
 assigned to it (the default service account is fine). No IAM roles are required
 on the Teleport process joining the cluster.
+
+Under the hood, services prove that they are running in your GCP project by
+sending a signed ID token which matches an allow rule configured in your GCP
+joining token.
 
 ## Prerequisites
 
@@ -25,10 +31,6 @@ on the Teleport process joining the cluster.
 
 Configure your Teleport Auth Service with a special dynamic token which will
 allow services from your GCP projects to join your Teleport cluster.
-
-Under the hood, services will prove that they are running in your GCP project
-by sending a signed ID token which matches an allow rule configured in your GCP
-joining token.
 
 Create the following `token.yaml` file with a `gcp.allow` rule specifying your GCP
 project ID(s), service account(s), and location(s) in which your GCP instances
