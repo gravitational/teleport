@@ -2414,7 +2414,33 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 	kubernetesResources := make([]types.KubernetesResource, 0, len(resourceIDs))
 
 	for _, resourceID := range resourceIDs {
-		if (slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.PrefixKindKube)) && resourceID.Name == clusterName {
+		if resourceID.Name != clusterName {
+			continue
+		}
+		// TODO(@creack): Remove this in v20 when we no longer support legacy access request formats.
+		// Special case to support legacy "namespace" kind request.
+		if resourceID.Kind == types.KindKubeNamespace {
+			// If the target namespace is a wildcard, update the pattern to make sure cluster-wide resources won't be matched.
+			targetNS := resourceID.SubResourceName
+			if targetNS == types.Wildcard {
+				targetNS = "^.+$"
+			}
+			kubernetesResources = append(kubernetesResources,
+				types.KubernetesResource{
+					Kind:     "namespaces",
+					Name:     resourceID.SubResourceName,
+					APIGroup: "",
+				},
+				types.KubernetesResource{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: targetNS,
+					APIGroup:  "",
+				},
+			)
+			continue
+		}
+		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.PrefixKindKube) {
 			kind := types.KubernetesResourcesKindsPlurals[resourceID.Kind]
 			if kind == "" {
 				kind = resourceID.Kind
@@ -2430,7 +2456,6 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 				gk.Group = types.KubernetesResourcesV7KindGroups[resourceID.Kind]
 			}
 			switch {
-			// TODO(@creack): Make sure this is handled in the AccessRequest PR.
 			case isClusterWide:
 				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
 					Kind:     gk.Kind,
