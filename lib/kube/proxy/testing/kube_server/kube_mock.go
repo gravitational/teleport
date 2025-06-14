@@ -247,6 +247,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 }
 
 func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr error, status *metav1.Status) {
+	status = status.DeepCopy()
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
 		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
