@@ -158,6 +158,10 @@ type networkStack struct {
 	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
 	ipv6Prefix tcpip.Address
 
+	// dnsServer is the VNet's local DNS server that can handle UDP DNS
+	// requests.
+	dnsServer *dns.Server
+
 	// tcpHandlerResolver resolves FQDNs to a TCP handler that will be used to handle all future TCP
 	// connections to IP addresses that will be assigned to that FQDN.
 	tcpHandlerResolver *tcpHandlerResolver
@@ -233,6 +237,19 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		slog:               slog,
 	}
 
+	upstreamNameserverSource := cfg.upstreamNameserverSource
+	if upstreamNameserverSource == nil {
+		upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	dnsServer, err := dns.NewServer(ns, upstreamNameserverSource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ns.dnsServer = dnsServer
+
 	tcpForwarder := tcp.NewForwarder(ns.stack, tcpReceiveBufferSize, maxInFlightTCPConnectionAttempts, ns.handleTCP)
 	ns.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
@@ -240,17 +257,6 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	ns.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	if cfg.dnsIPv6 != (tcpip.Address{}) {
-		upstreamNameserverSource := cfg.upstreamNameserverSource
-		if upstreamNameserverSource == nil {
-			upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		dnsServer, err := dns.NewServer(ns, upstreamNameserverSource)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if err := ns.assignUDPHandler(cfg.dnsIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -273,6 +279,13 @@ func createStack() (*stack.Stack, *channel.Endpoint, error) {
 	linkEndpoint := channel.New(size, mtu, linkAddr)
 	if err := netStack.CreateNIC(nicID, linkEndpoint); err != nil {
 		return nil, nil, trace.Errorf("creating VNet NIC: %s", err)
+	}
+	// Put the NIC into promiscuous mode so that VNet can handle incoming IP packets
+	// on addresses that have not been explicitly assigned to any handler yet.
+	// This is so the DNS server can handle UDP requests to port 53 on any IP
+	// address.
+	if err := netStack.SetPromiscuousMode(nicID, true); err != nil {
+		return nil, nil, trace.Errorf("putting VNet NIC into promiscuous mode: %s", err)
 	}
 
 	return netStack, linkEndpoint, nil
@@ -481,8 +494,19 @@ func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 	handler, ok := ns.getUDPHandler(id.LocalAddress)
 	if !ok {
-		slog.DebugContext(ctx, "No handler for address.")
-		return
+		// Serve DNS on every IP address on UDP port 53.
+		if id.LocalPort != 53 {
+			slog.DebugContext(ctx, "No handler for address.")
+			return
+		}
+		handler = ns.dnsServer
+		// assignUDPHandler adds id.LocalAddress to the gVisor NIC so that VNet
+		// can send packets back out to the host with this as the source
+		// address.
+		if err := ns.assignUDPHandler(id.LocalAddress, handler); err != nil && !trace.IsAlreadyExists(err) {
+			slog.ErrorContext(ctx, "Failed to assign DNS UDP handler.", "error", err)
+			return
+		}
 	}
 
 	var wq waiter.Queue
