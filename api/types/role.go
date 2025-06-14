@@ -500,7 +500,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			if r.Kind == KindKubeNamespace {
 				r.Kind = Wildcard
 				if r.Name == Wildcard {
-					r.Namespace = "^" + Wildcard + "$"
+					r.Namespace = "^.+$"
 				} else {
 					r.Namespace = r.Name
 				}

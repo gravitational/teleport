@@ -521,7 +521,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		if elem.Kind == types.KindKubeNamespace {
 			allowedResourceIDs = append(allowedResourceIDs, types.ResourceID{
 				ClusterName:     elem.ClusterName,
-				Kind:            "namespaces",
+				Kind:            types.PrefixKindKubeClusterWide + "namespaces",
 				SubResourceName: elem.SubResourceName,
 				Name:            elem.Name,
 			})
@@ -554,6 +554,12 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 					continue
 				}
 				namespace = splitted[0]
+				// namespace * would also include cluster-wide resources, if we
+				// have a wildcard with a known namespaced resource, use a pattern
+				// that will not match cluster-wide resources.
+				if namespace == types.Wildcard {
+					namespace = "^.+$"
+				}
 				name = splitted[1]
 			}
 
@@ -562,13 +568,17 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			if kind == "" {
 				kind = r.Kind
 			}
-			// NOTE: The 'namespace' behavior changed, to maintain backwards compatibility,
+			// NOTE: The kind 'namespace' behavior changed, to maintain backwards compatibility,
 			// map the legacy value to wildcard.
 			if r.Kind == types.KindKubeNamespace {
-				kind = types.Wildcard
+				// When requesting the legacy "namespace" kind, we include all api groups.
+				kind = types.Wildcard + "." + types.Wildcard
 				namespace = name
+				// namespace * would also include cluster-wide resources, if we
+				// have a wildcard with the legacy "namespace" kind, use a pattern
+				// that will not match cluster-wide resources.
 				if namespace == types.Wildcard {
-					namespace = "^" + types.Wildcard + "$"
+					namespace = "^.+$"
 				}
 				name = types.Wildcard
 			}

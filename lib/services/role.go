@@ -3462,6 +3462,7 @@ func normalizeKubernetesKind(in string) (out gk) {
 		switch {
 		case in == types.KindKubeNamespace:
 			out.kind = "namespaces"
+			return out
 		case strings.HasPrefix(in, types.PrefixKindKubeNamespaced):
 			out.kind = strings.TrimPrefix(in, types.PrefixKindKubeNamespaced)
 		case strings.HasPrefix(in, types.PrefixKindKubeClusterWide):
