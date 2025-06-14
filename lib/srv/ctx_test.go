@@ -260,8 +260,7 @@ func TestSSHAccessLockTargets(t *testing.T) {
 func TestCreateOrJoinSession(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	registry, err := NewSessionRegistry(SessionRegistryConfig{

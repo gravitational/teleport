@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	var req *ui.CreateGitServerRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -64,7 +64,7 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 	return created, trace.Wrap(err)
 }
 
-func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("git server name is required")
@@ -82,7 +82,7 @@ func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprou
 	return ui.MakeGitServer(site.GetName(), gitServer, false), nil
 }
 
-func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("git server name is required")

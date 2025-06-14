@@ -455,7 +455,7 @@ func TestAppServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake app server heartbeat
-	for i := 0; i < appCount; i++ {
+	for i := range appCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
@@ -501,7 +501,7 @@ func TestAppServerBasics(t *testing.T) {
 	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
 	// with each app have been reset. otherwise, later parts of this test become flaky.
 	var keepaliveEvents []testEvent
-	for i := 0; i < appCount; i++ {
+	for range appCount {
 		keepaliveEvents = append(keepaliveEvents, []testEvent{appKeepAliveOk, appKeepAliveOk}...)
 	}
 
@@ -510,7 +510,7 @@ func TestAppServerBasics(t *testing.T) {
 		deny(appKeepAliveErr, handlerClose),
 	)
 
-	for i := 0; i < appCount; i++ {
+	for i := range appCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
@@ -562,7 +562,7 @@ func TestAppServerBasics(t *testing.T) {
 
 	// expect that all app keepalives fail, then the app is removed.
 	var expectedEvents []testEvent
-	for i := 0; i < appCount; i++ {
+	for range appCount {
 		expectedEvents = append(expectedEvents, []testEvent{appKeepAliveErr, appKeepAliveErr, appKeepAliveErr, appKeepAliveDel}...)
 	}
 
@@ -688,7 +688,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake db server heartbeat
-	for i := 0; i < dbCount; i++ {
+	for i := range dbCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
 				Metadata: types.Metadata{
@@ -735,7 +735,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
 	// with each app have been reset. otherwise, later parts of this test become flaky.
 	var keepaliveEvents []testEvent
-	for i := 0; i < dbCount; i++ {
+	for range dbCount {
 		keepaliveEvents = append(keepaliveEvents, []testEvent{dbKeepAliveOk, dbKeepAliveOk}...)
 	}
 
@@ -744,7 +744,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 		deny(appKeepAliveErr, handlerClose),
 	)
 
-	for i := 0; i < dbCount; i++ {
+	for i := range dbCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
 				Metadata: types.Metadata{
@@ -796,7 +796,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 	// expect that all db keepalives fail, then the db is removed.
 	var expectedEvents []testEvent
-	for i := 0; i < dbCount; i++ {
+	for range dbCount {
 		expectedEvents = append(expectedEvents, []testEvent{dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveDel}...)
 	}
 
@@ -1413,7 +1413,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake kube server heartbeat
-	for i := 0; i < kubeCount; i++ {
+	for i := range kubeCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
 				Metadata: types.Metadata{
@@ -1460,7 +1460,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
 	// with each app have been reset. otherwise, later parts of this test become flaky.
 	var keepaliveEvents []testEvent
-	for i := 0; i < kubeCount; i++ {
+	for range kubeCount {
 		keepaliveEvents = append(keepaliveEvents, []testEvent{kubeKeepAliveOk, kubeKeepAliveOk}...)
 	}
 
@@ -1469,7 +1469,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 		deny(appKeepAliveErr, handlerClose),
 	)
 
-	for i := 0; i < kubeCount; i++ {
+	for i := range kubeCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
 				Metadata: types.Metadata{
@@ -1522,7 +1522,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 
 	// expect that all app keepalives fail, then the app is removed.
 	var expectedEvents []testEvent
-	for i := 0; i < kubeCount; i++ {
+	for range kubeCount {
 		expectedEvents = append(expectedEvents, []testEvent{kubeKeepAliveErr, kubeKeepAliveErr, kubeKeepAliveErr, kubeKeepAliveDel}...)
 	}
 

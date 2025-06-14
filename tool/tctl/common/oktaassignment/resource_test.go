@@ -63,29 +63,29 @@ func TestToResource(t *testing.T) {
 	resourceYAML := buf.Bytes()
 
 	// Unmarshal these to maps for easier controlled comparison
-	assignmentMap := map[string]interface{}{}
+	assignmentMap := map[string]any{}
 	require.NoError(t, yaml.Unmarshal(assignmentYAML, &assignmentMap))
 
-	resourceMap := map[string]interface{}{}
+	resourceMap := map[string]any{}
 	require.NoError(t, yaml.Unmarshal(resourceYAML, &resourceMap))
 
 	// Test that the enum fields have been properly converted to strings, then
 	// assign the regular enum values to them so that we can do an equivalence
 	// check against the assignment map later.
-	resourceSpec, ok := resourceMap["spec"].(map[string]interface{})
+	resourceSpec, ok := resourceMap["spec"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentStatusPending, resourceSpec["status"])
 	resourceSpec["status"] = int(types.OktaAssignmentSpecV1_PENDING)
 
-	resourceTargets, ok := resourceSpec["targets"].([]interface{})
+	resourceTargets, ok := resourceSpec["targets"].([]any)
 	require.True(t, ok)
 
-	resourceTarget1, ok := resourceTargets[0].(map[string]interface{})
+	resourceTarget1, ok := resourceTargets[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetApplication, resourceTarget1["type"])
 	resourceTarget1["type"] = int(types.OktaAssignmentTargetV1_APPLICATION)
 
-	resourceTarget2, ok := resourceTargets[1].(map[string]interface{})
+	resourceTarget2, ok := resourceTargets[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetGroup, resourceTarget2["type"])
 	resourceTarget2["type"] = int(types.OktaAssignmentTargetV1_GROUP)

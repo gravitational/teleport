@@ -38,10 +38,10 @@ type TeleportGithubConnectorSpec types.GithubConnectorSpecV3
 // TeleportGithubConnector is the Schema for the GithubConnector API
 type TeleportGithubConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportGithubConnectorSpec `json:"spec,omitempty"`
-	Status resources.Status            `json:"status,omitempty"`
+	Spec   TeleportGithubConnectorSpec `json:"spec"`
+	Status resources.Status            `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportGithubConnector struct {
 // TeleportGithubConnectorList contains a list of TeleportGithubConnector
 type TeleportGithubConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportGithubConnector `json:"items"`
 }
 

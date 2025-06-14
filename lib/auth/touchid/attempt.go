@@ -46,7 +46,7 @@ func (e *ErrAttemptFailed) Is(target error) bool {
 	return ok
 }
 
-func (e *ErrAttemptFailed) As(target interface{}) bool {
+func (e *ErrAttemptFailed) As(target any) bool {
 	tt, ok := target.(*ErrAttemptFailed)
 	if ok {
 		tt.Err = e.Err

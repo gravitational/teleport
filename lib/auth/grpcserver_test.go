@@ -227,7 +227,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						},
 					}
 				},
-				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
+				checkAuthErr: func(t require.TestingT, err error, i ...any) {
 					require.Error(t, err)
 					require.True(t, trace.IsAccessDenied(err))
 				},
@@ -256,7 +256,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						},
 					}
 				},
-				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
+				checkRegisterErr: func(t require.TestingT, err error, i ...any) {
 					require.Error(t, err)
 					require.True(t, trace.IsBadParameter(err))
 				},
@@ -553,7 +553,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
 		deviceName:  "saml",
 		authHandler: passkeyWebAuthnHandler,
-		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+		checkErr: func(t require.TestingT, err error, _ ...any) {
 			assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
 		}},
@@ -1690,7 +1690,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "the given webauthn session allows reuse, but reuse is not permitted in this context")
 				},
 			},
@@ -1711,7 +1711,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "can only request database certificates")
 				},
 			},
@@ -1774,7 +1774,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
 					return resp
 				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 				},
 			},
@@ -2006,7 +2006,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_All,
 					NodeName:     "node-a",
 				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "all purposes")
 				},
 			},
@@ -2027,7 +2027,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
 				},
 			},
@@ -2136,7 +2136,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
 				},
 			},
@@ -2291,7 +2291,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					SSHLogin: "role",
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2309,7 +2309,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					KubernetesCluster: "kube-b",
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2330,7 +2330,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2350,7 +2350,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2371,7 +2371,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2969,8 +2969,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newTestTLSServer(t)
 
@@ -3940,7 +3939,7 @@ func TestServerInfoCRUD(t *testing.T) {
 		require.Empty(t, serverInfos)
 	}
 
-	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
+	requireResourcesEqual := func(t *testing.T, expected, actual any) {
 		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	}
 
@@ -4330,7 +4329,7 @@ func TestCustomRateLimiting(t *testing.T) {
 				attempts = test.burst
 			}
 
-			for i := 0; i < attempts; i++ {
+			for range attempts {
 				err = test.fn(clt)
 				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
 			}
@@ -4402,7 +4401,7 @@ func TestExport(t *testing.T) {
 	}
 
 	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
-		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+		return func(t require.TestingT, i any, i2 ...any) {
 			require.NotEmpty(t, i)
 			resourceSpans, ok := i.([]*otlptracev1.ResourceSpans)
 			require.True(t, ok)
@@ -4565,11 +4564,11 @@ func TestExport(t *testing.T) {
 		{
 			name:     "failure to forward spans",
 			identity: TestBuiltin(types.RoleNode),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
 			},
-			uploadedAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			uploadedAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.NotNil(t, i)
 				require.Len(t, i, 1)
 			},
@@ -5306,8 +5305,7 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	const N = 5
 	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	server := newTestTLSServer(t)
 	clt, err := server.NewClient(TestServerID(types.RoleNode, uuid.NewString()))
@@ -5327,7 +5325,7 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	}
 	currentAcceptedTotal := getAcceptedTotal()
 
-	for i := 0; i < N; i++ {
+	for range N {
 		stream, err := clt.CreateAuditStream(ctx, session.NewID())
 		require.NoError(t, err)
 		t.Cleanup(func() { stream.Close(ctx) })

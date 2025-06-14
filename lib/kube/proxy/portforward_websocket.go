@@ -73,7 +73,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 
 	// One pair of (Data,Error) channels per port.
 	channels := make([]wsstream.ChannelType, 2*len(ports))
-	for i := 0; i < len(channels); i++ {
+	for i := range channels {
 		channels[i] = wsstream.ReadWriteChannel
 	}
 
@@ -107,7 +107,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 
 	// Create the websocket stream pairs.
 	streamPairs := make([]*websocketChannelPair, len(ports))
-	for i := 0; i < len(ports); i++ {
+	for i := range ports {
 		var (
 			dataStream  = streams[2*i+portForwardDataChannel]
 			errorStream = streams[2*i+portForwardErrorChannel]
@@ -171,7 +171,7 @@ func extractTargetPortsFromStrings(portsStrings []string) ([]uint16, error) {
 		if len(portString) == 0 {
 			return nil, trace.BadParameter("query parameter %q cannot be empty", PortHeader)
 		}
-		for _, p := range strings.Split(portString, ",") {
+		for p := range strings.SplitSeq(portString, ",") {
 			port, err := parsePortString(p)
 			if err != nil {
 				return nil, trace.Wrap(err)

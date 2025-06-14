@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"testing"
 
@@ -48,7 +49,7 @@ import (
 )
 
 var sortStringsTrans = cmp.Transformer("SortStrings", func(in []string) []string {
-	out := append([]string(nil), in...) // Copy input to avoid mutating it
+	out := slices.Clone(in) // Copy input to avoid mutating it
 	sort.Strings(out)
 	return out
 })

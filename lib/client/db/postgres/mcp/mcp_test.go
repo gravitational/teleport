@@ -95,13 +95,13 @@ func TestFormatErrors(t *testing.T) {
 	}{
 		"database not found": {
 			databaseURI: "teleport://clusters/root/databases/not-found",
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.DatabaseNotFoundError.Error(), i1)
 			},
 		},
 		"malformed database uri": {
 			databaseURI: "not-found",
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.WrongDatabaseURIFormatError.Error(), i1)
 			},
 		},
@@ -120,7 +120,7 @@ func TestFormatErrors(t *testing.T) {
 					DialContextFunc: listener.DialContext,
 				},
 			},
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.LocalProxyConnectionErrorMessage, i1)
 			},
 		},
@@ -140,7 +140,7 @@ func TestFormatErrors(t *testing.T) {
 					DialContextFunc: listener.DialContext,
 				},
 			},
-			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.ReloginRequiredErrorMessage, i1)
 			},
 		},

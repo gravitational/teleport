@@ -143,14 +143,14 @@ type Project struct {
 }
 
 type Issue struct {
-	Expand      string                 `json:"expand"`
-	Self        string                 `json:"self"`
-	ID          string                 `json:"id"`
-	Key         string                 `json:"key"`
-	Fields      IssueFields            `json:"fields"`
-	Changelog   PageOfChangelogs       `json:"changelog"`
-	Properties  map[string]interface{} `json:"properties"`
-	Transitions []IssueTransition      `json:"transitions"`
+	Expand      string            `json:"expand"`
+	Self        string            `json:"self"`
+	ID          string            `json:"id"`
+	Key         string            `json:"key"`
+	Fields      IssueFields       `json:"fields"`
+	Changelog   PageOfChangelogs  `json:"changelog"`
+	Properties  map[string]any    `json:"properties"`
+	Transitions []IssueTransition `json:"transitions"`
 }
 
 type IssueFields struct {
@@ -165,7 +165,7 @@ type IssueFields struct {
 type IssueTransition struct {
 	ID   string        `json:"id,omitempty"`
 	Name string        `json:"name,omitempty"`
-	To   StatusDetails `json:"to,omitempty"`
+	To   StatusDetails `json:"to"`
 }
 
 type IssueType struct {
@@ -184,7 +184,7 @@ type IssueFieldsInput struct {
 }
 
 type IssueInput struct {
-	Fields     IssueFieldsInput `json:"fields,omitempty"`
+	Fields     IssueFieldsInput `json:"fields"`
 	Properties []EntityProperty `json:"properties,omitempty"`
 }
 

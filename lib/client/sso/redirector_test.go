@@ -98,7 +98,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(errors.New("login failed")), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginFailedRedirectURL,
-			assertErr: func(t require.TestingT, err error, v ...interface{}) {
+			assertErr: func(t require.TestingT, err error, v ...any) {
 				require.ErrorContains(t, err, "login failed", "expected login failed error but got %v", err)
 			},
 		},
@@ -114,7 +114,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, proxyRedirectURL.String(), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginFailedBadCallbackRedirectURL,
-			assertErr: func(t require.TestingT, err error, v ...interface{}) {
+			assertErr: func(t require.TestingT, err error, v ...any) {
 				// The sso login will timeout due to the client callback never being redirected to.
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
@@ -128,7 +128,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginClose,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKey, policy)
@@ -142,7 +142,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginClose,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, policy)
@@ -156,7 +156,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginTerminalRedirectURL,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyPIN, policy)
@@ -170,7 +170,7 @@ func TestRedirector(t *testing.T) {
 				http.Redirect(w, r, newErrorResponseURL(err), http.StatusPermanentRedirect)
 			},
 			expectRedirect: sso.LoginTerminalRedirectURL,
-			assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErr: func(tt require.TestingT, err error, i ...any) {
 				policy, err := keys.ParsePrivateKeyPolicyError(err)
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouchAndPIN, policy)

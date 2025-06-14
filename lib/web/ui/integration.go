@@ -104,11 +104,11 @@ type IntegrationWithSummary struct {
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
-	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
+	AWSEC2 ResourceTypeSummary `json:"awsec2"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
-	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
+	AWSRDS ResourceTypeSummary `json:"awsrds"`
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
-	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
+	AWSEKS ResourceTypeSummary `json:"awseks"`
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.

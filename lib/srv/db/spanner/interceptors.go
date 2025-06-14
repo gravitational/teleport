@@ -31,10 +31,10 @@ import (
 func unaryServerLoggingInterceptor(ctx context.Context, log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req interface{},
+		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (interface{}, error) {
+	) (any, error) {
 		res, err := handler(ctx, req)
 		logRPC(ctx, log, info.FullMethod, err)
 		return res, err
@@ -44,7 +44,7 @@ func unaryServerLoggingInterceptor(ctx context.Context, log *slog.Logger) grpc.U
 // streamServerLoggingInterceptor is gRPC middleware that logs some debug info.
 func streamServerLoggingInterceptor(ctx context.Context, log *slog.Logger) grpc.StreamServerInterceptor {
 	return func(
-		srv interface{},
+		srv any,
 		stream grpc.ServerStream,
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,

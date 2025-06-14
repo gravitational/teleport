@@ -143,7 +143,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}

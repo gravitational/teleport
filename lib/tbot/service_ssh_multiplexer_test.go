@@ -118,7 +118,7 @@ func TestCyclingHostDialClient(t *testing.T) {
 	}
 
 	var conns []net.Conn
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		conn, _, err := cycler.DialHost(ctx, "", "", nil)
 		assert.NoError(t, err)
 		conns = append(conns, conn)
@@ -158,7 +158,7 @@ func TestCyclingHostDialClient(t *testing.T) {
 
 	// Now we want to validate a weirder case, let's create 4 connections,
 	// close them and then create a fifth.
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		conn, _, err := cycler.DialHost(ctx, "", "", nil)
 		assert.NoError(t, err)
 		_ = conn.Close()

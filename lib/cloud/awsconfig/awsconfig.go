@@ -412,13 +412,7 @@ func maybeHashRoleSessionName(roleSessionName string) (ret string) {
 	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
 
 	// "1" for the delimiter.
-	keepPrefixIndex := maxRoleSessionNameLength - len(hex) - 1
-
-	// Sanity check. This should never happen since hash length and
-	// MaxRoleSessionNameLength are both constant.
-	if keepPrefixIndex < 0 {
-		keepPrefixIndex = 0
-	}
+	keepPrefixIndex := max(maxRoleSessionNameLength-len(hex)-1, 0)
 
 	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
 	slog.DebugContext(context.Background(),

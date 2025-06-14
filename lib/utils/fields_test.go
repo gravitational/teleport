@@ -33,7 +33,7 @@ func TestFields(t *testing.T) {
 	now := time.Now().Round(time.Minute)
 
 	sliceString := []string{"test", "string", "slice"}
-	sliceInterface := []interface{}{"test", "string", "slice"}
+	sliceInterface := []any{"test", "string", "slice"}
 	f := Fields{
 		"one":      1,
 		"name":     "vincent",

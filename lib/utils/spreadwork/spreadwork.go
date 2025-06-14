@@ -78,10 +78,7 @@ func ApplyOverTime[T any](ctx context.Context, conf ApplyOverTimeConfig, items [
 	defer ticker.Stop()
 
 	maxBatches := int(conf.MaxDuration / conf.BatchInterval)
-	dynamicBatchSize := (len(items) / maxBatches) + 1
-	if dynamicBatchSize < conf.MinBatchSize {
-		dynamicBatchSize = conf.MinBatchSize
-	}
+	dynamicBatchSize := max((len(items)/maxBatches)+1, conf.MinBatchSize)
 
 	for {
 		if dynamicBatchSize > len(items) {

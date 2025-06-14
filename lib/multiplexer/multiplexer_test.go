@@ -650,7 +650,7 @@ func TestMux(t *testing.T) {
 		httpServer.Close()
 		s.Stop()
 		// wait for both servers to finish
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errCh
 			require.NoError(t, err)
 		}

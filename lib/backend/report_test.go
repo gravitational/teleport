@@ -60,7 +60,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	require.Equal(t, 0, countTopRequests())
 
 	// Run through 1000 unique keys.
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		r.trackRequest(context.Background(), types.OpGet, NewKey(strconv.Itoa(i)), Key{})
 	}
 

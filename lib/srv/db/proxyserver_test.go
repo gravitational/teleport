@@ -92,7 +92,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			})
 
 			t.Run("limit can be hit", func(t *testing.T) {
-				for i := 0; i < connLimitNumber; i++ {
+				for range connLimitNumber {
 					// Try to connect to the database.
 					dbConn, err := tt.connect()
 					require.NoError(t, err)
@@ -218,7 +218,7 @@ func TestProxyRateLimiting(t *testing.T) {
 				}
 			})
 
-			for i := 0; i < connLimitNumber; i++ {
+			for range connLimitNumber {
 				// Try to connect to the database.
 				pgConn, err := tt.connect()
 				if err == nil {

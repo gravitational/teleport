@@ -56,7 +56,7 @@ func TestKubeControllerScheduleBasics(t *testing.T) {
 	require.Len(t, repr.Windows, 3)
 
 	// ensure that times are equivalent
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		require.False(t, repr.Windows[i].Start.IsZero())
 		require.False(t, repr.Windows[i].Stop.IsZero())
 

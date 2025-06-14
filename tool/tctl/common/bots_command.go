@@ -789,7 +789,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Cl
 		heartbeatTable = "No heartbeat records."
 	}
 
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"executable":                   os.Args[0],
 		"instance":                     instance,
 		"initial_authentication_table": initialAuthenticationTable,
@@ -848,7 +848,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 		joinMethod = types.JoinMethodToken
 	}
 
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"token":       token.GetName(),
 		"addr":        addr,
 		"join_method": joinMethod,
@@ -863,7 +863,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 // ignoring empty or whitespace-only elements.
 func splitEntries(flag string) []string {
 	var roles []string
-	for _, s := range strings.Split(flag, ",") {
+	for s := range strings.SplitSeq(flag, ",") {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue

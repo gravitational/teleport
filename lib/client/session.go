@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/signal"
@@ -226,9 +227,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 		}
 	}
 	// pass environment variables set by client
-	for key, val := range ns.env {
-		envs[key] = val
-	}
+	maps.Copy(envs, ns.env)
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
 		log.WarnContext(ctx, "Failed to set environment variables", "error", err)
