@@ -1300,7 +1300,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
 			fmt.Fprintf(os.Stderr, "Warning: %q is deprecated, use %q instead with --kube-kind and --kube-api-group.\n", cf.ResourceKind, types.KindKubernetesResource)
 			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
-			cf.kubeResourceKind = types.KubernetesResourcesKindsPlurals[cf.ResourceKind]
+			if cf.ResourceKind == types.KindKubeNamespace {
+				cf.kubeResourceKind = types.KindKubeNamespace
+			} else {
+
+				cf.kubeResourceKind = types.KubernetesResourcesKindsPlurals[cf.ResourceKind]
+			}
 			cf.ResourceKind = types.KindKubernetesResource
 		}
 		switch cf.ResourceKind {
@@ -1308,7 +1313,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			if cf.kubeResourceKind == "" {
 				return trace.BadParameter("--kube-kind is required when using --kind=%q", types.KindKubernetesResource)
 			}
-			if _, ok := types.KubernetesCoreResourceKinds[cf.kubeResourceKind]; !ok && cf.kubeAPIGroup == "" {
+			if _, ok := types.KubernetesCoreResourceKinds[cf.kubeResourceKind]; !ok && cf.kubeAPIGroup == "" && cf.kubeResourceKind != types.KindKubeNamespace {
 				return trace.BadParameter("--kube-api-group is required for resource kind %q", cf.kubeResourceKind)
 			}
 		case "":
