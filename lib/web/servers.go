@@ -21,6 +21,7 @@ package web
 import (
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -75,8 +76,8 @@ func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request
 		return nil, trace.BadParameter("missing param %q", "kind")
 	}
 
-	if !slices.Contains(types.KubernetesResourcesKinds, kind) {
-		return nil, trace.BadParameter("kind is not valid, valid kinds %v", types.KubernetesResourcesKinds)
+	if !slices.Contains(types.KubernetesResourcesKinds, kind) && !strings.HasPrefix(kind, types.PrefixKindKube) {
+		return nil, trace.BadParameter("kind is not valid, valid kinds %v %s<kind>", types.KubernetesResourcesKinds, types.PrefixKindKube)
 	}
 
 	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
