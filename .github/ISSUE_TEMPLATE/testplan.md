@@ -31,7 +31,7 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] RBAC
 
-  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/server-access/guides/openssh/).
+  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/).
 
   - [ ] Successfully connect to node with correct role
   - [ ] Unsuccessfully connect to a node in a role restricting access by label
@@ -107,7 +107,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Session recording can be disabled
   - [ ] Sessions can be recorded at the node
     - [ ] Sessions in remote clusters are recorded in remote clusters
-  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/server-access/guides/recording-proxy-mode/)
+  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/enroll-resources/server-access/guides/recording-proxy-mode/)
     - [ ] Sessions on remote clusters are recorded in the local cluster
     - [ ] With an OpenSSH server without a Teleport CA signed host certificate:
       - [ ] Host key checking enabled rejects connection
@@ -148,10 +148,10 @@ as well as an upgrade of the previous version of Teleport.
 
     Subsystem testing may be achieved using both
     [Recording Proxy mode](
-    https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode)
+    https://goteleport.com/docs/reference/architecture/session-recording/#record-at-the-proxy-service)    
     and
     [OpenSSH integration](
-    https://goteleport.com/docs/server-access/guides/openssh/).
+    https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/).
 
     Assuming the proxy is `proxy.example.com:3023` and `node1` is a node running
     OpenSSH/sshd, you may use the following command to trigger a subsystem audit
@@ -166,7 +166,7 @@ as well as an upgrade of the previous version of Teleport.
     External Audit Storage must be tested on an Enterprise Cloud tenant.
     Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
 
-  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/admin-guides/management/external-audit-storage/
     - [ ] Docs (including screenshots) are up to date
     - [ ] Discover flow works with or without an existing AWS OIDC integration
     - [ ] Draft configuration can be resumed after navigating away
@@ -889,7 +889,7 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
   - [ ] TeleportProvisionToken
 
 ### AWS Node Joining
-[Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/aws-iam/)
 - [ ] On EC2 instance with `ec2:DescribeInstances` permissions for local account:
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2NodeJoin`
 - [ ] On EC2 instance with any attached role:
@@ -902,20 +902,20 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 - [ ] Join a tbot instance running in a different Kubernetes cluster as Teleport with a Kubernetes JWKS ProvisionToken
 
 ### Azure Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
 ### GCP Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
 ### Cloud Labels
-- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
+- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/admin-guides/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
-- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+- [ ] Create a GCP instance with [the required permissions](https://goteleport.com/docs/admin-guides/management/guides/gcp-tags/)
 and with [label](https://cloud.google.com/compute/docs/labeling-resources)
 `foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
 `baz`: `quux`. Verify that a node running on the instance has labels
@@ -1026,7 +1026,7 @@ tsh ssh node-that-requires-device-trust
 
     Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
     to assign yourself to the `tss` group. See
-    https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.
+    https://goteleport.com/docs/identity-governance/device-trust/device-management/#troubleshooting.
 
   - [ ] Verify device extensions on TLS certificate
 
@@ -1065,7 +1065,7 @@ tsh ssh node-that-requires-device-trust
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
-    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
+    role (see [enforcing device trust](https://goteleport.com/docs/identity-governance/device-trust/enforcing-device-trust/#web-application-support)).
 
     For SSO users confirm that device web authentication happens successfully.
 
@@ -1219,7 +1219,7 @@ FIDO2 data is not affected.
 
 ### HSM Support
 
-[Docs](https://goteleport.com/docs/choose-an-edition/teleport-enterprise/hsm/)
+[Docs](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/)
 
 - [ ] YubiHSM2 Support (@nklaassen has hardware)
   - [ ] Make sure docs/links are up to date
@@ -1346,7 +1346,7 @@ tsh bench web sessions --max=5000 --web user ls
 ### AWS
 
 - [ ] Deploy Teleport to AWS. Using DynamoDB & S3
-- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://goteleport.com/docs/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/
+- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://goteleport.com/docs/admin-guides/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/
 
 ### GCP
 
@@ -1375,16 +1375,16 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
-- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh apps login`.
-- [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
+- [ ] Verify [CLI access](https://goteleport.com/docs/enroll-resources/application-access/guides/api-access/) with `tsh apps login`.
+- [ ] Verify [AWS console access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh` commands.
     - [ ] `tsh aws`
     - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
-- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh apps login`.
+- [ ] Verify [Azure CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
-- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
+- [ ] Verify [GCP CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
   - [ ] Can interact with GCP using `tsh gcloud` commands.
   - [ ] Can interact with Google Cloud Storage using `tsh gsutil` commands.
   - [ ] Can interact with GCP/GCS using a combination of `tsh proxy gcloud` and `gcloud`/`gsutil` commands.
@@ -1395,7 +1395,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify `Add Application` links to documentation.
+  - [ ] Verify `Add Application` has the required steps to start a new application.
 
 ## Database Access
 Some tests are marked with "coverved by E2E test" and automatically completed
@@ -1666,7 +1666,7 @@ manualy testing.
     the desktop should show a Windows menu, not a browser context menu)
   - [ ] Vertical and horizontal scroll work.
     [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
-- [Locking](https://goteleport.com/docs/access-controls/guides/locking/#step-12-create-a-lock)
+- [Locking](https://goteleport.com/docs/identity-governance/locking/#step-12-create-a-lock)
   - [ ] Verify that placing a user lock terminates an active desktop session.
   - [ ] Verify that placing a desktop lock terminates an active desktop session.
   - [ ] Verify that placing a role lock terminates an active desktop session.
@@ -1754,7 +1754,7 @@ manualy testing.
         a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
-    [docs](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions)
+    [docs](https://goteleport.com/docs/reference/access-controls/roles/#rbac-for-sessions)
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
@@ -1935,7 +1935,7 @@ also managed, but not considered for role-based host user creation.
 
 ## Proxy Peering
 
-[Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
+[Proxy Peering docs](https://goteleport.com/docs/reference/architecture/proxy-peering/)
 
 - Verify that Proxy Peering works for the following protocols:
   - [ ] SSH
@@ -1969,7 +1969,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 ## EC2 Discovery
 
-[EC2 Discovery docs](https://goteleport.com/docs/server-access/guides/ec2-discovery/)
+[EC2 Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/)
 
 - Verify EC2 instance discovery
   - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
@@ -1993,7 +1993,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 ## GCP Discovery
 
-[GCP Discovery docs](https://goteleport.com/docs/server-access/guides/gcp-discovery/)
+[GCP Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/gcp-discovery/)
 
 - Verify GCP instance discovery
   - [ ] Only GCP instances matching given GCP tags have the installer executed on them
@@ -2007,7 +2007,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 Add a role with `pin_source_ip: true` (requires Enterprise) to test IP pinning.
 Testing will require changing your IP (that Teleport Proxy sees).
-Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/?scope=enterprise)
+Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guides/ip-pinning/)
 
 - Verify that it works for SSH Access
   - [ ] You can access tunnel node with `tsh ssh` on root cluster
@@ -2135,12 +2135,12 @@ Verify SSO MFA core functionality. The tests below should be performed once
 with OIDC and once with SAML.
 
 Configure both an OIDC connector and a SAML connector following the [Quick GitHub/SAML/OIDC Setup Tips]
-and [enable MFA on them](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
+and [enable MFA on them](https://goteleport.com/docs/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
 
 For simplicity, you can use the same IdP App (client id/secret or entity descriptor)
 for both login and MFA. This way, each Teleport MFA check will make you re-login via SSO.
 
-Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
+Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
 e.g. `cap.second_factors: ['webauthn', 'sso']`.
 
 The following should work with SSO MFA, automatically opening the SSO MFA redirect URL:

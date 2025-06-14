@@ -58,7 +58,7 @@ func IsKeySafe(key Key) bool {
 	components := key.Components()
 	for i, k := range components {
 		switch k {
-		case string(noEnd):
+		case noEnd:
 			continue
 		case ".", "..":
 			return false

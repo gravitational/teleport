@@ -17,12 +17,14 @@
  */
 
 import { SortType } from 'design/DataTable/types';
+import { ResourceHealthStatus } from 'shared/components/UnifiedResources';
 
 export type EncodeUrlQueryParamsProps = {
   pathname: string;
   searchString?: string;
   sort?: SortType | null;
   kinds?: string[] | null;
+  statuses?: ResourceHealthStatus[] | null;
   isAdvancedSearch?: boolean;
   pinnedOnly?: boolean;
 };
@@ -34,6 +36,7 @@ export function encodeUrlQueryParams({
   kinds,
   isAdvancedSearch = false,
   pinnedOnly = false,
+  statuses,
 }: EncodeUrlQueryParamsProps) {
   const urlParams = new URLSearchParams();
 
@@ -52,6 +55,12 @@ export function encodeUrlQueryParams({
   if (kinds) {
     for (const kind of kinds) {
       urlParams.append('kinds', kind);
+    }
+  }
+
+  if (statuses) {
+    for (const status of statuses) {
+      urlParams.append('status', status);
     }
   }
 

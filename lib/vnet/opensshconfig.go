@@ -144,6 +144,7 @@ type sshConfigurator struct {
 
 type sshConfiguratorConfig struct {
 	clientApplication ClientApplication
+	leafClusterCache  *leafClusterCache
 	homePath          string
 	clock             clockwork.Clock
 }
@@ -199,6 +200,16 @@ func (c *sshConfigurator) updateSSHConfiguration(ctx context.Context) error {
 			continue
 		}
 		hostMatchers = append(hostMatchers, hostMatcher(rootClient.RootClusterName()))
+		leafClusters, err := c.cfg.leafClusterCache.getLeafClusters(ctx, rootClient)
+		if err != nil {
+			log.WarnContext(ctx,
+				"Failed to list leaf clusters, not configuring VNet SSH for leaf clusters of this cluster",
+				"root_cluster", rootClient.ClusterName(), "error", err)
+			continue
+		}
+		for _, leafCluster := range leafClusters {
+			hostMatchers = append(hostMatchers, hostMatcher(leafCluster))
+		}
 	}
 	hostMatchers = utils.Deduplicate(hostMatchers)
 	slices.Sort(hostMatchers)

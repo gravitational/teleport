@@ -43,15 +43,15 @@ type mcpDBStartCommand struct {
 
 func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBStartCommand {
 	cmd := &mcpDBStartCommand{
-		CmdClause: parent.Command("start", "Start a local MCP server for database access").Hidden(),
+		CmdClause: parent.Command("start", "Start a local MCP server for database access.").Hidden(),
 	}
 
-	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server").Required().StringsVar(&cmd.databaseURIs)
+	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server.").Required().StringsVar(&cmd.databaseURIs)
 	return cmd
 }
 
 func (c *mcpDBStartCommand) run(cf *CLIConf) error {
-	logger, err := initLogger(cf, utils.LoggingForMCP, parseLoggingOptsFromEnvAndArgv(cf))
+	logger, err := initLogger(cf, utils.LoggingForMCP, getLoggingOptsForMCPServer(cf))
 	if err != nil {
 		return trace.Wrap(err)
 	}

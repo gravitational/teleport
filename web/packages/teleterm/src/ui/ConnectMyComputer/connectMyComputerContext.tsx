@@ -217,6 +217,8 @@ export const ConnectMyComputerContextProvider: FC<
             abortController.signal
           ),
           wait(20_000, abortController.signal).then(() => {
+            // TODO(ravicious): Logs should be captured after the process exits, not just before we
+            // kill it.
             const logs = mainProcessClient.getAgentLogs({ rootClusterUri });
             throw new NodeWaitJoinTimeout(logs);
           }),

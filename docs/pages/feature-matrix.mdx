@@ -73,7 +73,7 @@ across distributed infrastructures.
 |**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
 | Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
 | Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
-| [Machines](./enroll-resources/machine-id/machine-id.mdx) and [workloads](./enroll-resources/workload-identity/introduction.mdx#teleport-workload-identity-vs-machine-id) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
+| [Machines](machine-workload-identity/machine-id/machine-id.mdx) and [workloads](machine-workload-identity/workload-identity/introduction.mdx) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
 | Agentless Integration with [OpenSSH Servers](./enroll-resources/server-access/openssh/openssh-agentless.mdx) | ✔ | ✔ | ✔ |
 | [IP-Based Restrictions](./admin-guides/access-controls/guides/ip-pinning.mdx) | ✔ | ✔ | ✖ |
 | [Teleport VNet](./connect-your-client/vnet.mdx) | ✔ | ✔ | ✔ |
@@ -105,7 +105,7 @@ certificates, access control, and auditability.
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | **Service Discovery:** Live inventory of machine and workload identities for CI/CD jobs, microservices, and others | ✔ | ✔ | ✔ |
-|**Issuance:** Provisions cryptographic identities for [machines](./enroll-resources/machine-id/getting-started.mdx) and [workloads](./enroll-resources/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
+|**Issuance:** Provisions cryptographic identities for [machines](machine-workload-identity/machine-id/getting-started.mdx) and [workloads](machine-workload-identity/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
 |**Secretless Authentication:** Eliminates the need for API keys and long-term secrets with short-lived certificates.| ✔ | ✔ | ✔ |
 |**Ephemeral Authorization:** With granular ABAC/RBAC for workload interactions | ✔ | ✔ | ✔ |
 |**Auditability:** Audit data, exportable to SIEMs, for compliance reporting & reviews | ✔ | ✔ | ✔ |
@@ -143,7 +143,7 @@ and non-human identities.
 | Discover standing privileges  | ✔ | ✔ | ✖ |
 | Analyze  shadow access and drift of security posture | ✔ | ✔ | ✖ |
 | Investigate identity vulnerabilities and potential exposures | ✔ | ✔ | ✖ |
-| Monitor critical assets with [Crown Jewel](./admin-guides/teleport-policy/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
+| Monitor critical assets with [Crown Jewel](identity-security/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
 
 ## Platform integrations, management, licensing, and deployment
 

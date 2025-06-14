@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, useRef } from 'react';
+import { ComponentType, MouseEvent, useRef } from 'react';
 import styled from 'styled-components';
 
 import { ButtonIcon, Text } from 'design';
@@ -84,19 +84,15 @@ export function TabItem(props: TabItemProps) {
         </Title>
         {isLoading && active && <LinearProgress transparentBackground={true} />}
         {onClose && (
-          <ButtonIcon
+          <StyledButtonIcon
             active={active}
             size={0}
             className="close"
             title={closeTabTooltip}
-            css={`
-              transition: none;
-              display: ${props => (props.active ? 'flex' : 'none')};
-            `}
             onClick={handleClose}
           >
             <Icons.Cross size="small" />
-          </ButtonIcon>
+          </StyledButtonIcon>
         )}
       </TabContent>
       {!active && !nextActive && <Separator />}
@@ -122,6 +118,11 @@ export function NewTabItem(props: NewTabItemProps) {
     </RelativeContainer>
   );
 }
+
+const StyledButtonIcon = styled(ButtonIcon)<{ active: boolean }>`
+  transition: none;
+  display: ${props => (props.active ? 'flex' : 'none')};
+`;
 
 const RelativeContainer = styled.div`
   position: relative;

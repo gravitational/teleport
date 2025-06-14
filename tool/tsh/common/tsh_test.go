@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -7455,4 +7456,26 @@ func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, Cl
 	}
 
 	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
+}
+
+func Test_validateKingpinAppHelp(t *testing.T) {
+	err := Run(
+		context.Background(),
+		[]string{"version"},
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			require.NotNil(t, cf.kingpinApp)
+
+			issues := testutils.FindKingpinAppHelpIssues(cf.kingpinApp)
+			if len(issues) > 0 {
+				t.Log("Found", len(issues), "issues")
+				for _, issue := range issues {
+					t.Log(issue)
+				}
+			}
+			require.Empty(t, issues)
+			return trace.BadParameter("no need to continue")
+		},
+	)
+	require.ErrorIs(t, err, trace.BadParameter("no need to continue"))
 }

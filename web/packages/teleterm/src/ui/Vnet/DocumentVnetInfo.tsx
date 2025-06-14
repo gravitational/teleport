@@ -31,7 +31,7 @@ import type * as docTypes from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 
 import appAccessPng from './app-access.png';
-import { useVnetAppLauncher } from './useVnetAppLauncher';
+import { useVnetLauncher } from './useVnetLauncher';
 import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetInfo(props: {
@@ -46,7 +46,7 @@ export function DocumentVnetInfo(props: {
     stopAttempt,
     status,
   } = useVnetContext();
-  const { launchVnetWithoutFirstTimeCheck } = useVnetAppLauncher();
+  const { launchVnetWithoutFirstTimeCheck } = useVnetLauncher();
   const userAtHost = useMemo(() => {
     const { hostname, username } = mainProcessClient.getRuntimeSettings();
     return `${username}@${hostname}`;
@@ -55,13 +55,10 @@ export function DocumentVnetInfo(props: {
   const proxyHostname = routing.parseClusterName(rootClusterUri);
 
   const startVnet = async () => {
-    await launchVnetWithoutFirstTimeCheck({
-      addrToCopy: doc.app?.targetAddress,
-      isMultiPort: doc.app?.isMultiPort,
-    });
-    // Remove targetAddress so that subsequent launches of VNet from this specific doc won't copy
-    // the stale app address to the clipboard.
-    documentsService.update(doc.uri, { app: undefined });
+    await launchVnetWithoutFirstTimeCheck(doc.launcherArgs);
+    // Remove launcherArgs so that subsequent launches of VNet from this
+    // specific doc won't copy the stale address to the clipboard.
+    documentsService.update(doc.uri, { launcherArgs: undefined });
   };
 
   return (

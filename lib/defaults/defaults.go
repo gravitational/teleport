@@ -887,7 +887,7 @@ var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // FormatFlagDescription creates the description for the --format flag.
 func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+	return fmt.Sprintf("Format output (%s).", strings.Join(formats, ", "))
 }
 
 func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {

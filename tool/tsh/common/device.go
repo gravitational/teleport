@@ -74,12 +74,12 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 		"current-device",
 		"Attempts to register and enroll the current device. Requires device admin privileges.").
 		BoolVar(&root.enroll.currentDevice)
-	root.enroll.Flag("token", "Device enrollment token").StringVar(&root.enroll.token)
+	root.enroll.Flag("token", "Device enrollment token.").StringVar(&root.enroll.token)
 
 	// "tsh device" hidden debug commands.
-	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
-	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag").Hidden()
-	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
+	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection.").Hidden()
+	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag.").Hidden()
+	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key.").Hidden()
 
 	// Windows TPM hidden support commands.
 	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
@@ -91,7 +91,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 		StringVar(&root.activateCredential.encryptedCredentialSecret)
 
 	// Linux TPM hidden support commands.
-	root.dmiRead.CmdClause = parentCmd.Command("dmi-read", "Read device DMI information").Hidden()
+	root.dmiRead.CmdClause = parentCmd.Command("dmi-read", "Read device DMI information.").Hidden()
 
 	return root
 }

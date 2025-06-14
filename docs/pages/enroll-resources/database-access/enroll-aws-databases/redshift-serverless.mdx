@@ -1,5 +1,6 @@
 ---
 title: Database Access with Amazon Redshift Serverless
+sidebar_label: Amazon Redshift Serverless
 description: How to configure Teleport database access with Amazon Redshift Serverless.
 ---
 
@@ -203,9 +204,9 @@ Service or cloud tenant:
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-Name        Description                    Labels
------------ ------------------------------ --------
-my-redshift                                ...
+Name        Description Labels
+----------- ----------- ------
+my-redshift             ...
 ```
 
 To connect to the Redshift Serverless instance:

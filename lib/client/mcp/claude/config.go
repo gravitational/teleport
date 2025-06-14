@@ -69,6 +69,23 @@ type MCPServer struct {
 	Envs map[string]string `json:"env,omitempty"`
 }
 
+// AddEnv adds an environment variable.
+func (s *MCPServer) AddEnv(name, value string) {
+	if s.Envs == nil {
+		s.Envs = map[string]string{}
+	}
+	s.Envs[name] = value
+}
+
+// GetEnv gets the value of an environment variable.
+func (s *MCPServer) GetEnv(key string) (string, bool) {
+	if s.Envs == nil {
+		return "", false
+	}
+	value, ok := s.Envs[key]
+	return value, ok
+}
+
 // Config represents a Claude Desktop config.
 //
 // Config preserves unknown fields and ordering from the original JSON when
@@ -215,6 +232,11 @@ func LoadConfigFromDefaultPath() (*FileConfig, error) {
 // Exists returns true if config file exists.
 func (c *FileConfig) Exists() bool {
 	return c.configExists
+}
+
+// Path returns the config file path.
+func (c *FileConfig) Path() string {
+	return c.configPath
 }
 
 // Save saves the updated config to the config path. Format defaults to "auto"

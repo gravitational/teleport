@@ -44,6 +44,7 @@ export function makeDocumentCluster(
       resourceKinds: [],
       search: '',
       advancedSearchEnabled: false,
+      statuses: [],
     },
     ...props,
   };
@@ -221,7 +222,7 @@ export function makeDocumentVnetInfo(
     uri: '/docs/vnet-info',
     title: 'VNet',
     rootClusterUri,
-    app: undefined,
+    launcherArgs: undefined,
     ...props,
   };
 }
