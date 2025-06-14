@@ -770,6 +770,22 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+
+	// AWSICRolesSyncModeImportInUse indicates that the AWS Identity Center
+	// integration should only create roles for Account Assignments that are
+	// in use when the import routine is run.
+	AWSICRolesSyncModeImportInUse string = "IMPORT_IN_USE"
+)
+
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 
 	// Handle legacy records that pre-date the polymorphic Credentials settings
@@ -821,6 +837,17 @@ func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 		if source.Oidc.IntegrationName == "" {
 			return trace.BadParameter("AWS OIDC integration name must be set")
 		}
+	}
+
+	switch c.RolesSyncMode {
+	case "",
+		AWSICRolesSyncModeAll,
+		AWSICRolesSyncModeNone,
+		AWSICRolesSyncModeImportInUse:
+		break
+
+	default:
+		return trace.BadParameter("unsupported roles sync mode %q", c.RolesSyncMode)
 	}
 
 	return nil
