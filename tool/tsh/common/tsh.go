@@ -528,8 +528,14 @@ type CLIConf struct {
 	// kubeNamespace allows to configure the default Kubernetes namespace.
 	kubeNamespace string
 
-	// kubeAllNamespaces allows users to search for pods in every namespace.
+	// kubeAllNamespaces allows users to search for resources in every namespace.
 	kubeAllNamespaces bool
+
+	// kubeAllNamespacesLabel allows to search for resources.
+	kubeResourceKind string
+
+	// kubeAPIGroup allows to search for CRD and unknown resources.
+	kubeAPIGroup string
 
 	// KubeConfigPath is the location of the Kubeconfig for the current test.
 	// Setting this value allows Teleport tests to run `tsh login` commands in
@@ -1286,10 +1292,39 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
-	reqSearch.Flag("kind",
-		fmt.Sprintf("Resource kind to search for (%s).",
-			strings.Join(types.RequestableResourceKinds, ", ")),
-	).Required().EnumVar(&cf.ResourceKind, types.RequestableResourceKinds...)
+	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
+	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployements, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
+	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.PreAction(func(*kingpin.ParseContext) error {
+		// TODO(@creack): Remove this in v20. Allow legacy kinds with a warning for now.
+		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
+			fmt.Fprintf(os.Stderr, "Warning: %q is deprecated, use %q instead with --kube-kind and --kube-api-group.\n", cf.ResourceKind, types.KindKubernetesResource)
+			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
+			if cf.ResourceKind == types.KindKubeNamespace {
+				cf.kubeResourceKind = "namespaces"
+			} else {
+				cf.kubeResourceKind = types.KubernetesResourcesKindsPlurals[cf.ResourceKind]
+			}
+			cf.ResourceKind = types.KindKubernetesResource
+		}
+		switch cf.ResourceKind {
+		case types.KindKubernetesResource:
+			if cf.kubeResourceKind == "" {
+				return trace.BadParameter("--kube-kind is required when using --kind=%q", types.KindKubernetesResource)
+			}
+			if _, ok := types.KubernetesCoreResourceKinds[cf.kubeResourceKind]; !ok && cf.kubeAPIGroup == "" && cf.kubeResourceKind != types.KindKubeNamespace {
+				return trace.BadParameter("--kube-api-group is required for resource kind %q", cf.kubeResourceKind)
+			}
+		case "":
+			return trace.BadParameter("required flag --kind not provided")
+		default:
+			if !slices.Contains(types.RequestableResourceKinds, cf.ResourceKind) {
+				return trace.BadParameter("--kind must be one of %s, got %q", strings.Join(types.RequestableResourceKinds, ", "), cf.ResourceKind)
+			}
+		}
+		return nil
+	})
+
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)
