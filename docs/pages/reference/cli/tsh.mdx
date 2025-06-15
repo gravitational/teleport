@@ -1015,7 +1015,9 @@ $ tsh request search [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--kind` | none | `node`, `kubernetes_cluster`, `db`, `app`, `windows_desktop` | Resource kind to search for (required) |
+| `--kind` | none | `node`, `kube_cluster`, `kube_resource`, `db`, `app`, `windows_desktop` | Resource kind to search for (required) |
+| `--kube-kind` | none | string | Plural name of the kube resource (required when --kind is `kube_resource`) |
+| `--kube-api-group` | none | string | API group of the kube resource (required when --kind is `kube_resource` depending on the resource) |
 | `--search` | none | Comma-separated strings | List of comma-separated search keywords or phrases enclosed in single quotes |
 | `--query` | none | String | Query by [predicate language](../predicate-language.mdx#resource-filtering) enclosed in single quotes |
 | `--labels` | none | Comma-separated strings | List of comma-separated labels to filter by labels (e.g. `key=value1,key2=value2`) |
