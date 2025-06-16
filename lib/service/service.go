@@ -128,6 +128,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -160,6 +161,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -4724,35 +4726,36 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			reversetunnel.Config{
 				ClientTLSCipherSuites:   process.Config.CipherSuites,
 				GetClientTLSCertificate: conn.ClientGetCertificate,
-
-				Context:               process.ExitContext(),
-				Component:             teleport.Component(teleport.ComponentProxy, process.id),
-				ID:                    process.Config.HostUUID,
-				ClusterName:           clusterName,
-				Listener:              rtListener,
-				GetHostSigners:        conn.ServerGetHostSigners,
-				LocalAuthClient:       conn.Client,
-				LocalAccessPoint:      accessPoint,
-				NewCachingAccessPoint: process.newLocalCacheForRemoteProxy,
-				Limiter:               reverseTunnelLimiter,
-				KeyGen:                cfg.Keygen,
-				Ciphers:               cfg.Ciphers,
-				KEXAlgorithms:         cfg.KEXAlgorithms,
-				MACAlgorithms:         cfg.MACAlgorithms,
-				DataDir:               process.Config.DataDir,
-				PollingPeriod:         process.Config.PollingPeriod,
-				FIPS:                  cfg.FIPS,
-				Emitter:               streamEmitter,
-				Logger:                process.logger,
-				LockWatcher:           lockWatcher,
-				PeerClient:            peerClient,
-				NodeWatcher:           nodeWatcher,
-				GitServerWatcher:      gitServerWatcher,
-				CertAuthorityWatcher:  caWatcher,
-				CircuitBreakerConfig:  process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
-				IngressReporter:       ingressReporter,
-				PROXYSigner:           proxySigner,
+				Context:                 process.ExitContext(),
+				Component:               teleport.Component(teleport.ComponentProxy, process.id),
+				ID:                      process.Config.HostUUID,
+				ClusterName:             clusterName,
+				Listener:                rtListener,
+				GetHostSigners:          conn.ServerGetHostSigners,
+				LocalAuthClient:         conn.Client,
+				LocalAccessPoint:        accessPoint,
+				NewCachingAccessPoint:   process.newLocalCacheForRemoteProxy,
+				Limiter:                 reverseTunnelLimiter,
+				KeyGen:                  cfg.Keygen,
+				Ciphers:                 cfg.Ciphers,
+				KEXAlgorithms:           cfg.KEXAlgorithms,
+				MACAlgorithms:           cfg.MACAlgorithms,
+				DataDir:                 process.Config.DataDir,
+				PollingPeriod:           process.Config.PollingPeriod,
+				FIPS:                    cfg.FIPS,
+				Emitter:                 streamEmitter,
+				Logger:                  process.logger,
+				LockWatcher:             lockWatcher,
+				PeerClient:              peerClient,
+				NodeWatcher:             nodeWatcher,
+				GitServerWatcher:        gitServerWatcher,
+				CertAuthorityWatcher:    caWatcher,
+				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+				IngressReporter:         ingressReporter,
+				PROXYSigner:             proxySigner,
+				EICEDialer:              awsoidc.DialInstance,
+				EICESigner:              awsoidc.GenerateAndUploadKey,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5045,9 +5048,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register ALPN handler that will be accepting connections for plain
 	// TCP applications.
+	// Use the same handler for MCP protocols, for now.
 	if alpnRouter != nil {
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
+			Handler:   webServer.HandleConnection,
+		})
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
 			Handler:   webServer.HandleConnection,
 		})
 	}
@@ -5172,6 +5180,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetAllowFileCopying(true),
 		regular.SetTracerProvider(process.TracingProvider),
 		regular.SetSessionController(sessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 		regular.SetPROXYSigner(proxySigner),
 		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
@@ -5195,7 +5204,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.Middleware{
+	authMiddleware := &authz.Middleware{
 		ClusterName: clusterName,
 	}
 
@@ -5230,17 +5239,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	sshGRPCServer = grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			interceptors.GRPCServerUnaryErrorInterceptor,
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptors.GRPCServerStreamErrorInterceptor,
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(sshGRPCCreds),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
@@ -5415,6 +5419,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
+			ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6179,6 +6184,14 @@ func (process *TeleportProcess) initApps() {
 			applications = append(applications, a)
 		}
 
+		if os.Getenv(mcp.InMemoryServerEnvVar) == "true" {
+			if mcpInMemoryServer, err := mcp.NewInMemoryServerApp(); err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to create in-memory MCP server app")
+			} else {
+				applications = append(applications, mcpInMemoryServer)
+			}
+		}
+
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentApp,
@@ -6893,9 +6906,11 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		ClusterName:   clusterName,
-		Limiter:       cfg.limiter,
-		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		Middleware: authz.Middleware{
+			ClusterName:   clusterName,
+			AcceptedUsage: []string{teleport.UsageKubeOnly},
+		},
+		Limiter: cfg.limiter,
 	}
 
 	tlsConf := serverTLSConfig.Clone()

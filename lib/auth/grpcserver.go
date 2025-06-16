@@ -34,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -60,7 +61,6 @@ import (
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -68,7 +68,6 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -5255,6 +5254,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
@@ -5684,20 +5684,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
-
-	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identitycenterv1.RegisterIdentityCenterServiceServer(server, identityCenterService)
-
-	provisioningStateService, err := local.NewProvisioningStateService(cfg.AuthServer.bk)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
 	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
 		Authorizer:               cfg.Authorizer,

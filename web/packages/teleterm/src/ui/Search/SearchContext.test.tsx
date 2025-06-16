@@ -260,6 +260,7 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['db'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: true,
+        statuses: ['healthy'],
       },
     });
     docService.add(clusterDoc);
@@ -281,6 +282,7 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
+        statuses: [],
       },
     });
     docService.add(clusterDoc);
@@ -316,6 +318,7 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
+        statuses: [],
       },
     });
     docService.add(clusterDoc);

@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -735,4 +736,20 @@ func TestGetMCPServerTransportType(t *testing.T) {
 			require.Equal(t, tt.want, GetMCPServerTransportType(tt.uri))
 		})
 	}
+}
+
+func TestDeduplicateApps(t *testing.T) {
+	var apps []Application
+	for _, name := range []string{"a", "b", "c", "b", "a", "d"} {
+		app_, err := NewAppV3(Metadata{
+			Name: name,
+		}, AppSpecV3{
+			URI: "localhost:3080",
+		})
+		require.NoError(t, err)
+		apps = append(apps, app_)
+	}
+
+	deduped := DeduplicateApps(apps)
+	require.Equal(t, []string{"a", "b", "c", "d"}, slices.Collect(ResourceNames(deduped)))
 }
