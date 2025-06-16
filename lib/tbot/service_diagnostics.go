@@ -29,14 +29,16 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // diagnosticsService is a [bot.Service] that exposes diagnostics endpoints.
 // It's only started when a --diag-addr is provided.
 type diagnosticsService struct {
-	log          *slog.Logger
-	diagAddr     string
-	pprofEnabled bool
+	log            *slog.Logger
+	diagAddr       string
+	pprofEnabled   bool
+	statusRegistry *readyz.Registry
 }
 
 func (s *diagnosticsService) String() string {
@@ -69,13 +71,8 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}))
-	mux.Handle("/readyz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO(noah): Eventually this should diverge from /livez and report
-		// the readiness status from each sub-service, with an error status if
-		// any of them are not ready.
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
-	}))
+	mux.Handle("/readyz", readyz.HTTPHandler(s.statusRegistry))
+	mux.Handle("/readyz/", readyz.HTTPHandler(s.statusRegistry))
 	srv := http.Server{
 		Addr:              s.diagAddr,
 		Handler:           mux,

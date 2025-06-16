@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -59,6 +60,7 @@ type identityService struct {
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
+	statusReporter    readyz.Reporter
 
 	mu              sync.Mutex
 	client          *apiclient.Client
@@ -292,10 +294,13 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.mu.Lock()
 	s.client = c
 	s.facade = facade
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
 	s.mu.Unlock()
 
 	s.unblockWaiters()
-
+	s.statusReporter.Report(readyz.Healthy)
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
 }
@@ -372,6 +377,7 @@ func (s *identityService) Run(ctx context.Context) error {
 		log:                s.log,
 		reloadCh:           reloadCh,
 		waitBeforeFirstRun: true,
+		statusReporter:     s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
