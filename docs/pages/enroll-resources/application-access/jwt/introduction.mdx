@@ -123,3 +123,9 @@ Many existing web applications and APIs support JWT authentication.
 The following guides are currently available showing how to configure it:
 
 - [ElasticSearch](./elasticsearch.mdx)
+
+## Troubleshooting
+
+If you do not require the `Teleport-Jwt-Assertion` header and its inclusion is causing header size issues for
+your proxied applications, you can disable the header by setting `rewrite.jwt_claims: none` under the application
+configuration. [Read more about the jwt_claims configuration here](https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#configuring-the-jwt-token).
