@@ -5178,6 +5178,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetAllowFileCopying(true),
 		regular.SetTracerProvider(process.TracingProvider),
 		regular.SetSessionController(sessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 		regular.SetPROXYSigner(proxySigner),
 		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
@@ -5416,6 +5417,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
+			ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

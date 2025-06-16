@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -69,7 +69,7 @@ type TLSServerConfig struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation services.RotationGetter
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	// Log is the logger.
 	Log *slog.Logger
 	// Selectors is a list of resource monitor selectors.
@@ -140,6 +140,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.InventoryHandle == nil {
 		return trace.BadParameter("missing parameter InventoryHandle")
 	}
+	if c.ConnectedProxyGetter == nil {
+		return trace.BadParameter("missing parameter ConnectedProxyGetter")
+	}
 
 	if err := c.validateLabelKeys(); err != nil {
 		return trace.Wrap(err)
@@ -165,9 +168,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
 	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
-	}
+
 	return nil
 }
 

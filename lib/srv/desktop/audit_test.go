@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -74,7 +75,8 @@ func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAudito
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",
 			},
-			Clock: clockwork.NewFakeClockAt(startTime),
+			Clock:                clockwork.NewFakeClockAt(startTime),
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 		},
 		auditCache: newSharedDirectoryAuditCache(),
 	}
