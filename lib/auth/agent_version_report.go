@@ -220,10 +220,10 @@ func (a *Server) reportAgentVersions(ctx context.Context) {
 	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
 }
 
-// SampleAgentsFromGroup iterates over every handle in the inventory to
+// SampleAgentsFromAutoUpdateGroup iterates over every handle in the inventory to
 // build a random sample of agents belonging to a given group.
 // The main use-case for this function is to pick canaries that can be updated.
-func (a *Server) SampleAgentsFromGroup(ctx context.Context, groupName string, sampleSize int) []*autoupdatev1pb.Canary {
+func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int) []*autoupdatev1pb.Canary {
 
 	filter := func(handle inventory.UpstreamHandle) bool {
 		ok, _ := filterHandler(handle, a.clock.Now())

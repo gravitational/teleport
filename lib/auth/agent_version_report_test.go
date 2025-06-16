@@ -385,7 +385,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 
 	// Text execution: check that we sample the correct amount of canaries
 	const sampleSize = 10
-	canaries := auth.SampleAgentsFromGroup(t.Context(), testGroupName, sampleSize)
+	canaries := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize)
 	require.Len(t, canaries, sampleSize)
 	// Test execution: check that there were no duplicates in the samples
 	canarySet := make(map[string]*autoupdatev1pb.Canary)
@@ -394,7 +394,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
-	canaries2 := auth.SampleAgentsFromGroup(t.Context(), testGroupName, sampleSize)
+	canaries2 := auth.SampleAgentsFromAutoUpdateGroup(t.Context(), testGroupName, sampleSize)
 	require.Len(t, canaries2, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
 	for _, canary := range canaries {

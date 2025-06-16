@@ -55,6 +55,10 @@ type Client interface {
 	// ListAutoUpdateAgentReports lists the autoupdate_agent_report resources
 	// so the controller can measure the rollout progress.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, nextKey string) ([]*autoupdatepb.AutoUpdateAgentReport, string, error)
+
+	// SampleAgentsFromAutoUpdateGroup samples agents belonging to a specific autoupdate group.
+	// This is used to pick canaries.
+	SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int) []*autoupdatepb.Canary
 }
 
 func getAllReports(ctx context.Context, clt Client) ([]*autoupdatepb.AutoUpdateAgentReport, error) {

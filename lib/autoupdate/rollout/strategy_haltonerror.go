@@ -36,6 +36,7 @@ const (
 	updateReasonPreviousGroupsNotDone = "previous_groups_not_done"
 	updateReasonUpdateComplete        = "update_complete"
 	updateReasonUpdateInProgress      = "update_in_progress"
+	updateReasonCanariesNotBackYet    = "canaries_not_back_yet"
 	haltOnErrorWindowDuration         = time.Hour
 )
 
@@ -128,6 +129,7 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 			default:
 				// All previous groups are DONE and time-related criteria are met.
 				// We can start.
+				// TODO: Check if we can use canaries
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
 				group.InitialCount = uint64(agentCount)
 			}
@@ -155,6 +157,27 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 		}
 	}
 	return nil
+}
+
+const canaryCount = 5
+
+func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int) error {
+	group.InitialCount = uint64(agentCount)
+
+	// TODO: compute if we should use canaries (group is large enough + config enabled?)
+	useCanary := agentCount >= 10
+	if !useCanary {
+		h.log.DebugContext(ctx, "Skipping canary rollout, transitioning directly to the active state", "group", group.Name)
+		setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
+		return nil
+	}
+
+	group.CanaryCount = canaryCount
+	h.log.DebugContext(ctx, "Picking canaries", "group", group.Name, "count", canaryCount)
+	group.Canaries = h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount))
+
+	h.log.DebugContext(ctx, "Picked canaries", "group", group.Name, "count", len(group.Canaries))
+	setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY, updateReasonCanStart, now)
 }
 
 func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
