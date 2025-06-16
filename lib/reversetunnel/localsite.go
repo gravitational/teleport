@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -472,6 +471,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		TargetHostname:           params.Address,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
+		EICESigner:               s.srv.EICESigner,
 	}
 	// Ensure the hostname is set correctly if we have details of the target
 	if params.TargetServer != nil {
@@ -596,61 +596,33 @@ func stringOrEmpty(addr net.Addr) string {
 	return addr.String()
 }
 
-func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetServer types.Server) (*awsoidc.OpenTunnelEC2Response, error) {
-	awsInfo := targetServer.GetAWSInfo()
-	if awsInfo == nil {
-		return nil, trace.BadParameter("missing aws cloud metadata")
-	}
-
-	token, err := s.client.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to generate aws token: %v", err)
-	}
-
-	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
-	}
-
-	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
-		Token:   token,
-		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:  awsInfo.Region,
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
-	}
-
-	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
-		Region:        awsInfo.Region,
-		VPCID:         awsInfo.VPCID,
-		EC2InstanceID: awsInfo.InstanceID,
-		EC2Address:    targetServer.GetAddr(),
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
-	}
-
-	// OpenTunnelResp has the tcp connection that should be used to access the EC2 instance directly.
-	return openTunnelResp, nil
-}
-
 func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dialStart := s.srv.Clock.Now()
 
 	// Creates a connection to the target EC2 instance using its private IP.
 	// This relies on EC2 Instance Connect Endpoint service.
 	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-		eiceTunnelConn, err := s.setupTunnelForOpenSSHEICENode(s.srv.Context, params.TargetServer)
-		if err != nil {
-			return nil, false, trace.Wrap(err)
+		awsInfo := params.TargetServer.GetAWSInfo()
+		if awsInfo == nil {
+			return nil, false, trace.BadParameter("missing aws cloud metadata")
 		}
 
-		return newMetricConn(eiceTunnelConn.Tunnel, dialTypeDirect, dialStart, s.srv.Clock), false, nil
+		token, err := s.client.GenerateAWSOIDCToken(s.srv.ctx, awsInfo.Integration)
+		if err != nil {
+			return nil, false, trace.BadParameter("failed to generate aws token: %v", err)
+		}
+
+		integration, err := s.client.GetIntegration(s.srv.ctx, awsInfo.Integration)
+		if err != nil {
+			return nil, false, trace.BadParameter("failed to fetch integration details: %v", err)
+		}
+
+		conn, err := s.srv.EICEDialer(s.srv.ctx, params.TargetServer, integration, token)
+		if err != nil {
+			return nil, false, trace.Wrap(err, "failed dialing instance")
+		}
+
+		return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 	}
 
 	dreq := &sshutils.DialReq{
