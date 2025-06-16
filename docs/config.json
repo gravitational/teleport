@@ -738,6 +738,11 @@
       "source": "/admin-guides/deploy-a-cluster/linux-demo/",
       "destination": "/linux-demo/",
       "permanent": true
+    },
+    {
+      "source": "/reference/architecture/proxy-peering/",
+      "destination": "/admin-guides/management/operations/proxy-peering/",
+      "permanent": true
     }
   ]
 }
