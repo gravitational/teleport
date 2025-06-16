@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -355,13 +354,19 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
+// BotResourceName returns the default name for resources associated with the
+// given named bot.
+func BotResourceName(botName string) string {
+	return "bot-" + strings.ReplaceAll(botName, " ", "-")
+}
+
 func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(ctx, machineidv1.BotResourceName(c.botName), false)
+	user, err := client.GetUser(ctx, BotResourceName(c.botName), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
