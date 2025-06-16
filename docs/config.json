@@ -1292,32 +1292,32 @@
     },
     {
       "source": "/access-controls/access-graph/",
-      "destination": "/admin-guides/deploy-a-cluster/access-graph/",
+      "destination": "/identity-security/access-graph/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/aws-sync/",
-      "destination": "/admin-guides/teleport-policy/integrations/aws-sync/",
+      "destination": "/identity-security/integrations/aws-sync/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/entra-id/",
-      "destination": "/admin-guides/teleport-policy/integrations/entra-id/",
+      "destination": "/identity-security/integrations/entra-id/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/gitlab/",
-      "destination": "/admin-guides/teleport-policy/integrations/gitlab/",
+      "destination": "/identity-security/integrations/gitlab/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/self-hosted-helm/",
-      "destination": "/admin-guides/deploy-a-cluster/access-graph/self-hosted-helm/",
+      "destination": "/identity-security/access-graph/self-hosted-helm/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-graph/self-hosted/",
-      "destination": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
+      "destination": "/identity-security/access-graph/self-hosted/",
       "permanent": true
     },
     {
@@ -1647,22 +1647,22 @@
     },
     {
       "source": "/access-controls/teleport-policy/getting-started-policy/",
-      "destination": "/admin-guides/teleport-policy/",
+      "destination": "/identity-security/teleport-policy/",
       "permanent": true
     },
     {
       "source": "/access-controls/teleport-policy/policy-connections/",
-      "destination": "/admin-guides/teleport-policy/policy-connections/",
+      "destination": "/identity-security/policy-connections/",
       "permanent": true
     },
     {
       "source": "/access-controls/teleport-policy/policy-how-to-use/",
-      "destination": "/admin-guides/teleport-policy/policy-how-to-use/",
+      "destination": "/identity-security/policy-how-to-use/",
       "permanent": true
     },
     {
       "source": "/access-controls/teleport-policy/policy-integrations/",
-      "destination": "/admin-guides/teleport-policy/integrations/",
+      "destination": "/identity-security/integrations/",
       "permanent": true
     },
     {
@@ -2562,7 +2562,68 @@
     },
     {
       "source": "/upgrading/automatic-agent-updates/",
-      "destination": "/upgrading/agent-managed-updates-v1/"
+      "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": false
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/",
+      "destination": "/identity-security/access-graph/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted-helm/",
+      "destination": "/identity-security/access-graph/self-hosted-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
+      "destination": "/identity-security/access-graph/self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/crown-jewels/",
+      "destination": "/identity-security/crown-jewels/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/aws-sync/",
+      "destination": "/identity-security/integrations/aws-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/entra-id/",
+      "destination": "/identity-security/integrations/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/gitlab/",
+      "destination": "/identity-security/integrations/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/",
+      "destination": "/identity-security/integrations/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/ssh-keys-scan/",
+      "destination": "/identity-security/integrations/ssh-keys-scan/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-connections/",
+      "destination": "/identity-security/policy-connections/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-how-to-use/",
+      "destination": "/identity-security/policy-how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/",
+      "destination": "/identity-security/teleport-policy/",
+      "permanent": true
     }
   ]
 }
