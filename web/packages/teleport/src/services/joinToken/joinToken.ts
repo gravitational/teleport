@@ -20,6 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import { MfaChallengeResponse } from '../mfa';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
 import {
@@ -98,12 +99,20 @@ class JoinTokenService {
       .then(makeJoinToken);
   }
 
-  async createJoinToken(req: CreateJoinTokenRequest) {
-    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  async createJoinToken(
+    req: CreateJoinTokenRequest,
+    mfaResponse: MfaChallengeResponse
+  ) {
+    return api
+      .post(cfg.getJoinTokensUrl(), req, null /* abortSignal */, mfaResponse)
+      .then(makeJoinToken);
   }
 
-  async editJoinToken(req: CreateJoinTokenRequest) {
-    const json = await api.put(cfg.getJoinTokensUrl(), req);
+  async editJoinToken(
+    req: CreateJoinTokenRequest,
+    mfaResponse: MfaChallengeResponse
+  ) {
+    const json = await api.put(cfg.getJoinTokensUrl(), req, mfaResponse);
     return makeJoinToken(json);
   }
 
