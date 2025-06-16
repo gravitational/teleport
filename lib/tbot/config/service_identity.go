@@ -75,6 +75,8 @@ var (
 // It cannot be used to connect to Applications, Databases or Kubernetes
 // Clusters.
 type IdentityOutput struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
@@ -105,6 +107,11 @@ type IdentityOutput struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *IdentityOutput) GetName() string {
+	return o.Name
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {

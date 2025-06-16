@@ -64,7 +64,10 @@ type IdentityOutputService struct {
 }
 
 func (s *IdentityOutputService) String() string {
-	return fmt.Sprintf("identity-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("identity-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *IdentityOutputService) OneShot(ctx context.Context) error {
