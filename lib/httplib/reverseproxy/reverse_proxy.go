@@ -121,7 +121,7 @@ func New(opts ...Option) (*Forwarder, error) {
 // attempt to panic when the request is canceled, and will instead
 // return. This allows any upstream logic to continue and clean up
 // resources instead of having to handle the panic recovery. This
-// is particularly impportant for Kubernetes Watch streams, where
+// is particularly important for Kubernetes Watch streams, where
 // a substantial number of goroutines are spawned to handle
 // the watch stream, and we want to clean them up gracefully
 // instead leaving them hanging around because of a panic.
