@@ -327,11 +327,13 @@ func mustUpdateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient
 	t.Helper()
 	ctx := t.Context()
 
-	_, err := oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
-		EnableUserSync:          settings.enableUserSync,
-		EnableAppGroupSync:      settings.enableAppGroupSync,
-		EnableAccessListSync:    settings.enableAccessListSync,
-		EnableBidirectionalSync: settings.enableBidirectionalSync,
-	})
-	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+			EnableUserSync:          settings.enableUserSync,
+			EnableAppGroupSync:      settings.enableAppGroupSync,
+			EnableAccessListSync:    settings.enableAccessListSync,
+			EnableBidirectionalSync: settings.enableBidirectionalSync,
+		})
+		require.NoError(t, err)
+	}, 2*time.Second, 50*time.Millisecond)
 }

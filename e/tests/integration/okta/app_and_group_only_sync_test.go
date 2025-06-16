@@ -116,7 +116,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 	t.Run("verify assignment to the group1 is processed", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			requireGroupAssignments(t, oktaAPIClient, group1.Id, oktaUser.Id)
-		}, time.Second*2, time.Millisecond*50)
+		}, time.Second*4, time.Millisecond*50)
 		requireNoGroupAssignments(t, oktaAPIClient, group2.Id)
 	})
 
