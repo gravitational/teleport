@@ -32,8 +32,9 @@ import (
 type mcpCommands struct {
 	dbStart *mcpDBStartCommand
 
-	config *mcpConfigCommand
-	list   *mcpListCommand
+	config  *mcpConfigCommand
+	list    *mcpListCommand
+	connect *mcpConnectCommand
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
@@ -42,8 +43,9 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 	return &mcpCommands{
 		dbStart: newMCPDBCommand(db),
 
-		list:   newMCPListCommand(mcp, cf),
-		config: newMCPConfigCommand(mcp, cf),
+		list:    newMCPListCommand(mcp, cf),
+		config:  newMCPConfigCommand(mcp, cf),
+		connect: newMCPConnectCommand(mcp, cf),
 	}
 }
 

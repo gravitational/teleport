@@ -44,8 +44,8 @@ func newGitLoginCommand(parent *kingpin.CmdClause) *gitLoginCommand {
 	// single Git server configured anyway so do a "list" op then use the
 	// organization from that Git server. If more than one Git servers are
 	// found, prompt the user to pick one.
-	cmd.Flag("github-org", "GitHub organization").Required().StringVar(&cmd.gitHubOrganization)
-	cmd.Flag("force", "Force a login").BoolVar(&cmd.force)
+	cmd.Flag("github-org", "GitHub organization.").Required().StringVar(&cmd.gitHubOrganization)
+	cmd.Flag("force", "Force a login.").BoolVar(&cmd.force)
 	return cmd
 }
 

@@ -209,7 +209,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		h.setDecidedHandler(sshHandler)
 		// Handle the incoming connection with the TCP connection to the target
 		// SSH node that has already been established.
-		return sshHandler.handleTCPConnectorWithTargetConn(ctx, localPort, connector, targetConn)
+		return sshHandler.handleTCPConnectorWithTargetConn(ctx, connector, targetConn)
 	}
 	return trace.Errorf("rejecting connection to %s:%d", h.cfg.fqdn, localPort)
 }

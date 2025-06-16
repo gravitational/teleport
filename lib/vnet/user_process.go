@@ -116,6 +116,7 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	processManager, processCtx := newProcessManager()
 	sshConfigurator := newSSHConfigurator(sshConfiguratorConfig{
 		clientApplication: clientApplication,
+		leafClusterCache:  leafClusterCache,
 	})
 	processManager.AddCriticalBackgroundTask("SSH configuration loop", func() error {
 		return trace.Wrap(sshConfigurator.runConfigurationLoop(processCtx))

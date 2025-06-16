@@ -40,8 +40,19 @@ import (
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 )
+
+func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCommand {
+	cmd := &mcpConnectCommand{
+		CmdClause: parent.Command("connect", "Connect to an MCP server.").Hidden(),
+		cf:        cf,
+	}
+
+	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
+	return cmd
+}
 
 func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
 	cmd := &mcpListCommand{
@@ -66,7 +77,7 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Flag("all", "Select all MCP servers. Mutually exclusive with --labels or --query.").Short('R').BoolVar(&cf.ListAll)
 	cmd.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	cmd.Arg("name", "Name of the MCP server").StringVar(&cf.AppName)
+	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
 	return cmd
@@ -399,3 +410,28 @@ restart your client after logging in a new tsh session.
 }
 
 const mcpServerAppConfigPrefix = "teleport-mcp-"
+
+// mcpConnectCommand implements `tsh mcp connect` command.
+type mcpConnectCommand struct {
+	*kingpin.CmdClause
+	cf *CLIConf
+}
+
+func (c *mcpConnectCommand) run() error {
+	_, err := initLogger(c.cf, utils.LoggingForMCP, getLoggingOptsForMCPServer(c.cf))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc, err := makeClient(c.cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.NonInteractive = true
+
+	serverConn, err := tc.DialMCPServer(c.cf.Context, c.cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(utils.ProxyConn(c.cf.Context, utils.CombinedStdio{}, serverConn))
+}

@@ -174,6 +174,9 @@ func RoleWithVersionForUser(u types.User, v string) types.Role {
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			MCP: &types.MCPPermissions{
+				Tools: []string{types.Wildcard},
+			},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -612,6 +615,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
 		r.SetImpersonateConditions(condition, outCond)
+
+		if mcp := r.GetMCPPermissions(condition); mcp != nil {
+			mcp.Tools = applyValueTraitsSlice(mcp.Tools, traits, "mcp.tools")
+			r.SetMCPPermissions(condition, mcp)
+		}
 	}
 
 	return r, nil
