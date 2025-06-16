@@ -1133,6 +1133,33 @@ func TestPluginAWSICSettings(t *testing.T) {
 				require.Equal(t, "some-oidc-integration", oidc.IntegrationName)
 			},
 		},
+		{
+			name: "empty Role Sync Mode is preserved",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = ""
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.Empty(t, cfg.RolesSyncMode)
+			},
+		},
+		{
+			name: "valid Role Sync Mode is preserved",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = AWSICRolesSyncModeNone
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.Equal(t, AWSICRolesSyncModeNone, cfg.RolesSyncMode, cfg.RolesSyncMode)
+			},
+		},
+		{
+			name: "invalid Role Sync Mode is an error",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = "banana"
+			},
+			assertErr: requireNamedBadParameterError("roles sync mode"),
+		},
 	}
 
 	for _, tc := range testCases {
