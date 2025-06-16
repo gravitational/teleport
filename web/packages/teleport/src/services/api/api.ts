@@ -152,10 +152,12 @@ const api = {
    * It returns the JSON data if it is a valid JSON and
    * there were no response errors.
    *
-   * The field "mfaResponse" may be required if the cluster auth setting is
-   * set to: `auth_service.authentication.second_factor: webauthn` which
-   * require users to re-authenticate before performing admin actions like
-   * creating join tokens or deleting users etc.
+   * The field "mfaResponse" accepts a pre-made response to an MFA challenge
+   * for an admin action with allowReuse set to true.
+   *
+   * The cluster requires the user to re-authenticate before performing certain
+   * admin actions (e.g., creating join tokens or deleting users) when
+   * second_factor is set to webauthn.
    *
    * Generally, mfaResponse is not needed because this func will first attempt
    * a fetch without it and if the response had an error and it contained a MFA
@@ -164,9 +166,8 @@ const api = {
    * with the original URL is attempted.
    *
    * There are a few cases where providing a mfaResponse is required and it
-   * starts by creating a MFA challenge with `allowReuse` set to true:
-   *
-   *     services > auth > auth.ts > getMfaChallengeResponseForAdminAction
+   * starts by creating a MFA challenge with `allowReuse` set to true
+   * (see services/auth/auth.ts > getMfaChallengeResponseForAdminAction).
    *
    * This allow users to require re-authenticating ONCE for the following:
    *   - In the web app, we can be calling multiple endpoints back to back,
@@ -180,7 +181,8 @@ const api = {
    *     require re-authenticating. Providing a reusable mfaResponse resolves
    *     this issue.
    *
-   * The mfaResponse with reuse is good for about 5 minutes.
+   * The mfaResponse lasts for WebauthnChallengeTimeout defined in:
+   * https://github.com/gravitational/teleport/blob/b8a65486844b4125ea1cf1f08ae17e2fc5a4db5a/lib/defaults/defaults.go#L598
    */
   async fetchJsonWithMfaAuthnRetry(
     url: string,
