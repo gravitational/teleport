@@ -64,6 +64,7 @@ const (
 type awsKMSKeystore struct {
 	kms                kmsClient
 	mrk                mrkClient
+	health             *passiveHealthChecker
 	awsAccount         string
 	awsRegion          string
 	multiRegionEnabled bool
@@ -150,6 +151,18 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		mrk:                mrkClient,
 		clock:              clock,
 		logger:             opts.Logger,
+		health: &passiveHealthChecker{
+			callback: func(err error) {
+				opts.HealthCallback(err)
+				// Call the callback twice on nil error in-order for the
+				// component state to return to OK.
+				if err == nil {
+					opts.HealthCallback(err)
+				}
+			},
+			log:   opts.Logger,
+			clock: clock,
+		},
 	}, nil
 }
 
@@ -246,7 +259,7 @@ type awsKMSSigner struct {
 	kms kmsClient
 }
 
-func (a *awsKMSKeystore) newSigner(ctx context.Context, key awsKMSKeyID) (*awsKMSSigner, error) {
+func (a *awsKMSKeystore) newSigner(ctx context.Context, key awsKMSKeyID) (crypto.Signer, error) {
 	var pubkeyDER []byte
 	err := a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
 		a.logger.DebugContext(ctx, "Fetching public key", "key_arn", key.arn)
@@ -313,11 +326,14 @@ func (a *awsKMSKeystore) retryOnConsistencyError(ctx context.Context, fn func(ct
 	}
 }
 
-func (a *awsKMSKeystore) newSignerWithPublicKey(_ context.Context, key awsKMSKeyID, publicKey crypto.PublicKey) (*awsKMSSigner, error) {
-	return &awsKMSSigner{
-		key: key,
-		pub: publicKey,
-		kms: a.kms,
+func (a *awsKMSKeystore) newSignerWithPublicKey(_ context.Context, key awsKMSKeyID, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	return &healthSigner{
+		Signer: &awsKMSSigner{
+			key: key,
+			pub: publicKey,
+			kms: a.kms,
+		},
+		health: a.health,
 	}, nil
 }
 

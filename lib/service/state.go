@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client/debug"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
@@ -74,6 +73,12 @@ type componentState struct {
 	state        componentStateEnum
 }
 
+// servicePayload is the payload sent with component state events.
+type servicePayload struct {
+	component      string
+	recoveryPeriod time.Duration
+}
+
 // newProcessState returns a new FSM that tracks the state of the Teleport process.
 func newProcessState(process *TeleportProcess) (*processState, error) {
 	err := metrics.RegisterPrometheusCollectors(stateGauge)
@@ -93,23 +98,23 @@ func (f *processState) update(event Event) {
 	defer f.mu.Unlock()
 	defer f.updateGauge()
 
-	component, ok := event.Payload.(string)
-	if !ok {
+	payload, ok := event.Payload.(servicePayload)
+	if !ok || payload.component == "" {
 		f.process.logger.ErrorContext(f.process.ExitContext(), "Received event broadcast without component name, this is a bug!", "event", event.Name)
 		return
 	}
-	s, ok := f.states[component]
+	s, ok := f.states[payload.component]
 	if !ok {
 		// Register a new component.
 		s = &componentState{recoveryTime: f.process.Clock.Now(), state: stateStarting}
-		f.states[component] = s
+		f.states[payload.component] = s
 	}
 
 	switch event.Name {
 	// If a degraded event was received, always change the state to degraded.
 	case TeleportDegradedEvent:
 		s.state = stateDegraded
-		f.process.logger.InfoContext(f.process.ExitContext(), "Detected Teleport component is running in a degraded state.", "component", component)
+		f.process.logger.InfoContext(f.process.ExitContext(), "Detected Teleport component is running in a degraded state.", "component", payload.component)
 	// If the current state is degraded, and a OK event has been
 	// received, change the state to recovering. If the current state is
 	// recovering and a OK events is received, if it's been longer
@@ -119,15 +124,15 @@ func (f *processState) update(event Event) {
 		switch s.state {
 		case stateStarting:
 			s.state = stateOK
-			f.process.logger.DebugContext(f.process.ExitContext(), "Teleport component has started.", "component", component)
+			f.process.logger.DebugContext(f.process.ExitContext(), "Teleport component has started.", "component", payload.component)
 		case stateDegraded:
 			s.state = stateRecovering
 			s.recoveryTime = f.process.Clock.Now()
-			f.process.logger.InfoContext(f.process.ExitContext(), "Teleport component is recovering from a degraded state.", "component", component)
+			f.process.logger.InfoContext(f.process.ExitContext(), "Teleport component is recovering from a degraded state.", "component", payload.component)
 		case stateRecovering:
-			if f.process.Clock.Since(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
+			if f.process.Clock.Since(s.recoveryTime) >= payload.recoveryPeriod {
 				s.state = stateOK
-				f.process.logger.InfoContext(f.process.ExitContext(), "Teleport component has recovered from a degraded state.", "component", component)
+				f.process.logger.InfoContext(f.process.ExitContext(), "Teleport component has recovered from a degraded state.", "component", payload.component)
 			}
 		}
 	}

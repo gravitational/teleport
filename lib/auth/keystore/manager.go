@@ -190,6 +190,10 @@ type Options struct {
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
+	// HealthCallback is a callback used to report the health of the keystore
+	// Errors impacting the avaiability of the keystore should be reported here
+	// to update auth readiness and allow for failover.
+	HealthCallback func(err error)
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -211,6 +215,9 @@ func (opts *Options) CheckAndSetDefaults() error {
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
+	}
+	if opts.HealthCallback == nil {
+		opts.HealthCallback = func(_ error) {}
 	}
 	return nil
 }

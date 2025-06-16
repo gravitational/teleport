@@ -105,6 +105,10 @@ const (
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
 
+	// ComponentAuthKeystore is Teleport Auth service's keystore which is responsible
+	// for CA key operations.
+	ComponentAuthKeystore = "auth:keystore"
+
 	// ComponentGRPC is gRPC server
 	ComponentGRPC = "grpc"
 

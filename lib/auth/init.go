@@ -372,6 +372,10 @@ type InitConfig struct {
 
 	// VnetConfigService manages the VNet config resource.
 	VnetConfigService services.VnetConfigService
+
+	// KeystoreHealthCallback is a callback used by the keystore for reporting
+	// errors that impact keystore availability.
+	KeystoreHealthCallback func(error)
 }
 
 // Init instantiates and configures an instance of AuthServer
