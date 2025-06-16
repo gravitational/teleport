@@ -154,6 +154,7 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx SessionCtx) 
 		"client_ip", sessionCtx.ClientConn.RemoteAddr(),
 		"app", sessionCtx.App.GetName(),
 		"user", sessionCtx.AuthCtx.User.GetName(),
+		"session_id", sessionCtx.sessionID,
 	)
 
 	sessionAuditor, err := s.makeSessionAuditor(ctx, sessionCtx, logger)

@@ -68,6 +68,8 @@ func withRole(role types.Role) setupTestContextOptionFunc {
 	}
 }
 
+// withAdminRole assigns to ai_user a role that allows all MCP servers and their
+// tools.
 func withAdminRole(t *testing.T) setupTestContextOptionFunc {
 	t.Helper()
 	role, err := types.NewRole("admin", types.RoleSpecV6{
@@ -84,6 +86,8 @@ func withAdminRole(t *testing.T) setupTestContextOptionFunc {
 	return withRole(role)
 }
 
+// withProdReadOnlyRole assigns to the ai_user a role that allows MCP servers
+// with label env=prod and allows read-only tools.
 func withProdReadOnlyRole(t *testing.T) setupTestContextOptionFunc {
 	t.Helper()
 	role, err := types.NewRole("prod-read-only", types.RoleSpecV6{
@@ -100,7 +104,8 @@ func withProdReadOnlyRole(t *testing.T) setupTestContextOptionFunc {
 	return withRole(role)
 }
 
-func withDenyRole(t *testing.T) setupTestContextOptionFunc {
+// withDenyToolsRole assigns to the ai_user a role that denies all MCP tools.
+func withDenyToolsRole(t *testing.T) setupTestContextOptionFunc {
 	t.Helper()
 	role, err := types.NewRole("deny-access", types.RoleSpecV6{
 		Deny: types.RoleConditions{

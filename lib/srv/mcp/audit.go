@@ -170,7 +170,7 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 func (a *sessionAuditor) emitEvent(ctx context.Context, event apievents.AuditEvent) {
 	preparedEvent, err := a.preparer.PrepareSessionEvent(event)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "Failed to setup event",
+		a.logger.ErrorContext(ctx, "Failed to prepare event",
 			"error", err,
 			"event_type", event.GetType(),
 			"event_id", event.GetID(),

@@ -52,7 +52,7 @@ func Test_sessionHandler(t *testing.T) {
 			name: "no-access",
 			setupOptions: []setupTestContextOptionFunc{
 				withAdminRole(t),
-				withDenyRole(t),
+				withDenyToolsRole(t),
 			},
 			allowedTools: nil,
 			deniedTools:  []string{"search_files", "read_file", "write_file"},

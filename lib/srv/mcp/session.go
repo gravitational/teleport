@@ -116,7 +116,7 @@ func (c *sessionHandlerConfig) checkAndSetDefaults() error {
 }
 
 // sessionHandler provides common functions for handling an MCP session,
-// despite the transport type.
+// irrespective the transport type.
 type sessionHandler struct {
 	sessionHandlerConfig
 

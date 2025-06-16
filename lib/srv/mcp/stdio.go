@@ -81,14 +81,23 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 		return trace.Wrap(err)
 	}
 
-	session.logger.DebugContext(ctx, "Started handling stdio session")
+	session.logger.DebugContext(s.cfg.ParentContext, "Started handling stdio session")
 	defer session.logger.DebugContext(s.cfg.ParentContext, "Completed handling stdio session")
 
-	serverRunner, readFromServer, writeToServer, err := makeServerRunner(ctx, session)
+	serverRunner, err := makeServerRunner(ctx, session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer serverRunner.close()
+
+	readFromServer, err := serverRunner.getStdoutPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	writeToServer, err := serverRunner.getStdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	clientResponseWriter := mcputils.NewStdioMessageWriter(utils.NewSyncWriter(sessionCtx.ClientConn))
 	serverRequestWriter := mcputils.NewStdioMessageWriter(utils.NewSyncWriter(writeToServer))
@@ -146,24 +155,33 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 // stdioServerRunner is an interface that represents a stdio-based MCP server to
 // be launched. Can be mocked for testing.
 type stdioServerRunner interface {
+	// getStdoutPipe returns an io.ReadCloser for reading responses from
+	// server's stdout.
+	getStdoutPipe() (io.ReadCloser, error)
+	// getStdinPipe returns an io.Writer for writing messages to server's
+	// stdin.
+	getStdinPipe() (io.WriteCloser, error)
 	// run starts the MCP server and blocks until it is shut down.
 	run(context.Context) error
 	// close shuts down the MCP server.
 	close()
 }
 
-type makeStdioServerRunnerFunc func(context.Context, *sessionHandler) (
-	runner stdioServerRunner,
-	readFromServer io.ReadCloser,
-	writeToServer io.Writer,
-	err error,
-)
+type makeStdioServerRunnerFunc func(context.Context, *sessionHandler) (stdioServerRunner, error)
 
 // execServer is the real implementation for stdioServerRunner that launches an
 // exec.Command.
 type execServer struct {
 	cmd     *exec.Cmd
 	session *sessionHandler
+}
+
+func (s *execServer) getStdoutPipe() (io.ReadCloser, error) {
+	return s.cmd.StdoutPipe()
+}
+
+func (s *execServer) getStdinPipe() (io.WriteCloser, error) {
+	return s.cmd.StdinPipe()
 }
 
 func (s *execServer) run(ctx context.Context) error {
@@ -188,10 +206,10 @@ func (s *execServer) close() {
 	}
 }
 
-func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioServerRunner, io.ReadCloser, io.Writer, error) {
+func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioServerRunner, error) {
 	mcpSpec := session.App.GetMCP()
 	if mcpSpec == nil {
-		return nil, nil, nil, trace.BadParameter("missing MCP spec")
+		return nil, trace.BadParameter("missing MCP spec")
 	}
 
 	logger := session.logger
@@ -204,7 +222,7 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	cmd := exec.CommandContext(cmdCtx, mcpSpec.Command, mcpSpec.Args...)
 	cmd.Stderr = mcputils.NewStderrTraceLogWriter(ctx, logger)
 	// WaitDelay forces a SIGKILL if the process fails to exit 10 seconds after
-	// cmd.Cancel is called. Details see WaitDelay doc.
+	// cmd.Cancel is called. See the WaitDelay doc for details.
 	cmd.WaitDelay = 10 * time.Second
 	// We put all shutdown procedures in cmd.Cancel because we are too lazy to
 	// make a separate function. Since cmd.Cancel can be called outside here by
@@ -223,26 +241,19 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	})
 
 	// Set host user.
-	if hostUser, err := user.Lookup(mcpSpec.RunAsHostUser); err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	} else if err := hostutils.MaybeSetCommandCredentialAsUser(ctx, cmd, hostUser, session.logger); err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	stdinPipe, err := cmd.StdinPipe()
+	hostUser, err := user.Lookup(mcpSpec.RunAsHostUser)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+	if err := hostutils.MaybeSetCommandCredentialAsUser(ctx, cmd, hostUser, session.logger); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	mcpServer := &execServer{
 		cmd:     cmd,
 		session: session,
 	}
-	return mcpServer, stdoutPipe, stdinPipe, nil
+	return mcpServer, nil
 }
 
 func isExitErrorSignal(exitErr error, signal syscall.Signal) bool {

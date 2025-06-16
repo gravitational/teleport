@@ -71,6 +71,7 @@ func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx Ses
 	session.emitStartEvent(s.cfg.ParentContext)
 	defer session.emitEndEvent(s.cfg.ParentContext)
 
+	// TODO(greedy52) audit log notification and requests.
 	server := mcpserver.NewMCPServer("hello-test-server", "1.0.0")
 	stdioServer := mcpserver.NewStdioServer(server)
 	stdioServer.SetErrorLogger(slog.NewLogLogger(s.cfg.Log.Handler(), slog.LevelDebug))

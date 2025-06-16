@@ -128,23 +128,35 @@ func Test_handleStdio(t *testing.T) {
 	require.True(t, ok)
 }
 
-func makeMockMCPServerRunner(context.Context, *sessionHandler) (stdioServerRunner, io.ReadCloser, io.Writer, error) {
+func makeMockMCPServerRunner(context.Context, *sessionHandler) (stdioServerRunner, error) {
 	serverStdin, writeToServer := io.Pipe()
 	readFromServer, serverStdout := io.Pipe()
 	return &mockStdioServerRunner{
-		serverStdin:  serverStdin,
-		serverStdout: serverStdout,
+		serverStdin:    serverStdin,
+		serverStdout:   serverStdout,
+		writeToServer:  writeToServer,
+		readFromServer: readFromServer,
 		pipeClosers: []io.Closer{
 			serverStdin, writeToServer,
 			readFromServer, serverStdout,
 		},
-	}, readFromServer, writeToServer, nil
+	}, nil
 }
 
 type mockStdioServerRunner struct {
-	serverStdin  io.Reader
-	serverStdout io.Writer
-	pipeClosers  []io.Closer
+	serverStdin    io.ReadCloser
+	serverStdout   io.WriteCloser
+	writeToServer  io.WriteCloser
+	readFromServer io.ReadCloser
+	pipeClosers    []io.Closer
+}
+
+func (s *mockStdioServerRunner) getStdinPipe() (io.WriteCloser, error) {
+	return s.writeToServer, nil
+}
+
+func (s *mockStdioServerRunner) getStdoutPipe() (io.ReadCloser, error) {
+	return s.readFromServer, nil
 }
 
 func (s *mockStdioServerRunner) run(ctx context.Context) error {
@@ -220,6 +232,22 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 		require.Empty(t, findDockerContainerID(t.Context(), dockerClient, containerName))
 	}
 
+	connectAfterHandlerStart := func(t *testing.T, testCtx *testContext, containerName string) {
+		t.Helper()
+
+		stdioClient := makeStdioClient(t, testCtx.clientSourceConn)
+		defer stdioClient.Close()
+
+		reqCtx, reqCancel := context.WithTimeout(t.Context(), time.Second*5)
+		defer reqCancel()
+		resp, err := initializeStdioClient(reqCtx, stdioClient)
+		require.NoError(t, err)
+		require.Equal(t, "example-servers/everything", resp.ServerInfo.Name)
+
+		// Check container is running.
+		require.NotEmpty(t, findDockerContainerID(t.Context(), dockerClient, containerName))
+	}
+
 	tests := []struct {
 		name               string
 		cmd                string
@@ -233,23 +261,11 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 		{
 			// Verify initialize response from real everything server. Then
 			// close the transport to trigger shutdown
-			name:              "everything success",
-			cmd:               "docker",
-			dockerRunArgs:     []string{"mcp/everything"},
-			checkHandlerError: require.NoError,
-			afterHandlerStart: func(t *testing.T, testCtx *testContext, containerName string) {
-				stdioClient := makeStdioClient(t, testCtx.clientSourceConn)
-				defer stdioClient.Close()
-
-				reqCtx, reqCancel := context.WithTimeout(t.Context(), time.Second*5)
-				defer reqCancel()
-				resp, err := initializeStdioClient(reqCtx, stdioClient)
-				require.NoError(t, err)
-				require.Equal(t, "example-servers/everything", resp.ServerInfo.Name)
-
-				// Check container is running.
-				require.NotEmpty(t, findDockerContainerID(t.Context(), dockerClient, containerName))
-			},
+			name:               "everything success",
+			cmd:                "docker",
+			dockerRunArgs:      []string{"mcp/everything"},
+			checkHandlerError:  require.NoError,
+			afterHandlerStart:  connectAfterHandlerStart,
 			waitForHandlerExit: time.Second * 5,
 			afterHandlerStop:   containerShouldBeRemoved,
 		},
@@ -261,6 +277,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			checkHandlerError:  require.NoError,
 			cancelHandlerCtx:   true,
 			waitForHandlerExit: time.Second * 5,
+			afterHandlerStart:  connectAfterHandlerStart,
 			afterHandlerStop:   containerShouldBeRemoved,
 		},
 		{
@@ -295,6 +312,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 				"alpine", "sh", "-c",
 				`trap "" INT; while :; do sleep 1; done`,
 			},
+			checkHandlerError: require.Error,
 			afterHandlerStart: func(t *testing.T, testCtx *testContext, _ string) {
 				// Trigger shutdown.
 				testCtx.clientSourceConn.Close()
@@ -335,7 +353,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			go func() {
 				handlerErr := s.HandleSession(handlerCtx, *testCtx.SessionCtx)
 				handlerDoneCh <- struct{}{}
-				require.Error(t, handlerErr)
+				tt.checkHandlerError(t, handlerErr)
 			}()
 
 			if tt.afterHandlerStart != nil {
