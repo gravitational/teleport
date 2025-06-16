@@ -3118,7 +3118,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-func TestListSAMLIdPServiceProvider_Cache(t *testing.T) {
+func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
