@@ -234,7 +234,7 @@ const sshPortForwardingModeComponents = {
   Option: SSHPortForwardingModeOptionComponent,
 };
 
-const OptionsGridContainer = styled(Box)`
+export const OptionsGridContainer = styled(Box)`
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: baseline;
@@ -251,7 +251,7 @@ const OptionsHeader = styled(H4)<{ separator?: boolean }>`
     props.separator ? `${props.theme.space[3]}px` : '0'};
 `;
 
-function BoolRadioGroup({
+export function BoolRadioGroup({
   name,
   value,
   onChange,
@@ -274,6 +274,6 @@ function BoolRadioGroup({
   );
 }
 
-const OptionLabel = styled(LabelInput)`
+export const OptionLabel = styled(LabelInput)`
   ${props => props.theme.typography.body2}
 `;

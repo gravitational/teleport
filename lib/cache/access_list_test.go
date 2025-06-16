@@ -160,14 +160,16 @@ func TestAccessListReviews(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	al, _, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
-		[]*accesslist.AccessListMember{
+	al, _, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), accesslist.UpsertAccessListWithMembersRequest{
+		AccessList: newAccessList(t, "access-list", clock),
+		Members: []*accesslist.AccessListMember{
 			newAccessListMember(t, "access-list", "member1"),
 			newAccessListMember(t, "access-list", "member2"),
 			newAccessListMember(t, "access-list", "member3"),
 			newAccessListMember(t, "access-list", "member4"),
 			newAccessListMember(t, "access-list", "member5"),
-		})
+		},
+	})
 	require.NoError(t, err)
 
 	// Keep track of the reviews, as create can update them. We'll use this

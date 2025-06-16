@@ -32,6 +32,34 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+func PresetString(preset accesslistv1.AccessListPreset) string {
+	switch preset {
+	case accesslistv1.AccessListPreset_ACCESS_LIST_PRESET_JIT:
+		return types.KindAccessListJITPreset
+	case accesslistv1.AccessListPreset_ACCESS_LIST_PRESET_LONG_TERM:
+		return types.KindAccessListLongTermPreset
+	}
+
+	return ""
+}
+
+// func (r accesslistv1.AccessListPreset) IsValid() bool {
+// 	return r == PresetUnspecified || r == PresetJIT
+// }
+
+func ValidPreset(p string) bool {
+	switch p {
+	case types.KindAccessListJITPreset:
+		return true
+	case types.KindAccessListLongTermPreset:
+		return true
+	case "":
+		return true // why did i add this case?
+	default:
+		return false
+	}
+}
+
 // ReviewFrequency is the review frequency in months.
 type ReviewFrequency int
 
@@ -537,4 +565,10 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
 	// we're pretty sure of what it does) and pick the next review date.
 	a.Spec.Audit.NextAuditDate = clock.Now()
 	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
+}
+
+type UpsertAccessListWithMembersRequest struct {
+	AccessList   *AccessList
+	Members      []*AccessListMember
+	PresetConfig *accesslistv1.AccessListPresetConfig
 }

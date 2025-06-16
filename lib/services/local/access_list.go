@@ -667,32 +667,32 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	if err := accessList.CheckAndSetDefaults(); err != nil {
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, req accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	if err := req.AccessList.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	for _, m := range membersIn {
+	for _, m := range req.Members {
 		if err := m.CheckAndSetDefaults(); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
 
 	validateAccessList := func() error {
-		existingList, err := a.service.GetResource(ctx, accessList.GetName())
+		existingList, err := a.service.GetResource(ctx, req.AccessList.GetName())
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 		if existingList != nil {
-			accessList.Status.MemberOf = existingList.Status.MemberOf
-			accessList.Status.OwnerOf = existingList.Status.OwnerOf
+			req.AccessList.Status.MemberOf = existingList.Status.MemberOf
+			req.AccessList.Status.OwnerOf = existingList.Status.OwnerOf
 		} else {
 			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
-			accessList.Status.MemberOf = []string{}
-			accessList.Status.OwnerOf = []string{}
+			req.AccessList.Status.MemberOf = []string{}
+			req.AccessList.Status.OwnerOf = []string{}
 		}
 
-		if err := accesslists.ValidateAccessListWithMembers(ctx, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+		if err := accesslists.ValidateAccessListWithMembers(ctx, req.AccessList, req.Members, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -701,7 +701,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 	reconcileMembers := func() error {
 		// Convert the members slice to a map for easier lookup.
-		membersMap := utils.FromSlice(membersIn, types.GetName)
+		membersMap := utils.FromSlice(req.Members, types.GetName)
 
 		var (
 			members      []*accesslist.AccessListMember
@@ -711,7 +711,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		for {
 			// List all members for the access list.
 			var err error
-			members, membersToken, err = a.memberService.WithPrefix(accessList.GetName()).ListResources(ctx, 0 /* default size */, membersToken)
+			members, membersToken, err = a.memberService.WithPrefix(req.AccessList.GetName()).ListResources(ctx, 0 /* default size */, membersToken)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -719,13 +719,13 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 			for _, existingMember := range members {
 				// If the member is not in the new members map (request), delete it.
 				if newMember, ok := membersMap[existingMember.GetName()]; !ok {
-					err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, existingMember.GetName())
+					err = a.memberService.WithPrefix(req.AccessList.GetName()).DeleteResource(ctx, existingMember.GetName())
 					if err != nil {
 						return trace.Wrap(err)
 					}
 					// Update memberOf field if nested list.
 					if existingMember.Spec.MembershipKind == accesslist.MembershipKindList {
-						if err := a.updateAccessListMemberOf(ctx, accessList.GetName(), existingMember.GetName(), false); err != nil {
+						if err := a.updateAccessListMemberOf(ctx, req.AccessList.GetName(), existingMember.GetName(), false); err != nil {
 							return trace.Wrap(err)
 						}
 					}
@@ -745,7 +745,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 					// Compare members and update if necessary.
 					if !cmp.Equal(newMember, existingMember) {
 						// Update the member.
-						upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
+						upserted, err := a.memberService.WithPrefix(req.AccessList.GetName()).UpsertResource(ctx, newMember)
 						if err != nil {
 							return trace.Wrap(err)
 						}
@@ -765,13 +765,13 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 		// Add any remaining members to the access list.
 		for _, member := range membersMap {
-			upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
+			upserted, err := a.memberService.WithPrefix(req.AccessList.GetName()).UpsertResource(ctx, member)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			// Update memberOf field if nested list.
 			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListMemberOf(ctx, accessList.GetName(), member.Spec.Name, true); err != nil {
+				if err := a.updateAccessListMemberOf(ctx, req.AccessList.GetName(), member.Spec.Name, true); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -783,9 +783,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 	reconcileOwners := func() error {
 		// update references for new owners
-		for _, owner := range accessList.Spec.Owners {
+		for _, owner := range req.AccessList.Spec.Owners {
 			if owner.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, true); err != nil {
+				if err := a.updateAccessListOwnerOf(ctx, req.AccessList.GetName(), owner.Name, true); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -795,7 +795,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 	updateAccessList := func() error {
 		var err error
-		accessList, err = a.service.UpsertResource(ctx, accessList)
+		req.AccessList, err = a.service.UpsertResource(ctx, req.AccessList)
 		return trace.Wrap(err)
 	}
 
@@ -806,13 +806,13 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	// access lists in the cluster in order to  prevent un-authorized use of the
 	// AccessList feature
 	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
-		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
+		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, req.AccessList.GetName()) })
 	}
 
 	actions = append(actions, validateAccessList, reconcileMembers, updateAccessList, reconcileOwners)
 
 	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName(req.AccessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			for _, action := range actions {
 				if err := action(); err != nil {
 					return trace.Wrap(err)
@@ -824,7 +824,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return accessList, membersIn, nil
+	return req.AccessList, req.Members, nil
 }
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {

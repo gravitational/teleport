@@ -236,6 +236,8 @@ message UpsertAccessListWithMembersRequest {
   AccessList access_list = 1;
   // members is the list of access list members.
   repeated Member members = 2;
+  // access_role is a role that defines access to resources and which will be auto created for this request.
+  AccessListPresetConfig preset_config = 3;
 }
 
 // UpsertAccessListWithMembersResponse is the response for upserting an access

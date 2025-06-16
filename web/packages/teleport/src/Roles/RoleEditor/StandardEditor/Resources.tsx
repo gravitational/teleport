@@ -84,6 +84,7 @@ export const ResourcesTab = memo(function ResourcesTab({
   isProcessing,
   validation,
   dispatch,
+  label,
 }: SectionPropsWithDispatch<
   ResourceAccess[],
   ResourceAccessValidationResult[]
@@ -98,9 +99,13 @@ export const ResourcesTab = memo(function ResourcesTab({
 
   return (
     <Flex flexDirection="column" gap={3}>
-      <SectionPadding>
-        Rules that allow connecting to resources controlled by Teleport
-      </SectionPadding>
+      {label ? (
+        <>{label}</>
+      ) : (
+        <SectionPadding>
+          Rules that allow connecting to resources controlled by Teleport
+        </SectionPadding>
+      )}
       {value.map((res, i) => {
         return (
           <ResourceAccessSection

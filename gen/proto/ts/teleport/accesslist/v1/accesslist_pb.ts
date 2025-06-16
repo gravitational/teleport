@@ -27,6 +27,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { RoleSpecV6 } from "../../legacy/types/types_pb";
 import { Trait } from "../../trait/v1/trait_pb";
 import { Duration } from "../../../google/protobuf/duration_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
@@ -482,6 +483,27 @@ export interface AccessListStatus {
     currentUserAssignments?: CurrentUserAssignments;
 }
 /**
+ * AccessListPresetConfig contains fields that describe
+ *
+ * @generated from protobuf message teleport.accesslist.v1.AccessListPresetConfig
+ */
+export interface AccessListPresetConfig {
+    /**
+     * preset describes the type of preset requested.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListPreset preset = 1;
+     */
+    preset: AccessListPreset;
+    /**
+     * role specs for access and requester
+     *
+     * @generated from protobuf field: map<string, types.RoleSpecV6> role_specs = 2;
+     */
+    roleSpecs: {
+        [key: string]: RoleSpecV6;
+    };
+}
+/**
  * ReviewFrequency is the frequency of reviews.
  *
  * @generated from protobuf enum teleport.accesslist.v1.ReviewFrequency
@@ -623,6 +645,31 @@ export enum AccessListUserAssignmentType {
      * @generated from protobuf enum value: ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED = 2;
      */
     INHERITED = 2
+}
+/**
+ * AccessListPreset describes the different types of access list presets available.
+ *
+ * @generated from protobuf enum teleport.accesslist.v1.AccessListPreset
+ */
+export enum AccessListPreset {
+    /**
+     * ACCESS_LIST_PRESET_UNSPECIFIED represents no preset.
+     *
+     * @generated from protobuf enum value: ACCESS_LIST_PRESET_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * ACCESS_LIST_PRESET_JIT represents access request preset.
+     *
+     * @generated from protobuf enum value: ACCESS_LIST_PRESET_JIT = 1;
+     */
+    JIT = 1,
+    /**
+     * ACCESS_LIST_PRESET_LONG_TERM represents long term access to resources preset.
+     *
+     * @generated from protobuf enum value: ACCESS_LIST_PRESET_LONG_TERM = 2;
+     */
+    LONG_TERM = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class AccessList$Type extends MessageType<AccessList> {
@@ -1609,3 +1656,78 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
  * @generated MessageType for protobuf message teleport.accesslist.v1.AccessListStatus
  */
 export const AccessListStatus = new AccessListStatus$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessListPresetConfig$Type extends MessageType<AccessListPresetConfig> {
+    constructor() {
+        super("teleport.accesslist.v1.AccessListPresetConfig", [
+            { no: 1, name: "preset", kind: "enum", T: () => ["teleport.accesslist.v1.AccessListPreset", AccessListPreset, "ACCESS_LIST_PRESET_"] },
+            { no: 2, name: "role_specs", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => RoleSpecV6 } }
+        ]);
+    }
+    create(value?: PartialMessage<AccessListPresetConfig>): AccessListPresetConfig {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.preset = 0;
+        message.roleSpecs = {};
+        if (value !== undefined)
+            reflectionMergePartial<AccessListPresetConfig>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessListPresetConfig): AccessListPresetConfig {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.AccessListPreset preset */ 1:
+                    message.preset = reader.int32();
+                    break;
+                case /* map<string, types.RoleSpecV6> role_specs */ 2:
+                    this.binaryReadMap2(message.roleSpecs, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap2(map: AccessListPresetConfig["roleSpecs"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof AccessListPresetConfig["roleSpecs"] | undefined, val: AccessListPresetConfig["roleSpecs"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = RoleSpecV6.internalBinaryRead(reader, reader.uint32(), options);
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for field teleport.accesslist.v1.AccessListPresetConfig.role_specs");
+            }
+        }
+        map[key ?? ""] = val ?? RoleSpecV6.create();
+    }
+    internalBinaryWrite(message: AccessListPresetConfig, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.AccessListPreset preset = 1; */
+        if (message.preset !== 0)
+            writer.tag(1, WireType.Varint).int32(message.preset);
+        /* map<string, types.RoleSpecV6> role_specs = 2; */
+        for (let k of globalThis.Object.keys(message.roleSpecs)) {
+            writer.tag(2, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k);
+            writer.tag(2, WireType.LengthDelimited).fork();
+            RoleSpecV6.internalBinaryWrite(message.roleSpecs[k], writer, options);
+            writer.join().join();
+        }
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.AccessListPresetConfig
+ */
+export const AccessListPresetConfig = new AccessListPresetConfig$Type();

@@ -4907,7 +4907,6 @@ func (m *UserTaskStateEvent) GetInstancesCount() int32 {
 // external usage event.
 type UsageEventOneOf struct {
 	// Types that are valid to be assigned to Event:
-	//
 	//	*UsageEventOneOf_UiBannerClick
 	//	*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick
 	//	*UsageEventOneOf_UiOnboardAddFirstResourceClick

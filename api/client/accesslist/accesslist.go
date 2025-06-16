@@ -294,10 +294,11 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+func (c *Client) UpsertAccessListWithMembers(ctx context.Context, req accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
-		AccessList: conv.ToProto(list),
-		Members:    conv.ToMembersProto(members),
+		AccessList:   conv.ToProto(req.AccessList),
+		Members:      conv.ToMembersProto(req.Members),
+		PresetConfig: req.PresetConfig,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

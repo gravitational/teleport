@@ -245,6 +245,14 @@ func (m *Metadata) Origin() string {
 	return m.Labels[common.OriginLabel]
 }
 
+// Origin returns the origin value of the resource.
+func (m *Metadata) NamespaceLabel() string {
+	if m.Labels == nil {
+		return ""
+	}
+	return m.Labels[common.TeleportNamespace]
+}
+
 // SetOrigin sets the origin value of the resource.
 func (m *Metadata) SetOrigin(origin string) {
 	if m.Labels == nil {

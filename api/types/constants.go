@@ -556,6 +556,9 @@ const (
 	// KindAccessListReview is an AccessListReview resource
 	KindAccessListReview = "access_list_review"
 
+	KindAccessListJITPreset      = "jit"
+	KindAccessListLongTermPreset = "long_term"
+
 	// KindDiscoveryConfig is a DiscoveryConfig resource.
 	// Used for adding additional matchers in Discovery Service.
 	KindDiscoveryConfig = "discovery_config"
@@ -746,6 +749,8 @@ const (
 
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
+
+	AccessListPreset = TeleportNamespace + "/acl-preset"
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -1129,7 +1134,7 @@ const (
 	// Valid values are:
 	// - system: These resources will be automatically created and overwritten on startup. Users should
 	//           not change these resources.
-	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
+	// - preset: These resources will be created if they don't exist. Updates may be applied to them, // TODO, need to use preset
 	//           but user changes to these resources will be preserved.
 	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
 

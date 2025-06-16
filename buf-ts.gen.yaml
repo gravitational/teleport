@@ -5,9 +5,11 @@ inputs:
     paths:
       - api/proto/teleport/accesslist/
       - api/proto/teleport/devicetrust/
+      - api/proto/teleport/attestation/
       - api/proto/teleport/header/
       - api/proto/teleport/trait/
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
+      - api/proto/teleport/legacy/types/
       - api/proto/teleport/userpreferences/
       - proto/prehog/
       - proto/teleport/lib/teleterm/

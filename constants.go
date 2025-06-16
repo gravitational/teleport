@@ -1017,4 +1017,8 @@ const (
 	OktaAccessRoleContext = "access-okta-acl-role"
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
+
+	AccessListAccessRoleContext    = "access-acl-role"
+	AccessListRequesterRoleContext = "requester-acl-role"
+	AccessListReviewerRoleContext  = "reviewer-acl-role"
 )

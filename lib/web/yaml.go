@@ -102,7 +102,7 @@ func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params h
 		}
 		resource = req.Resource
 
-	case types.KindRole:
+	case types.KindRole: // todo, check validity of role when upserting in the backend
 		var req struct {
 			Resource types.RoleV6 `json:"resource"`
 		}

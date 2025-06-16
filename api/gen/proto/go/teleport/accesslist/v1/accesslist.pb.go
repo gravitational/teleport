@@ -23,6 +23,7 @@ package accesslistv1
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -319,6 +320,59 @@ func (x AccessListUserAssignmentType) Number() protoreflect.EnumNumber {
 // Deprecated: Use AccessListUserAssignmentType.Descriptor instead.
 func (AccessListUserAssignmentType) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{4}
+}
+
+// AccessListPreset describes the different types of access list presets available.
+type AccessListPreset int32
+
+const (
+	// ACCESS_LIST_PRESET_UNSPECIFIED represents no preset.
+	AccessListPreset_ACCESS_LIST_PRESET_UNSPECIFIED AccessListPreset = 0
+	// ACCESS_LIST_PRESET_JIT represents access request preset.
+	AccessListPreset_ACCESS_LIST_PRESET_JIT AccessListPreset = 1
+	// ACCESS_LIST_PRESET_LONG_TERM represents long term access to resources preset.
+	AccessListPreset_ACCESS_LIST_PRESET_LONG_TERM AccessListPreset = 2
+)
+
+// Enum value maps for AccessListPreset.
+var (
+	AccessListPreset_name = map[int32]string{
+		0: "ACCESS_LIST_PRESET_UNSPECIFIED",
+		1: "ACCESS_LIST_PRESET_JIT",
+		2: "ACCESS_LIST_PRESET_LONG_TERM",
+	}
+	AccessListPreset_value = map[string]int32{
+		"ACCESS_LIST_PRESET_UNSPECIFIED": 0,
+		"ACCESS_LIST_PRESET_JIT":         1,
+		"ACCESS_LIST_PRESET_LONG_TERM":   2,
+	}
+)
+
+func (x AccessListPreset) Enum() *AccessListPreset {
+	p := new(AccessListPreset)
+	*p = x
+	return p
+}
+
+func (x AccessListPreset) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AccessListPreset) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_accesslist_v1_accesslist_proto_enumTypes[5].Descriptor()
+}
+
+func (AccessListPreset) Type() protoreflect.EnumType {
+	return &file_teleport_accesslist_v1_accesslist_proto_enumTypes[5]
+}
+
+func (x AccessListPreset) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AccessListPreset.Descriptor instead.
+func (AccessListPreset) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{5}
 }
 
 // AccessList describes the basic building block of access grants, which are
@@ -1380,11 +1434,66 @@ func (x *AccessListStatus) GetCurrentUserAssignments() *CurrentUserAssignments {
 	return nil
 }
 
+// AccessListPresetConfig contains fields that describe
+type AccessListPresetConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// preset describes the type of preset requested.
+	Preset AccessListPreset `protobuf:"varint,1,opt,name=preset,proto3,enum=teleport.accesslist.v1.AccessListPreset" json:"preset,omitempty"`
+	// role specs for access and requester
+	RoleSpecs     map[string]*types.RoleSpecV6 `protobuf:"bytes,2,rep,name=role_specs,json=roleSpecs,proto3" json:"role_specs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessListPresetConfig) Reset() {
+	*x = AccessListPresetConfig{}
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessListPresetConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessListPresetConfig) ProtoMessage() {}
+
+func (x *AccessListPresetConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessListPresetConfig.ProtoReflect.Descriptor instead.
+func (*AccessListPresetConfig) Descriptor() ([]byte, []int) {
+	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *AccessListPresetConfig) GetPreset() AccessListPreset {
+	if x != nil {
+		return x.Preset
+	}
+	return AccessListPreset_ACCESS_LIST_PRESET_UNSPECIFIED
+}
+
+func (x *AccessListPresetConfig) GetRoleSpecs() map[string]*types.RoleSpecV6 {
+	if x != nil {
+		return x.RoleSpecs
+	}
+	return nil
+}
+
 var File_teleport_accesslist_v1_accesslist_proto protoreflect.FileDescriptor
 
 const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/accesslist/v1/accesslist.proto\x12\x16teleport.accesslist.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/header/v1/resourceheader.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xc6\x01\n" +
+	"'teleport/accesslist/v1/accesslist.proto\x12\x16teleport.accesslist.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/header/v1/resourceheader.proto\x1a!teleport/legacy/types/types.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xc6\x01\n" +
 	"\n" +
 	"AccessList\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x12:\n" +
@@ -1468,7 +1577,14 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\tmember_of\x18\x04 \x03(\tR\bmemberOf\x12h\n" +
 	"\x18current_user_assignments\x18\x05 \x01(\v2..teleport.accesslist.v1.CurrentUserAssignmentsR\x16currentUserAssignmentsB\x0f\n" +
 	"\r_member_countB\x14\n" +
-	"\x12_member_list_count*\xb6\x01\n" +
+	"\x12_member_list_count\"\x89\x02\n" +
+	"\x16AccessListPresetConfig\x12@\n" +
+	"\x06preset\x18\x01 \x01(\x0e2(.teleport.accesslist.v1.AccessListPresetR\x06preset\x12\\\n" +
+	"\n" +
+	"role_specs\x18\x02 \x03(\v2=.teleport.accesslist.v1.AccessListPresetConfig.RoleSpecsEntryR\troleSpecs\x1aO\n" +
+	"\x0eRoleSpecsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12'\n" +
+	"\x05value\x18\x02 \x01(\v2\x11.types.RoleSpecV6R\x05value:\x028\x01*\xb6\x01\n" +
 	"\x0fReviewFrequency\x12 \n" +
 	"\x1cREVIEW_FREQUENCY_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aREVIEW_FREQUENCY_ONE_MONTH\x10\x01\x12!\n" +
@@ -1493,7 +1609,11 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x1cAccessListUserAssignmentType\x120\n" +
 	",ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED\x10\x00\x12-\n" +
 	")ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT\x10\x01\x12.\n" +
-	"*ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED\x10\x02BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1b\x06proto3"
+	"*ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED\x10\x02*t\n" +
+	"\x10AccessListPreset\x12\"\n" +
+	"\x1eACCESS_LIST_PRESET_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16ACCESS_LIST_PRESET_JIT\x10\x01\x12 \n" +
+	"\x1cACCESS_LIST_PRESET_LONG_TERM\x10\x02BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1b\x06proto3"
 
 var (
 	file_teleport_accesslist_v1_accesslist_proto_rawDescOnce sync.Once
@@ -1507,75 +1627,82 @@ func file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP() []byte {
 	return file_teleport_accesslist_v1_accesslist_proto_rawDescData
 }
 
-var file_teleport_accesslist_v1_accesslist_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_teleport_accesslist_v1_accesslist_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_teleport_accesslist_v1_accesslist_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_teleport_accesslist_v1_accesslist_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_accesslist_v1_accesslist_proto_goTypes = []any{
 	(ReviewFrequency)(0),              // 0: teleport.accesslist.v1.ReviewFrequency
 	(ReviewDayOfMonth)(0),             // 1: teleport.accesslist.v1.ReviewDayOfMonth
 	(MembershipKind)(0),               // 2: teleport.accesslist.v1.MembershipKind
 	(IneligibleStatus)(0),             // 3: teleport.accesslist.v1.IneligibleStatus
 	(AccessListUserAssignmentType)(0), // 4: teleport.accesslist.v1.AccessListUserAssignmentType
-	(*AccessList)(nil),                // 5: teleport.accesslist.v1.AccessList
-	(*AccessListSpec)(nil),            // 6: teleport.accesslist.v1.AccessListSpec
-	(*AccessListOwner)(nil),           // 7: teleport.accesslist.v1.AccessListOwner
-	(*AccessListAudit)(nil),           // 8: teleport.accesslist.v1.AccessListAudit
-	(*Recurrence)(nil),                // 9: teleport.accesslist.v1.Recurrence
-	(*Notifications)(nil),             // 10: teleport.accesslist.v1.Notifications
-	(*AccessListRequires)(nil),        // 11: teleport.accesslist.v1.AccessListRequires
-	(*AccessListGrants)(nil),          // 12: teleport.accesslist.v1.AccessListGrants
-	(*Member)(nil),                    // 13: teleport.accesslist.v1.Member
-	(*MemberSpec)(nil),                // 14: teleport.accesslist.v1.MemberSpec
-	(*Review)(nil),                    // 15: teleport.accesslist.v1.Review
-	(*ReviewSpec)(nil),                // 16: teleport.accesslist.v1.ReviewSpec
-	(*ReviewChanges)(nil),             // 17: teleport.accesslist.v1.ReviewChanges
-	(*CurrentUserAssignments)(nil),    // 18: teleport.accesslist.v1.CurrentUserAssignments
-	(*AccessListStatus)(nil),          // 19: teleport.accesslist.v1.AccessListStatus
-	(*v1.ResourceHeader)(nil),         // 20: teleport.header.v1.ResourceHeader
-	(*timestamppb.Timestamp)(nil),     // 21: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),       // 22: google.protobuf.Duration
-	(*v11.Trait)(nil),                 // 23: teleport.trait.v1.Trait
+	(AccessListPreset)(0),             // 5: teleport.accesslist.v1.AccessListPreset
+	(*AccessList)(nil),                // 6: teleport.accesslist.v1.AccessList
+	(*AccessListSpec)(nil),            // 7: teleport.accesslist.v1.AccessListSpec
+	(*AccessListOwner)(nil),           // 8: teleport.accesslist.v1.AccessListOwner
+	(*AccessListAudit)(nil),           // 9: teleport.accesslist.v1.AccessListAudit
+	(*Recurrence)(nil),                // 10: teleport.accesslist.v1.Recurrence
+	(*Notifications)(nil),             // 11: teleport.accesslist.v1.Notifications
+	(*AccessListRequires)(nil),        // 12: teleport.accesslist.v1.AccessListRequires
+	(*AccessListGrants)(nil),          // 13: teleport.accesslist.v1.AccessListGrants
+	(*Member)(nil),                    // 14: teleport.accesslist.v1.Member
+	(*MemberSpec)(nil),                // 15: teleport.accesslist.v1.MemberSpec
+	(*Review)(nil),                    // 16: teleport.accesslist.v1.Review
+	(*ReviewSpec)(nil),                // 17: teleport.accesslist.v1.ReviewSpec
+	(*ReviewChanges)(nil),             // 18: teleport.accesslist.v1.ReviewChanges
+	(*CurrentUserAssignments)(nil),    // 19: teleport.accesslist.v1.CurrentUserAssignments
+	(*AccessListStatus)(nil),          // 20: teleport.accesslist.v1.AccessListStatus
+	(*AccessListPresetConfig)(nil),    // 21: teleport.accesslist.v1.AccessListPresetConfig
+	nil,                               // 22: teleport.accesslist.v1.AccessListPresetConfig.RoleSpecsEntry
+	(*v1.ResourceHeader)(nil),         // 23: teleport.header.v1.ResourceHeader
+	(*timestamppb.Timestamp)(nil),     // 24: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),       // 25: google.protobuf.Duration
+	(*v11.Trait)(nil),                 // 26: teleport.trait.v1.Trait
+	(*types.RoleSpecV6)(nil),          // 27: types.RoleSpecV6
 }
 var file_teleport_accesslist_v1_accesslist_proto_depIdxs = []int32{
-	20, // 0: teleport.accesslist.v1.AccessList.header:type_name -> teleport.header.v1.ResourceHeader
-	6,  // 1: teleport.accesslist.v1.AccessList.spec:type_name -> teleport.accesslist.v1.AccessListSpec
-	19, // 2: teleport.accesslist.v1.AccessList.status:type_name -> teleport.accesslist.v1.AccessListStatus
-	7,  // 3: teleport.accesslist.v1.AccessListSpec.owners:type_name -> teleport.accesslist.v1.AccessListOwner
-	8,  // 4: teleport.accesslist.v1.AccessListSpec.audit:type_name -> teleport.accesslist.v1.AccessListAudit
-	11, // 5: teleport.accesslist.v1.AccessListSpec.membership_requires:type_name -> teleport.accesslist.v1.AccessListRequires
-	11, // 6: teleport.accesslist.v1.AccessListSpec.ownership_requires:type_name -> teleport.accesslist.v1.AccessListRequires
-	12, // 7: teleport.accesslist.v1.AccessListSpec.grants:type_name -> teleport.accesslist.v1.AccessListGrants
-	12, // 8: teleport.accesslist.v1.AccessListSpec.owner_grants:type_name -> teleport.accesslist.v1.AccessListGrants
+	23, // 0: teleport.accesslist.v1.AccessList.header:type_name -> teleport.header.v1.ResourceHeader
+	7,  // 1: teleport.accesslist.v1.AccessList.spec:type_name -> teleport.accesslist.v1.AccessListSpec
+	20, // 2: teleport.accesslist.v1.AccessList.status:type_name -> teleport.accesslist.v1.AccessListStatus
+	8,  // 3: teleport.accesslist.v1.AccessListSpec.owners:type_name -> teleport.accesslist.v1.AccessListOwner
+	9,  // 4: teleport.accesslist.v1.AccessListSpec.audit:type_name -> teleport.accesslist.v1.AccessListAudit
+	12, // 5: teleport.accesslist.v1.AccessListSpec.membership_requires:type_name -> teleport.accesslist.v1.AccessListRequires
+	12, // 6: teleport.accesslist.v1.AccessListSpec.ownership_requires:type_name -> teleport.accesslist.v1.AccessListRequires
+	13, // 7: teleport.accesslist.v1.AccessListSpec.grants:type_name -> teleport.accesslist.v1.AccessListGrants
+	13, // 8: teleport.accesslist.v1.AccessListSpec.owner_grants:type_name -> teleport.accesslist.v1.AccessListGrants
 	3,  // 9: teleport.accesslist.v1.AccessListOwner.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
 	2,  // 10: teleport.accesslist.v1.AccessListOwner.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
-	21, // 11: teleport.accesslist.v1.AccessListAudit.next_audit_date:type_name -> google.protobuf.Timestamp
-	9,  // 12: teleport.accesslist.v1.AccessListAudit.recurrence:type_name -> teleport.accesslist.v1.Recurrence
-	10, // 13: teleport.accesslist.v1.AccessListAudit.notifications:type_name -> teleport.accesslist.v1.Notifications
+	24, // 11: teleport.accesslist.v1.AccessListAudit.next_audit_date:type_name -> google.protobuf.Timestamp
+	10, // 12: teleport.accesslist.v1.AccessListAudit.recurrence:type_name -> teleport.accesslist.v1.Recurrence
+	11, // 13: teleport.accesslist.v1.AccessListAudit.notifications:type_name -> teleport.accesslist.v1.Notifications
 	0,  // 14: teleport.accesslist.v1.Recurrence.frequency:type_name -> teleport.accesslist.v1.ReviewFrequency
 	1,  // 15: teleport.accesslist.v1.Recurrence.day_of_month:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
-	22, // 16: teleport.accesslist.v1.Notifications.start:type_name -> google.protobuf.Duration
-	23, // 17: teleport.accesslist.v1.AccessListRequires.traits:type_name -> teleport.trait.v1.Trait
-	23, // 18: teleport.accesslist.v1.AccessListGrants.traits:type_name -> teleport.trait.v1.Trait
-	20, // 19: teleport.accesslist.v1.Member.header:type_name -> teleport.header.v1.ResourceHeader
-	14, // 20: teleport.accesslist.v1.Member.spec:type_name -> teleport.accesslist.v1.MemberSpec
-	21, // 21: teleport.accesslist.v1.MemberSpec.joined:type_name -> google.protobuf.Timestamp
-	21, // 22: teleport.accesslist.v1.MemberSpec.expires:type_name -> google.protobuf.Timestamp
+	25, // 16: teleport.accesslist.v1.Notifications.start:type_name -> google.protobuf.Duration
+	26, // 17: teleport.accesslist.v1.AccessListRequires.traits:type_name -> teleport.trait.v1.Trait
+	26, // 18: teleport.accesslist.v1.AccessListGrants.traits:type_name -> teleport.trait.v1.Trait
+	23, // 19: teleport.accesslist.v1.Member.header:type_name -> teleport.header.v1.ResourceHeader
+	15, // 20: teleport.accesslist.v1.Member.spec:type_name -> teleport.accesslist.v1.MemberSpec
+	24, // 21: teleport.accesslist.v1.MemberSpec.joined:type_name -> google.protobuf.Timestamp
+	24, // 22: teleport.accesslist.v1.MemberSpec.expires:type_name -> google.protobuf.Timestamp
 	3,  // 23: teleport.accesslist.v1.MemberSpec.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
 	2,  // 24: teleport.accesslist.v1.MemberSpec.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
-	20, // 25: teleport.accesslist.v1.Review.header:type_name -> teleport.header.v1.ResourceHeader
-	16, // 26: teleport.accesslist.v1.Review.spec:type_name -> teleport.accesslist.v1.ReviewSpec
-	21, // 27: teleport.accesslist.v1.ReviewSpec.review_date:type_name -> google.protobuf.Timestamp
-	17, // 28: teleport.accesslist.v1.ReviewSpec.changes:type_name -> teleport.accesslist.v1.ReviewChanges
-	11, // 29: teleport.accesslist.v1.ReviewChanges.membership_requirements_changed:type_name -> teleport.accesslist.v1.AccessListRequires
+	23, // 25: teleport.accesslist.v1.Review.header:type_name -> teleport.header.v1.ResourceHeader
+	17, // 26: teleport.accesslist.v1.Review.spec:type_name -> teleport.accesslist.v1.ReviewSpec
+	24, // 27: teleport.accesslist.v1.ReviewSpec.review_date:type_name -> google.protobuf.Timestamp
+	18, // 28: teleport.accesslist.v1.ReviewSpec.changes:type_name -> teleport.accesslist.v1.ReviewChanges
+	12, // 29: teleport.accesslist.v1.ReviewChanges.membership_requirements_changed:type_name -> teleport.accesslist.v1.AccessListRequires
 	0,  // 30: teleport.accesslist.v1.ReviewChanges.review_frequency_changed:type_name -> teleport.accesslist.v1.ReviewFrequency
 	1,  // 31: teleport.accesslist.v1.ReviewChanges.review_day_of_month_changed:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
 	4,  // 32: teleport.accesslist.v1.CurrentUserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
 	4,  // 33: teleport.accesslist.v1.CurrentUserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	18, // 34: teleport.accesslist.v1.AccessListStatus.current_user_assignments:type_name -> teleport.accesslist.v1.CurrentUserAssignments
-	35, // [35:35] is the sub-list for method output_type
-	35, // [35:35] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	19, // 34: teleport.accesslist.v1.AccessListStatus.current_user_assignments:type_name -> teleport.accesslist.v1.CurrentUserAssignments
+	5,  // 35: teleport.accesslist.v1.AccessListPresetConfig.preset:type_name -> teleport.accesslist.v1.AccessListPreset
+	22, // 36: teleport.accesslist.v1.AccessListPresetConfig.role_specs:type_name -> teleport.accesslist.v1.AccessListPresetConfig.RoleSpecsEntry
+	27, // 37: teleport.accesslist.v1.AccessListPresetConfig.RoleSpecsEntry.value:type_name -> types.RoleSpecV6
+	38, // [38:38] is the sub-list for method output_type
+	38, // [38:38] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_teleport_accesslist_v1_accesslist_proto_init() }
@@ -1589,8 +1716,8 @@ func file_teleport_accesslist_v1_accesslist_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_accesslist_v1_accesslist_proto_rawDesc), len(file_teleport_accesslist_v1_accesslist_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   15,
+			NumEnums:      6,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

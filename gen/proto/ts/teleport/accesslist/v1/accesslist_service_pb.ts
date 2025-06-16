@@ -33,6 +33,7 @@ import { AccessRequestV3 } from "../../legacy/types/types_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
 import { Review } from "./accesslist_pb";
 import { AccessListOwner } from "./accesslist_pb";
+import { AccessListPresetConfig } from "./accesslist_pb";
 import { Member } from "./accesslist_pb";
 import { AccessListGrants } from "./accesslist_pb";
 import { AccessList } from "./accesslist_pb";
@@ -338,6 +339,12 @@ export interface UpsertAccessListWithMembersRequest {
      * @generated from protobuf field: repeated teleport.accesslist.v1.Member members = 2;
      */
     members: Member[];
+    /**
+     * access_role is a role that defines access to resources and which will be auto created for this request.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListPresetConfig preset_config = 3;
+     */
+    presetConfig?: AccessListPresetConfig;
 }
 /**
  * UpsertAccessListWithMembersResponse is the response for upserting an access
@@ -1579,7 +1586,8 @@ class UpsertAccessListWithMembersRequest$Type extends MessageType<UpsertAccessLi
     constructor() {
         super("teleport.accesslist.v1.UpsertAccessListWithMembersRequest", [
             { no: 1, name: "access_list", kind: "message", T: () => AccessList },
-            { no: 2, name: "members", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Member }
+            { no: 2, name: "members", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Member },
+            { no: 3, name: "preset_config", kind: "message", T: () => AccessListPresetConfig }
         ]);
     }
     create(value?: PartialMessage<UpsertAccessListWithMembersRequest>): UpsertAccessListWithMembersRequest {
@@ -1600,6 +1608,9 @@ class UpsertAccessListWithMembersRequest$Type extends MessageType<UpsertAccessLi
                 case /* repeated teleport.accesslist.v1.Member members */ 2:
                     message.members.push(Member.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* teleport.accesslist.v1.AccessListPresetConfig preset_config */ 3:
+                    message.presetConfig = AccessListPresetConfig.internalBinaryRead(reader, reader.uint32(), options, message.presetConfig);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1618,6 +1629,9 @@ class UpsertAccessListWithMembersRequest$Type extends MessageType<UpsertAccessLi
         /* repeated teleport.accesslist.v1.Member members = 2; */
         for (let i = 0; i < message.members.length; i++)
             Member.internalBinaryWrite(message.members[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslist.v1.AccessListPresetConfig preset_config = 3; */
+        if (message.presetConfig)
+            AccessListPresetConfig.internalBinaryWrite(message.presetConfig, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
