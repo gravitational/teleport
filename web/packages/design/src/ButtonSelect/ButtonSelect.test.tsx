@@ -26,14 +26,14 @@ describe('ButtonSelect', () => {
     { value: '2', label: 'Option 2' },
     { value: '3', label: 'Option 3' },
   ];
-  const activeOption = '1';
+  const activeValue = '1';
 
   function renderButtonSelect() {
     const onChange = jest.fn();
     render(
       <ButtonSelect
         options={options}
-        activeOption={activeOption}
+        activeValue={activeValue}
         onChange={onChange}
       />
     );

@@ -33,16 +33,16 @@ export const TwoOptions = () => {
     { value: '2', label: 'Option 2' },
   ];
 
-  const [activeOption, setActiveOption] = useState('1');
+  const [activeValue, setActiveValue] = useState('1');
 
   return (
     <Flex flexDirection="column" gap={3}>
       <ButtonSelect
         options={options}
-        activeOption={activeOption}
-        onChange={setActiveOption}
+        activeValue={activeValue}
+        onChange={setActiveValue}
       />
-      <H2>{`Active Option: ${activeOption}`}</H2>
+      <H2>{`Active Value: ${activeValue}`}</H2>
     </Flex>
   );
 };
@@ -55,16 +55,16 @@ export const FourOptions = () => {
     { value: '4', label: 'Option 4' },
   ];
 
-  const [activeOption, setActiveOption] = useState('1');
+  const [activeValue, setActiveValue] = useState('1');
 
   return (
     <Flex flexDirection="column" gap={3}>
       <ButtonSelect
         options={options}
-        activeOption={activeOption}
-        onChange={setActiveOption}
+        activeValue={activeValue}
+        onChange={setActiveValue}
       />
-      <H2>{`Active Option: ${activeOption}`}</H2>
+      <H2>{`Active Value: ${activeValue}`}</H2>
     </Flex>
   );
 };

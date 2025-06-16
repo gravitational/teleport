@@ -28,7 +28,7 @@ import { Button } from '../Button/Button';
  * Each option must have a unique `value` and a `label` that will be displayed on the button.
  *
  * @property options - The options to display in the button select. Each option should have a unique `value` and a `label` to display on the button.
- * @property activeOption - The value of the currently active option.
+ * @property activeValue - The value of the currently active option.
  * @property onChange - Callback function that is called when the active button changes. Receives the value of the newly selected button.
  *
  * @example
@@ -36,34 +36,34 @@ import { Button } from '../Button/Button';
  *   { value: '1', label: 'Option 1' },
  *   { value: '2', label: 'Option 2' },
  * ];
- * const [activeOption, setActiveOption] = useState('1');
+ * const [activeValue, setActiveValue] = useState('1');
  * return (
  *   <ButtonSelect
  *     options={options}
- *     activeOption={activeOption}
- *     onChange={setActiveOption}
+ *     activeValue={activeValue}
+ *     onChange={setactiveValue}
  *   />
  * );
  */
 export const ButtonSelect = ({
   options,
-  activeOption,
+  activeValue,
   onChange,
 }: {
   options: { value: string; label: string }[];
-  activeOption: string;
+  activeValue: string;
   onChange: (selectedvalue: string) => void;
 }) => {
-  const updateValue = (newOption: string) => {
-    if (activeOption !== newOption) {
-      onChange(newOption);
+  const updateValue = (newValue: string) => {
+    if (activeValue !== newValue) {
+      onChange(newValue);
     }
   };
 
   return (
     <Wrapper>
       {options.map(option => {
-        const isActive = activeOption === option.value;
+        const isActive = activeValue === option.value;
         return (
           <ButtonSelectButton
             key={option.value}
