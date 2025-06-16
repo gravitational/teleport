@@ -52,7 +52,10 @@ type SSHHostOutputService struct {
 }
 
 func (s *SSHHostOutputService) String() string {
-	return fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *SSHHostOutputService) OneShot(ctx context.Context) error {
