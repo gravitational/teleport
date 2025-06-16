@@ -420,7 +420,7 @@ func NewWatcher(cfg WatchConfig) (*Watcher, error) {
 // This is how auth servers cooperate and ensure there are accessible wrapped keys for each unique keystore
 // configuration in a cluster.
 func (w *Watcher) Run(ctx context.Context) (err error) {
-	// shouldRetryAfterJitterFn returns a bool specifiying whether or not execution should continue
+	// shouldRetryAfterJitterFn returns a bool specifying whether or not execution should continue
 	shouldRetryAfterJitterFn := func() bool {
 		select {
 		case <-time.After(retryutils.SeventhJitter(time.Second * 5)):

@@ -2273,6 +2273,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:                process.auditLog,
 			CipherSuites:            cfg.CipherSuites,
 			KeyStore:                keyStore,
+			KeyStoreConfig:          cfg.Auth.KeyStore,
 			Emitter:                 checkingEmitter,
 			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
