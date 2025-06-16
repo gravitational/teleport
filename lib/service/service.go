@@ -2660,16 +2660,8 @@ func (process *TeleportProcess) initAuthService() error {
 
 	recordingEncryptionWatchCfg := recordingencryption.WatchConfig{
 		Events:        authServer.Services,
-		Resolver:      authServer,
+		Resolver:      recordingEncryptionManager,
 		ClusterConfig: authServer,
-		LockConfig: &backend.RunWhileLockedConfig{
-			LockConfiguration: backend.LockConfiguration{
-				Backend:            b,
-				LockNameComponents: []string{"resolve_recording_encryption"},
-				TTL:                30 * time.Second,
-			},
-			RefreshLockInterval: 20 * time.Second,
-		},
 	}
 
 	recordingEncryptionWatcher, err := recordingencryption.NewWatcher(recordingEncryptionWatchCfg)
