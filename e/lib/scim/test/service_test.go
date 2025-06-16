@@ -199,7 +199,7 @@ func mkTestPlugin() types.Plugin {
 		// shim should is allowed to do that, and we'll handle that with a mock
 		// shim for these tests.
 		Spec: types.PluginSpecV1{
-			Settings: &types.PluginSpecV1_Jira{},
+			Settings: &types.PluginSpecV1_Okta{},
 		},
 		Credentials: &types.PluginCredentialsV1{
 			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{

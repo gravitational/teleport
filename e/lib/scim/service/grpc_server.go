@@ -141,17 +141,16 @@ func (s *Service) DeleteSCIMResource(ctx context.Context, req *pb.DeleteSCIMReso
 }
 
 func ensureMetadata(resource *pb.Resource, rt string) error {
-	var schemaID string
-	switch rt {
-	case "Users":
-		schemaID = "urn:ietf:params:scim:schemas:core:2.0:User"
-	case "Groups":
-		schemaID = "urn:ietf:params:scim:schemas:core:2.0:Group"
-	default:
-		return trace.BadParameter("unsupported resource type %q", rt)
-	}
-
 	if len(resource.Schemas) == 0 {
+		var schemaID string
+		switch rt {
+		case "Users":
+			schemaID = common.SchemaUserCore
+		case "Groups":
+			schemaID = common.SchemaGroupCore
+		default:
+			return trace.BadParameter("unsupported resource type %q", rt)
+		}
 		resource.Schemas = append(resource.Schemas, schemaID)
 	}
 

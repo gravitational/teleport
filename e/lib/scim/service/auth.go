@@ -34,13 +34,31 @@ func (s *Service) authorizeSCIMRequest(ctx context.Context, target *pb.RequestTa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scimTokenHash, ok, err := oktaplugin.SelectSCIMTokenHash(creds)
-	if err != nil {
-		return trace.Wrap(err)
+
+	var scimTokenHash string
+	switch plugin.GetType() {
+	case types.PluginTypeOkta:
+		// Okta Plugin support multiple credential where scim token is marked by dedicated label
+		// To get the scim token creds find a creds that the okta scim purpose label.
+		var ok bool
+		scimTokenHash, ok, err = oktaplugin.SelectSCIMTokenHash(creds)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !ok {
+			return trace.AccessDenied("no token set")
+		}
+	case types.PluginTypeSCIM:
+		// SCIM Plugin supports only one static credential, we are sure that if there is a static credential
+		// it is the SCIM token credential.
+		if len(creds) != 1 {
+			return trace.AccessDenied("expected exactly one static credential for SCIM plugin, got %d", len(creds))
+		}
+		scimTokenHash = creds[0].GetAPIToken()
+	default:
+		return trace.BadParameter("unsupported plugin type %q for SCIM request", plugin.GetType())
 	}
-	if !ok {
-		return trace.AccessDenied("no token set")
-	}
+
 	if err := checkBearerToken(scimTokenHash, target.GetAuthorization()); err != nil {
 		return trace.AccessDenied("invalid token")
 	}

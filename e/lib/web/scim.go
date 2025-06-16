@@ -131,6 +131,17 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 		"resource_type", resourceType,
 	)
 
+	// ServiceProviderConfig is a singleton resource as defined in RFC 7643 §8.5:
+	// https://datatracker.ietf.org/doc/html/rfc7643#section-8.5
+	//
+	// Unlike other endpoints, it must return a single SCIM resource—not a list.
+	// However, our internal gRPC SCIM provider interface uses ListResources for all handlers.
+	// To bridge this mismatch, we explicitly redirect the request to scimGetResource,
+	// which handles returning the correct single-resource response.
+	if resourceType == "ServiceProviderConfig" {
+		return p.scimGetResource(w, r, params)
+	}
+
 	filter := r.URL.Query().Get(queryFieldFilter)
 	if filter != "" {
 		// validate the filter syntax is correct and supported. No point in
