@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -108,12 +107,12 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 
 	if c.authzContextFn == nil {
 		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
-			identityInfo, ok := info.(auth.IdentityInfo)
+			identityInfo, ok := info.(interface{ AuthzContext() *authz.Context })
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthContext, nil
+			return identityInfo.AuthzContext(), nil
 		}
 	}
 
