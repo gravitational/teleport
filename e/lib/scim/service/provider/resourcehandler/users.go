@@ -6,10 +6,9 @@ import (
 	"github.com/gravitational/trace"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
-	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
+	"github.com/gravitational/teleport/e/lib/scim/service/lister"
 )
 
 // ProviderUser is an interface that defines the methods required for a SCIM
@@ -110,69 +109,18 @@ func (h *UserHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 
 // ListResources handles a request to list SCIM resources. It supports
 func (h *UserHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMResourcesRequest) (*scimpb.ResourceList, error) {
-	filter, err := scimfilter.ParseFilter(req.GetFilter())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	l := lister.UserLister{
+		Config: h.Config,
+		Predicate: func(ctx context.Context, user types.User) bool {
+			return h.UserPredicate(ctx, user)
+		},
+		UserToResource: func(user types.User) (*scimpb.Resource, error) {
+			out, err := h.UserToResource(ctx, user)
+			return out, trace.Wrap(err)
+		},
 	}
-
-	const pageSize = 100
-	index := 0
-	totalCount := 0
-	var outputResources []*scimpb.Resource
-
-	listUserReq := userspb.ListUsersRequest{
-		PageSize: pageSize,
-	}
-
-	for {
-		rsp, err := h.UsersService.ListUsers(ctx, &listUserReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, user := range rsp.Users {
-			if !h.UserPredicate(ctx, user) {
-				continue
-			}
-
-			filterAttribs := map[string]string{common.UsernameAttribute: user.GetName()}
-			if err := scimfilter.EvaluateFilter(filter, filterAttribs); err != nil {
-				continue
-			}
-
-			index++
-			if index < int(req.GetPage().GetStartIndex()) {
-				continue
-			}
-
-			if len(outputResources) < int(req.GetPage().GetCount()) {
-				userResource, err := h.UserToResource(ctx, user)
-				if err != nil {
-					h.Logger.ErrorContext(ctx, "converting user to SCIM resource",
-						"user", user.GetName(),
-						"error", err,
-					)
-					continue
-				}
-				outputResources = append(outputResources, userResource)
-			}
-			totalCount++
-		}
-
-		listUserReq.PageToken = rsp.NextPageToken
-		if listUserReq.PageToken == "" {
-			break
-		}
-	}
-
-	output := &scimpb.ResourceList{
-		TotalResults: int32(totalCount),
-		StartIndex:   int32(req.GetPage().GetStartIndex()),
-		ItemsPerPage: int32(req.GetPage().GetCount()),
-		Resources:    outputResources,
-	}
-
-	return output, nil
+	out, err := l.ListResources(ctx, req)
+	return out, trace.Wrap(err)
 }
 
 // DeleteResource handles a request to delete a SCIM resource.

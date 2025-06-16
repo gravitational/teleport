@@ -13,16 +13,14 @@ import (
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
-	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
+	"github.com/gravitational/teleport/e/lib/scim/service/lister"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
-	groupNameAttribute        = "groupName"
-	groupDisplayNameAttribute = "displayName"
-	logFieldGroupId           = "group_id"
+	logFieldGroupId = "group_id"
 )
 
 type ProviderGroup interface {
@@ -87,72 +85,18 @@ func (h *GroupHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCI
 }
 
 func (h *GroupHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMResourcesRequest) (*scimpb.ResourceList, error) {
-	filter, err := scimfilter.ParseFilter(req.GetFilter())
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing filter")
+	l := lister.GroupLister{
+		Config: h.Config,
+		Predicate: func(accessList *accesslist.AccessList) bool {
+			return h.AccessListPredicate(ctx, accessList)
+		},
+		AccessListToResource: func(list *accesslist.AccessList) (*scimpb.Resource, error) {
+			r, err := conv.AccessListToResource(list, nil)
+			return r, trace.Wrap(err)
+		},
 	}
-
-	const pageSize = 100
-	var outputResources []*scimpb.Resource
-	index := 0
-	totalCount := 0
-	nextToken := ""
-
-	for {
-		var srcPage []*accesslist.AccessList
-		var err error
-		srcPage, nextToken, err = h.AccessListsService.ListAccessLists(ctx, pageSize, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed enumerating AccessLists")
-		}
-
-		for _, accessList := range srcPage {
-			if !h.AccessListPredicate(ctx, accessList) {
-				continue
-			}
-
-			filterAttribs := map[string]string{
-				groupNameAttribute:        accessList.GetName(),
-				groupDisplayNameAttribute: accessList.Spec.Title,
-			}
-			if err := scimfilter.EvaluateFilter(filter, filterAttribs); err != nil {
-				continue
-			}
-
-			index++
-			if index < int(req.GetPage().GetStartIndex()) {
-				continue
-			}
-
-			if len(outputResources) < int(req.GetPage().GetCount()) {
-				groupResource, err := conv.AccessListToResource(accessList, nil)
-				if err != nil {
-					h.Logger.ErrorContext(ctx, "converting access list to SCIM group resource",
-						"error", err,
-						logFieldGroupId, accessList.GetName(),
-					)
-					continue
-				}
-
-				outputResources = append(outputResources, groupResource)
-			}
-
-			totalCount++
-		}
-
-		if nextToken == "" {
-			break
-		}
-	}
-
-	output := &scimpb.ResourceList{
-		TotalResults: int32(totalCount),
-		StartIndex:   int32(req.GetPage().GetStartIndex()),
-		ItemsPerPage: int32(req.GetPage().GetCount()),
-		Resources:    outputResources,
-	}
-
-	return output, nil
+	out, err := l.ListResources(ctx, req)
+	return out, trace.Wrap(err)
 }
 
 func (h *GroupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {

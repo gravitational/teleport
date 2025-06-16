@@ -8,6 +8,11 @@ const (
 	ResourceTypeUser = "User"
 	// ResourceTypeGroup is the resource type for a group.
 	ResourceTypeGroup = "Group"
+
+	// GroupNameAttribute is the attribute name for the group name.
+	GroupNameAttribute = "groupName"
+	// GroupDisplayNameAttribute is the attribute name for the group display name.
+	GroupDisplayNameAttribute = "displayName"
 )
 
 const (
