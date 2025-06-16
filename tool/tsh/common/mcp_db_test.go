@@ -17,19 +17,25 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
+	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -217,7 +223,151 @@ func TestMCPDBCommandFailures(t *testing.T) {
 	})
 }
 
+func TestMCPDBConfigCommand(t *testing.T) {
+	clusterName := "root"
+	db0, err := types.NewDatabaseV3(types.Metadata{
+		Name: "pg",
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	db1, err := types.NewDatabaseV3(types.Metadata{
+		Name: "another",
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	dbURI0 := clientmcp.NewDatabaseResourceURIWithConnectParams(clusterName, db0.GetName(), "readonly", "dbname")
+	dbURI0Updated := clientmcp.NewDatabaseResourceURIWithConnectParams(clusterName, db0.GetName(), "rw", "anotherdb")
+	dbURI1 := clientmcp.NewDatabaseResourceURIWithConnectParams(clusterName, db1.GetName(), "rw", "dbname")
+
+	for name, tc := range map[string]struct {
+		cf                *CLIConf
+		databasesGetter   databasesGetter
+		assertError       require.ErrorAssertionFunc
+		initialDatabases  []string
+		expectedDatabases []string
+	}{
+		"add database to empty config": {
+			cf: &CLIConf{
+				DatabaseService: dbURI0.GetDatabaseServiceName(),
+				DatabaseUser:    dbURI0.GetDatabaseUser(),
+				DatabaseName:    dbURI0.GetDatabaseName(),
+			},
+			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
+			assertError:       require.NoError,
+			expectedDatabases: []string{dbURI0.StringWithParams()},
+		},
+		"append database to config": {
+			cf: &CLIConf{
+				DatabaseService: dbURI1.GetDatabaseServiceName(),
+				DatabaseUser:    dbURI1.GetDatabaseUser(),
+				DatabaseName:    dbURI1.GetDatabaseName(),
+			},
+			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
+			assertError:       require.NoError,
+			initialDatabases:  []string{dbURI0.StringWithParams()},
+			expectedDatabases: []string{dbURI0.StringWithParams(), dbURI1.StringWithParams()},
+		},
+		"update existent database": {
+			cf: &CLIConf{
+				DatabaseService: dbURI0Updated.GetDatabaseServiceName(),
+				DatabaseUser:    dbURI0Updated.GetDatabaseUser(),
+				DatabaseName:    dbURI0Updated.GetDatabaseName(),
+			},
+			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
+			assertError:       require.NoError,
+			initialDatabases:  []string{dbURI0.StringWithParams(), dbURI1.StringWithParams()},
+			expectedDatabases: []string{dbURI0Updated.StringWithParams(), dbURI1.StringWithParams()},
+		},
+		"database not found": {
+			cf: &CLIConf{
+				DatabaseService: dbURI0.GetDatabaseServiceName(),
+				DatabaseUser:    dbURI0.GetDatabaseUser(),
+				DatabaseName:    dbURI0.GetDatabaseName(),
+			},
+			databasesGetter: &mockDatabasesGetter{err: trace.NotFound("database not found")},
+			assertError:     require.Error,
+		},
+		"missing connection params": {
+			cf: &CLIConf{
+				DatabaseService: dbURI0Updated.GetDatabaseServiceName(),
+			},
+			databasesGetter: &mockDatabasesGetter{dbs: []types.Database{db0}},
+			assertError:     require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			configPath := setupMockDBMCPConfig(t, tc.initialDatabases)
+			var buf bytes.Buffer
+			tc.cf.Context = context.Background()
+			tc.cf.Proxy = "proxy:3080"
+			tc.cf.HomePath = t.TempDir()
+			tc.cf.OverrideStdout = &buf
+			mustCreateEmptyProfile(t, tc.cf)
+
+			cmd := &mcpDBConfigCommand{
+				clientConfig: mcpClientConfigFlags{
+					clientConfig: configPath,
+					jsonFormat:   string(claude.FormatJSONPretty),
+				},
+				cf:              tc.cf,
+				ctx:             t.Context(),
+				siteName:        clusterName,
+				databasesGetter: tc.databasesGetter,
+			}
+
+			err := cmd.run()
+			tc.assertError(t, err)
+			if err != nil {
+				return
+			}
+
+			jsonConfig, err := claude.LoadConfigFromFile(configPath)
+			require.NoError(t, err)
+			mcpCmd, ok := jsonConfig.GetMCPServers()[mcpDBConfigName]
+			require.True(t, ok, "expected configuration to include database access server definition, but got nothing")
+			for _, uri := range tc.expectedDatabases {
+				require.Contains(t, mcpCmd.Args, uri)
+			}
+		})
+	}
+}
+
+func setupMockDBMCPConfig(t *testing.T, databasesURIs []string) string {
+	t.Helper()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	config, err := claude.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	require.NoError(t, config.PutMCPServer("local-everything", claude.MCPServer{
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
+	}))
+	if len(databasesURIs) > 0 {
+		require.NoError(t, config.PutMCPServer(mcpDBConfigName, claude.MCPServer{
+			Command: "tsh",
+			Args:    append([]string{"mcp", "db", "start"}, databasesURIs...),
+		}))
+	}
+	require.NoError(t, config.Save(claude.FormatJSONPretty))
+	return config.Path()
+}
+
 // testDatabaseMCP is a noop database MCP server.
 type testDatabaseMCP struct{}
 
 func (s *testDatabaseMCP) Close(_ context.Context) error { return nil }
+
+// mockDatabaseGetter is a fetch databases mock.
+type mockDatabasesGetter struct {
+	dbs []types.Database
+	err error
+}
+
+func (m *mockDatabasesGetter) ListDatabases(_ context.Context, _ *proto.ListResourcesRequest) ([]types.Database, error) {
+	return m.dbs, m.err
+}

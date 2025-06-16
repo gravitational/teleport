@@ -92,3 +92,40 @@ func TestDatabaseResourceURI(t *testing.T) {
 		})
 	}
 }
+
+func TestEqualResourceURI(t *testing.T) {
+	randomType, err := ParseResourceURI("teleport://random/name")
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		a              ResourceURI
+		b              ResourceURI
+		expectedResult bool
+	}{
+		"same resources": {
+			a:              NewDatabaseResourceURI("cluster", "pg"),
+			b:              NewDatabaseResourceURI("cluster", "pg"),
+			expectedResult: true,
+		},
+		"same resources, different params": {
+			a:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "readonly", "postgres"),
+			b:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "random"),
+			expectedResult: true,
+		},
+		"same resource type, different resources": {
+			a:              NewDatabaseResourceURI("cluster", "pg"),
+			b:              NewDatabaseResourceURI("cluster", "random"),
+			expectedResult: false,
+		},
+		"different resource type, same name": {
+			a:              *randomType,
+			b:              NewDatabaseResourceURI("cluster", "pg"),
+			expectedResult: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.expectedResult, tc.a.Equal(tc.b))
+			require.Equal(t, tc.expectedResult, tc.b.Equal(tc.a))
+		})
+	}
+}

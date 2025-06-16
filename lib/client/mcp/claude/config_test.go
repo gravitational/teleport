@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -244,6 +245,29 @@ func Test_formatJSON(t *testing.T) {
 			formatted, err := formatJSON([]byte(tt.in), tt.format, tt.isOriginalCompact)
 			require.NoError(t, err)
 			require.Equal(t, tt.out, string(formatted))
+		})
+	}
+}
+
+// TestPrettyResourceURIs given a MCP server that includes a Resource URI as
+// arguments it must encode and output those URIs in a readable format.
+func TestReadableResourceURIs(t *testing.T) {
+	for name, uri := range map[string]string{
+		"uri with query params":    mcp.NewDatabaseResourceURIWithConnectParams("cluster", "pg", "readonly", "postgres").StringWithParams(),
+		"uri without query params": mcp.NewDatabaseResourceURI("cluster", "pg").StringWithParams(),
+		"random uri with params":   "teleport://random?hello=world&random=resource",
+	} {
+		t.Run(name, func(t *testing.T) {
+			config := NewConfig()
+			mcpServer := MCPServer{
+				Command: "command",
+				Args:    []string{uri},
+			}
+			require.NoError(t, config.PutMCPServer("test", mcpServer))
+
+			var buf bytes.Buffer
+			require.NoError(t, config.Write(&buf, FormatJSONCompact))
+			require.Contains(t, buf.String(), uri)
 		})
 	}
 }
