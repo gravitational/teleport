@@ -437,6 +437,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
 		Clock:                 s.clock,
+		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
+			return nil, errors.New("eice disabled in tests")
+		},
+		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
+			return nil, errors.New("eice disabled in tests")
+		},
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -8158,6 +8164,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		CertAuthorityWatcher:  proxyCAWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
+		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
+			return nil, errors.New("eice disabled in tests")
+		},
+		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
+			return nil, errors.New("eice disabled in tests")
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
