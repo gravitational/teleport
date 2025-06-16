@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -107,7 +108,14 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx SessionCtx) error
 	if s.cfg.inMemoryServer && isInMemoryServerApp(sessionCtx.App) {
 		return trace.Wrap(s.handleInMemoryServerSession(ctx, sessionCtx))
 	}
-	return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
+	switch types.GetMCPServerTransportType(sessionCtx.App.GetURI()) {
+	case types.MCPTransportStdio:
+		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
+	case types.MCPTransportSSE:
+		return trace.Wrap(s.handleStdioToSSE(ctx, sessionCtx))
+	default:
+		return trace.BadParameter("unknown transport type: %v", types.GetMCPServerTransportType(sessionCtx.App.GetURI()))
+	}
 }
 
 // HandleUnauthorizedConnection handles an unauthorized client connection.
@@ -119,7 +127,7 @@ func (s *Server) HandleUnauthorizedConnection(ctx context.Context, clientConn ne
 	return trace.Wrap(s.handleAuthErrStdio(ctx, clientConn, authErr))
 }
 
-func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx SessionCtx, logger *slog.Logger) (*sessionAuditor, error) {
+func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx *SessionCtx, logger *slog.Logger) (*sessionAuditor, error) {
 	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -144,11 +152,11 @@ func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx SessionCtx, 
 		logger:     logger,
 		hostID:     s.cfg.HostID,
 		preparer:   preparer,
-		sessionCtx: &sessionCtx,
+		sessionCtx: sessionCtx,
 	})
 }
 
-func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx SessionCtx) (*sessionHandler, error) {
+func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
 	// Some extra info for debugging purpose.
 	logger := s.cfg.Log.With(
 		"client_ip", sessionCtx.ClientConn.RemoteAddr(),
@@ -162,7 +170,7 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx SessionCtx) 
 	}
 
 	return newSessionHandler(sessionHandlerConfig{
-		SessionCtx:     &sessionCtx,
+		SessionCtx:     sessionCtx,
 		sessionAuditor: sessionAuditor,
 		accessPoint:    s.cfg.AccessPoint,
 		logger:         logger,

@@ -55,6 +55,8 @@ type SessionCtx struct {
 	// Note that for stdio-based MCP server, a new session ID is generated per
 	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
+
+	externalSessionID string
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {

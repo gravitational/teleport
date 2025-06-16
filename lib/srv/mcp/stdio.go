@@ -76,7 +76,7 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	session, err := s.makeSessionHandler(ctx, sessionCtx)
+	session, err := s.makeSessionHandler(ctx, &sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

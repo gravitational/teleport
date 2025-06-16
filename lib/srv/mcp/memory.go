@@ -64,7 +64,7 @@ func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx Ses
 	s.cfg.Log.DebugContext(ctx, "Started in-memory server session")
 	defer s.cfg.Log.DebugContext(ctx, "Completed in-memory server session")
 
-	session, err := s.makeSessionHandler(ctx, sessionCtx)
+	session, err := s.makeSessionHandler(ctx, &sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

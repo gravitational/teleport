@@ -913,8 +913,12 @@ const (
 
 	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
 	SchemaMCPStdio = "mcp+stdio://"
+	// SchemaMCPSSE is a URI schema for MCP servers using SSE transport.
+	SchemaMCPSSE = "mcp+sse://"
 	// MCPTransportStdio indicates the MCP server uses stdio transport.
 	MCPTransportStdio = "stdio"
+	// MCPTransportSSE indicates the MCP server uses SSE transport.
+	MCPTransportSSE = "SSE"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"

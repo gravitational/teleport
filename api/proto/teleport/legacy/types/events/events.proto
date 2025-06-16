@@ -8571,6 +8571,8 @@ message MCPSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  string external_session_id = 7;
 }
 
 // MCPSessionEnd is emitted when an MCP session ends.
