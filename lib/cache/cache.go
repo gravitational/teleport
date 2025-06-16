@@ -1759,9 +1759,7 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			c.collections.samlIdPServiceProviders.store.resources(samlIdPServiceProviderNameIndex, req.StartKey, ""),
 			limit,
 			filter,
-			func(d types.SAMLIdPServiceProvider) types.ResourceWithLabels {
-				return d.CloneResource()
-			},
+			types.SAMLIdPServiceProvider.CloneResource,
 		)
 		return resp, trace.Wrap(err)
 	default:
