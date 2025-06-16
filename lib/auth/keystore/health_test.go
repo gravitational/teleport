@@ -55,10 +55,7 @@ func TestPassiveHealthCheck(t *testing.T) {
 				probes++
 				return err
 			})
-			for {
-				if !h.busy.Load() {
-					break
-				}
+			for h.busy.Load() {
 			}
 			require.Equal(t, len(tc.errs), probes)
 			require.Equal(t, tc.callbacks, callbacks)

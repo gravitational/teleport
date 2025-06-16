@@ -238,9 +238,9 @@ func TestProcessStateProgress(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(startTime)
-			superviser := NewSupervisor("1", slog.Default())
+			supervisor := NewSupervisor("1", slog.Default())
 			process := &TeleportProcess{
-				Supervisor: superviser,
+				Supervisor: supervisor,
 				logger:     slog.Default(),
 				Clock:      clock,
 			}
