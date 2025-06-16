@@ -3163,6 +3163,8 @@ func TestListSAMLIdPServiceProvider_Cache(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "SAMLIdPServiceProviders from cache")
 }
 
+// TestListSAMLIdPServiceProviderAndListResources verifies
+// RBAC and search filters when fetching SAML IdP service providers.
 func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
 	modules.SetTestModules(t, &modules.TestModules{
