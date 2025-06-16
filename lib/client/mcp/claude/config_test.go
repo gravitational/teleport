@@ -24,9 +24,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/client/mcp"
 )
 
 func TestFileConfig_fileNotExists(t *testing.T) {
