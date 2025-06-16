@@ -3128,6 +3128,7 @@ func TestListSAMLIdPServiceProvider_Cache(t *testing.T) {
 		ACSURL:   "https://example.com/acs",
 		EntityID: "https://example.com/entity-id",
 	})
+	require.NoError(t, err)
 	err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
 
