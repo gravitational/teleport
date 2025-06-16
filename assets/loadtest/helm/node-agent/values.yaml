@@ -32,7 +32,7 @@ tls:
 
 # envvars set in each container
 # array of https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#envvar-v1-core
-env: []
+extraEnv: []
 
 # resource requirements for each container
 # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#resourcerequirements-v1-core
