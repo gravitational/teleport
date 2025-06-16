@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -254,11 +255,8 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
-	start := accessListName
+	start := cmp.Or(pageToken, accessListName)
 	end := sortcache.NextKey(accessListName + "/")
-	if pageToken != "" {
-		start += "/" + pageToken
-	}
 
 	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
@@ -395,10 +393,11 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 
 	start := accessList
+	end := sortcache.NextKey(accessList + "/")
 	if pageToken != "" {
 		start += "/" + pageToken
 	}
 
-	out, next, err := lister.list(ctx, pageSize, start)
+	out, next, err := lister.listRange(ctx, pageSize, start, end)
 	return out, next, trace.Wrap(err)
 }
