@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -48,51 +49,47 @@ type instanceReport struct {
 	omissions map[string]int
 }
 
-func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
+// filterHandler filters handles than can or cannot be used for automatic update
+// purposes. It returns true if the handle can be used, false otherwise.
+// If the handle cannot be used, the function might also return a non-empty string
+// explaining why.
+func filterHandler(handle inventory.UpstreamHandle, now time.Time) (bool, string) {
 	// If the instance is being soft-reloaded or shut down, we ignore it.
 	if goodbye := handle.Goodbye(); goodbye.GetSoftReload() || goodbye.GetDeleteResources() {
-		return
+		return false, ""
 	}
 
 	// We skip servers that joined less than a minute ago as they might have been
 	// connected to another auth instance a few seconds ago, which would lead to double-counting.
-	if ir.timestamp.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
-		return
+	if now.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
+		return false, ""
 	}
 	// We skip control planes instances because we don't update them.
 	if handle.HasControlPlaneService() {
-		return
+		return false, ""
 	}
 
 	hello := handle.Hello()
 
+	// If the machine has no updater, we skip it
 	switch hello.ExternalUpgrader {
 	case "":
-		ir.omissions[omissionReasonNoUpdater] += 1
-		return
+		return false, omissionReasonNoUpdater
 	case types.UpgraderKindSystemdUnit:
-		ir.omissions[omissionReasonUpdaterV1] += 1
-		return
-	}
-
-	// If the machine has no updater, we skip it
-	if hello.ExternalUpgrader == "" {
-		return
+		return false, omissionReasonUpdaterV1
 	}
 
 	// Reject instance not advertising updater info
 	updaterInfo := hello.GetUpdaterInfo()
 	if updaterInfo == nil {
-		ir.omissions[omissionReasonUpdaterTooOld] += 1
-		return
+		return false, omissionReasonUpdaterTooOld
 	}
 
 	// Reject instances who are not advertising the group properly.
 	// They might be running too old versions.
 	updateGroup := updaterInfo.UpdateGroup
 	if updateGroup == "" {
-		ir.omissions[omissionReasonUpdaterTooOld] += 1
-		return
+		return false, omissionReasonUpdaterTooOld
 	}
 
 	// We skip instances whose updater status is not OK.
@@ -100,18 +97,29 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	switch status {
 	case types.UpdaterStatus_UPDATER_STATUS_OK:
 	case types.UpdaterStatus_UPDATER_STATUS_DISABLED:
-		ir.omissions[omissionReasonUpdaterDisabled] += 1
-		return
+		return false, omissionReasonUpdaterDisabled
 	case types.UpdaterStatus_UPDATER_STATUS_PINNED:
-		ir.omissions[omissionReasonUpdaterPinned] += 1
-		return
+		return false, omissionReasonUpdaterPinned
 	case types.UpdaterStatus_UPDATER_STATUS_UNREADABLE:
-		ir.omissions[omissionReasonUpdaterUnreadable] += 1
-		return
+		return false, omissionReasonUpdaterUnreadable
 	default:
-		ir.omissions[omissionReasonUpdaterUnknown] += 1
+		return false, omissionReasonUpdaterUnknown
+	}
+	return true, ""
+}
+
+func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
+	ok, reason := filterHandler(handle, ir.timestamp)
+	if !ok {
+		if reason != "" {
+			ir.omissions[reason] += 1
+		}
 		return
 	}
+
+	// No need to check for UpdaterInfo being nil, it would have been filtered
+	// out by filterHandler().
+	updateGroup := handle.Hello().UpdaterInfo.UpdateGroup
 
 	if _, ok := ir.data[updateGroup]; !ok {
 		ir.data[updateGroup] = instanceGroupReport{}
@@ -210,5 +218,87 @@ func (a *Server) reportAgentVersions(ctx context.Context) {
 		a.logger.ErrorContext(ctx, "Failed to write agent version report", "error", err)
 	}
 	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
+}
 
+// SampleAgentsFromGroup iterates over every handle in the inventory to
+// build a random sample of agents belonging to a given group.
+// The main use-case for this function is to pick canaries that can be updated.
+func (a *Server) SampleAgentsFromGroup(ctx context.Context, groupName string, sampleSize int) []*autoupdatev1pb.Canary {
+
+	filter := func(handle inventory.UpstreamHandle) bool {
+		ok, _ := filterHandler(handle, a.clock.Now())
+		if !ok {
+			return false
+		}
+
+		// No need to check for UpdaterInfo being nil, it would have been filtered
+		// out by filterHandler().
+		return handle.Hello().UpdaterInfo.UpdateGroup == groupName
+	}
+	sampler := newHandlerSampler(sampleSize, filter)
+
+	a.inventory.UniqueHandles(sampler.visit)
+
+	sampled := sampler.Sampled()
+	canaries := make([]*autoupdatev1pb.Canary, len(sampled))
+	for i, h := range sampled {
+		hello := h.Hello()
+		canaries[i] = &autoupdatev1pb.Canary{
+			UpdaterId: string(hello.UpdaterInfo.UpdateUUID),
+			HostId:    hello.ServerID,
+			Hostname:  hello.Hostname,
+			Success:   false,
+		}
+	}
+	return canaries
+}
+
+// handleSampler randomly samples handles from the inventory.
+// It implements Alan Waterman's Reservoir Sampling Algorithm R
+// (The Art of Computer Programming Volume 2).
+// See https://en.wikipedia.org/wiki/Reservoir_sampling for more details.
+type handleSampler struct {
+	sampleSize int
+	seenCount  int
+	filter     func(handle inventory.UpstreamHandle) bool
+	// TODO for reviewers:
+	// Do we feel confident about holding to the Handle even after we're done visiting?
+	// I think so but @espadolini had doubts.
+	// Alternatives are:
+	// - using generics and taking a func(inventory.UpstreamHandle) (K, bool)
+	// - making the sampler part of the inventory package
+	sample []inventory.UpstreamHandle
+}
+
+func newHandlerSampler(sampleSize int, filter func(handle inventory.UpstreamHandle) bool) *handleSampler {
+	return &handleSampler{
+		sampleSize: sampleSize,
+		seenCount:  sampleSize,
+		filter:     filter,
+		sample:     make([]inventory.UpstreamHandle, 0, sampleSize),
+	}
+}
+
+func (h *handleSampler) visit(handle inventory.UpstreamHandle) {
+	// filter out everything we don't want
+	if !h.filter(handle) {
+		return
+	}
+
+	// Fill the reservoir
+	if len(h.sample) < h.sampleSize {
+		h.sample = append(h.sample, handle)
+		h.seenCount++
+		return
+	}
+
+	// Reservoir is already filled, replace existing elements.
+	if j := rand.N(h.seenCount); j < h.sampleSize {
+		h.sample[j] = handle
+	}
+	h.seenCount++
+}
+
+func (h *handleSampler) Sampled() []inventory.UpstreamHandle {
+	return h.sample
 }
