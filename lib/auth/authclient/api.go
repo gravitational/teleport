@@ -38,6 +38,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -330,6 +331,11 @@ type ReadProxyAccessPoint interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
 	// ListIntegrations returns a paginated list of all integration resources.
 	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
@@ -1317,6 +1323,11 @@ type Cache interface {
 	// HealthCheckConfigReader defines methods for fetching health checkc config
 	// resources.
 	services.HealthCheckConfigReader
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)

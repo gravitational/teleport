@@ -678,6 +678,9 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// KindRelayServer is the resource kind for a Relay service heartbeat.
+	KindRelayServer = "relay_server"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
