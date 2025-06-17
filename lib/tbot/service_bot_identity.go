@@ -367,15 +367,11 @@ func (s *identityService) Run(ctx context.Context) error {
 		f: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:   s.cfg.CredentialLifetime.RenewalInterval,
-		retryLimit: botIdentityRenewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
-
-		// If initialization succeeded, wait for the next interval to renew the
-		// identity (because we've just done it). Otherwise, try again right
-		// away.
-		waitBeforeFirstRun: s.IsReady(),
+		interval:           s.cfg.CredentialLifetime.RenewalInterval,
+		retryLimit:         botIdentityRenewalRetryLimit,
+		log:                s.log,
+		reloadCh:           reloadCh,
+		waitBeforeFirstRun: true,
 	})
 	return trace.Wrap(err)
 }
