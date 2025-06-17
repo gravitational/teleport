@@ -149,7 +149,7 @@ export const VnetContextProvider: FC<
     [mainProcessClient]
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
-  const isDiagSupported = platform === 'darwin';
+  const isDiagSupported = platform === 'darwin' || platform === 'win32';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
