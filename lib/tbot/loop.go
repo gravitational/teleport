@@ -84,11 +84,7 @@ type runOnIntervalConfig struct {
 	statusReporter  readyz.Reporter
 }
 
-// runOnInterval runs a function on a given interval, with retries and jitter.
-//
-// TODO(noah): Emit Prometheus metrics for:
-// - Time of next attempt
-func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
+func (cfg *runOnIntervalConfig) checkAndSetDefaults() error {
 	switch {
 	case cfg.interval <= 0:
 		return trace.BadParameter("interval must be greater than 0")
@@ -102,8 +98,27 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 		return trace.BadParameter("name is required")
 	}
 
-	log := cfg.log.With("task", cfg.name)
+	if cfg.clock == nil {
+		cfg.clock = clockwork.NewRealClock()
+	}
+	if cfg.statusReporter == nil {
+		cfg.statusReporter = readyz.NoopReporter()
+	}
 
+	return nil
+}
+
+// runOnInterval runs a function on a given interval, with retries and jitter.
+//
+// TODO(noah): Emit Prometheus metrics for:
+// - Time of next attempt
+func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return err
+	}
+
+	log := cfg.log.With("task", cfg.name)
+	
 	if cfg.identityReadyCh != nil {
 		select {
 		case <-cfg.identityReadyCh:
@@ -115,13 +130,6 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 				return nil
 			}
 		}
-	}
-
-	if cfg.clock == nil {
-		cfg.clock = clockwork.NewRealClock()
-	}
-	if cfg.statusReporter == nil {
-		cfg.statusReporter = readyz.NoopReporter()
 	}
 
 	ticker := cfg.clock.NewTicker(cfg.interval)
