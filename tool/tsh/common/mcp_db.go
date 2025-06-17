@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"log/slog"
+	"net"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -28,10 +29,8 @@ import (
 	pgmcp "github.com/gravitational/teleport/lib/client/db/postgres/mcp"
 	"github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 // mcpDBStartCommand implements `tsh mcp db start` command.
@@ -96,11 +95,10 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 	}
 
 	server := dbmcp.NewRootServer(logger)
-	allDatabases, closeLocalProxies, err := c.prepareDatabases(cf, tc, registry, uris, logger, server)
+	allDatabases, err := c.prepareDatabases(cf, tc, registry, uris, logger, server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer closeLocalProxies()
 
 	for protocol, newServerFunc := range registry {
 		databases := allDatabases[protocol]
@@ -122,9 +120,6 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 	return trace.Wrap(server.ServeStdio(cf.Context, cf.Stdin(), cf.Stdout()))
 }
 
-// closeLocalProxyFunc function used to close local proxy listeners.
-type closeLocalProxyFunc func() error
-
 // prepareDatabases based on the available MCP servers, initialize the database
 // local proxy and generate the MCP database.
 func (c *mcpDBStartCommand) prepareDatabases(
@@ -134,11 +129,10 @@ func (c *mcpDBStartCommand) prepareDatabases(
 	uris []*mcp.ResourceURI,
 	logger *slog.Logger,
 	server *dbmcp.RootServer,
-) (map[string][]*dbmcp.Database, closeLocalProxyFunc, error) {
+) (map[string][]*dbmcp.Database, error) {
 	var (
 		ctx            = cf.Context
 		dbsPerProtocol = make(map[string][]*dbmcp.Database)
-		closeFuncs     []closeLocalProxyFunc
 	)
 
 	for _, uri := range uris {
@@ -169,61 +163,33 @@ func (c *mcpDBStartCommand) prepareDatabases(
 			continue
 		}
 
-		route.Protocol = db.GetProtocol()
-		cc := client.NewDBCertChecker(tc, route, nil, client.WithTTL(tc.KeyTTL))
-		// This avoids having the middleware to refresh the certificate if there
-		// is a certificate available on disk.
-		cert, err := loadDBCertificate(tc, route.ServiceName)
-		if err == nil {
-			cc.SetCert(cert)
-		}
-
-		listener := listener.NewInMemoryListener()
-		lp, err := alpnproxy.NewLocalProxy(
-			makeBasicLocalProxyConfig(ctx, tc, listener, tc.InsecureSkipVerify),
-			alpnproxy.WithDatabaseProtocol(route.Protocol),
-			alpnproxy.WithMiddleware(cc),
-			alpnproxy.WithClusterCAsIfConnUpgrade(ctx, tc.RootClusterCACertPool),
-		)
-		if err != nil {
-			_ = listener.Close()
-			logger.ErrorContext(ctx, "failed to start local proxy for database, skipping it", "database", db.GetName(), "error", err)
-			continue
-		}
-		go func() {
-			defer lp.Close()
-			if err = lp.Start(ctx); err != nil {
-				logger.WarnContext(ctx, "failed to start local ALPN proxy", "error", err)
-			}
-		}()
-
 		mcpDB := &dbmcp.Database{
-			DB:                     db,
-			ClusterName:            uri.GetClusterName(),
-			DatabaseUser:           dbUser,
-			DatabaseName:           dbName,
-			Addr:                   listener.Addr().String(),
-			ExternalErrorRetriever: cc,
-			// Since we're using in-memory listener we don't need to resolve the
-			// address.
+			DB:           db,
+			ClusterName:  uri.GetClusterName(),
+			DatabaseUser: dbUser,
+			DatabaseName: dbName,
+			// This is just a placeholder so drivers whose require a valid URL
+			// address won't fail.
+			Addr: "in-memory",
+			// Connections are always handled by the TeleportClient, so here we
+			// just need to return a placeholder.
 			LookupFunc: func(ctx context.Context, host string) (addrs []string, err error) {
-				return []string{listener.Addr().String()}, nil
+				return []string{host}, nil
 			},
-			DialContextFunc: listener.DialContext,
+			DialContextFunc: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				conn, err := tc.DialDatabase(ctx, db, client.DialDatabaseConfig{
+					Username: dbUser,
+					Database: dbName,
+					TTL:      tc.KeyTTL,
+				})
+				return conn, trace.Wrap(err)
+			},
 		}
 		dbsPerProtocol[db.GetProtocol()] = append(dbsPerProtocol[db.GetProtocol()], mcpDB)
 		server.RegisterDatabase(mcpDB)
-		closeFuncs = append(closeFuncs, listener.Close)
 	}
 
-	return dbsPerProtocol, func() error {
-		var errs []error
-		for _, closeFunc := range closeFuncs {
-			errs = append(errs, closeFunc())
-		}
-
-		return trace.NewAggregate(errs...)
-	}, nil
+	return dbsPerProtocol, nil
 }
 
 var (

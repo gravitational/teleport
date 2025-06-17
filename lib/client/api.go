@@ -5561,3 +5561,49 @@ func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer typ
 	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
 	return cert, trace.Wrap(err)
 }
+
+// DialDatabaseConfig is the config used when dialing a database.
+type DialDatabaseConfig struct {
+	// Username is the database username used on the connection.
+	Username string
+	// Database is the database name used on the connection.
+	Database string
+	// Roles are the database roles used on the connection.
+	Roles []string
+	// TTL is the connection/certificate max TTL.
+	TTL time.Duration
+}
+
+// DialDatabase makes a remote connection to the database.
+//
+// TODO(gabrielcorado): support acccess requests connections.
+func (tc *TeleportClient) DialDatabase(ctx context.Context, db types.Database, config DialDatabaseConfig) (net.Conn, error) {
+	dbCertParams := ReissueParams{
+		RouteToCluster: tc.SiteName,
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: db.GetName(),
+			Protocol:    db.GetProtocol(),
+			Username:    config.Username,
+			Database:    config.Database,
+			Roles:       config.Roles,
+		},
+		TTL: config.TTL,
+	}
+
+	alpnProtocol, err := alpncommon.ToALPNProtocol(db.GetProtocol())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, dbCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.DBTLSCert(db.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc.DialALPN(ctx, cert, alpnProtocol)
+}
