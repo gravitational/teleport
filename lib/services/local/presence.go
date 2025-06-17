@@ -31,12 +31,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -47,7 +50,11 @@ type PresenceService struct {
 	logger *slog.Logger
 	jitter retryutils.Jitter
 	backend.Backend
+
+	relayServers *generic.ServiceWrapper[*presencev1.RelayServer]
 }
+
+var _ services.PresenceInternal = (*PresenceService)(nil)
 
 // backendItemToResourceFunc defines a function that unmarshals a
 // `backend.Item` into the implementation of `types.Resource`.
@@ -55,10 +62,23 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
+	relayServers, err := generic.NewServiceWrapper(generic.ServiceConfig[*presencev1.RelayServer]{
+		Backend:       b,
+		ResourceKind:  types.KindRelayServer,
+		BackendPrefix: backend.NewKey(relayServersPrefix),
+		MarshalFunc:   services.MarshalProtoResource[*presencev1.RelayServer],
+		UnmarshalFunc: services.UnmarshalProtoResource[*presencev1.RelayServer],
+		ValidateFunc:  services.ValidateRelayServer,
+	})
+	if err != nil {
+		panic("impossible: failed to construct relay_server service wrapper")
+	}
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
+
+		relayServers: relayServers,
 	}
 }
 
@@ -1219,6 +1239,26 @@ func (s *PresenceService) GetSAMLIdPServiceProviders(ctx context.Context, opts .
 	return serviceProviders, nil
 }
 
+// GetRelayServer implements [services.Presence].
+func (s *PresenceService) GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error) {
+	return s.relayServers.GetResource(ctx, name)
+}
+
+// ListRelayServers implements [services.Presence].
+func (s *PresenceService) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error) {
+	return s.relayServers.ListResources(ctx, pageSize, pageToken)
+}
+
+// DeleteRelayServer implements [services.Presence].
+func (s *PresenceService) DeleteRelayServer(ctx context.Context, name string) error {
+	return s.relayServers.DeleteResource(ctx, name)
+}
+
+// UpsertRelayServer implements [services.PresenceInternal].
+func (s *PresenceService) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error) {
+	return s.relayServers.UpsertResource(ctx, relayServer)
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1690,6 +1730,49 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	), nil
 }
 
+func newRelayServerParser() resourceParser {
+	return relayServerParser{}
+}
+
+type relayServerParser struct{}
+
+// parse implements [resourceParser].
+func (relayServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return types.Resource153ToLegacy(&presencev1.RelayServer{
+			Kind:    types.KindRelayServer,
+			SubKind: "",
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: event.Item.Key.TrimPrefix(backend.ExactKey(relayServersPrefix)).String(),
+			},
+		}), nil
+	case types.OpPut:
+		r, err := services.UnmarshalProtoResource[*presencev1.RelayServer](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is unknown or not supported (this is a bug)", event.Type)
+	}
+}
+
+// match implements [resourceParser].
+func (relayServerParser) match(key backend.Key) bool {
+	return key.HasPrefix(backend.ExactKey(relayServersPrefix))
+}
+
+// prefixes implements [resourceParser].
+func (relayServerParser) prefixes() []backend.Key {
+	return []backend.Key{backend.ExactKey(relayServersPrefix)}
+}
+
 const (
 	reverseTunnelsPrefix         = "reverseTunnels"
 	tunnelConnectionsPrefix      = "tunnelConnections"
@@ -1711,4 +1794,5 @@ const (
 	loginTimePrefix              = "hostuser_interaction_time"
 	serverInfoPrefix             = "serverInfos"
 	cloudLabelsPrefix            = "cloudLabels"
+	relayServersPrefix           = "relay_servers"
 )
