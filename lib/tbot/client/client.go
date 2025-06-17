@@ -52,6 +52,7 @@
 // As tbot is also embedded in our Kubernetes operator and `tctl terraform env`
 // which both support providing an auth server or proxy address using the same
 // field, this package allows you to opt-in to the previous behavior by setting
+// Config.AuthServerAddressMode to AllowProxyAsAuthServer.
 package client
 
 import (
