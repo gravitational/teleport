@@ -63,13 +63,14 @@ func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalPro
 // connections to a remote database service. It is an authenticating tunnel and
 // will automatically issue and renew certificates as needed.
 type DatabaseTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.DatabaseTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *apiclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg             *config.BotConfig
+	cfg                *config.DatabaseTunnelService
+	proxyPingCache     *proxyPingCache
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
 }
 
 // buildLocalProxyConfig initializes the service, fetching any initial information and setting
@@ -77,6 +78,19 @@ type DatabaseTunnelService struct {
 func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnproxy.LocalProxyConfig, err error) {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/buildLocalProxyConfig")
 	defer span.End()
+
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
+			}
+		}
+	}
 
 	// Determine the roles to use for the impersonated db access user. We fall
 	// back to all the roles the bot has if none are configured.
