@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "15.5.2"
+const Version = "15.5.2-dev.ravicious.1"
 
 const VersionMajor = 15
 const VersionMinor = 5
 const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.ravicious.1"
 const VersionMetadata = ""
