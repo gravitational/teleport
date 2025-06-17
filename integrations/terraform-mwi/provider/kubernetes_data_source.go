@@ -41,6 +41,10 @@ type KubernetesDataSourceModel struct {
 	CredentialTTL timetypes.GoDuration              `tfsdk:"credential_ttl"`
 
 	// Attributes
+	Output *KubernetesDataSourceModelOutput `tfsdk:"output"`
+}
+
+type KubernetesDataSourceModelOutput struct {
 	ClientKey            types.String `tfsdk:"client_key"`
 	Host                 types.String `tfsdk:"host"`
 	TLSServerName        types.String `tfsdk:"tls_server_name"`
@@ -85,26 +89,31 @@ func (d *KubernetesDataSource) Schema(
 				Computed:            true,
 			},
 			// Attributes
-			"client_key": schema.StringAttribute{
-				Computed:            true,
-				Sensitive:           true,
-				MarkdownDescription: "Compatible with the `client_key` argument of the `kubernetes` provider.",
-			},
-			"host": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `host` argument of the `kubernetes` provider.",
-			},
-			"tls_server_name": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `tls_server_name` argument of the `kubernetes` provider.",
-			},
-			"client_certificate": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `client_certificate` argument of the `kubernetes` provider.",
-			},
-			"cluster_ca_certificate": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `cluster_ca_certificate` argument of the `kubernetes` provider.",
+			"output": schema.SingleNestedAttribute{
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"client_key": schema.StringAttribute{
+						Computed:            true,
+						Sensitive:           true,
+						MarkdownDescription: "Compatible with the `client_key` argument of the `kubernetes` provider.",
+					},
+					"host": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `host` argument of the `kubernetes` provider.",
+					},
+					"tls_server_name": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `tls_server_name` argument of the `kubernetes` provider.",
+					},
+					"client_certificate": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `client_certificate` argument of the `kubernetes` provider.",
+					},
+					"cluster_ca_certificate": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `cluster_ca_certificate` argument of the `kubernetes` provider.",
+					},
+				},
 			},
 		},
 	}
@@ -149,8 +158,12 @@ func (d *KubernetesDataSource) Read(
 		return
 	}
 
-	data.Host = types.StringValue(
-		fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
-	)
+	out := KubernetesDataSourceModelOutput{
+		Host: types.StringValue(
+			fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
+		),
+	}
+
+	data.Output = &out
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

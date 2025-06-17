@@ -41,7 +41,7 @@ ephemeral "teleportmwi_kubernetes" "example" {
 }
 
 provider "echo" {
-  data = ephemeral.teleportmwi_kubernetes.example.host
+  data = ephemeral.teleportmwi_kubernetes.example.output.host
 }
 
 resource "echo" "test" {}

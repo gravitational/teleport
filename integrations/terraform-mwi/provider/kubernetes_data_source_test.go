@@ -48,7 +48,7 @@ data "teleportmwi_kubernetes" "example" {
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"data.teleportmwi_kubernetes.example",
-						tfjsonpath.New("host"),
+						tfjsonpath.New("output").AtMapKey("host"),
 						knownvalue.StringExact("Hello, barry!"),
 					),
 				},
