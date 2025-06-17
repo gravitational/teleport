@@ -96,14 +96,15 @@ type SSHMultiplexerService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *apiclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SSHMultiplexerService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.SSHMultiplexerService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	proxyPingCache     *proxyPingCache
+	reloadBroadcaster  *channelBroadcaster
+	resolver           reversetunnelclient.Resolver
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
@@ -224,6 +225,19 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	_ *libclient.TSHConfig,
 	_ error,
 ) {
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil, nil, "", nil, nil
+			}
+		}
+	}
+
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(
 		muxReqsStartedCounter,
