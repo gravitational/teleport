@@ -31,10 +31,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1414,4 +1418,89 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(got, fetched))
+}
+
+func TestPresenceService_RelayServer(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	var p *PresenceService
+	require.NotPanics(t, func() {
+		p = NewPresenceService(bk)
+	})
+
+	_, err = p.UpsertRelayServer(ctx, nil)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	relayA := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "a",
+		},
+	}
+
+	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	require.NotNil(t, upsertedA.GetMetadata())
+
+	diffOpts := []cmp.Option{
+		protocmp.Transform(),
+		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
+	}
+
+	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
+
+	gottenA, err := p.GetRelayServer(ctx, "a")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
+
+	_, err = p.GetRelayServer(ctx, "b")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	err = p.DeleteRelayServer(ctx, "a")
+	require.NoError(t, err)
+
+	_, err = p.GetRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	err = p.DeleteRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	relayB := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "b",
+		},
+	}
+
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
+	require.NoError(t, err)
+
+	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, listedRelays, 2)
+	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
+	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
+
+	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, "b", nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
+
+	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
 }
