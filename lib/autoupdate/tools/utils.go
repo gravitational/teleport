@@ -42,7 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
 
-var ErrNoBaseURL = errors.New("baseURL is not defined")
+var (
+	// ErrNoBaseURL is returned when `TELEPORT_CDN_BASE_URL` must be set
+	// in order to proceed with managed updates.
+	ErrNoBaseURL = errors.New("baseURL is not defined")
+	// ErrVersionCheck is returned when the downloaded version fails
+	// to execute for version identification.
+	ErrVersionCheck = errors.New("version check failed")
+)
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
@@ -104,8 +111,9 @@ func CheckToolVersion(toolPath string) (string, error) {
 	command.Env = []string{teleportToolsVersionEnv + "=off"}
 	output, err := command.Output()
 	if err != nil {
-		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool: %q",
-			toolPath, string(output))
+		slog.DebugContext(context.Background(), "failed to determine version",
+			"tool", toolPath, "error", err, "output", string(output))
+		return "", ErrVersionCheck
 	}
 
 	// The output for "{tsh, tctl} version" can be multiple lines. Find the

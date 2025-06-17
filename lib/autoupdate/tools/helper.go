@@ -100,7 +100,10 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	if resp.ReExec {
-		updateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -128,13 +131,16 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 	}
 
 	if !resp.Disabled && resp.ReExec {
-		updateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
 }
 
-func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) {
+func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
 	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 	defer cancel()
 	// Download the version of client tools required by the cluster. This
@@ -143,18 +149,19 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
 		slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", toolsVersion)
-		return
+		// Continue executing the current version of the client tools (tsh, tctl)
+		// to avoid potential issues with update process (timeout, missing version).
+		return nil
 	}
 
 	// Re-execute client tools with the correct version of client tools.
 	code, err := updater.Exec(toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		slog.ErrorContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
-		// Continue executing the current version of the client tools (tsh, tctl)
-		// to avoid potential issues with the updated version, such as missing
-		// signatures or build errors.
-		return
+		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
+		os.Exit(code)
 	} else if err == nil {
 		os.Exit(code)
 	}
+
+	return nil
 }
