@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -323,6 +324,35 @@ func (s *identityService) Run(ctx context.Context) error {
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
 	storageDestination := s.cfg.Storage.Destination
+
+	// Keep retrying renewal if it failed on startup.
+	if !s.IsReady() {
+		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+			Driver: retryutils.NewExponentialDriver(1 * time.Second),
+			Max:    1 * time.Minute,
+			Jitter: retryutils.HalfJitter,
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating retry")
+		}
+
+		for {
+			retry.Inc()
+
+			s.log.InfoContext(ctx, "Unable to renew bot identity on startup. Waiting to retry", "wait", retry.Duration())
+
+			select {
+			case <-retry.After():
+			case <-ctx.Done():
+				return nil
+			}
+
+			if err := s.renew(ctx, storageDestination); err == nil {
+				s.unblockWaiters()
+				break
+			}
+		}
+	}
 
 	s.log.InfoContext(
 		ctx,
