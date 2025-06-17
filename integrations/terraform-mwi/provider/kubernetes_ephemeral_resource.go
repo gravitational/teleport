@@ -53,7 +53,6 @@ type KubernetesEphemeralResourceModel struct {
 	CredentialTTL timetypes.GoDuration                     `tfsdk:"credential_ttl"`
 
 	// Attributes
-	ExampleOutput        types.String `tfsdk:"example_output"`
 	ClientKey            types.String `tfsdk:"client_key"`
 	Host                 types.String `tfsdk:"host"`
 	TLSServerName        types.String `tfsdk:"tls_server_name"`
@@ -88,10 +87,6 @@ func (r *KubernetesEphemeralResource) Schema(
 				Computed:            true,
 			},
 			// Attributes
-			"example_output": schema.StringAttribute{
-				MarkdownDescription: "TODO",
-				Computed:            true,
-			},
 			"client_key": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,
@@ -156,7 +151,7 @@ func (r *KubernetesEphemeralResource) Open(
 		return
 	}
 
-	data.ExampleOutput = types.StringValue(
+	data.Host = types.StringValue(
 		fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
 	)
 	resp.Diagnostics.Append(resp.Result.Set(ctx, &data)...)
