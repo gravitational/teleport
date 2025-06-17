@@ -2207,7 +2207,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Provisioner:             cfg.Provisioner,
 			Identity:                cfg.Identity,
 			Access:                  cfg.Access,
-			UsageReporter:           cfg.UsageReporter,
 			StaticTokens:            cfg.Auth.StaticTokens,
 			Roles:                   cfg.Auth.Roles,
 			AuthPreference:          cfg.Auth.Preference,
