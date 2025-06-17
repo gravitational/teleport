@@ -106,14 +106,14 @@ func (a *AuthProxyArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 type sharedStartArgs struct {
 	*AuthProxyArgs
 
-	JoinMethod        string
-	Token             string
-	CAPins            []string
-	CertificateTTL    time.Duration
-	RenewalInterval   time.Duration
-	Storage           string
-	InitialJoinSecret string
-	Keypair           string
+	JoinMethod         string
+	Token              string
+	CAPins             []string
+	CertificateTTL     time.Duration
+	RenewalInterval    time.Duration
+	Storage            string
+	RegistrationSecret string
+	Keypair            string
 
 	Oneshot  bool
 	DiagAddr string
@@ -139,7 +139,7 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 	cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&args.oneshotSetByUser).BoolVar(&args.Oneshot)
 	cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&args.DiagAddr)
 	cmd.Flag("storage", "A destination URI for tbot's internal storage, e.g. file:///foo/bar").StringVar(&args.Storage)
-	cmd.Flag("initial-join-secret", "For bound keypair joining, specifies an initial joining secret.").StringVar(&args.InitialJoinSecret)
+	cmd.Flag("registration-secret", "For bound keypair joining, specifies a registration secret for use at first join.").StringVar(&args.RegistrationSecret)
 
 	return args
 }
@@ -238,12 +238,12 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		cfg.Onboarding.SetToken(s.Token)
 	}
 
-	if s.JoinMethod != string(types.JoinMethodBoundKeypair) && s.InitialJoinSecret != "" {
-		return trace.BadParameter("--initial-join-secret and --keypair are only valid with --join-method=%s", types.JoinMethodBoundKeypair)
+	if s.JoinMethod != string(types.JoinMethodBoundKeypair) && s.RegistrationSecret != "" {
+		return trace.BadParameter("--registration-secret is only valid with --join-method=%s", types.JoinMethodBoundKeypair)
 	}
 
-	if s.InitialJoinSecret != "" {
-		cfg.Onboarding.BoundKeypair.InitialJoinSecret = s.InitialJoinSecret
+	if s.RegistrationSecret != "" {
+		cfg.Onboarding.BoundKeypair.InitialJoinSecret = s.RegistrationSecret
 	}
 
 	return nil
