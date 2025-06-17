@@ -38,6 +38,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
+// handleAuthErrStdio starts a stdio message reader and replies with the auth
+// error regardless what message the reader receives (though the first message
+// is most likely client's initialize request). The reader handler quits right
+// after the auth error is delivered to client, by always returning an error to
+// the handler callbacks.
 func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, authErr error) error {
 	logger := s.cfg.Log.With("client_ip", clientConn.RemoteAddr())
 	errMsg := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.INTERNAL_ERROR, authErr.Error(), nil)
@@ -144,6 +149,8 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 		return trace.Wrap(err)
 	}
 
+	// TODO(greedy52) capture client info then emit start event with client
+	// information.
 	session.emitStartEvent(s.cfg.ParentContext)
 	defer session.emitEndEvent(s.cfg.ParentContext)
 
@@ -234,7 +241,7 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 		if cmd.Process != nil {
 			// Use SIGINT for graceful shutdown since stdio servers are
 			// "interactive".
-			session.logger.DebugContext(ctx, "Sending SIGINT to command")
+			logger.DebugContext(ctx, "Sending SIGINT to command")
 			return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
 		}
 		return nil
@@ -245,7 +252,7 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := hostutils.MaybeSetCommandCredentialAsUser(ctx, cmd, hostUser, session.logger); err != nil {
+	if err := hostutils.MaybeSetCommandCredentialAsUser(ctx, cmd, hostUser, logger); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
