@@ -50,27 +50,27 @@ with a 503 status code.
 ```code
 $ curl -v http://127.0.0.1:3001/readyz
 
-# HTTP/1.1 503 Service Unavailable
-# Content-Type: application/json
-#
-# {
-#   "status": "unhealthy",
-#   "services": {
-#     "ca-rotation": {
-#       "status": "healthy"
-#     },
-#     "heartbeat": {
-#       "status": "healthy"
-#     },
-#     "identity": {
-#       "status": "healthy"
-#     },
-#     "aws-roles-anywhere": {
-#       "status": "unhealthy",
-#       "reason": "access denied to perform action \"read\" on \"workload_identity\""
-#     }
-#   }
-# }
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+
+{
+  "status": "unhealthy",
+  "services": {
+    "ca-rotation": {
+      "status": "healthy"
+    },
+    "heartbeat": {
+      "status": "healthy"
+    },
+    "identity": {
+      "status": "healthy"
+    },
+    "aws-roles-anywhere": {
+      "status": "unhealthy",
+      "reason": "access denied to perform action \"read\" on \"workload_identity\""
+    }
+  }
+}
 ```
 
 If deploying to Kubernetes, we recommend this endpoint is used for your
@@ -82,12 +82,12 @@ specific service.
 ```code
 $ curl -v http://127.0.0.1:3001/readyz/aws-roles-anywhere
 
-# HTTP/1.1 200 OK
-# Content-Type: application/json
-#
-# {
-#   "status": "healthy"
-# }
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "healthy"
+}
 ```
 
 By default, `tbot` generates service names based on their configuration such as
