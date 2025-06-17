@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -178,10 +179,11 @@ func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
 		}
 	}
 
-	// Backward compatibility check. If a version of client tools has already been downloaded to
-	// tools directory, return that.
+	// Backward compatibility check. If a version of the client tools has already been downloaded
+	// to the tools directory, return it. Version check failures should be ignored, as EDR software
+	// might block execution or a broken version may already exist in the tools' directory.
 	toolsVersion, err := CheckExecutedToolVersion(u.toolsDir)
-	if trace.IsNotFound(err) || toolsVersion == u.localVersion {
+	if trace.IsNotFound(err) || errors.Is(err, ErrVersionCheck) || toolsVersion == u.localVersion {
 		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	}
 	if err != nil {

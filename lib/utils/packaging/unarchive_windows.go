@@ -26,5 +26,5 @@ package packaging
 //
 // For Windows, archivePath must be a .zip file.
 func ReplaceToolsBinaries(archivePath string, extractPath string, execNames []string) (map[string]string, error) {
-	return replaceZip(toolsDir, archivePath, extractPath, execNames)
+	return replaceZip(archivePath, extractPath, execNames)
 }
