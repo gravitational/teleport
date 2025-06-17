@@ -45,6 +45,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -802,6 +803,35 @@ func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// CreateBotInstance not implemented: can only be called locally.
+func (c *Client) CreateBotInstance(ctx context.Context, botInstance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetBotInstance not implemented: can only be called locally.
+func (c *Client) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListBotInstances not implemented: can only be called locally.
+func (c *Client) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteBotInstance not implemented: can only be called locally.
+func (c *Client) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// PatchBotInstance not implemented: can only be called locally.
+func (c *Client) PatchBotInstance(
+	ctx context.Context,
+	botName, instanceID string,
+	updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
+) (*machineidv1.BotInstance, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -1456,6 +1486,7 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
+	services.BotInstance
 	types.Events
 
 	types.WebSessionsGetter

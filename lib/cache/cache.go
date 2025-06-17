@@ -208,6 +208,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -264,6 +265,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -294,6 +296,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -739,6 +742,8 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
