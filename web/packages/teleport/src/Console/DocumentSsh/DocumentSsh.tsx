@@ -24,7 +24,6 @@ import {
   FileTransfer,
   FileTransferActionBar,
   FileTransferContextProvider,
-  FileTransferRequests,
   useFileTransferContext,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
@@ -36,6 +35,7 @@ import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { useConsoleContext } from '../consoleContextProvider';
 import Document from '../Document';
+import { FileTransferRequests } from './FileTransferRequests';
 import { Terminal, TerminalRef } from './Terminal';
 import { useFileTransfer } from './useFileTransfer';
 import useSshSession from './useSshSession';
@@ -51,7 +51,7 @@ export default function DocumentSshWrapper(props: PropTypes) {
 function DocumentSsh({ doc, visible }: PropTypes) {
   const ctx = useConsoleContext();
   const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
-  const terminalRef = useRef<TerminalRef>();
+  const terminalRef = useRef<TerminalRef>(undefined);
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
 

@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -40,13 +41,20 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
+	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
+	"github.com/gravitational/teleport/api/types/vnet"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -60,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -580,34 +589,36 @@ func TestAuthPreference(t *testing.T) {
 	})
 }
 
+func TestVnetConfig(t *testing.T) {
+	t.Parallel()
+
+	conf := setupConfig(t)
+	authServer, err := Init(context.Background(), conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	actualVnetConfig, err := authServer.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+
+	defaultVnetConfig, err := vnet.DefaultVnetConfig()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(defaultVnetConfig.GetSpec(), actualVnetConfig.GetSpec(), protocmp.Transform()))
+}
+
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	modules.SetInsecureTestMode(false)
 	defer modules.SetInsecureTestMode(true)
 	ctx := context.Background()
 
-	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
-		conf := setupConfig(t)
-		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
-		})
-		require.NoError(t, err)
-
-		conf.AuthPreference = authPref
-		_, err = Init(ctx, conf)
-		require.Error(t, err)
+	conf := setupConfig(t)
+	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
 	})
+	require.NoError(t, err)
 
-	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
-		conf := setupConfig(t)
-		s, err := Init(ctx, conf)
-		require.NoError(t, err)
-		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
-		})
-		require.NoError(t, err)
-		_, err = s.UpsertAuthPreference(ctx, authpref)
-		require.Error(t, err)
-	})
+	conf.AuthPreference = authPref
+	_, err = Init(ctx, conf)
+	require.Error(t, err)
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -697,21 +708,22 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName()
+	cc, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(context.Background(), conf)
+	authServer, err = Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName()
+	cc, err = authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -719,7 +731,8 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -734,18 +747,10 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
-}
-
-func keysIn[K comparable, V any](m map[K]V) []K {
-	result := make([]K, 0, len(m))
-	for k := range m {
-		result = append(result, k)
-	}
-	return result
 }
 
 type failingTrustInternal struct {
@@ -802,8 +807,14 @@ func TestPresets(t *testing.T) {
 		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
 		// Second call should not fail
 		err = createPresetRoles(ctx, as)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -811,6 +822,10 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
+
+		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
@@ -836,6 +851,26 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+
+	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// an existing health check config should not be modified by init
+		cfg := services.NewPresetHealthCheckConfig()
+		cfg.Spec.Interval = durationpb.New(42 * time.Second)
+		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
+		// Preset was created. Ensure it didn't overwrite the existing config
+		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.
@@ -994,7 +1029,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
+				require.NotContains(t, slices.Collect(maps.Keys(createdSystemRoles)), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -1004,8 +1039,8 @@ func TestPresets(t *testing.T) {
 
 		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
-		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -1142,7 +1177,7 @@ func TestPresets(t *testing.T) {
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				err := createPresetRoles(ctx, as)
 				require.NoError(t, err)
 
@@ -1476,6 +1511,18 @@ spec:
   type: saml_idp
 sub_kind: saml_idp
 version: v2`
+	healthCheckConfigYAML = `kind: health_check_config
+metadata:
+  name: valid
+  revision: c1159783-930e-4a79-bb19-0d0d866d7af6
+spec:
+  enabled: true
+  match:
+    db_labels:
+    - name: "*"
+      values:
+      - "*"
+version: v1`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -1525,6 +1572,28 @@ func TestInit_bootstrap(t *testing.T) {
 				)
 			},
 			assertError: require.NoError,
+		},
+		{
+			name: "OK bootstrap health check config",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCheckConfig(t),
+				)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "NOK bootstrap health check config invalid",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
+						hcc.Spec.HealthyThreshold = 9000
+					}),
+				)
+			},
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
@@ -1713,6 +1782,12 @@ spec:
   type: local
 version: v2
 `
+	botYAML = `kind: bot
+metadata:
+  name: my-bot
+spec:
+  roles: ["admin"]
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1724,6 +1799,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
 		name         string
@@ -1792,6 +1868,22 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			},
 			assertError: require.NoError,
 		},
+		{
+			name: "Apply Role+Bot",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Bot+Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1820,6 +1912,15 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.HealthCheckConfig)) types.Resource {
+	r := resourceFromYAML(t, healthCheckConfigYAML)
+	inner := r.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT()
+	for _, opt := range opts {
+		opt(inner)
+	}
+	return r
 }
 
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
@@ -1861,6 +1962,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+	require.Equal(t, []string{"Mon", "Tue", "Wed", "Thu"}, agentWindow.Weekdays)
 
 	// change the served hour
 	mu.Lock()
@@ -2079,11 +2181,12 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	tests := []struct {
-		name            string
-		initialVersion  string
-		expectedVersion string
-		expectError     bool
-		skipCheck       bool
+		name               string
+		initialVersion     string
+		initialProcVersion string
+		expectedVersion    string
+		expectError        bool
+		skipCheck          bool
 	}{
 		{
 			name:            "first-launch",
@@ -2093,33 +2196,61 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 		},
 		{
 			name:            "old-version-upgrade",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-1),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-1),
 			expectedVersion: teleport.Version,
 			expectError:     false,
 		},
 		{
+			name:               "old-version-upgrade-proc",
+			initialProcVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-1),
+			expectedVersion:    teleport.Version,
+			expectError:        false,
+		},
+		{
 			name:            "major-upgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
 			expectError:     true,
 		},
 		{
+			name:               "major-upgrade-fail-proc",
+			initialProcVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectError:        true,
+		},
+		{
+			name:               "major-upgrade-fail-proc-with-skip-check",
+			initialProcVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion:    teleport.Version,
+			skipCheck:          true,
+		},
+		{
 			name:            "major-upgrade-with-dev-skip-check",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion: teleport.Version,
 			expectError:     false,
 			skipCheck:       true,
 		},
 		{
 			name:            "major-downgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
 			expectError:     true,
 		},
 		{
+			name:               "major-downgrade-fail-proc",
+			initialProcVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectError:        true,
+		},
+		{
+			name:               "major-downgrade-fail-proc-with-skip-check",
+			initialProcVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion:    teleport.Version,
+			skipCheck:          true,
+		},
+		{
 			name:            "major-downgrade-with-dev-skip-check",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion: teleport.Version,
 			expectError:     false,
 			skipCheck:       true,
 		},
@@ -2130,25 +2261,42 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			defer cancel()
 
 			authCfg := setupConfig(t)
+			service, err := local.NewBackendInfoService(authCfg.Backend)
+			require.NoError(t, err)
 
+			if test.initialProcVersion != "" {
+				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, *semver.New(test.initialProcVersion))
+				require.NoError(t, err)
+			}
 			if test.initialVersion != "" {
-				err := authCfg.VersionStorage.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
+				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
+					TeleportVersion: semver.New(test.initialVersion).String(),
+				})
+				require.NoError(t, err)
+				_, err = service.CreateBackendInfo(ctx, backendInfo)
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
-				t.Setenv(skipVersionUpgradeCheckEnv, "yes")
+				authCfg.SkipVersionCheck = true
 			}
 
-			_, err := Init(ctx, authCfg)
+			_, err = Init(ctx, authCfg)
 			if test.expectError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
+			// Verifies that version is removed from process storage.
+			if test.initialProcVersion != "" && !test.expectError {
+				_, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
+				require.True(t, trace.IsNotFound(err))
+			}
 
-			lastKnownVersion, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
-			require.NoError(t, err)
-			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
+			if test.expectedVersion != "" {
+				backendInfo, err := service.GetBackendInfo(ctx)
+				require.NoError(t, err)
+				require.Equal(t, test.expectedVersion, backendInfo.GetSpec().GetTeleportVersion())
+			}
 		})
 	}
 }

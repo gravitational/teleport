@@ -79,6 +79,10 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
+	if app.IsMCP() {
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
+	}
+
 	if err := validateTargetPort(app, int(cf.TargetPort)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -108,7 +112,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printAppCommand(cf, tc, app, routeToApp); err != nil {
+	if err := printAppCommand(cf, tc, app, appInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -121,15 +125,19 @@ func appLogin(
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
 ) (*client.KeyRing, error) {
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
 	return tc.TLSRoutingConnUpgradeRequired
 }
 
-func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Application, routeToApp proto.RouteToApp) error {
+func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Application, appInfo *appInfo) error {
+	routeToApp := appInfo.RouteToApp
 	output := cf.Stdout()
 	if cf.Quiet {
 		output = io.Discard
@@ -148,11 +156,24 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
 		}
 
-		var args []string
+		azureApp, err := newAzureApp(tc, cf, appInfo)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		resourceArgumentName := "--username"
+		// After the CLI started relying in MSAL by default, the param for the
+		// managed identity changed.
+		//
+		// https://learn.microsoft.com/en-us/cli/azure/release-notes-azure-cli?view=azure-cli-latest#profile
+		if azureApp.usingMSAL() {
+			resourceArgumentName = "--resource-id"
+		}
+
+		args := []string{"az", "login", "--identity", resourceArgumentName, routeToApp.AzureIdentity}
 		if cf.Debug {
 			args = append(args, "--debug")
 		}
-		args = append(args, "az", "login", "--identity", "-u", routeToApp.AzureIdentity)
 
 		// automatically login with right identity.
 		cmd := exec.Command(cf.executablePath, args...)
@@ -161,8 +182,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		cmd.Stdout = output
 
 		logger.DebugContext(cf.Context, "Running automatic az login", "command", logutils.StringerAttr(cmd))
-		err := cf.RunCommand(cmd)
-		if err != nil {
+		if err := cf.RunCommand(cmd); err != nil {
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
 
@@ -294,7 +314,8 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.AppsForCluster(tc.SiteName)
+
+	activeRoutes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -365,7 +386,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.AppsForCluster(tc.SiteName)
+	routes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}

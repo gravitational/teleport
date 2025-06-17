@@ -1,5 +1,4 @@
 //go:build !darwin
-// +build !darwin
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
@@ -21,10 +20,15 @@ package diag
 
 import (
 	"context"
+	"os/exec"
 
 	"github.com/gravitational/trace"
 )
 
 func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
 	return "", trace.NotImplemented("InterfaceApp is not implemented")
+}
+
+func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
+	return nil
 }

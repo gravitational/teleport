@@ -40,7 +40,7 @@ func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 }
 
 func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
-	return "mock"
+	return types.InstanceMetadataTypeEC2
 }
 
 func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {

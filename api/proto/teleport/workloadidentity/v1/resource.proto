@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
@@ -83,7 +85,15 @@ message WorkloadIdentityCondition {
 // An individual rule that is evaluated during the issuance of a WorkloadIdentity.
 message WorkloadIdentityRule {
   // The conditions that must be met for this rule to be considered passed.
+  //
+  // Mutually exclusive with expression.
   repeated WorkloadIdentityCondition conditions = 1;
+
+  // An expression written in Teleport's predicate language that must evaluate
+  // to true for this rule to be considered passed.
+  //
+  // Mutually exclusive with conditions.
+  string expression = 2;
 }
 
 // The rules which are evaluated before the WorkloadIdentity can be issued.
@@ -124,6 +134,26 @@ message WorkloadIdentitySPIFFEX509 {
   //
   // If not provided, the X509-SVID will be issued with an empty Subject DN.
   X509DistinguishedNameTemplate subject_template = 2;
+  // Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.
+  //
+  // If a X509-SVID is requested with a TTL greater than this value, then the
+  // returned X509-SVID will have a TTL of this value.
+  //
+  // Defaults to 24 hours. The maximum this value can be set to is 14 days.
+  google.protobuf.Duration maximum_ttl = 3;
+}
+
+// Configuration specific to the issuance of JWT-SVIDs.
+message WorkloadIdentitySPIFFEJWT {
+  // Additional claims that will be added to the JWT.
+  google.protobuf.Struct extra_claims = 1;
+  // Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.
+  //
+  // If a JWT-SVID is requested with a TTL greater than this value, then the
+  // returned JWT-SVID will have a TTL of this value.
+  //
+  // Defaults to 24 hours. The maximum this value can be set to is 24 hours.
+  google.protobuf.Duration maximum_ttl = 2;
 }
 
 // Configuration pertaining to the issuance of SPIFFE-compatible workload
@@ -141,6 +171,8 @@ message WorkloadIdentitySPIFFE {
   string hint = 2;
   // Configuration specific to X509-SVIDs.
   WorkloadIdentitySPIFFEX509 x509 = 3;
+  // Configuration specific to JWT-SVIDs.
+  WorkloadIdentitySPIFFEJWT jwt = 4;
 }
 
 // The spec for the WorkloadIdentity resource.

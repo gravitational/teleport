@@ -1,3 +1,4 @@
+# SSM Invocation failed
 Teleport failed to access the SSM Agent to auto enroll the instance.
 Some instances failed to communicate with the AWS Systems Manager service to execute the install script.
 

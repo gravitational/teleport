@@ -87,7 +87,7 @@ type fakeAuthServer struct {
 	rotateCertAuthorityData map[string]error
 }
 
-func (f *fakeAuthServer) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (f *fakeAuthServer) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return f.clusterName, nil
 }
 

@@ -42,6 +42,9 @@ type GlobalArgs struct {
 	// ConfigPath is a path to a YAML configuration file to load, if any.
 	ConfigPath string
 
+	// ConfigString is a base64 encoded string of a YAML configuration file to load, if any.
+	ConfigString string
+
 	// Debug enables debug-level logging, when set
 	Debug bool
 
@@ -60,6 +63,10 @@ type GlobalArgs struct {
 
 	// staticConfigYAML allows tests to specify a configuration file statically
 	staticConfigYAML string
+
+	fipsSetByUser     bool
+	debugSetByUser    bool
+	insecureSetByUser bool
 }
 
 // NewGlobalArgs appends global flags to the application and returns a struct
@@ -67,12 +74,18 @@ type GlobalArgs struct {
 func NewGlobalArgs(app *kingpin.Application) *GlobalArgs {
 	g := &GlobalArgs{}
 
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&g.Debug)
-	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&g.ConfigPath)
-	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&g.FIPS)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').Envar(TBotDebugEnvVar).IsSetByUser(&g.debugSetByUser).BoolVar(&g.Debug)
+	app.Flag("config", "Path to a configuration file.").Short('c').Envar(TBotConfigPathEnvVar).StringVar(&g.ConfigPath)
+	app.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(TBotConfigEnvVar).StringVar(&g.ConfigString)
+	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").IsSetByUser(&g.fipsSetByUser).BoolVar(&g.FIPS)
 	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&g.Trace)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&g.TraceExporter)
-	app.Flag("insecure", "Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.").BoolVar(&g.Insecure)
+	app.Flag(
+		"insecure",
+		"Insecure configures the bot to trust the certificates from the Auth "+
+			"Server or Proxy on first connect without verification. Do not use in "+
+			"production.",
+	).IsSetByUser(&g.insecureSetByUser).BoolVar(&g.Insecure)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(utils.LogFormatText).
 		EnumVar(&g.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
@@ -94,16 +107,16 @@ func (g *GlobalArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	// Note: g.ConfigPath is not checked here; the config must have already been
 	// loaded.
 
-	if g.FIPS {
+	if g.fipsSetByUser {
 		cfg.FIPS = g.FIPS
 	}
 
-	if g.Debug {
+	if g.debugSetByUser {
 		cfg.Debug = g.Debug
 	}
 
-	if g.Insecure {
-		cfg.Insecure = true
+	if g.insecureSetByUser {
+		cfg.Insecure = g.Insecure
 	}
 
 	return nil

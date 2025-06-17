@@ -196,8 +196,9 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	var accessGraphSettings ResourceAccess
 	if features.AccessGraph {
 		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
-		accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 	}
+	// accessGraphSettings should always be enabled for users to interact with demo mode
+	accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()

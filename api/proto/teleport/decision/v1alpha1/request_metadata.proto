@@ -34,6 +34,15 @@ message RequestMetadata {
   // via feature assertions so that PEPs can correctly reject decisions that
   // they cannot enforce.
   string pep_version_hint = 2;
+
+  // DryRun indicates that the request is a dry-run if set to true. Decisions returned by
+  // dry run requests are for informational/audit purposes only and must not be used to make
+  // access-control decisions.
+  bool dry_run = 3;
+
+  // DryRunOptions customize the behavior of dry-run decision requests. Specification of any
+  // dry run options when the dry run flag is false is an error.
+  DryRunOptions dry_run_options = 4;
 }
 
 // DecisionFeature represents supported PDP (Policy Decision Point) features.
@@ -41,4 +50,18 @@ enum DecisionFeature {
   // DECISION_FEATURE_UNSPECIFIED is the default/unspecified value for
   // DecisionFeature. Asserting this feature has no effect.
   DECISION_FEATURE_UNSPECIFIED = 0;
+}
+
+// DryRunOptions customize the behavior of dry-run decision requests.
+message DryRunOptions {
+  // GenerateIdentity customizes a dry run by having the PDP generate an identity locally
+  // rather than using a caller-provided identity derived from a cert.
+  DryRunIdentity generate_identity = 1;
+}
+
+// DryRunIdentity is a dry run option that allows the caller to request a fake identity be used
+// for the decision request.
+message DryRunIdentity {
+  // Username is the teleport username of the identity to be used.
+  string username = 1;
 }

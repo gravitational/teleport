@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -355,6 +356,55 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 	}
 }
 
+func TestApplicationGetAWSRolesAnywhereProfile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                          string
+		appAWS                        *AppAWS
+		expectedProfileARN            string
+		expectedAcceptRoleSessionName bool
+	}{
+		{
+			name: "app aws not configured",
+		},
+		{
+			name: "roles anywhere profile not configured",
+			appAWS: &AppAWS{
+				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{},
+			},
+			expectedProfileARN:            "",
+			expectedAcceptRoleSessionName: false,
+		},
+		{
+			name: "configured",
+			appAWS: &AppAWS{
+				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{
+					ProfileARN:            "profile1",
+					AcceptRoleSessionName: true,
+				},
+			},
+			expectedProfileARN:            "profile1",
+			expectedAcceptRoleSessionName: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "aws",
+			}, AppSpecV3{
+				URI: constants.AWSConsoleURL,
+				AWS: test.appAWS,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, test.expectedProfileARN, app.GetAWSRolesAnywhereProfileARN())
+			require.Equal(t, test.expectedAcceptRoleSessionName, app.GetAWSRolesAnywhereAcceptRoleSessionName())
+		})
+	}
+}
+
 func TestAppIsAzureCloud(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -554,6 +604,60 @@ func TestNewAppV3(t *testing.T) {
 			want:    nil,
 			wantErr: require.Error,
 		},
+		{
+			name: "mcp with command",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				MCP: &MCP{
+					Command:       "docker",
+					Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+					RunAsHostUser: "docker",
+				},
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+stdio://",
+					MCP: &MCP{
+						Command:       "docker",
+						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+						RunAsHostUser: "docker",
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp missing spec",
+			meta: Metadata{
+				Name: "mcp-missing-run-as",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://",
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "mcp missing run_as_host_user",
+			meta: Metadata{
+				Name: "mcp-missing-spec",
+			},
+			spec: AppSpecV3{
+				MCP: &MCP{
+					Command: "docker",
+					Args:    []string{"run", "-i", "--rm", "mcp/everything"},
+				},
+			},
+			wantErr: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -608,4 +712,44 @@ func hasErrAndContains(msg string) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
+}
+
+func TestGetMCPServerTransportType(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want string
+	}{
+		{
+			name: "stdio",
+			uri:  "mcp+stdio://",
+			want: MCPTransportStdio,
+		},
+		{
+			name: "unknown",
+			uri:  "http://localhost",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, GetMCPServerTransportType(tt.uri))
+		})
+	}
+}
+
+func TestDeduplicateApps(t *testing.T) {
+	var apps []Application
+	for _, name := range []string{"a", "b", "c", "b", "a", "d"} {
+		app_, err := NewAppV3(Metadata{
+			Name: name,
+		}, AppSpecV3{
+			URI: "localhost:3080",
+		})
+		require.NoError(t, err)
+		apps = append(apps, app_)
+	}
+
+	deduped := DeduplicateApps(apps)
+	require.Equal(t, []string{"a", "b", "c", "d"}, slices.Collect(ResourceNames(deduped)))
 }

@@ -13,26 +13,27 @@ Teleport administrators to define policies like:
 - Developers must never SSH into production servers.
 - Members of the HR group can view audit logs but not production environments.
 
-<Details title="Automated SSO connection with Okta integration" open={false}>
+<details>
+<summary>Automated SSO connection with Okta integration</summary>
 
 In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can
 automatically configure an SSO connector for you when as part of [enrolling the
-hosted Okta integration](../../../enroll-resources/application-access/okta/okta.mdx).
+hosted Okta integration](../../../identity-governance/okta/okta.mdx).
 
 You can enroll the Okta integration from the Teleport Web UI.
 
-Visit the Teleport Web UI and find the dropdown menu on the upper left of the
-screen. Select the **Management** option.
-
-On the left sidebar, click **Enroll New Integration** to visit the "Enroll New
-Integration" page:
+Visit the Teleport Web UI, click **Add New** in the left sidebar and click **Integration**:
 
 ![Enroll an Access Request plugin](../../../../img/enterprise/plugins/enroll.png)
 
 On the "Select Integration Type" menu, click the Okta tile. Teleport will then
 guide you through configuring the Okta integration.
 
-</Details>
+</details>
+
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="Okta"!)
 
 ## Prerequisites
 
@@ -40,19 +41,10 @@ guide you through configuring the Okta integration.
   least two groups. If you don't already have Okta groups you want to assign to
   Teleport roles don't worry, we'll create example groups below.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
   available in the default `editor` role.
-
-<Tabs>
-<TabItem label="Teleport Enterprise (Self-Hosted)" scope="enterprise">
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
-</TabItem>
-<TabItem label="Teleport Cloud" scope="cloud">
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
-</TabItem>
-</Tabs>
 
 ## Step 1/4. Create & assign groups
 
@@ -81,7 +73,7 @@ In this section we will create an application in the Okta dashboard to allow our
 Teleport cluster to access Okta as an IdP provider. We'll also locate the
 address that Okta uses to provides their IdP metadata to Teleport.
 
-First, create a SAML 2.0 Web App in Okta:
+### Create Okta SAML 2.0 App
 
 From the main navigation menu, select **Applications** -> **Applications**, and click
 **Create App Integration**. Select SAML 2.0, then click **Next**.
@@ -97,14 +89,24 @@ Provide the following values to their respective fields:
 
 #### General
 
-- Single sign on URL: `https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`
-- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`</nobr>
-- Name ID format `EmailAddress`
-- Application username `Okta username`
+Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service or Enterprise
+Cloud account domain and port (`443` by default).
 
-Replace `<cluster-url>` with your Teleport Proxy Service address or Enterprise
-Cloud tenant (e.g. `mytenant.teleport.sh`). Replace `<port>` with your Proxy
-Service listening port (`443` by default).
+- Single sign on URL: 
+   
+  ```
+  https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
+  ```
+
+- Audience URI (SP Entity ID):
+
+  ```
+  https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
+  ```
+
+- Name ID format `EmailAddress`
+
+- Application username `Okta username`
 
 #### Attribute Statements
 
@@ -123,23 +125,22 @@ The configuration page should now look like this:
 
 ![Configure APP](../../../../img/sso/okta/setup-redirection.png)
 
-<Admonition type="warning" >
 The "Matches regex" filter requires the literal string `.*` in order to match all
 content from the group attribute statement.
-</Admonition>
 
-<Admonition type="tip">
 Notice that we have set "NameID" to the email format and mapped the groups with
 a wildcard regex in the Group Attribute statements. We have also set the "Audience"
 and SSO URLs to the same value. This is so Teleport can read and use Okta users'
 email addresses to create their usernames in Teleport, instead of relying on additional
 name fields.
-</Admonition>
 
 Once you've filled the required fields, click **Next**, then finish the app creation wizard.
 
-From the **Assignments** tab of the new application page, click **Assign**.
-Assign the newly created groups access to the app.
+### Group assignment
+
+From the **Assignments** tab of the new application page, click **Assign**.  Assign the user groups
+which can access to the app. Users being members of those groups will have the SSO access to
+Teleport once the Auth Connector is configured.
 
 ![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
 
@@ -173,7 +174,7 @@ flags for this command:
 
 ```code
 $ tctl sso configure saml --preset=okta \
---entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
+--entity-descriptor "https://example.okta.com/app/000000/sso/saml/metadata" \
 --attributes-to-roles=groups,okta-admin,editor \
 --attributes-to-roles=groups,okta-dev,dev > okta-connector.yaml
 ```
@@ -295,7 +296,7 @@ Notice the `{{external.username}}` login. It configures Teleport to look at the
 This example uses email as the username format.  The
 `email.local(external.username)` function call will remove the `@domain` and
 leave the username prefix. For full details on how variable expansion works in
-Teleport roles, see the [Teleport Access Controls
+Teleport roles, see the [Access Controls
 Reference](../../../reference/access-controls/roles.mdx).
 
 Use `tctl` to create this role in the Teleport Auth Service:

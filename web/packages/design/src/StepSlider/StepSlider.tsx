@@ -60,6 +60,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
     newFlow,
     defaultStepIndex = 0,
     tDuration = 500,
+    wrapping = false,
     // extraProps are the props required by our step components defined in our flows.
     ...extraProps
   } = props;
@@ -164,7 +165,12 @@ export function StepSlider<Flows>(props: Props<Flows>) {
         key={step}
         refCallback={refCallbackFn}
         next={() => {
-          preMountState.current.step = step + 1;
+          const flow = preMountState.current.flow ?? currFlow;
+          if (wrapping && step === flows[flow].length - 1) {
+            preMountState.current.step = 0;
+          } else {
+            preMountState.current.step = step + 1;
+          }
           setPreMount(true);
           startTransitionInDirection('next');
           if (rootRef.current) {
@@ -172,7 +178,12 @@ export function StepSlider<Flows>(props: Props<Flows>) {
           }
         }}
         prev={() => {
-          preMountState.current.step = step - 1;
+          if (wrapping && step === 0) {
+            const flow = preMountState.current.flow ?? currFlow;
+            preMountState.current.step = flows[flow].length - 1;
+          } else {
+            preMountState.current.step = step - 1;
+          }
           setPreMount(true);
           startTransitionInDirection('prev');
           if (rootRef.current) {
@@ -247,7 +258,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
   // https://github.com/reactjs/react-transition-group/issues/675
   const keyToNodeRef = useRef<Map<
     string,
-    React.RefObject<HTMLDivElement>
+    React.RefObject<HTMLDivElement | null>
   > | null>(null);
   if (keyToNodeRef.current === null) {
     keyToNodeRef.current = new Map(
@@ -404,6 +415,11 @@ type Props<Flows> =
          * switching flows – this will result in the current step index being reset to 0.
          */
         defaultStepIndex?: number;
+        /**
+         * If set to `true`, allows going forwards the last slide to the first
+         * one and backwards from the first one to the last one.
+         */
+        wrapping?: boolean;
       } & ExtraProps // Extra props that are passed to each step component. Each step of each flow needs to accept the same set of extra props.
     : any;
 

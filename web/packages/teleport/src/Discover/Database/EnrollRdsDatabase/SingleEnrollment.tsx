@@ -39,6 +39,7 @@ import {
 import { ActionButtons, LabelsCreater } from '../../Shared';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
+import { AwsRdsAuthRequirementAlert } from '../SetupAccess/AwsRdsAuthRequirements';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -237,6 +238,12 @@ export function SingleEnrollment({
                 />
                 {selectedDb && (
                   <>
+                    <AwsRdsAuthRequirementAlert
+                      wantAutoDiscover={false}
+                      id={resourceSpec.id}
+                      uri={selectedDb.uri}
+                      mt={3}
+                    />
                     <Flex alignItems="center" gap={1} mb={2} mt={4}>
                       <Subtitle1>Optionally Add More Labels</Subtitle1>
                       <ResourceLabelTooltip

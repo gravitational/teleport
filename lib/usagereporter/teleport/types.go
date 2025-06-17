@@ -54,6 +54,37 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 				ConnectorType:            u.ConnectorType,
 				DeviceId:                 deviceID,
 				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
+				UserOrigin:               u.UserOrigin,
+			},
+		},
+	}
+}
+
+// AccessRequestCreateEvent is emitted when Access Request is created.
+type AccessRequestCreateEvent prehogv1a.AccessRequestCreateEvent
+
+func (e *AccessRequestCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreate{
+			AccessRequestCreate: &prehogv1a.AccessRequestCreateEvent{
+				UserName:      a.AnonymizeString(e.UserName),
+				ResourceKinds: e.ResourceKinds,
+			},
+		},
+	}
+}
+
+// AccessRequestCreateEvent is emitted when Access Request is reviewed.
+type AccessRequestReviewEvent prehogv1a.AccessRequestReviewEvent
+
+func (e *AccessRequestReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestReview{
+			AccessRequestReview: &prehogv1a.AccessRequestReviewEvent{
+				UserName:      a.AnonymizeString(e.UserName),
+				ResourceKinds: e.ResourceKinds,
+				IsBotReviewed: e.IsBotReviewed,
+				ProposedState: e.ProposedState,
 			},
 		},
 	}
@@ -473,7 +504,11 @@ func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleSaveClick{
 			UiCreateNewRoleSaveClick: &prehogv1a.UICreateNewRoleSaveClickEvent{
-				UserName: a.AnonymizeString(u.UserName),
+				UserName:                   a.AnonymizeString(u.UserName),
+				StandardUsed:               u.StandardUsed,
+				YamlUsed:                   u.YamlUsed,
+				ModeWhenSaved:              u.ModeWhenSaved,
+				FieldsWithConversionErrors: u.FieldsWithConversionErrors,
 			},
 		},
 	}
@@ -1395,7 +1430,11 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick:
 		return &UICreateNewRoleSaveClickEvent{
-			UserName: userMD.Username,
+			UserName:                   userMD.Username,
+			StandardUsed:               e.UiCreateNewRoleSaveClick.StandardUsed,
+			YamlUsed:                   e.UiCreateNewRoleSaveClick.YamlUsed,
+			ModeWhenSaved:              e.UiCreateNewRoleSaveClick.ModeWhenSaved,
+			FieldsWithConversionErrors: e.UiCreateNewRoleSaveClick.FieldsWithConversionErrors,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleCancelClick:
 		return &UICreateNewRoleCancelClickEvent{
@@ -1782,8 +1821,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
+		// This event is emitted both as an one-off event as well as an aggregated
+		// user activity record report.
 		ret := &AccessListGrantsToUserEvent{
-			UserName:                    userMD.Username,
+			UserName:                    e.AccessListGrantsToUser.GetUserName(),
 			CountRolesGranted:           e.AccessListGrantsToUser.CountRolesGranted,
 			CountTraitsGranted:          e.AccessListGrantsToUser.CountTraitsGranted,
 			CountInheritedRolesGranted:  e.AccessListGrantsToUser.CountInheritedRolesGranted,
@@ -1806,6 +1847,8 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
+		// This event is emitted both as an one-off event as well as an aggregated
+		// user activity record report.
 		ret := &AccessListReviewCreateEvent{
 			UserName: userMD.Username,
 			Metadata: &prehogv1a.AccessListMetadata{

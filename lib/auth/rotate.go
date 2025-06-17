@@ -133,7 +133,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,7 +183,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 // not usable because the auth server is configured to use HSMs that aren't
 // currently trusted.
 func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

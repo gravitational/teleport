@@ -49,7 +49,7 @@ type workloadIdentityCommands struct {
 func newWorkloadIdentityCommands(
 	app *kingpin.Application,
 ) workloadIdentityCommands {
-	cmd := app.Command("workload-identity", "Issue Workload Identity credentials")
+	cmd := app.Command("workload-identity", "Issue Workload Identity credentials.")
 	cmds := workloadIdentityCommands{
 		issueX509: newIssueX509Command(cmd),
 	}
@@ -71,7 +71,7 @@ func newIssueX509Command(parent *kingpin.CmdClause) *issueX509Command {
 
 	cmd.Flag(
 		"name-selector",
-		"The name of the workload identity to issue",
+		"The name of the workload identity to issue.",
 	).StringVar(&cmd.nameSelector)
 	cmd.Flag(
 		"label-selector",
@@ -177,12 +177,20 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 
 		// Write SVID
 		svidPath := filepath.Join(c.outputDirectory, svidPEMPath)
+		var svidPEM bytes.Buffer
+		pem.Encode(&svidPEM, &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: x509Credential.GetX509Svid().GetCert(),
+		})
+		for _, c := range x509Credential.GetX509Svid().GetChain() {
+			pem.Encode(&svidPEM, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: c,
+			})
+		}
 		err = os.WriteFile(
 			svidPath,
-			pem.EncodeToMemory(&pem.Block{
-				Type:  "CERTIFICATE",
-				Bytes: x509Credential.GetX509Svid().GetCert(),
-			}),
+			svidPEM.Bytes(),
 			teleport.FileMaskOwnerOnly,
 		)
 		if err != nil {

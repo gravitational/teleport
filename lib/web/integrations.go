@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -100,6 +101,21 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			},
 		}
 		if err := ig.SetCredentials(&cred); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		ig, err = types.NewIntegrationAWSRA(types.Metadata{
+			Name: req.Name,
+		}, &types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: req.Integration.AWSRA.TrustAnchorARN,
+			ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+				Enabled:    req.Integration.AWSRA.ProfileSyncConfig.Enabled,
+				ProfileARN: req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
+				RoleARN:    req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+			},
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -188,6 +204,23 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		}
 	}
 
+	if req.AWSRA != nil {
+		if integration.GetSubKind() != types.IntegrationSubKindAWSRolesAnywhere {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSRolesAnywhere, integration.GetSubKind())
+		}
+
+		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
+		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
+		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
+			Enabled:    req.AWSRA.ProfileSyncConfig.Enabled,
+			ProfileARN: req.AWSRA.ProfileSyncConfig.ProfileARN,
+			RoleARN:    req.AWSRA.ProfileSyncConfig.RoleARN,
+
+			ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
+		}
+		integration.SetAWSRolesAnywhereIntegrationSpec(spec)
+	}
+
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +245,11 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.DeleteIntegration(r.Context(), integrationName); err != nil {
+	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
+		Name:                      integrationName,
+		DeleteAssociatedResources: deleteAssociatedResources,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -277,8 +314,8 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 	return summary, nil
 }
 
-type userTasksByIntegrationLister interface {
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+type userTasksLister interface {
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 }
 
 type collectIntegrationStatsRequest struct {
@@ -287,7 +324,7 @@ type collectIntegrationStatsRequest struct {
 	discoveryConfigLister discoveryConfigLister
 	databaseGetter        databaseGetter
 	awsOIDCClient         deployedDatabaseServiceLister
-	userTasksClient       userTasksByIntegrationLister
+	userTasksClient       userTasksLister
 }
 
 func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsRequest) (*ui.IntegrationWithSummary, error) {
@@ -301,13 +338,25 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 
 	var nextPage string
 	for {
-		userTasks, nextToken, err := req.userTasksClient.ListUserTasksByIntegration(ctx, 0, nextPage, req.integration.GetName())
+		filters := &usertasksv1.ListUserTasksFilters{
+			Integration: req.integration.GetName(),
+			TaskState:   usertasks.TaskStateOpen,
+		}
+		userTasks, nextToken, err := req.userTasksClient.ListUserTasks(ctx, 0, nextPage, filters)
 		if err != nil {
 			return nil, err
 		}
+
+		ret.UnresolvedUserTasks += len(userTasks)
+
 		for _, userTask := range userTasks {
-			if userTask.GetSpec().GetState() == usertasks.TaskStateOpen {
-				ret.UnresolvedUserTasks++
+			switch userTask.GetSpec().GetTaskType() {
+			case usertasks.TaskTypeDiscoverEC2:
+				ret.AWSEC2.UnresolvedUserTasks++
+			case usertasks.TaskTypeDiscoverEKS:
+				ret.AWSEKS.UnresolvedUserTasks++
+			case usertasks.TaskTypeDiscoverRDS:
+				ret.AWSRDS.UnresolvedUserTasks++
 			}
 		}
 

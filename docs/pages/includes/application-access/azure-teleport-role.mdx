@@ -11,17 +11,22 @@ identities.
 |**Dynamic**|A Teleport role includes a template variable that grants a user access to all Azure identities assigned directly to them.|Local users, OIDC, SAML|
 |**Static**|A Teleport role explicitly specifies the Azure identities a user is allowed to assume.|Local users, OIDC, SAML, GitHub|
 
-<Notice type="tip">
+<Admonition type="tip">
 
 We recommend using the dynamic approach, since it scales well as you add
 Azure identities to your account. If you have configured a Teleport Community Edition
 cluster to authenticate users using GitHub SSO, you must use the static approach,
 as OAuth-based GitHub applications do not support custom claims.
 
-</Notice>
+</Admonition>
 
-<Tabs dropdownCaption="Approach">
-<TabItem options="Dynamic Identities" label="Local Users">
+### Dynamic identities
+
+If you are using the dynamic approach, the approach you choose depends on
+whether your Teleport user is a local user or an SSO user:
+
+<Tabs>
+<TabItem label="Local Users">
 
 Create a file called `azure-cli-access.yaml` with the following content:
 
@@ -71,7 +76,7 @@ $ tctl create -f azure-cli-access.yaml
 (!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
-<TabItem options="Dynamic Identities" label="SAML/OIDC Connectors">
+<TabItem label="SAML/OIDC Connectors">
 
 In your identity provider, define a custom SAML attribute or OIDC claim called
 `azure_identities`. Each user's `azure_identities` attribute or claim must be a
@@ -110,11 +115,13 @@ $ tctl create -f azure-cli-access.yaml
 (!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
-<TabItem options="Static Identities" label="All Authentication Methods">
+</Tabs>
 
-Define a role with access to specific Azure identities, which means that
-Teleport users who assume this role can use those (and only those) identities to
-execute commands via an Azure CLI.
+### Static identities
+
+If you are using static identities, define a role with access to specific Azure
+identities, which means that Teleport users who assume this role can use those
+(and only those) identities to execute commands via an Azure CLI.
 
 Create a file called `azure-cli-access.yaml` with the following content:
 
@@ -146,10 +153,8 @@ $ tctl create -f azure-cli-access.yaml
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-</TabItem>
-</Tabs>
-
-<Details title="Denying access to Azure identities">
+<details>
+<summary>Denying access to Azure identities</summary>
 
 You can define a Teleport role that denies a user access to one or more Azure
 identities. To do so, assign values to the `azure_identities` field within the
@@ -183,6 +188,6 @@ identities.
 The Teleport Auth Service gives `deny` rules precedence over `allow` rules when
 evaluating a user's roles.
 
-</Details>
+</details>
 
 (!docs/pages/includes/add-role-to-user.mdx role="azure-cli-access"!)

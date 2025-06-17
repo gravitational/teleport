@@ -21,11 +21,11 @@ import styled from 'styled-components';
 export const StepTitle = styled.div`
   display: flex;
   align-items: center;
+  font-size: ${p => p.theme.fontSizes[1]}px;
 `;
 
 export const StepsContainer = styled.div<{ active?: boolean }>`
   display: flex;
-  flex-direction: column;
   color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
   margin-right: ${p => p.theme.space[5]}px;
   position: relative;

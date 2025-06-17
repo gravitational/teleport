@@ -107,6 +107,11 @@ type Config struct {
 	// with 3rd party S3-compatible services out of the box.
 	// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html for more details.
 	UseVirtualStyleAddressing bool
+
+	// CompleteInitiators configures the S3 uploader to only complete
+	// uplpoads initiated by the specified set of initiators. If unspecified,
+	// the upload completer will attempt to complete all uploads in the bucket.
+	CompleteInitiators []string
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -167,6 +172,8 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		// Default to false for backwards compatibility
 		s.UseVirtualStyleAddressing = false
 	}
+
+	s.CompleteInitiators = in.Query()[teleport.S3CompleteInitiators]
 
 	s.Region = region
 	s.Bucket = in.Host
@@ -304,7 +311,7 @@ type Handler struct {
 	logger     *slog.Logger
 	uploader   *manager.Uploader
 	downloader *manager.Downloader
-	client     *s3.Client
+	client     s3Client
 }
 
 // Close releases connection and resources associated with log if any
@@ -467,8 +474,9 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	}
 
 	input := &s3.CreateBucketInput{
-		Bucket: aws.String(h.Bucket),
-		ACL:    awstypes.BucketCannedACLPrivate,
+		Bucket:                    aws.String(h.Bucket),
+		ACL:                       awstypes.BucketCannedACLPrivate,
+		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
 	}
 	_, err = h.client.CreateBucket(ctx, input)
 	if err := awsutils.ConvertS3Error(err); err != nil {

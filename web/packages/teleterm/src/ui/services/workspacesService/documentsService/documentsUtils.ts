@@ -20,10 +20,13 @@ import { ComponentType } from 'react';
 
 import {
   Application,
+  Broadcast,
   Database,
+  Desktop,
   Kubernetes,
   Laptop,
   ListAddCheck,
+  ListMagnifyingGlass,
   Server,
   ShieldCheck,
   Table,
@@ -38,11 +41,7 @@ import {
   routing,
 } from 'teleterm/ui/uri';
 
-import {
-  Document,
-  DocumentGateway,
-  isDocumentTshNodeWithServerId,
-} from './types';
+import { Document, DocumentGateway } from './types';
 
 /**
  * getResourceUri returns the URI of the cluster resource that is the subject of the document.
@@ -63,11 +62,7 @@ export function getResourceUri(
     case 'doc.gateway_kube':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
-      return isDocumentTshNodeWithServerId(document)
-        ? document.serverUri
-        : undefined;
-    case 'doc.terminal_tsh_kube':
-      return document.kubeUri;
+      return document.serverUri;
     case 'doc.access_requests':
       return document.clusterUri;
     case 'doc.terminal_shell':
@@ -79,6 +74,12 @@ export function getResourceUri(
       return document.rootClusterUri;
     case 'doc.authorize_web_session':
       return document.rootClusterUri;
+    case 'doc.vnet_diag_report':
+      return document.rootClusterUri;
+    case 'doc.vnet_info':
+      return document.rootClusterUri;
+    case 'doc.desktop_session':
+      return document.desktopUri;
     case 'doc.blank':
       return undefined;
     default:
@@ -169,12 +170,10 @@ export function getStaticNameAndIcon(
         Icon: Kubernetes,
       };
     case 'doc.terminal_tsh_node':
-      return isDocumentTshNodeWithServerId(document)
-        ? {
-            name: document.title,
-            Icon: Server,
-          }
-        : undefined;
+      return {
+        name: document.title,
+        Icon: Server,
+      };
     case 'doc.access_requests':
       return {
         name: document.title,
@@ -195,8 +194,22 @@ export function getStaticNameAndIcon(
         name: document.title,
         Icon: ShieldCheck,
       };
+    case 'doc.vnet_diag_report':
+      return {
+        name: document.title,
+        Icon: ListMagnifyingGlass,
+      };
+    case 'doc.vnet_info':
+      return {
+        name: document.title,
+        Icon: Broadcast,
+      };
+    case 'doc.desktop_session':
+      return {
+        name: document.title,
+        Icon: Desktop,
+      };
     case 'doc.blank':
-    case 'doc.terminal_tsh_kube':
       return undefined;
     default:
       document satisfies never;

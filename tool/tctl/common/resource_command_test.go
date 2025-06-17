@@ -46,6 +46,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -1461,6 +1462,13 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
 		},
+		{
+			kind:   types.KindHealthCheckConfig,
+			create: testCreateHealthCheckConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: health_check_config")
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1813,8 +1821,8 @@ version: v1
 	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
@@ -2098,8 +2106,8 @@ version: v1
 	var expected databaseobject.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
@@ -2166,6 +2174,7 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
+  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
@@ -2221,7 +2230,7 @@ spec:
   acs: test
   audience: test
   issuer: test
-  sso: test
+  sso: https://example.com
   service_provider_issuer: test
   display: SAML
   attributes_to_roles:
@@ -2242,8 +2251,8 @@ spec:
         </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>` + "\n"
 
@@ -2374,11 +2383,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateConfig
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateConfig
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2419,11 +2428,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateVersion
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateVersion
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2475,11 +2484,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateAgentRollout
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateAgentRollout
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2532,6 +2541,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2557,6 +2568,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2573,6 +2586,118 @@ func TestPluginResourceWrapper(t *testing.T) {
 							AccessToken:  "token",
 							RefreshToken: "refresh_token",
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "identity center",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: apicommon.OriginAWSIdentityCenter,
+					Labels: map[string]string{
+						"teleport.dev/hosted-plugin": "true",
+					},
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_AwsIc{
+						AwsIc: &types.PluginAWSICSettings{
+							Credentials: &types.AWSICCredentials{
+								Source: &types.AWSICCredentials_System{
+									System: &types.AWSICCredentialSourceSystem{},
+								},
+							},
+							Region: "ap-south-2",
+							Arn:    "some:arn",
+							ProvisioningSpec: &types.AWSICProvisioningSpec{
+								BaseUrl: "https://scim.example.com/v2",
+							},
+							AccessListDefaultOwners: []string{"root"},
+							UserSyncFilters: []*types.AWSICUserSyncFilter{
+								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
+								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
+							},
+							GroupSyncFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
+								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
+							},
+							AwsAccountsFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
+							},
+						},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Code: types.PluginStatusCode_RUNNING,
+					Details: &types.PluginStatusV1_AwsIc{
+						AwsIc: &types.PluginAWSICStatusV1{
+							GroupImportStatus: &types.AWSICGroupImportStatus{
+								StatusCode: types.AWSICGroupImportStatusCode_DONE,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "entra_id",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "entra_id",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_EntraId{
+						EntraId: &types.PluginEntraIDSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_EntraId{
+						EntraId: &types.PluginEntraIDStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "gitlab",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "gitlab",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Gitlab{
+						Gitlab: &types.PluginGitlabSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "net_iq",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "net_iq",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_NetIq{
+						NetIq: &types.PluginNetIQSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_NetIq{
+						NetIq: &types.PluginNetIQStatusV1{},
 					},
 				},
 			},

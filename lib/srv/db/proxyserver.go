@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,7 +60,7 @@ type ProxyServer struct {
 	// cfg is the proxy server configuration.
 	cfg ProxyServerConfig
 	// middleware extracts identity information from client certificates.
-	middleware *auth.Middleware
+	middleware *authz.Middleware
 	// closeCtx is closed when the process shuts down.
 	closeCtx context.Context
 	// log is used for logging.
@@ -79,7 +78,7 @@ type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
 	AuthClient *authclient.Client
 	// AccessPoint is the caching client connected to the auth server.
-	AccessPoint authclient.ReadDatabaseAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
@@ -158,14 +157,14 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 		return nil, trace.Wrap(err)
 	}
 
-	clustername, err := config.AccessPoint.GetClusterName()
+	clustername, err := config.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	server := &ProxyServer{
 		cfg: config,
-		middleware: &auth.Middleware{
+		middleware: &authz.Middleware{
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
@@ -544,7 +543,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	}, nil
 }
 
-func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(ctx context.Context, conf *tls.Config, caGetter authclient.CAGetter, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -554,7 +553,7 @@ func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.Rea
 				log.DebugContext(ctx, "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caType)
+		pool, _, err := authclient.ClientCertPool(info.Context(), caGetter, clusterName, caType)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to retrieve client CA pool.", "error", err)
 			return nil, nil // Fall back to the default config.

@@ -24,6 +24,10 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
+import type { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
+import type { ConnectToDesktopResponse } from "./service_pb";
+import type { ConnectToDesktopRequest } from "./service_pb";
 import type { GetAppResponse } from "./service_pb";
 import type { GetAppRequest } from "./service_pb";
 import type { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -87,8 +91,8 @@ import type { GetAccessRequestResponse } from "./service_pb";
 import type { GetAccessRequestRequest } from "./service_pb";
 import type { GetAccessRequestsResponse } from "./service_pb";
 import type { GetAccessRequestsRequest } from "./service_pb";
-import type { GetServersResponse } from "./service_pb";
-import type { GetServersRequest } from "./service_pb";
+import type { ListDatabaseServersResponse } from "./service_pb";
+import type { ListDatabaseServersRequest } from "./service_pb";
 import type { ListDatabaseUsersResponse } from "./service_pb";
 import type { ListDatabaseUsersRequest } from "./service_pb";
 import type { StartHeadlessWatcherResponse } from "./service_pb";
@@ -150,14 +154,11 @@ export interface ITerminalServiceClient {
      */
     listDatabaseUsers(input: ListDatabaseUsersRequest, options?: RpcOptions): UnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
     /**
-     * GetServers returns filtered, sorted, and paginated servers
+     * ListDatabaseServers lists allowed users for the given database based on the role set.
      *
-     * Deprecated: Use ListUnifiedResources instead.
-     *
-     * @deprecated
-     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
      */
-    getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse>;
+    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
     /**
      * GetAccessRequests lists filtered AccessRequests
      *
@@ -403,6 +404,23 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse>;
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
+    /**
+     * SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+     * If there is no active desktop session associated with the specified desktop_uri and login,
+     * the RPC returns an error.
+     *
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
+     */
+    setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -473,16 +491,13 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<ListDatabaseUsersRequest, ListDatabaseUsersResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * GetServers returns filtered, sorted, and paginated servers
+     * ListDatabaseServers lists allowed users for the given database based on the role set.
      *
-     * Deprecated: Use ListUnifiedResources instead.
-     *
-     * @deprecated
-     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
      */
-    getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse> {
+    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse> {
         const method = this.methods[5], opt = this._transport.mergeOptions(options);
-        return stackIntercept<GetServersRequest, GetServersResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<ListDatabaseServersRequest, ListDatabaseServersResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetAccessRequests lists filtered AccessRequests
@@ -833,5 +848,28 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse> {
         const method = this.methods[40], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAppRequest, GetAppResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse> {
+        const method = this.methods[41], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ConnectToDesktopRequest, ConnectToDesktopResponse>("duplex", this._transport, method, opt);
+    }
+    /**
+     * SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+     * If there is no active desktop session associated with the specified desktop_uri and login,
+     * the RPC returns an error.
+     *
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
+     */
+    setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
+        const method = this.methods[42], opt = this._transport.mergeOptions(options);
+        return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
     }
 }

@@ -563,9 +563,9 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 				require.Equal(t, tt.wantIterations, iterations)
 				require.Len(t, fetched, 49)
 				for _, created := range createdObjects {
-					slices.ContainsFunc(fetched, func(federation *machineidv1pb.SPIFFEFederation) bool {
+					require.True(t, slices.ContainsFunc(fetched, func(federation *machineidv1pb.SPIFFEFederation) bool {
 						return proto.Equal(created, federation)
-					})
+					}))
 				}
 			}
 		})

@@ -48,7 +48,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:
@@ -68,6 +68,10 @@ jobs:
 
       - name: Run terraform provider OSS tests
         run: make test-terraform-provider
+        timeout-minutes: 15
+
+      - name: Run terraform provider OSS tests
+        run: make test-terraform-provider-mwi
         timeout-minutes: 15
 
       - name: Run integrations event-handler tests

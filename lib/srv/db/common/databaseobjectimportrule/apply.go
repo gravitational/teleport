@@ -20,6 +20,7 @@ import (
 	"context"
 	"log/slog"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -276,7 +277,7 @@ func matchPattern(pattern, value string) bool {
 }
 
 func matchAny(patterns []string, value string) bool {
-	return utils.Any(patterns, func(pattern string) bool {
+	return slices.ContainsFunc(patterns, func(pattern string) bool {
 		return matchPattern(pattern, value)
 	})
 }

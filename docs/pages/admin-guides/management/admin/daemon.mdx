@@ -19,15 +19,14 @@ $ readlink /sbin/init
 /lib/systemd/systemd
 ```
 
-<Notice
+<Admonition
   type="danger"
-  scope={["oss", "enterprise"]}
 >
 
-  Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin
-  users do not have access to this folder on the Auth Service host.
+  Teleport stores data in a directory that is located at `/var/lib/teleport` by default. Make sure that regular/non-admin
+  users do not have access to the data directory used by the `teleport` process.
 
-</Notice>
+</Admonition>
 
 ## Step 1/3. Install and configure Teleport
 

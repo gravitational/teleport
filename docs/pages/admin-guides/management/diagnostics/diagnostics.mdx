@@ -76,11 +76,11 @@ metrics that Teleport tracks. It is compatible with [Prometheus](https://prometh
 
 The following metrics are available:
 
-<Notice scope={["cloud"]} type="tip">
+<Admonition scope={["cloud"]} type="tip">
 
     Teleport Cloud does not expose monitoring endpoints for the Auth Service and Proxy Service.
 
-</Notice>
+</Admonition>
 
 (!docs/pages/includes/metrics.mdx!)
 
@@ -102,7 +102,7 @@ For a detailed description of these configuration fields, see the [configuration
 
 ```yaml
 tracing_service:
-   enabled: yes
+   enabled: true
    exporter_url: grpc://collector.example.com:4317
    sampling_rate_per_million: 1000000
 ```

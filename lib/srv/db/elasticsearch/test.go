@@ -24,9 +24,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
+	"strings"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -114,18 +115,44 @@ func (s *TestServer) Close() error {
 	return s.listener.Close()
 }
 
-// MakeTestClient returns Redis client connection according to the provided
-// parameters.
-func MakeTestClient(_ context.Context, config common.TestClientConfig) (*elasticsearch.Client, error) {
-	es, err := elasticsearch.NewClient(elasticsearch.Config{
-		Addresses: []string{"http://" + config.Address},
-	})
+type TestClient struct {
+	addr string
+}
 
+func (t TestClient) Ping() (*http.Response, error) {
+	u := url.URL{
+		Scheme: "http",
+		Host:   t.addr,
+		Path:   "/",
+	}
+	req, err := http.NewRequest(http.MethodHead, u.String(), http.NoBody)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
-	return es, nil
+	return http.DefaultClient.Do(req)
+}
+
+func (t TestClient) Query(q string) (*http.Response, error) {
+	u := url.URL{
+		Scheme: "http",
+		Host:   t.addr,
+		Path:   "/_sql",
+	}
+	req, err := http.NewRequest(http.MethodGet, u.String(), strings.NewReader(q))
+	if err != nil {
+		return nil, err
+	}
+
+	return http.DefaultClient.Do(req)
+}
+
+// MakeTestClient returns Redis client connection according to the provided
+// parameters.
+func MakeTestClient(_ context.Context, config common.TestClientConfig) (*TestClient, error) {
+	return &TestClient{
+		addr: config.Address,
+	}, nil
 }
 
 const (

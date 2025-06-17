@@ -22,7 +22,6 @@ import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
 
 export type AuthProviderType = shared.AuthProviderType;
-export type AuthType = shared.AuthType;
 
 export type AuthProvider = tsh.AuthProvider;
 
@@ -52,8 +51,6 @@ export type LoginParams =
   | LoginPasswordlessParams
   | LoginSsoParams;
 
-export type LoginPasswordlessRequest = tsh.LoginPasswordlessRequest;
-
 export type PasswordlessLoginPrompt =
   | { type: 'tap' }
   | { type: 'retap' }
@@ -63,12 +60,6 @@ export type PasswordlessLoginPrompt =
       data: { credentials: tsh.CredentialInfo[] };
       onUserResponse(index: number): void;
     };
-
-export interface AuthSettings extends tsh.AuthSettings {
-  authType: AuthType;
-  allowPasswordless: boolean;
-  localConnectorName: string;
-}
 
 export type ClustersServiceState = {
   clusters: Map<

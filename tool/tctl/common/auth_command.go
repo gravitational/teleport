@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -51,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -220,6 +220,7 @@ var allowedCertificateTypes = []string{
 	"openssh",
 	"saml-idp",
 	"github",
+	"awsra",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -301,7 +302,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI authCommandCl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -335,7 +336,7 @@ type certificateSigner interface {
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 	GetProxies() ([]types.Server, error)
@@ -399,26 +400,20 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 			strings.Join(missingFlags, ", "))
 	}
 
-	cn, err := clusterAPI.GetClusterName()
+	cn, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	domain := a.windowsDomain
-	if a.windowsPKIDomain != "" {
-		domain = a.windowsPKIDomain
-	}
-
-	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
+		PKIDomain:          a.windowsPKIDomain,
 		ActiveDirectorySID: a.windowsSID,
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
-		LDAPConfig:         windows.LDAPConfig{Domain: domain},
 		OmitCDP:            a.omitCDP,
-		AuthClient:         clusterAPI,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -446,7 +441,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName()
+	cn, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -535,12 +530,12 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName()
+	cn, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -895,7 +890,7 @@ func generateKeyRing(ctx context.Context, clusterAPI certificateSigner, purpose 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -934,7 +929,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			return trace.Wrap(err)
 		}
 	} else {
-		cn, err := clusterAPI.GetClusterName()
+		cn, err := clusterAPI.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

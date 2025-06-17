@@ -42,7 +42,7 @@ func TestGetSPIFFEBundle(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	authServer := env.server.Auth()
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,

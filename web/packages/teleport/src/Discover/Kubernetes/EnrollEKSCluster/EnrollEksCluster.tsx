@@ -17,7 +17,6 @@
  */
 
 import { useCallback, useState } from 'react';
-import styled from 'styled-components';
 
 import {
   Box,
@@ -70,7 +69,7 @@ import {
 import { useV1Fallback } from 'teleport/services/version/unsupported';
 import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons, Header, LabelsCreater } from '../../Shared';
+import { ActionButtons, Header, LabelsCreater, StyledBox } from '../../Shared';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 import { ClustersList } from './EksClustersList';
 import { EnrollmentDialog } from './EnrollmentDialog';
@@ -654,10 +653,3 @@ export function EnrollEksCluster(props: AgentStepProps) {
     </Box>
   );
 }
-
-const StyledBox = styled(Box)`
-  max-width: 1000px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  padding: ${props => `${props.theme.space[3]}px`};
-  border-radius: ${props => `${props.theme.space[2]}px`};
-`;

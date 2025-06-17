@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,7 @@ func TestProxyVersionClient(t *testing.T) {
 		name            string
 		pong            *webclient.PingResponse
 		pongErr         error
-		expectedVersion string
+		expectedVersion *semver.Version
 		expectErr       require.ErrorAssertionFunc
 	}{
 		{
@@ -54,7 +55,7 @@ func TestProxyVersionClient(t *testing.T) {
 					AgentVersion: "1.2.3",
 				},
 			},
-			expectedVersion: "v1.2.3",
+			expectedVersion: semver.Must(EnsureSemver("1.2.3")),
 			expectErr:       require.NoError,
 		},
 		{
@@ -64,7 +65,7 @@ func TestProxyVersionClient(t *testing.T) {
 					AgentVersion: "v1.2.3",
 				},
 			},
-			expectedVersion: "v1.2.3",
+			expectedVersion: semver.Must(EnsureSemver("1.2.3")),
 			expectErr:       require.NoError,
 		},
 		{
@@ -74,7 +75,7 @@ func TestProxyVersionClient(t *testing.T) {
 					AgentVersion: "1.2.3-dev.bartmoss.1",
 				},
 			},
-			expectedVersion: "v1.2.3-dev.bartmoss.1",
+			expectedVersion: semver.Must(EnsureSemver("v1.2.3-dev.bartmoss.1")),
 			expectErr:       require.NoError,
 		},
 		{
@@ -84,13 +85,13 @@ func TestProxyVersionClient(t *testing.T) {
 					AgentVersion: "v",
 				},
 			},
-			expectedVersion: "",
+			expectedVersion: nil,
 			expectErr:       require.Error,
 		},
 		{
 			name:            "empty response",
 			pong:            &webclient.PingResponse{},
-			expectedVersion: "",
+			expectedVersion: nil,
 			expectErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.NotImplemented("proxy does not seem to implement RFD-184"))
 			},

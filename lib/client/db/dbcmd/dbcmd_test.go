@@ -61,11 +61,11 @@ func (f fakeExec) LookPath(path string) (string, error) {
 
 func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
-		HomePath:     t.TempDir(),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -332,7 +332,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd: []string{"mongo",
 				"--ssl",
 				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 			wantErr: false,
 		},
@@ -347,7 +347,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongo",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 			wantErr: false,
 		},
@@ -365,7 +365,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
 				"--tlsUseSystemCA",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -385,7 +385,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
 				"--tlsCAFile", "/tmp/keys/example.com/cas/example.com.pem",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -399,7 +399,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongosh",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -411,7 +411,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				execOutput: map[string][]byte{}, // Cannot find either bin.
 			},
 			cmd: []string{"mongosh",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -427,7 +427,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongo",
-				"mongodb://localhost:12345/docdb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/docdb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 			wantErr: false,
 		},
@@ -442,7 +442,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongosh",
-				"mongodb://localhost:12345/docdb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/docdb?directConnection=true&serverSelectionTimeoutMS=5000",
 				"--retryWrites=false",
 			},
 			wantErr: false,
@@ -801,11 +801,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 
 func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	conf := &client.Config{
-		HomePath:     t.TempDir(),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -970,13 +970,12 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 
 func TestConvertCommandError(t *testing.T) {
 	t.Parallel()
-	homePath := t.TempDir()
 	conf := &client.Config{
-		HomePath:     homePath,
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -985,7 +984,6 @@ func TestConvertCommandError(t *testing.T) {
 	profile := &client.ProfileStatus{
 		Name:     "example.com",
 		Username: "bob",
-		Dir:      homePath,
 		Cluster:  "example.com",
 	}
 

@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"sort"
 	"time"
 
@@ -66,6 +67,10 @@ type Backend interface {
 
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key Key) (*Item, error)
+
+	// Items produces an iterator of backend items in the range, and order
+	// described in the provided [ItemsParams].
+	Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error]
 
 	// GetRange returns the items between the start and end keys, including both
 	// (if present).
@@ -111,6 +116,23 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
+}
+
+// ItemsParams are parameters that are provided to
+// [BackendWithItems.Items] to alter the iteration behavior.
+type ItemsParams struct {
+	// StartKey is the minimum key in the range yielded by the iteration. This key
+	// will be included in the results if it exists.
+	StartKey Key
+	// EndKey is the maximum key in the range yielded by the iteration. This key
+	// will be included in the results if it exists.
+	EndKey Key
+	// Descending makes the iteration yield items from the biggest to the smallest
+	// key (i.e. from EndKey to StartKey). If unset, the iteration will proceed in the
+	// usual ascending order (i.e. from StartKey to EndKey).
+	Descending bool
+	// Limit is an optional maximum number of items to retrieve during iteration.
+	Limit int
 }
 
 // New initializes a new [Backend] implementation based on the service config.
@@ -167,18 +189,21 @@ func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit i
 // 2. allow individual backends to expose custom streaming methods s.t. the most performant
 // impl for a given backend may be used.
 func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize int) stream.Stream[Item] {
-	return stream.PageFunc[Item](func() ([]Item, error) {
-		if startKey.components == nil {
+	var done bool
+	return stream.PageFunc(func() ([]Item, error) {
+		if done {
 			return nil, io.EOF
 		}
-		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize+1)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(rslt.Items) < pageSize {
-			startKey = Key{}
+		if len(rslt.Items) > pageSize {
+			startKey = rslt.Items[pageSize].Key
+			clear(rslt.Items[pageSize:])
+			rslt.Items = rslt.Items[:pageSize]
 		} else {
-			startKey = nextKey(rslt.Items[pageSize-1].Key)
+			done = true
 		}
 		return rslt.Items, nil
 	})
@@ -298,10 +323,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// nextKey returns the next possible key.
-// If used with a key prefix, this will return
-// the end of the range for that key prefix.
-func nextKey(key Key) Key {
+const noEnd = "\x00"
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key Key) Key {
 	end := make([]byte, len(key.s))
 	copy(end, key.s)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -315,13 +340,6 @@ func nextKey(key Key) Key {
 	return Key{noEnd: true}
 }
 
-var noEnd = []byte{0}
-
-// RangeEnd returns end of the range for given key.
-func RangeEnd(key Key) Key {
-	return nextKey(key)
-}
-
 // HostID is a derivation of a KeyedItem that allows the host id
 // to be included in the key.
 type HostID interface {
@@ -332,20 +350,6 @@ type HostID interface {
 // KeyedItem represents an item from which a pagination key can be derived.
 type KeyedItem interface {
 	GetName() string
-}
-
-// NextPaginationKey returns the next pagination key.
-// For items that implement HostID, the next key will also
-// have the HostID part.
-func NextPaginationKey(ki KeyedItem) string {
-	var key Key
-	if h, ok := ki.(HostID); ok {
-		key = internalKey(h.GetHostID(), h.GetName())
-	} else {
-		key = NewKey(ki.GetName())
-	}
-
-	return nextKey(key).String()
 }
 
 // GetPaginationKey returns the pagination key given item.

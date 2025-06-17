@@ -18,6 +18,8 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.vnet.v1;
 
+import "teleport/lib/vnet/diag/v1/diag.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1";
 
 // VnetService provides methods to manage a VNet instance.
@@ -94,4 +96,6 @@ enum BackgroundItemStatus {
 message RunDiagnosticsRequest {}
 
 // Response for RunDiagnostics.
-message RunDiagnosticsResponse {}
+message RunDiagnosticsResponse {
+  teleport.lib.vnet.diag.v1.Report report = 1;
+}

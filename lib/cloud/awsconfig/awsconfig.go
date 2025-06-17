@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -80,6 +81,9 @@ type AssumeRole struct {
 	// Tags is a list of STS session tags to pass when assuming the role.
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html
 	Tags map[string]string `json:"tags,omitempty"`
+	// Duration is the expiry duration of the generated credentials. Empty
+	// value will use the AWS SDK default expiration time.
+	Duration time.Duration `json:"duration,omitempty"`
 }
 
 // options is a struct of additional options for assuming an AWS role
@@ -102,6 +106,8 @@ type options struct {
 	maxRetries *int
 	// stsClientProvider sets the STS assume role client provider func.
 	stsClientProvider STSClientProviderFunc
+	// baseCredentials is the base config used to assume the roles.
+	baseCredentials aws.CredentialsProvider
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -116,20 +122,22 @@ func buildOptions(optFns ...OptionsFn) (*options, error) {
 }
 
 func (o *options) checkAndSetDefaults() error {
-	switch o.credentialsSource {
-	case credentialsSourceAmbient:
-		if o.integration != "" {
-			return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+	if o.baseCredentials == nil {
+		switch o.credentialsSource {
+		case credentialsSourceAmbient:
+			if o.integration != "" {
+				return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+			}
+		case credentialsSourceIntegration:
+			if o.integration == "" {
+				return trace.BadParameter("missing integration name")
+			}
+			if o.oidcIntegrationClient == nil {
+				return trace.BadParameter("missing AWS OIDC integration client")
+			}
+		default:
+			return trace.BadParameter("missing credentials source (ambient or integration)")
 		}
-	case credentialsSourceIntegration:
-		if o.integration == "" {
-			return trace.BadParameter("missing integration name")
-		}
-		if o.oidcIntegrationClient == nil {
-			return trace.BadParameter("missing AWS OIDC integration client")
-		}
-	default:
-		return trace.BadParameter("missing credentials source (ambient or integration)")
 	}
 	if len(o.assumeRoles) > 2 {
 		return trace.BadParameter("role chain contains more than 2 roles")
@@ -231,6 +239,14 @@ func WithOIDCIntegrationClient(c OIDCIntegrationClient) OptionsFn {
 	}
 }
 
+// WithBaseCredentialsProvider sets the base provider credentials used for the
+// assumed roles.
+func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider) OptionsFn {
+	return func(o *options) {
+		o.baseCredentials = baseCredentialsProvider
+	}
+}
+
 // GetConfig returns an AWS config for the specified region, optionally
 // assuming AWS IAM Roles.
 func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
@@ -274,6 +290,10 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 
 // getBaseConfig returns an AWS config without assuming any roles.
 func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
+	if opts.baseCredentials != nil {
+		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
+	}
+
 	slog.DebugContext(ctx, "Initializing AWS config from default credential chain",
 		"region", region,
 	)
@@ -326,6 +346,7 @@ func getAssumeRoleProvider(ctx context.Context, clt stscreds.AssumeRoleAPIClient
 			aro.ExternalID = aws.String(role.ExternalID)
 		}
 		aro.RoleSessionName = maybeHashRoleSessionName(role.SessionName)
+		aro.Duration = role.Duration
 		for k, v := range role.Tags {
 			aro.Tags = append(aro.Tags, ststypes.Tag{
 				Key:   aws.String(k),

@@ -128,7 +128,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			ctx,
 			&labels.DynamicConfig{
 				Labels: cfg.cluster.GetDynamicLabels(),
-				// TODO: pass cfg.log through after it is converted to slog
+				Log:    cfg.log,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -256,10 +256,6 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKind {
 	k.rwMu.RLock()
 	defer k.rwMu.RUnlock()
-	// kube doesn't use core but teleport does.
-	if resource.apiGroup == "core" {
-		resource.apiGroup = ""
-	}
 	return k.gvkSupportedResources[gvkSupportedResourcesKey{
 		name:     strings.Split(resource.resourceKind, "/")[0],
 		apiGroup: resource.apiGroup,

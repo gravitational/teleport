@@ -187,7 +187,7 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 // Update updates cloud metadata of the provided database.
 func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSOracle:
 		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
 	case types.DatabaseTypeRDSProxy:
 		return m.updateAWS(ctx, database, m.fetchRDSProxyMetadata)

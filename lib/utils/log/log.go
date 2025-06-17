@@ -31,60 +31,42 @@ import (
 
 // Config configures teleport logging
 type Config struct {
-	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
-	// a path to a log file
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout",
+	// "syslog" (on Linux), "os_log" (on macOS) or a path to a log file.
 	Output string
 	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string
-	// Format defines the output format. Possible values are 'text' and 'json'.
+	// Format defines the output format. Possible values are 'text' and 'json'. Ignored when Output is
+	// set to "os_log" which always uses text format.
 	Format string
-	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller]
+	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller].
+	// Used only when Format is set to "text" or "json".
 	ExtraFields []string
-	// EnableColors dictates if output should be colored.
+	// EnableColors dictates if output should be colored when Format is set to "text".
 	EnableColors bool
-	// Padding to use for various components.
+	// Padding to use for various components when Format is set to "text".
 	Padding int
+	// OSLogSubsystem is the subsystem under which logs will be visible in os_log if Output is set to
+	// "os_log". If used from within a packaged app, this should include the identifier of the app in
+	// reverse DNS notation, e.g., "com.goteleport.tshdev", "com.goteleport.tshdev.vnet".
+	OSLogSubsystem string
 }
+
+const (
+	// LogOutputSyslog represents syslog as the destination for logs.
+	LogOutputSyslog = "syslog"
+	// LogOutputOSLog represents os_log, the unified logging system on macOS, as the destination for logs.
+	LogOutputOSLog = "os_log"
+	// LogOutputMCP defines to where the MCP command logs will be directed to.
+	// The stdout is exclusively used as the MCP server transport, leaving only
+	// stderr available.
+	LogOutputMCP = "stderr"
+)
 
 // Initialize configures the default global logger based on the
 // provided configuration. The [slog.Logger] and [slog.LevelVar]
 func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
-	const (
-		// logFileDefaultMode is the preferred permissions mode for log file.
-		logFileDefaultMode fs.FileMode = 0o644
-		// logFileDefaultFlag is the preferred flags set to log file.
-		logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
-	)
-
-	var w io.Writer
 	level := new(slog.LevelVar)
-	switch loggerConfig.Output {
-	case "":
-		w = os.Stderr
-	case "stderr", "error", "2":
-		w = os.Stderr
-	case "stdout", "out", "1":
-		w = os.Stdout
-	case teleport.Syslog:
-		var err error
-		w, err = NewSyslogWriter()
-		if err != nil {
-			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
-			slog.SetDefault(slog.New(DiscardHandler{}))
-			return slog.Default(), level, nil
-		}
-	default:
-		// Assume a file path for all other provided output values.
-		sharedWriter, err := NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
-		if err != nil {
-			return nil, nil, trace.Wrap(err, "failed to init the log file shared writer")
-		}
-		w = NewWriterFinalizer(sharedWriter)
-		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
 		level.Set(slog.LevelInfo)
@@ -100,13 +82,65 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 		return nil, nil, trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
+	if loggerConfig.Output == LogOutputOSLog {
+		if loggerConfig.OSLogSubsystem == "" {
+			return nil, nil, trace.BadParameter("OSLogSubsystem must be set when using os_log as output")
+		}
+
+		//nolint:staticcheck // SA4023. NewSlogOSLogHandler on unsupported platforms always returns err.
+		handler, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
+		//nolint:staticcheck // SA4023.
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		logger := slog.New(handler)
+		slog.SetDefault(logger)
+		return logger, level, nil
+	}
+
+	const (
+		// logFileDefaultMode is the preferred permissions mode for log file.
+		logFileDefaultMode fs.FileMode = 0o644
+		// logFileDefaultFlag is the preferred flags set to log file.
+		logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	)
+
+	var w io.Writer
+	switch loggerConfig.Output {
+	case "":
+		w = os.Stderr
+	case "stderr", "error", "2":
+		w = os.Stderr
+	case "stdout", "out", "1":
+		w = os.Stdout
+	case LogOutputSyslog:
+		var err error
+		w, err = NewSyslogWriter()
+		if err != nil {
+			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
+			slog.SetDefault(slog.New(slog.DiscardHandler))
+			return slog.Default(), level, nil
+		}
+	default:
+		// Assume a file path for all other provided output values.
+		sharedWriter, err := NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "failed to init the log file shared writer")
+		}
+		w = NewWriterFinalizer(sharedWriter)
+		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	configuredFields, err := ValidateFields(loggerConfig.ExtraFields)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
+	format := strings.ToLower(loggerConfig.Format)
 	var logger *slog.Logger
-	switch strings.ToLower(loggerConfig.Format) {
+	switch format {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":

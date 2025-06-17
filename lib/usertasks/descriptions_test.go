@@ -27,13 +27,15 @@ import (
 )
 
 func TestAllDescriptions(t *testing.T) {
-	for _, issueType := range usertasksapi.DiscoverEC2IssueTypes {
-		require.NotEmpty(t, DescriptionForDiscoverEC2Issue(issueType), "issue type %q is missing descriptions/%s.md file", issueType, issueType)
-	}
-	for _, issueType := range usertasksapi.DiscoverEKSIssueTypes {
-		require.NotEmpty(t, DescriptionForDiscoverEKSIssue(issueType), "issue type %q is missing descriptions/%s.md file", issueType, issueType)
-	}
-	for _, issueType := range usertasksapi.DiscoverRDSIssueTypes {
-		require.NotEmpty(t, DescriptionForDiscoverRDSIssue(issueType), "issue type %q is missing descriptions/%s.md file", issueType, issueType)
+	for _, issueGroup := range [][]string{
+		usertasksapi.DiscoverEC2IssueTypes,
+		usertasksapi.DiscoverEKSIssueTypes,
+		usertasksapi.DiscoverRDSIssueTypes,
+	} {
+		for _, issueType := range issueGroup {
+			title, description := DescriptionForDiscoverEC2Issue(issueType)
+			require.NotEmpty(t, title, "issue type %q is missing title in descriptions/%s.md file", issueType, issueType)
+			require.NotEmpty(t, description, "issue type %q is missing description in descriptions/%s.md file", issueType, issueType)
+		}
 	}
 }

@@ -21,7 +21,6 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -72,7 +71,6 @@ func (cfg *IdentityCenterServiceConfig) CheckAndSetDefaults() error {
 // IdentityCenterService handles low-level CRUD operations for the identity-
 // center related resources
 type IdentityCenterService struct {
-	identitycenterv1.UnimplementedIdentityCenterServiceServer
 	accounts             *generic.ServiceWrapper[*identitycenterv1.Account]
 	permissionSets       *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
 	principalAssignments *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
@@ -90,7 +88,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err)
 	}
 
-	accountsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.Account]{
+	accountsSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.Account]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterAccount,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsAccountPrefix),
@@ -101,7 +99,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating accounts service")
 	}
 
-	permissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PermissionSet]{
+	permissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.PermissionSet]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPermissionSet,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsPermissionSetPrefix),
@@ -112,7 +110,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating permission sets service")
 	}
 
-	principalsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PrincipalAssignment]{
+	principalsSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.PrincipalAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPrincipalAssignment,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsPrincipalAssignmentPrefix),
@@ -123,7 +121,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating principal assignments service")
 	}
 
-	accountAssignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.AccountAssignment]{
+	accountAssignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.AccountAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterAccountAssignment,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsAccountAssignmentPrefix),
@@ -215,8 +213,8 @@ func (svc *IdentityCenterService) DeleteIdentityCenterAccount(ctx context.Contex
 }
 
 // DeleteAllIdentityCenterAccounts deletes all Identity Center Account records
-func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Context, req *identitycenterv1.DeleteAllIdentityCenterAccountsRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, trace.Wrap(svc.accounts.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Context) error {
+	return trace.Wrap(svc.accounts.DeleteAllResources(ctx))
 }
 
 // ListPrincipalAssignments lists all PrincipalAssignment records in the service
@@ -283,8 +281,8 @@ func (svc *IdentityCenterService) DeletePrincipalAssignment(ctx context.Context,
 }
 
 // DeleteAllPrincipalAssignments deletes all assignment record
-func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Context, req *identitycenterv1.DeleteAllPrincipalAssignmentsRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, trace.Wrap(svc.principalAssignments.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Context) error {
+	return trace.Wrap(svc.principalAssignments.DeleteAllResources(ctx))
 }
 
 // ListPermissionSets list the known Permission Sets in the managed Identity Center
@@ -338,8 +336,8 @@ func (svc *IdentityCenterService) DeletePermissionSet(ctx context.Context, name 
 }
 
 // DeleteAllPermissionSets deletes all Identity Center PermissionSet
-func (svc *IdentityCenterService) DeleteAllPermissionSets(ctx context.Context, req *identitycenterv1.DeleteAllPermissionSetsRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, trace.Wrap(svc.permissionSets.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllPermissionSets(ctx context.Context) error {
+	return trace.Wrap(svc.permissionSets.DeleteAllResources(ctx))
 }
 
 // ListAccountAssignments lists all IdentityCenterAccountAssignment record
@@ -411,6 +409,6 @@ func (svc *IdentityCenterService) DeleteAccountAssignment(ctx context.Context, n
 }
 
 // DeleteAllAccountAssignments deletes all known account assignments
-func (svc *IdentityCenterService) DeleteAllAccountAssignments(ctx context.Context, req *identitycenterv1.DeleteAllAccountAssignmentsRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, trace.Wrap(svc.accountAssignments.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllAccountAssignments(ctx context.Context) error {
+	return trace.Wrap(svc.accountAssignments.DeleteAllResources(ctx))
 }

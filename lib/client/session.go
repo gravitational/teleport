@@ -150,20 +150,9 @@ func newSession(ctx context.Context,
 			}
 
 		}
-		// new session!
-	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0
-		// clients shouldn't set TELEPORT_SESSION when they aren't joining
-		// a session, and won't need to once all supported Proxy/Node
-		// versions set the session ID for new sessions
-		sid, ok := ns.env[sshutils.SessionEnvVar]
-		if !ok {
-			sid = string(session.NewID())
-		}
-		ns.id = session.ID(sid)
-	}
 
-	ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+	}
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)

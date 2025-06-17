@@ -25,13 +25,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -42,21 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 )
-
-// tokenJoinMethod returns the join method of the token with the given tokenName
-func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.JoinMethod {
-	provisionToken, err := a.GetToken(ctx, tokenName)
-	if err != nil {
-		// could not find dynamic token, assume static token. If it does not
-		// exist this will be caught later.
-		return types.JoinMethodToken
-	}
-	return provisionToken.GetJoinMethod()
-}
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
 // all join methods, including token existence, token TTL, and allowed roles.
@@ -107,22 +93,6 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	}
 
 	return provisionToken, nil
-}
-
-func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
-	var addr string
-	if clientIP, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
-		addr = clientIP.String()
-	} else if p, ok := peer.FromContext(ctx); ok {
-		addr = p.Addr.String()
-	}
-	ip, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	req.RemoteAddr = ip
-
-	return nil
 }
 
 // handleJoinFailure logs and audits the failure of a join. It is intentionally
@@ -240,19 +210,32 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	method := a.tokenJoinMethod(ctx, req.Token)
-	switch method {
+	// perform common token checks
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// nb: token returned by checkTokenJoinRequestCommon may be a
+	// ProvisionTokenV2 derived from a static token. You cannot assume you will
+	// be able to fetch this same token directly from the backend.
+	method := provisionToken.GetJoinMethod()
+
+	// Call join method-specific validation
+	switch provisionToken.GetJoinMethod() {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM, types.JoinMethodOracle:
-		// These join methods must use gRPC register methods
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM,
+		types.JoinMethodOracle, types.JoinMethodBoundKeypair:
+		// Some join methods require use of a specific RPC - reject those here.
+		// This would generally be a developer error - but can be triggered if
+		// the user has configured the wrong join method on the client-side.
 		return nil, trace.AccessDenied("this token is only valid for the %s "+
 			"join method but the node has connected to the wrong endpoint, make "+
 			"sure your node is configured to use the %s join method", method, method)
 	case types.JoinMethodGitHub:
-		claims, err := a.checkGitHubJoinRequest(ctx, req)
+		claims, err := a.checkGitHubJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Github = claims.JoinAttrs()
@@ -261,7 +244,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGitLab:
-		claims, err := a.checkGitLabJoinRequest(ctx, req)
+		claims, err := a.checkGitLabJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Gitlab = claims.JoinAttrs()
@@ -270,7 +253,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodCircleCI:
-		claims, err := a.checkCircleCIJoinRequest(ctx, req)
+		claims, err := a.checkCircleCIJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Circleci = claims.JoinAttrs()
@@ -279,7 +262,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodKubernetes:
-		claims, err := a.checkKubernetesJoinRequest(ctx, req)
+		claims, err := a.checkKubernetesJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Kubernetes = claims.JoinAttrs()
@@ -288,7 +271,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGCP:
-		claims, err := a.checkGCPJoinRequest(ctx, req)
+		claims, err := a.checkGCPJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Gcp = claims.JoinAttrs()
@@ -297,7 +280,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodSpacelift:
-		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
+		claims, err := a.checkSpaceliftJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Spacelift = claims.JoinAttrs()
@@ -306,7 +289,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodTerraformCloud:
-		claims, err := a.checkTerraformCloudJoinRequest(ctx, req)
+		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.TerraformCloud = claims.JoinAttrs()
@@ -315,7 +298,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodBitbucket:
-		claims, err := a.checkBitbucketJoinRequest(ctx, req)
+		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Bitbucket = claims.JoinAttrs()
@@ -323,8 +306,17 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodAzureDevops:
+		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
+		if claims != nil {
+			rawClaims = claims.ForAudit()
+			attrs.AzureDevops = claims.JoinAttrs()
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
-		// carry on to common token checking logic
+		// no additional validation to perform - the name is enough.
 	default:
 		// this is a logic error, all valid join methods should be captured
 		// above (empty join method will be set to JoinMethodToken by
@@ -332,16 +324,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.BadParameter("unrecognized token join method")
 	}
 
-	// perform common token checks
-	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, err = a.generateCertsBot(
+		certs, _, err = a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req,
@@ -360,7 +346,7 @@ func (a *Server) generateCertsBot(
 	req *types.RegisterUsingTokenRequest,
 	rawJoinClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
-) (*proto.Certs, error) {
+) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
 	botName := provisionToken.GetBotName()
@@ -368,7 +354,7 @@ func (a *Server) generateCertsBot(
 
 	// Check this is a join method for bots we support.
 	if !slices.Contains(machineidv1.SupportedJoinMethods, joinMethod) {
-		return nil, trace.BadParameter(
+		return nil, "", trace.BadParameter(
 			"unsupported join method %q for bot", joinMethod,
 		)
 	}
@@ -459,11 +445,12 @@ func (a *Server) generateCertsBot(
 		renewable,
 		auth,
 		req.BotInstanceID,
+		req.PreviousBotInstanceID,
 		req.BotGeneration,
 		attrs,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	joinEvent.BotInstanceID = botInstanceID
 
@@ -485,7 +472,7 @@ func (a *Server) generateCertsBot(
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit bot join event", "error", err)
 	}
-	return certs, nil
+	return certs, botInstanceID, nil
 }
 
 func (a *Server) generateCerts(

@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 /*
  * Teleport
@@ -29,14 +28,13 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/trace"
-
-	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 const namedPipe = `\\.\pipe\openssh-ssh-agent`
@@ -104,7 +102,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 	}
 	key := sockMatches[3]
 
-	u, err := apiutils.CurrentUser()
+	u, err := user.Current()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

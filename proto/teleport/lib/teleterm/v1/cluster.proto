@@ -143,6 +143,10 @@ message ACL {
   ResourceAccess active_sessions = 14;
   // review_requests defines the ability to review requests
   bool review_requests = 15;
+  // Indicates whether the user can share a local directory with the remote machine during desktop sessions.
+  bool directory_sharing_enabled = 16;
+  // Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
+  bool clipboard_sharing_enabled = 17;
 }
 
 // ResourceAccess describes access verbs

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
@@ -35,26 +36,55 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	if s.networkStackInfo.IfaceName == "" {
+	if s.networkStackInfo.InterfaceName == "" {
 		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
-	conflictingRoutesDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: s.networkStackInfo.IfaceName,
+	if s.networkStackInfo.Ipv6Prefix == "" {
+		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
+	}
+
+	nsa := &diagv1.NetworkStackAttempt{}
+	if ns, err := s.getNetworkStack(ctx); err != nil {
+		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR
+		nsa.Error = err.Error()
+	} else {
+		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK
+		nsa.NetworkStack = ns
+	}
+
+	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+		VnetIfaceName: s.networkStackInfo.InterfaceName,
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crs, err := conflictingRoutesDiag.Run(ctx)
+
+	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
+		Clock:               s.cfg.Clock,
+		NetworkStackAttempt: nsa,
+		DiagChecks:          []diag.DiagCheck{routeConflictDiag},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, cr := range crs {
-		log.InfoContext(ctx, "Found conflicting route", "route", cr)
-	}
+	return &api.RunDiagnosticsResponse{
+		Report: report,
+	}, nil
+}
 
-	return &api.RunDiagnosticsResponse{}, nil
+func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
+	targetOSConfig, err := s.vnetProcess.GetOSConfigProvider().GetTargetOSConfiguration(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &diagv1.NetworkStack{
+		InterfaceName:  s.networkStackInfo.InterfaceName,
+		Ipv6Prefix:     s.networkStackInfo.Ipv6Prefix,
+		Ipv4CidrRanges: targetOSConfig.GetIpv4CidrRanges(),
+		DnsZones:       targetOSConfig.GetDnsZones(),
+	}, nil
 }

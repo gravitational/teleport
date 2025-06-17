@@ -13,7 +13,7 @@ $ teleport-event-handler configure . mytenant.teleport.sh:443
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Run the `configure` command to generate a sample configuration. Replace
-`teleport.example.com:443` with the DNS name and HTTPS port of Teleport's Proxy
+`mytenant.teleport.sh:443` with the DNS name and HTTPS port of Teleport's Proxy
 Service:
 
 ```code
@@ -89,7 +89,8 @@ $ ls -l
 | `teleport-event-handler-role.yaml` | `user` and `role` resource definitions for Teleport's event handler |
 | `fluent.conf`                      | Fluentd plugin configuration                                        |
 
-<Details title="Running the Event Handler separately from the log forwarder">
+<details>
+<summary>Running the Event Handler separately from the log forwarder</summary>
 
 This guide assumes that you are running the Event Handler on the same host or
 Kubernetes pod as your log forwarder. If you are not, you will need to instruct
@@ -110,8 +111,6 @@ the value of `--cn`.
 
 The `--dns-names` flag accepts a comma-separated list of DNS names. It will
 append subject alternative names (SANs) to the server certificate (the one you
-will provide to your log forwarder) for each DNS name in the list. The Event
-Handler looks up each DNS name before appending it as an SAN and exits with an
-error if the lookup fails.
+will provide to your log forwarder) for each DNS name in the list.
+</details>
 
-</Details>

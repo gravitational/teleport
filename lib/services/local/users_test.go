@@ -1595,9 +1595,9 @@ func TestCompareAndSwapUser(t *testing.T) {
 	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
 	require.NoError(err)
 
-	currentBob, err = identity.GetUser(ctx, "bob", false)
+	bob2, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob2))
+	require.True(services.UsersEquals(currentBob, bob1))
 
 	item, err := identity.Backend.Get(ctx, backend.NewKey(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
 	require.NoError(err)

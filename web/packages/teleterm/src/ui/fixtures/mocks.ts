@@ -29,6 +29,12 @@ import AppContext from 'teleterm/ui/appContext';
 import { Document } from 'teleterm/ui/services/workspacesService';
 
 export class MockAppContext extends AppContext {
+  // Using a separate field instead of redeclaring mainProcessClient as MockMainProcessClient,
+  // as redeclaring the field would require us to write extra assert sometimes as interfaces of
+  // MockMainProcessClient and MainProcessClient are not always the same in the eyes of TypeScript.
+  // See https://github.com/gravitational/teleport/pull/53226#discussion_r2005717227
+  public readonly mockMainProcessClient: MockMainProcessClient;
+
   constructor(runtimeSettings?: Partial<RuntimeSettings>) {
     const mainProcessClient = new MockMainProcessClient(runtimeSettings);
     const tshdClient = new MockTshClient();
@@ -43,6 +49,8 @@ export class MockAppContext extends AppContext {
       setupTshdEventContextBridgeService: () => {},
       getPathForFile: () => '',
     });
+
+    this.mockMainProcessClient = mainProcessClient;
   }
 
   addRootClusterWithDoc(

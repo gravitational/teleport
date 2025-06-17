@@ -28,17 +28,26 @@ export default {
   title: 'Teleterm/ModalsHost/ReAuthenticate',
 };
 
-const promptMfaRequest = {
+const loginMfaRequest = {
+  reason: '',
+  clusterUri: makeRootCluster().uri,
+  webauthn: false,
+  totp: false,
+  perSessionMfa: false,
+};
+
+const perSessionMfaRequest = {
   reason: 'MFA is required to access Kubernetes cluster "minikube"',
   clusterUri: makeRootCluster().uri,
   webauthn: false,
   totp: false,
+  perSessionMfa: true,
 };
 
 export const WithWebauthn = () => (
   <MockAppContextProvider>
     <ReAuthenticate
-      promptMfaRequest={{ ...promptMfaRequest, webauthn: true }}
+      promptMfaRequest={{ ...loginMfaRequest, webauthn: true }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={() => {
@@ -56,7 +65,21 @@ const showToken = (otpToken: string) =>
 export const WithTotp = () => (
   <MockAppContextProvider>
     <ReAuthenticate
-      promptMfaRequest={{ ...promptMfaRequest, totp: true }}
+      promptMfaRequest={{ ...loginMfaRequest, totp: true }}
+      onSsoContinue={() => {}}
+      onCancel={() => {}}
+      onOtpSubmit={showToken}
+    />
+  </MockAppContextProvider>
+);
+
+export const WithTotpPerSessionMfa = () => (
+  <MockAppContextProvider>
+    <ReAuthenticate
+      promptMfaRequest={{
+        ...perSessionMfaRequest,
+        totp: true,
+      }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
@@ -68,7 +91,7 @@ export const WithSso = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{
-        ...promptMfaRequest,
+        ...loginMfaRequest,
         sso: {
           connectorId: '',
           connectorType: '',
@@ -91,7 +114,28 @@ export const WithWebauthnAndTotpAndSSO = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{
-        ...promptMfaRequest,
+        ...loginMfaRequest,
+        webauthn: true,
+        totp: true,
+        sso: {
+          connectorId: '',
+          connectorType: '',
+          displayName: 'Example SSO',
+          redirectUrl: '',
+        },
+      }}
+      onSsoContinue={() => {}}
+      onCancel={() => {}}
+      onOtpSubmit={showToken}
+    />
+  </MockAppContextProvider>
+);
+
+export const WithWebauthnAndTotpAndSSOPerSessionMfa = () => (
+  <MockAppContextProvider>
+    <ReAuthenticate
+      promptMfaRequest={{
+        ...perSessionMfaRequest,
         webauthn: true,
         totp: true,
         sso: {
@@ -112,7 +156,7 @@ export const MultilineTitle = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{
-        ...promptMfaRequest,
+        ...loginMfaRequest,
         webauthn: true,
         totp: true,
         clusterUri: '/clusters/lorem.cloud.gravitational.io',
@@ -128,7 +172,7 @@ export const ForLeafCluster = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{
-        ...promptMfaRequest,
+        ...loginMfaRequest,
         webauthn: true,
         totp: true,
         clusterUri: makeLeafCluster().uri,

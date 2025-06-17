@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build !vnetdaemon
-// +build !vnetdaemon
 
 package vnet
 
@@ -30,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
@@ -42,25 +40,20 @@ func execAdminProcess(ctx context.Context, config daemon.Config) error {
 		return trace.Wrap(err, "getting executable path")
 	}
 
-	if homePath := os.Getenv(types.HomeEnvVar); homePath == "" {
-		// Explicitly set TELEPORT_HOME if not already set.
-		os.Setenv(types.HomeEnvVar, config.HomePath)
-	}
-
 	appleScript := fmt.Sprintf(`
 set executableName to "%s"
-set socketPath to "%s"
-set ipv6Prefix to "%s"
-set dnsAddr to "%s"
+set addr to "%s"
+set credPath to "%s"
 do shell script quoted form of executableName & `+
-		`" %s -d --socket " & quoted form of socketPath & `+
-		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
-		`" --dns-addr " & quoted form of dnsAddr & `+
-		`" --egid %d --euid %d" & `+
+		`" %s -d --addr " & quoted form of addr & `+
+		`" --cred-path " & quoted form of credPath & `+
 		`" >/var/log/vnet.log 2>&1" `+
 		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
-		executableName, config.SocketPath, config.IPv6Prefix, config.DNSAddr, teleport.VnetAdminSetupSubCommand,
-		os.Getegid(), os.Geteuid())
+		executableName,
+		config.ClientApplicationServiceAddr,
+		config.ServiceCredentialPath,
+		teleport.VnetAdminSetupSubCommand,
+	)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
 	// privileged process, canceling the context (and thus killing osascript) has no effect on the privileged

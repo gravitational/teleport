@@ -39,6 +39,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -69,6 +70,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -93,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -113,6 +116,8 @@ const (
 
 var ports utils.PortList
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
 	handleReexec()
 
@@ -130,7 +135,22 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
+
 func handleReexec() {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	var runOpts []CliOption
 
 	// Allows mock headless auth to be implemented when the test binary
@@ -266,7 +286,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -909,13 +929,12 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// Create a empty profile so we don't ping proxy.
-	clientStore, err := initClientStore(&conf, conf.Proxy)
-	require.NoError(t, err)
 	profile := &profile.Profile{
 		SSHProxyAddr: "proxy:3023",
 		WebProxyAddr: "proxy:3080",
 	}
-	err = clientStore.SaveProfile(profile, true)
+
+	err = conf.getClientStore().SaveProfile(profile, true)
 	require.NoError(t, err)
 
 	tc, err = makeClient(&conf)
@@ -1716,7 +1735,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
-			clusterName, err := tt.auth.GetClusterName()
+			clusterName, err := tt.auth.GetClusterName(ctx)
 			require.NoError(t, err)
 
 			user := alice
@@ -2562,7 +2581,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 func TestKubeCredentialsLock(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
@@ -2594,7 +2613,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 				KubeUsers:        []string{alice.GetName()},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+						Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -2609,7 +2628,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		proxyAddr, err := proxyProcess.ProxyWebAddr()
 		require.NoError(t, err)
 
-		teleportClusterName, err := authServer.GetClusterName()
+		teleportClusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -2625,27 +2644,18 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			found, _, err := authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
-				if rwl.GetKind() != types.KindKubeServer {
-					return false, nil
+			gotNames := map[string]struct{}{}
+			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				if !assert.NoError(t, err) {
+					return
 				}
 
-				ks, ok := rwl.(types.KubeServer)
-				if !ok {
-					return false, nil
-				}
+				gotNames[ks.GetCluster().GetName()] = struct{}{}
 
-				return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
-			}, &proto.ListUnifiedResourcesRequest{
-				Kinds:  []string{types.KindKubeServer},
-				SortBy: types.SortBy{Field: services.SortByName},
-				Limit:  1,
-			})
+			}
 
-			assert.NoError(t, err)
-			assert.Len(t, found, 1)
-
-		}, 10*time.Second, 100*time.Millisecond)
+			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+		}, 15*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
@@ -2823,8 +2833,8 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
 				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
-				require.Equal(t, "", c.Username)
-				require.Equal(t, "", c.SiteName)
+				require.Empty(t, c.Username)
+				require.Empty(t, c.SiteName)
 			},
 		}, {
 			name: "NOK --headless with mismatched auth connector",
@@ -3971,7 +3981,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4016,7 +4026,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
@@ -4161,6 +4171,7 @@ func TestSerializeVersion(t *testing.T) {
 
 		proxyVersion       string
 		proxyPublicAddress string
+		reExecFromVersion  string
 	}{
 		{
 			name: "no proxy version provided",
@@ -4177,12 +4188,21 @@ func TestSerializeVersion(t *testing.T) {
 				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "proxyPublicAddress": %q}`,
 				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7", "teleport.example.com:443"),
 		},
+		{
+			name:               "re-exec version provided",
+			proxyVersion:       "3.2.1",
+			proxyPublicAddress: "teleport.example.com:443",
+			reExecFromVersion:  "1.2.3",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "reExecutedFromVersion": %q, "proxyPublicAddress": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "3.2.1", "1.2.3", "teleport.example.com:443"),
+		},
 	}
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			testSerialization(t, tC.expected, func(fmt string) (string, error) {
-				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress)
+				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress, tC.reExecFromVersion)
 			})
 		})
 	}
@@ -5094,10 +5114,10 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
 			wantUsers: &dbUsers{
-				Allowed: []string{"*", "dev"},
+				Allowed: []string{"*"},
 				Denied:  []string{"superuser"},
 			},
-			wantText: "[* dev], except: [superuser]",
+			wantText: "[*], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
@@ -5812,9 +5832,9 @@ func TestLogout(t *testing.T) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 	clientKeyRing := &client.KeyRing{
 		KeyRingIndex: client.KeyRingIndex{
@@ -6027,7 +6047,13 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
-	conf.IdentityFileIn = identityPath
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
 
@@ -6439,13 +6465,11 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		}
 
 		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
-		require.NoError(t, err)
 		profile := &profile.Profile{
 			SSHProxyAddr: "proxy:3023",
 			WebProxyAddr: "proxy:3080",
 		}
-		err = clientStore.SaveProfile(profile, true)
+		err := conf.getClientStore().SaveProfile(profile, true)
 		require.NoError(t, err)
 
 		modify(conf)
@@ -6858,8 +6882,14 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).Run()
-			tt.assertError(t, err)
+
+			// Add some resiliency for cases where connections are attempted
+			// prior to the inventory being updated to contain the target node
+			// above.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				out, err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).CombinedOutput()
+				tt.assertError(t, err, string(out))
+			}, 20*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -7163,4 +7193,289 @@ func TestSCP(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetEnvVariables(t *testing.T) {
+	testCases := []struct {
+		name              string
+		envVars           map[string]string
+		sendEnvVariables  []string
+		expectedExtraEnvs map[string]string
+	}{
+		{
+			name: "Skip unset var",
+			envVars: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+			sendEnvVariables: []string{"TEST_VAR1", "TEST_VAR2", "UNSET_VAR"},
+			expectedExtraEnvs: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+		},
+		{
+			name:              "Sending empty var",
+			envVars:           map[string]string{"EMPTY_VAR": ""},
+			sendEnvVariables:  []string{"EMPTY_VAR"},
+			expectedExtraEnvs: map[string]string{"EMPTY_VAR": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			c := &client.Config{}
+			options := Options{SendEnvVariables: tc.sendEnvVariables}
+
+			setEnvVariables(c, options)
+
+			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
+		})
+	}
+}
+
+func TestLoggingOpts(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	tests := []struct {
+		name      string
+		envDebug  *bool
+		envOSLog  *bool
+		flagDebug *bool
+		flagOSLog *bool
+		wantDebug require.BoolAssertionFunc
+		wantOSLog require.BoolAssertionFunc
+	}{
+		{
+			name:      "no flags or env vars",
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just debug flag",
+			flagDebug: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just os-log flag",
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "debug and os-log flags",
+			flagDebug: boolPtr(true),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "just debug env var",
+			envDebug:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just os-log env var",
+			envOSLog:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "debug and os-log flags",
+			envDebug:  boolPtr(true),
+			envOSLog:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "everything on",
+			envDebug:  boolPtr(true),
+			envOSLog:  boolPtr(true),
+			flagDebug: boolPtr(true),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "everything explicitly off",
+			envDebug:  boolPtr(false),
+			envOSLog:  boolPtr(false),
+			flagDebug: boolPtr(false),
+			flagOSLog: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "debug enabled by env, disabled by flag",
+			envDebug:  boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "debug disabled by env, enabled by flag",
+			envDebug:  boolPtr(false),
+			flagDebug: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log enabled by env, disabled by flag",
+			envOSLog:  boolPtr(true),
+			flagOSLog: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log disabled by env, enabled by flag",
+			envOSLog:  boolPtr(false),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+
+		// Verify that final values are set after consulting both env and argv, e.g., disabling os-log
+		// by flag doesn't disable debug set by env.
+		{
+			name:      "os-log enabled by env, disabled by flag; debug enabled by env",
+			envOSLog:  boolPtr(true),
+			flagOSLog: boolPtr(false),
+			envDebug:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log disabled by env, enabled by flag; debug disabled by flag",
+			envOSLog:  boolPtr(false),
+			flagOSLog: boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+
+		// Debug is always enabled together with os-log.
+		{
+			name:      "os-log enabled by flag, debug disabled by env",
+			flagOSLog: boolPtr(true),
+			envDebug:  boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by flag, debug disabled by flag",
+			flagOSLog: boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by env, debug disabled by env",
+			envOSLog:  boolPtr(true),
+			envDebug:  boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by env, debug disabled by flag",
+			envOSLog:  boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envDebug != nil {
+				t.Setenv(debugEnvVar, strconv.FormatBool(*tt.envDebug))
+			}
+
+			if tt.envOSLog != nil {
+				t.Setenv(osLogEnvVar, strconv.FormatBool(*tt.envOSLog))
+			}
+
+			var flags []string
+
+			if tt.flagDebug != nil {
+				if *tt.flagDebug {
+					flags = append(flags, "--debug")
+				} else {
+					flags = append(flags, "--no-debug")
+				}
+			}
+
+			if tt.flagOSLog != nil {
+				if *tt.flagOSLog {
+					flags = append(flags, "--os-log")
+				} else {
+					flags = append(flags, "--no-os-log")
+				}
+			}
+
+			mustReadLoggingOpts, setLoggingOptsFromCLIConf := prepareCLIOptionForReadingLoggingOpts()
+			err := Run(t.Context(), append([]string{"version"}, flags...),
+				setHomePath(tmpHomePath), setLoggingOptsFromCLIConf)
+			require.NoError(t, err)
+
+			opts := mustReadLoggingOpts(t)
+			tt.wantDebug(t, opts.debug, "unexpected cf.Debug value")
+			tt.wantOSLog(t, opts.osLog, "unexpected cf.OSLog value")
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, CliOption) {
+	var cf *CLIConf
+
+	setLoggingOptsFromCLIConf := func(cliConfFromRun *CLIConf) error {
+		cf = cliConfFromRun
+		return nil
+	}
+
+	mustReadLoggingOpts := func(t *testing.T) loggingOpts {
+		t.Helper()
+
+		if cf == nil {
+			t.Fatalf("mustReadLoggingOpts was called before setLoggingOptsFromCLIConf was executed")
+		}
+
+		return loggingOpts{
+			debug: cf.Debug,
+			osLog: cf.OSLog,
+		}
+	}
+
+	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
+}
+
+func Test_validateKingpinAppHelp(t *testing.T) {
+	err := Run(
+		context.Background(),
+		[]string{"version"},
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			require.NotNil(t, cf.kingpinApp)
+
+			issues := testutils.FindKingpinAppHelpIssues(cf.kingpinApp)
+			if len(issues) > 0 {
+				t.Log("Found", len(issues), "issues")
+				for _, issue := range issues {
+					t.Log(issue)
+				}
+			}
+			require.Empty(t, issues)
+			return trace.BadParameter("no need to continue")
+		},
+	)
+	require.ErrorIs(t, err, trace.BadParameter("no need to continue"))
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"
@@ -63,6 +64,13 @@ func errorIsType(errType interface{}) require.ErrorAssertionFunc {
 	}
 }
 
+func mustNewStaticGetter(t *testing.T, versionMock string, errMock error) version.Getter {
+	t.Helper()
+	getter, err := version.NewStaticGetter(versionMock, errMock)
+	require.NoError(t, err)
+	return getter
+}
+
 func Test_VersionUpdater_GetVersion(t *testing.T) {
 	ctx := context.Background()
 
@@ -70,7 +78,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 		name                string
 		releaseRegistry     string
 		releasePath         string
-		currentVersion      string
+		currentVersion      *semver.Version
 		versionGetter       version.Getter
 		maintenanceTriggers []maintenance.Trigger
 		imageCheckers       []img.Validator
@@ -81,8 +89,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "all good",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      versionMid,
-			versionGetter:       version.NewStaticGetter(versionHigh, nil),
+			currentVersion:      semver.Must(version.EnsureSemver(versionMid)),
+			versionGetter:       mustNewStaticGetter(t, versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           require.NoError,
@@ -92,8 +100,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "all good but no current version",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      "",
-			versionGetter:       version.NewStaticGetter(versionHigh, nil),
+			currentVersion:      nil,
+			versionGetter:       mustNewStaticGetter(t, versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           require.NoError,
@@ -103,8 +111,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "same version",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      versionMid,
-			versionGetter:       version.NewStaticGetter(versionMid, nil),
+			currentVersion:      semver.Must(version.EnsureSemver(versionMid)),
+			versionGetter:       mustNewStaticGetter(t, versionMid, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           errorIsType(&version.NoNewVersionError{}),
@@ -114,8 +122,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "no version",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      versionMid,
-			versionGetter:       version.NewStaticGetter("", &version.NoNewVersionError{Message: "version server did not advertise a version"}),
+			currentVersion:      semver.Must(version.EnsureSemver(versionMid)),
+			versionGetter:       mustNewStaticGetter(t, "", &version.NoNewVersionError{Message: "version server did not advertise a version"}),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           errorIsType(&version.NoNewVersionError{}),
@@ -125,8 +133,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "no maintenance triggered",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      versionMid,
-			versionGetter:       version.NewStaticGetter(versionHigh, nil),
+			currentVersion:      semver.Must(version.EnsureSemver(versionMid)),
+			versionGetter:       mustNewStaticGetter(t, versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{neverTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           errorIsType(&MaintenanceNotTriggeredError{}),
@@ -136,8 +144,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "invalid signature",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      versionMid,
-			versionGetter:       version.NewStaticGetter(versionHigh, nil),
+			currentVersion:      semver.Must(version.EnsureSemver(versionMid)),
+			versionGetter:       mustNewStaticGetter(t, versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
 			assertErr:           errorIsType(&trace.TrustError{}),
@@ -147,8 +155,8 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			name:                "error getting version",
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
-			currentVersion:      versionMid,
-			versionGetter:       version.NewStaticGetter("", &trace.ConnectionProblemError{}),
+			currentVersion:      semver.Must(version.EnsureSemver(versionMid)),
+			versionGetter:       mustNewStaticGetter(t, "", &trace.ConnectionProblemError{}),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
 			assertErr:           errorIsType(&trace.ConnectionProblemError{}),
@@ -176,7 +184,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			obj := &core.Pod{}
 
 			// Doing the test
-			image, err := updater.GetVersion(ctx, obj, "v"+tt.currentVersion)
+			image, err := updater.GetVersion(ctx, obj, tt.currentVersion)
 			tt.assertErr(t, err)
 			if tt.expectedImage == "" {
 				require.Nil(t, image)

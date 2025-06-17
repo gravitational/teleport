@@ -27,6 +27,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,7 +182,7 @@ func TestBackends(t *testing.T) {
 			} {
 				t.Run(tc.alg.String(), func(t *testing.T) {
 					// create a key
-					key, signer, err := backend.generateKey(ctx, tc.alg)
+					key, signer, err := backend.generateSigner(ctx, tc.alg)
 					require.NoError(t, err, trace.DebugReport(err))
 					require.Equal(t, backendDesc.expectedKeyType, keyType(key))
 
@@ -212,7 +213,7 @@ func TestBackends(t *testing.T) {
 			for i := 0; i < numKeys; i++ {
 				var signer crypto.Signer
 				var err error
-				rawPrivateKeys[i], signer, err = backend.generateKey(ctx, cryptosuites.ECDSAP256)
+				rawPrivateKeys[i], signer, err = backend.generateSigner(ctx, cryptosuites.ECDSAP256)
 				require.NoError(t, err)
 				publicKeys[i] = signer.Public()
 			}
@@ -299,6 +300,13 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
+			encKeyPair, err := manager.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
+			// TODO (eriktate): remove once decryption with AWS is added
+			if !strings.Contains(backendDesc.name, "aws_kms") {
+				require.NoError(t, err)
+				require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
+			}
+
 			// Test a CA with multiple active keypairs. Each element of ActiveKeys
 			// includes a keypair generated above and a PKCS11 keypair with a
 			// different hostID that this manager should not be able to use.
@@ -323,7 +331,7 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 
 			// Test that the manager is able to select the correct key and get a
-			// signer.
+			// signer or decrypter.
 			sshSigner, err := manager.GetSSHSigner(ctx, ca)
 			require.NoError(t, err, trace.DebugReport(err))
 			require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
@@ -338,6 +346,24 @@ func TestManager(t *testing.T) {
 			pubkeyPem, err := keys.MarshalPublicKey(jwtSigner.Public())
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+			// TODO (eriktate): remove once decryption with AWS is added
+			if !strings.Contains(backendDesc.name, "aws_kms") {
+				decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
+
+				require.NoError(t, err)
+				require.NotNil(t, decrypter)
+
+				// Try encrypting and decrypting some data
+				msg := []byte("teleport")
+				require.NoError(t, err)
+				ciphertext, err := encKeyPair.EncryptOAEP(msg)
+				require.NoError(t, err)
+
+				plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
+				require.NoError(t, err)
+				require.Equal(t, msg, plaintext)
+			}
 
 			// Try signing an SSH cert.
 			sshCert := ssh.Certificate{
@@ -541,13 +567,15 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100)
 
 	baseOpts := Options{
 		ClusterName:          clusterName,
 		HostUUID:             hostUUID,
 		Logger:               logger,
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+		awsKMSClient:         fakeKMS,
+		mrkClient:            fakeKMS,
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
@@ -566,12 +594,15 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	})
 
 	if config, ok := softHSMTestConfig(t); ok {
-		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
+		hsmOpts := baseOpts
+		// softhsm2 seems to only support OAEP with SHA1
+		hsmOpts.OAEPHash = crypto.SHA1
+		backend, err := newPKCS11KeyStore(&config.PKCS11, &hsmOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "softhsm",
 			config:          config,
-			opts:            &baseOpts,
+			opts:            &hsmOpts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
@@ -683,7 +714,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			AWSKMS: &servicecfg.AWSKMSConfig{
 				AWSAccount: "123456789012",
 				AWSRegion:  "us-west-2",
-				MultiRegion: struct{ Enabled bool }{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled: multiRegion,
 				},
 			},

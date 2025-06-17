@@ -21,17 +21,21 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
+)
+
+const (
+	// defaultSetting is used to represent the default value for updater config.
+	defaultSetting = "default"
 )
 
 const (
@@ -59,6 +63,8 @@ type UpdateConfig struct {
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
+	// Path is the location the Teleport binaries are linked into.
+	Path string `yaml:"path"`
 	// Group specifies the update group identifier for the agent.
 	Group string `yaml:"group,omitempty"`
 	// BaseURL is CDN base URL used for the Teleport tgz download URL.
@@ -71,6 +77,10 @@ type UpdateSpec struct {
 
 // UpdateStatus describes the status field in update.yaml.
 type UpdateStatus struct {
+	// IDFile is the path to a temporary file containing the updater ID.
+	IDFile string `yaml:"id_file,omitempty"`
+	// LastUpdate status, if attempted
+	LastUpdate *LastUpdate `yaml:"last_update,omitempty"`
 	// Active is the currently active revision of Teleport.
 	Active Revision `yaml:"active"`
 	// Backup is the last working revision of Teleport.
@@ -79,6 +89,16 @@ type UpdateStatus struct {
 	// Skipped revisions are not applied because they
 	// are known to crash.
 	Skip *Revision `yaml:"skip,omitempty"`
+}
+
+// LastUpdate describes the last attempted updated.
+type LastUpdate struct {
+	// Success or failure of the attempted update
+	Success bool `yaml:"success"`
+	// Time the update occurred
+	Time time.Time `yaml:"time"`
+	// Target revision for the update
+	Target Revision `yaml:"target"`
 }
 
 // Revision is a version and edition of Teleport.
@@ -182,37 +202,20 @@ func readConfig(path string) (*UpdateConfig, error) {
 
 // writeConfig writes UpdateConfig to a file atomically, ensuring the file cannot be corrupted.
 func writeConfig(filename string, cfg *UpdateConfig) error {
-	opts := []renameio.Option{
-		renameio.WithPermissions(configFileMode),
-		renameio.WithExistingPermissions(),
-		renameio.WithTempDir(filepath.Dir(filename)),
-	}
-	t, err := renameio.NewPendingFile(filename, opts...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer t.Cleanup()
-	err = yaml.NewEncoder(t).Encode(cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(t.CloseAtomicallyReplace())
+	return trace.Wrap(writeAtomicWithinDir(filename, configFileMode, func(w io.Writer) error {
+		return trace.Wrap(yaml.NewEncoder(w).Encode(cfg))
+	}))
 }
 
 func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Proxy != "" {
 		spec.Proxy = override.Proxy
 	}
-	if override.Group != "" {
-		spec.Group = override.Group
+	if override.Path != "" {
+		spec.Path = override.Path
 	}
-	switch override.BaseURL {
-	case "":
-	case "default":
-		spec.BaseURL = ""
-	default:
-		spec.BaseURL = override.BaseURL
-	}
+	spec.Group = overrideOptional(spec.Group, override.Group)
+	spec.BaseURL = overrideOptional(spec.BaseURL, override.BaseURL)
 	if spec.BaseURL != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.BaseURL), "https://") {
 		return trace.Errorf("Teleport download base URL %s must use TLS (https://)", spec.BaseURL)
@@ -226,11 +229,24 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	return nil
 }
 
+func overrideOptional(orig, override string) string {
+	switch override {
+	case "":
+		return orig
+	case defaultSetting:
+		return ""
+	default:
+		return override
+	}
+}
+
 // Status of the agent auto-updates system.
 type Status struct {
 	UpdateSpec   `yaml:",inline"`
 	UpdateStatus `yaml:",inline"`
 	FindResp     `yaml:",inline"`
+	// ID is the updater ID.
+	ID string `yaml:"id,omitempty"`
 }
 
 // FindResp summarizes the auto-update status response from cluster.

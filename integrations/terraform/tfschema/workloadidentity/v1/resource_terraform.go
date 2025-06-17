@@ -33,6 +33,8 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
+	_ "google.golang.org/protobuf/types/known/durationpb"
+	_ "google.golang.org/protobuf/types/known/structpb"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -100,53 +102,60 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"rules": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"conditions": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"attribute": {
-									Description: "The name of the attribute to evaluate the condition against.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-								"eq": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-										Description: "The value to compare the attribute against.",
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"conditions": {
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"attribute": {
+										Description: "The name of the attribute to evaluate the condition against.",
 										Optional:    true,
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
-									Description: "The attribute casted to a string must be equal to the value.",
-									Optional:    true,
-								},
-								"in": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-										Description: "The list of values to compare the attribute against.",
+									},
+									"eq": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+											Description: "The value to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										}}),
+										Description: "The attribute casted to a string must be equal to the value.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-									}}),
-									Description: "The attribute casted to a string must be in the list of values.",
-									Optional:    true,
-								},
-								"not_eq": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-										Description: "The value to compare the attribute against.",
+									},
+									"in": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+											Description: "The list of values to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										}}),
+										Description: "The attribute casted to a string must be in the list of values.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
-									Description: "The attribute casted to a string must not be equal to the value.",
-									Optional:    true,
-								},
-								"not_in": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-										Description: "The list of values to compare the attribute against.",
+									},
+									"not_eq": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+											Description: "The value to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										}}),
+										Description: "The attribute casted to a string must not be equal to the value.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-									}}),
-									Description: "The attribute casted to a string must not be in the list of values.",
-									Optional:    true,
-								},
-							}),
-							Description: "The conditions that must be met for this rule to be considered passed.",
-							Optional:    true,
-						}}),
+									},
+									"not_in": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+											Description: "The list of values to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										}}),
+										Description: "The attribute casted to a string must not be in the list of values.",
+										Optional:    true,
+									},
+								}),
+								Description: "The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression.",
+								Optional:    true,
+							},
+							"expression": {
+								Description: "An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
 						Description: "A list of rules used to determine if a WorkloadIdentity can be issued. If none are provided, it will be considered a pass. If any are provided, then at least one must pass for the rules to be considered passed.",
 						Optional:    true,
 					}}),
@@ -165,6 +174,14 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"jwt": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
+								Optional:    true,
+							})}),
+							Description: "Configuration specific to JWT-SVIDs.",
+							Optional:    true,
+						},
 						"x509": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"dns_sans": {
@@ -172,6 +189,10 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
+								"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.  If a X509-SVID is requested with a TTL greater than this value, then the returned X509-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 14 days.",
+									Optional:    true,
+								}),
 								"subject_template": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"common_name": {
@@ -648,6 +669,23 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["expression"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.expression"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Expression = t
+																		}
+																	}
+																}
 															}
 															obj.Allow[k] = t
 														}
@@ -817,6 +855,38 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																}
 															}
 														}
+													}
+													{
+														a, ok := tf.Attrs["maximum_ttl"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.maximum_ttl"})
+														}
+														CopyFromDuration(diags, a, &obj.MaximumTtl)
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["jwt"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.jwt"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.jwt", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Jwt = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Jwt = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentitySPIFFEJWT{}
+													obj := obj.Jwt
+													{
+														a, ok := tf.Attrs["maximum_ttl"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.jwt.maximum_ttl"})
+														}
+														CopyFromDuration(diags, a, &obj.MaximumTtl)
 													}
 												}
 											}
@@ -1557,6 +1627,28 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["expression"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.expression"})
+																} else {
+																	v, ok := tf.Attrs["expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.expression", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Expression) == ""
+																	}
+																	v.Value = string(obj.Expression)
+																	v.Unknown = false
+																	tf.Attrs["expression"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														c.Elems[k] = v
@@ -1823,9 +1915,59 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 															}
 														}
 													}
+													{
+														t, ok := tf.AttrTypes["maximum_ttl"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.maximum_ttl"})
+														} else {
+															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"])
+															tf.Attrs["maximum_ttl"] = v
+														}
+													}
 												}
 												v.Unknown = false
 												tf.Attrs["x509"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["jwt"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.jwt"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.jwt", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["jwt"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Jwt == nil {
+													v.Null = true
+												} else {
+													obj := obj.Jwt
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["maximum_ttl"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.jwt.maximum_ttl"})
+														} else {
+															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"])
+															tf.Attrs["maximum_ttl"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["jwt"] = v
 											}
 										}
 									}

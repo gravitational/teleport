@@ -88,8 +88,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 
 // Reader contains the methods defined for cache access.
 type Reader interface {
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -197,7 +196,7 @@ func (s *Service) ListUserTasks(ctx context.Context, req *usertasksv1.ListUserTa
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken)
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, req.Filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -219,7 +218,10 @@ func (s *Service) ListUserTasksByIntegration(ctx context.Context, req *usertasks
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasksByIntegration(ctx, req.PageSize, req.PageToken, req.Integration)
+	filters := &usertasksv1.ListUserTasksFilters{
+		Integration: req.Integration,
+	}
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -40,6 +40,14 @@ const (
 	// ProxyServerEnvVar is the environment variable that overrides the
 	// configured proxy server address.
 	ProxyServerEnvVar = "TELEPORT_PROXY"
+	// TBotDebugEnvVar is the environment variable that enables debug logging.
+	TBotDebugEnvVar = "TBOT_DEBUG"
+	// TBotConfigPathEnvVar is the environment variable that overrides the
+	// configured config file path.
+	TBotConfigPathEnvVar = "TBOT_CONFIG_PATH"
+	// TBotConfigEnvVar is the environment variable that provides tbot
+	// configuration with base64 encoded string.
+	TBotConfigEnvVar = "TBOT_CONFIG"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -154,10 +162,17 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 	var cfg *config.BotConfig
 	var err error
 
-	if globals.staticConfigYAML != "" {
+	if globals.ConfigString != "" && globals.ConfigPath != "" {
+		return nil, trace.BadParameter("cannot specify both config and config-string")
+	} else if globals.staticConfigYAML != "" {
 		cfg, err = config.ReadConfig(strings.NewReader(globals.staticConfigYAML), false)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+	} else if globals.ConfigString != "" {
+		cfg, err = config.ReadConfigFromBase64String(globals.ConfigString, false)
+		if err != nil {
+			return nil, trace.Wrap(err, "loading bot config from base64 encoded string")
 		}
 	} else if globals.ConfigPath != "" {
 		cfg, err = config.ReadConfigFromFile(globals.ConfigPath, false)
@@ -188,6 +203,21 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 // for explicitly _not_ loading a config file, like in `tbot configure ...`
 func BaseConfigWithMutators(mutators ...ConfigMutator) (*config.BotConfig, error) {
 	cfg := &config.BotConfig{}
+	if err := applyMutators(log, cfg, mutators...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg, nil
+}
+
+// TestConfigWithMutators applies mutators to the input config and returns the
+// result. `CheckAndSetDefaults()` will be called before returning. This is
+// meant for use in tests to avoid needing to load or parse a config file.
+func TestConfigWithMutators(cfg *config.BotConfig, mutators ...ConfigMutator) (*config.BotConfig, error) {
 	if err := applyMutators(log, cfg, mutators...); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -25,12 +25,16 @@ import {
   OperationType,
 } from './useIntegrationOperation';
 
+export type DeleteRequestOptions = {
+  deleteAssociatedResources?: boolean;
+};
+
 export type Props<UpdateRequest> = {
   operation: OperationType;
   integration: Integration;
   close(): void;
   edit(req: UpdateRequest): Promise<void>;
-  remove(): Promise<void>;
+  remove(opt?: DeleteRequestOptions): Promise<void>;
 };
 
 export function IntegrationOperations({

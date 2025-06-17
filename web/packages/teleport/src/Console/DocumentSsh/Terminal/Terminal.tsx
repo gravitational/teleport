@@ -44,11 +44,12 @@ export interface TerminalProps {
   // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
   terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
   disableCtrlC?: boolean;
+  disableAutoFocus?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
-  const termCtrlRef = useRef<XTermCtrl>();
-  const elementRef = useRef<HTMLDivElement>();
+  const termCtrlRef = useRef<XTermCtrl>(undefined);
+  const elementRef = useRef<HTMLDivElement>(null);
 
   useImperativeHandle(
     ref,
@@ -97,6 +98,12 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   useEffect(() => {
     termCtrlRef.current?.updateTheme(props.theme);
   }, [props.theme]);
+
+  useEffect(() => {
+    if (!props.disableAutoFocus) {
+      termCtrlRef.current?.focus();
+    }
+  }, []);
 
   return (
     <Flex

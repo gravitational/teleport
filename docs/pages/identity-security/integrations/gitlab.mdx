@@ -1,0 +1,146 @@
+---
+title: Discover GitLab Access Patterns with Teleport Identity Security
+description: Describes how to synchronize GitLab access patterns using Identity Security and Access Graph.
+---
+
+Gain insights into access patterns within your GitLab account using Identity Security with Access Graph. By scanning all
+permissions, users, groups, and projects, it provides a visual representation to help enhance the permission model within
+your GitLab environment. This functionality enables you to answer queries such as:
+
+- What projects are accessible to users?
+- Which users have write permissions to projects?
+
+(!docs/pages/includes/policy/access-graph.mdx!)
+
+## How it works
+
+Access Graph synchronizes various GitLab resources, including users, projects and groups.
+These resources are then visualized using the graph representation detailed in the
+[Access Graph page](../teleport-policy.mdx).
+
+The importing process involves two primary steps:
+
+### Polling GitLab APIs
+
+The Teleport cluster continuously scans the configured GitLab accounts and retrieves the following resources:
+
+- Users
+- Groups
+- Projects
+- Group memberships
+- Project memberships
+
+Once all the necessary resources are fetched, Teleport pushes them to the
+Access Graph, ensuring that it remains updated with the latest information from your GitLab instance.
+
+### Importing resources
+
+Identity Security’s Access Graph feature delves into the resources imported and their relationships, crafting a
+graphical representation thereof.
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v14.3.20/v15.3.1/v16.0.0 or later.
+- Identity Security enabled for your account.
+- A GitLab instance running GitLab v9.0 or later.
+- For self-hosted clusters:
+  - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+  - A running Access Graph node v1.21.4 or later.
+Check the [Identity Security page](../teleport-policy.mdx) for details on
+how to set up Access Graph.
+  - The node running the Access Graph service must be reachable from the Teleport Auth Service.
+
+## Step 1/3. Create GitLab token
+
+To set up the GitLab integration, you'll need to create a GitLab token with the following permissions:
+
+- `read_api`
+
+Navigate to your GitLab instance, access the User Settings, and select the Access Tokens option.
+Create a new token with the `read_api` scope and copy the generated token. For more information, refer to the
+[GitLab documentation](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html).
+
+The importer will use this token to fetch the necessary resources from your GitLab instance.
+
+<Admonition type="warning">
+
+    The GitLab importer will only fetch resources that the token has access to. Ensure that the user associated with
+    the token has the necessary permissions to access/view the resources you want to import.
+
+    If you're using a GitLab.com account, the importer will only fetch the users who are part of the organization or
+    have access to the projects that the token can access.
+
+    If you're using a self-hosted GitLab instance, the importer will fetch all resources that the token has access to,
+    including all users who are part of the instance.
+
+</Admonition>
+
+The token will be used in the next step to configure the GitLab Sync integration.
+
+## Step 2/3. Set up Access Graph GitLab Sync
+
+To initiate the setup wizard for configuring Gitlab Sync, access the Teleport UI,
+click the Policy sidebar button, and then click Integrations.
+
+Click the "Setup new integration" button, and then select "Gitlab". You'll be prompted
+to create a new Teleport Gitlab integration if you haven't configured one already.
+Alternatively, you can opt for a previously established integration.
+
+You'll be prompted to provide the GitLab token created in Step 1 and the GitLab instance domain.
+Once the token is successfully validated, you'll be able to see the resources imported in Access Graph.
+
+## Step 3/3. View GitLab resources in Access Graph
+
+After the GitLab resources are imported, you can view them in the Access Graph page.
+The graph representation will show the relationships between users, groups, and projects within your GitLab instance.
+
+Users can have permissions to access a Group or Project. When a user has access to a Group, they inherit permissions
+to all projects and sub-projects within that group.
+
+You can view the permissions granted to users, groups, and projects by clicking on the respective nodes in the graph.
+
+For example, to view the permissions granted to a user, click on the user node and select `View Access` from the context menu.
+This will display the permissions granted to the user and the resources they have access to.
+
+You can also run queries to fetch specific information from the Access Graph, such as:
+
+### Fetch All Projects Accessible to a User
+
+The following query fetches all projects accessible to a user <Var name="user" />:
+
+```sql
+SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='Gitlab'
+```
+
+Additionally, you filter projects by the user's access level, `owner`, `maintainer`, `developer`, `guest`, or `reporter`
+by running the following query:
+
+```sql
+SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='Gitlab' AND action='owner'
+```
+
+Change the `action` parameter to `maintainer`, `developer`, `guest`, or `reporter` to fetch the respective projects.
+
+### Fetch All Users with Write Access to a Project
+
+The following query fetches all users with read/write access to a project named <Var name="project" />:
+
+```sql
+SELECT * FROM access_path WHERE "resource" = '<Var name="project" />' AND source='Gitlab'
+```
+
+## Troubleshooting
+
+After setting up the GitLab integration, you can monitor the import process status on the Access Graph's Integrations page.
+If the import fails, an error message will help identify the issue.
+
+You can also check whether the import process is currently running or has completed successfully by viewing the status.
+
+If you encounter any `Unauthorized` errors, ensure that the GitLab token has the necessary permissions to access the resources
+and that the token is valid. If the token has expired, you'll need to create a new token and update the integration settings.
+
+If you encounter any other issues, please ensure that the Teleport cluster can reach the GitLab instance and that the
+GitLab APIs are accessible.
+
+If you're still facing issues, please inspect the error log on the Access Graph's Integrations page for more details.
+

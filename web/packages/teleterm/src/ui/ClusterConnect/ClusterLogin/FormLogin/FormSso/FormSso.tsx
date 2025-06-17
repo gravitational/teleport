@@ -22,7 +22,7 @@ import SSOButtonList from './SsoButtons';
 
 export const FormSso = ({
   loginAttempt,
-  authProviders,
+  authSettings: { authProviders },
   onLoginWithSso,
   autoFocus = false,
 }: Props) => {

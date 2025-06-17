@@ -120,6 +120,19 @@ func CheckToolVersion(toolsDir string) (string, error) {
 	return "", trace.BadParameter("unable to determine version")
 }
 
+// GetReExecFromVersion returns the version if current execution binary is re-executed from
+// another version.
+func GetReExecFromVersion(ctx context.Context) string {
+	reExecFromVersion := os.Getenv(teleportToolsVersionReExecEnv)
+	if reExecFromVersion != "" {
+		if _, err := semver.NewVersion(reExecFromVersion); err != nil {
+			slog.WarnContext(ctx, "Failed to parse teleport 'TELEPORT_TOOLS_VERSION_REEXEC'", "error", err)
+			return ""
+		}
+	}
+	return reExecFromVersion
+}
+
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks
 // if this package is optional, for such case download needs to be ignored if package
 // not found in CDN.

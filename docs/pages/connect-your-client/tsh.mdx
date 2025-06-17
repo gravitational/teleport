@@ -381,7 +381,7 @@ every day. This doesn't work for non-interactive scripts, like cron jobs or a
 CI/CD pipeline.
 
 The most secure way to generate certificates for automation purposes is to use
-[Machine ID](../enroll-resources/machine-id/introduction.mdx). This ensures that your automation
+[Machine ID](../machine-workload-identity/machine-id/introduction.mdx). This ensures that your automation
 is taking advantage of the security properties of short-lived credentials.
 
 If Machine ID does not support your preferred CI/CD platform, you can create a
@@ -455,11 +455,12 @@ $ tsh ls os=osx
 
 [CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
-<Details title="Not seeing Nodes?">
+<details>
+<summary>Not seeing Nodes?</summary>
 
 (!docs/pages/includes/node-logins.mdx!)
 
-</Details>
+</details>
 
 ## Interactive shell
 
@@ -686,9 +687,11 @@ $ tsh join <session_ID>
   Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/joining-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
 
-<Notice type="note" scope={["oss", "enterprise"]}>
+You can also list active sessions with the `tsh sessions ls` command.
+
+<Admonition type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
-</Notice>
+</Admonition>
 
 ## Connecting to SSH clusters behind firewalls
 
@@ -699,9 +702,9 @@ tunnels from behind-firewall environments into a Teleport Proxy Service you have
 To learn more about setting up a trust relationship between clusters behind firewalls, see
 [Configure Trusted Clusters](../admin-guides/management/admin/trustedclusters.mdx).
 
-<Notice type="note" >
+<Admonition type="note" >
   Trusted clusters are only available for self-hosted Teleport clusters.
-</Notice>
+</Admonition>
 
 Assuming the Teleport Proxy Server called `work` is configured with a few trusted
 clusters, you can use the `tsh clusters` command to see a list of all the trusted clusters on the server:
@@ -752,13 +755,13 @@ $ tsh ssh -X node01
 X11 forwarding provides the server with secure access to your local X Server
 so that it can communicate directly with your local display and I/O devices.
 
-<Notice type="note">
+<Admonition type="note">
   The `-Y` flag can be used to start Trusted X11 forwarding. This is needed
   in order to enable more "unsafe" features, such as running clipboard or
   screenshot utilities like `xclip`. However, it provides the server with
   unmitigated access to your local X Server and puts your local machine at
   risk of X11 attacks, so it should only be used with extreme caution.
-</Notice>
+</Admonition>
 
 In order to use X11 forwarding, you'll need to enable it on the Teleport Node.
 You'll also need to ensure that your user has the `permit_x11_forwarding` role option:
@@ -845,6 +848,33 @@ $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
 ```
+
+## Debug logs
+
+Adding the `--debug` flag to a command or setting the `TELEPORT_DEBUG` env var to `1` makes tsh
+print debug logs to standard output.
+
+### Unified logging system on macOS
+
+On macOS, the `--os-log` flag can be used instead of `--debug` to send debug logs to [the unified
+logging system](https://support.apple.com/en-gb/guide/console/welcome/mac). This behavior can also be controlled through the `TELEPORT_OS_LOG` env var.
+
+To stream logs in a separate shell session:
+
+```code
+$ log stream --predicate 'subsystem CONTAINS "tsh"' --style syslog --level debug
+```
+
+To dump logs captured so far to a file:
+
+```code
+$ log show --predicate 'subsystem CONTAINS "tsh"' --style syslog --info --debug > tsh.log
+```
+
+The logs can also be inspected in [the Console
+app](https://support.apple.com/en-gb/guide/console/cnsl1012/1.1/mac/15.0). Info and debug logs are
+not shown by default, so make sure to select "Include Info Messages" and "Include Debug Messages"
+from the Action menu.
 
 ## Examining recorded sessions
 
@@ -1075,7 +1105,7 @@ proxy_templates:
 In the configuration above, `query` accepts an predicate expression.  This has
 priority over search but will be ignored if a host is provided.  See the
 [predicate language
-documentation](../reference/predicate-language.mdx#resource-filtering for
+documentation](../reference/predicate-language.mdx#resource-filtering) for
 predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the

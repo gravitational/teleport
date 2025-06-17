@@ -39,6 +39,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |issuer_url|string|IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.|
 |max_age|string|MaxAge is the amount of time that user logins are valid for. If a user logs in, but then does not login again within this time period, they will be forced to re-authenticate.|
 |mfa|[object](#specmfa)|MFASettings contains settings to enable SSO MFA checks through this auth connector.|
+|pkce_mode|string|PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"|
 |prompt|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|
 |provider|string|Provider is the external identity provider.|
 |redirect_url|[]string|RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|

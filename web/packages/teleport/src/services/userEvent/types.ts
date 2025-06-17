@@ -79,6 +79,7 @@ export enum IntegrationEnrollKind {
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
   AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
+  GitHubRepoAccess = 'INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS',
 }
 
 /**
@@ -93,6 +94,14 @@ export enum IntegrationEnrollStep {
   ImportResourceSetDefaultOwner = 'INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER',
   IdentitySourceUploadSamlMetadata = 'INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA',
   ScimTestConnection = 'INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION',
+
+  /**
+   * GITHUBRA denotes GitHub Repo Access.
+   */
+  GitHubRaCreateIntegration = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION',
+  GitHubRaCreateGitServer = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER',
+  GitHubRaConfigureSshCert = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT',
+  GitHubRaCreateRole = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE',
 }
 
 /**
@@ -226,9 +235,13 @@ export enum DiscoverEventStatus {
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
 }
 
-export type UserEvent = {
-  event: CaptureEvent;
+export type UserEvent<E = CaptureEvent> = {
+  event: E;
   alert?: string;
+};
+
+type UserEventWithData<E, D> = UserEvent<E> & {
+  eventData: D;
 };
 
 export type EventMeta = {
@@ -239,10 +252,10 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
-export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
-  event: DiscoverEvent;
-  eventData: DiscoverEventData;
-};
+export type DiscoverEventRequest = UserEventWithData<
+  DiscoverEvent,
+  DiscoverEventData
+>;
 
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
@@ -312,7 +325,13 @@ export enum CtaEvent {
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
   CTA_OKTA_SCIM = 13,
+  CTA_IDENTITY_SECURITY = 14,
 }
+
+export type CtaEventRequest = UserEventWithData<
+  CaptureEvent.UiCallToActionClickEvent,
+  CtaEvent
+>;
 
 export enum Feature {
   FEATURES_UNSPECIFIED = 0,
@@ -329,3 +348,25 @@ export type FeatureRecommendationEvent = {
   Feature: Feature;
   FeatureRecommendationStatus: FeatureRecommendationStatus;
 };
+
+export type FeatureRecommendationEventRequest = UserEventWithData<
+  CaptureEvent.FeatureRecommendationEvent,
+  FeatureRecommendationEvent
+>;
+
+export enum RoleEditorMode {
+  Standard = 'standard',
+  Yaml = 'yaml',
+}
+
+export type CreateNewRoleSaveClickEventData = {
+  standardUsed: boolean;
+  yamlUsed: boolean;
+  modeWhenSaved: RoleEditorMode;
+  fieldsWithConversionErrors: string[];
+};
+
+export type CreateNewRoleSaveClickEvent = UserEventWithData<
+  CaptureEvent.CreateNewRoleSaveClickEvent,
+  CreateNewRoleSaveClickEventData
+>;
