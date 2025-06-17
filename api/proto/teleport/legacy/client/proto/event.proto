@@ -30,6 +30,7 @@ import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
+import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
@@ -219,6 +220,7 @@ message Event {
     teleport.healthcheckconfig.v1.HealthCheckConfig HealthCheckConfig = 78;
     // AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
     teleport.autoupdate.v1.AutoUpdateAgentReport AutoUpdateAgentReport = 79;
+    teleport.presence.v1.RelayServer relay_server = 82;
     // PluginV1 is a resource for Teleport plugins.
     types.PluginV1 plugin = 84;
   }
