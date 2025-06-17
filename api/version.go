@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.5.1-dev.ctmu.5"
+const Version = "17.5.2-dev.ctmu.1"
 
 const VersionMajor = 17
 const VersionMinor = 5
-const VersionPatch = 1
-const VersionPreRelease = "dev.ctmu.5"
+const VersionPatch = 2
+const VersionPreRelease = "dev.ctmu.1"
 const VersionMetadata = ""
