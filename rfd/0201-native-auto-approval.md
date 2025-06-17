@@ -82,12 +82,17 @@ Some example use cases that should be supported.
 access by default, but allow them to get access to low-risk resources whenever
 they need. This access flow is needed for compliance reasons."
 - "As a Teleport administrator, I want my super-users that have role "superuser"
-to get their access requests approved automatically."
-- "As an on-call engineer, I want to be able to troubleshoot a production server
-on a weekend when approvers are not available."
+to get their access requests approved automatically".
 - "As a Teleport administrator, I want to be able to grant my team zero standing
 access by default, but allow them to get access to resources based on the user's
-traits, and based on the resource's labels."
+traits, and based on the resource's labels.
+- "As a Teleport administrator, I want to be able to integrate Teleport with an
+on-call system to be able to auto-approve requests from users that are on-call
+for a specific service."
+- "As a Teleport administrator, I want to be able to auto-approve requests from
+users based on the time of day. For example, I want allow on-call engineers to
+be able to troubleshoot a production server on a weekend between 8AM and 9PM
+when request reviewers may not be available."
 
 ## Web UI Access Monitoring Rules
 The Teleport Web UI now provides a more user friendly approach to configuring
@@ -100,7 +105,7 @@ for automatic reviews.
 - `Access Request Condition` configures the `access_monitoring_rule.spec.condition` field.
   - `Requested Roles` Accepts a set of roles that determine which requested
   roles will be automatically reviewed.
-  - `Requested Resources` Accepts a set of resources that determine which
+  - `Requested Resource Labels` Accepts a map of labels that determine which
   requested resources will be automatically reviewed.
   - `User Traits` input accepts a map of traits. These are used to match a
     requesting user's Teleport traits.
@@ -131,16 +136,13 @@ following sets would match:
 - `set("cloud-stage")`
 - `set("cloud-dev", "cloud-stage")`
 
-The `Requested Resources` input is converted into a `contains_all` expression.
-In the example form, the resources are:
-- `/example.teleport.sh/node/1111`
-- `/example.teleport.sh/app/example`
+The `Requested Resource Labels` input is converted into a series of `has_labels`
+expressions. In the example form, the resource labels are:
+- `env: dev`
+- `service: demo`
 
-All requested resources must match a resource within that set. Therefore, the
-following sets would match:
-- `set("/example.teleport.sh/node/1111")`
-- `set("/example.teleport.sh/app/example")`
-- `set("/example.teleport.sh/node/1111", "/example.teleport.sh/app/example")`
+The resulting expresion uses AND across labels. All requested resources must
+have both labels `env: dev` and `service: demo`.
 
 The `User Traits` input is converted into a series of `contains_any` expressions.
 The resulting expression uses AND across traits, and OR logic within a trait.
@@ -163,10 +165,8 @@ spec:
     - access_request
   condition: |-
     contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
-    set(
-      "/example.teleport.sh/node/1111",
-      "/example.teleport.sh/app/example",
-    ).contains_all(access_request.spec.requested_resources) &&
+    access_request.spec.requested_resources.has_labels("env", "dev") &&
+    access_request.spec.requested_resources.has_labels("service", "demo") &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
@@ -216,13 +216,16 @@ dynamic variables:
 - `contains_all(list, items)` and `list.contains_all(items)` return `true` if
 `list` contains an exact match for all elements in `items`. This function enables
 users to define more restrictive conditions for automatic reviews.
+- `has_labels(resources_list, key, value)` returns `true` if all resources within
+`resources_list` has the `key: value` label.
 - `user.traits` variable contains the requester's user traits. It maps trait
 names to sets of values. This allows users to specify arbitrary traits—such as
 "level", "team", or "location"—which can then be used to determine whether a
 user is on-call or pre-approved for the access request.
 - `access_request.spec.requested_resources` contains the list of requested
-resource IDs. This allows users to specify which sets of requested resources are
-automatically reviewed.
+resource. This allows users to specify which sets of requested resources are
+automatically reviewed. The only function/method allowed with this value is
+`has_labels`.
 
 #### Examples
 ```yaml
@@ -247,7 +250,7 @@ spec:
 ```
 
 ```yaml
-# This AMR automatically denies requests for the "app-prod" and "db-prod" resources
+# This AMR automatically denies requests for resources with the `env: prod` label
 # if the requester does not have the trait "team: admin".
 kind: access_monitoring_rule
 version: v1
@@ -257,11 +260,7 @@ spec:
   subjects:
     - access_request
   condition: |-
-    access_request.spec.requested_resources.
-    contains_any(
-      "/example.teleport.sh/app/app-prod",
-      "/example.teleport.sh/db/db-prod",
-    ) &&
+    access_request.spec.requested_resources.has_labels("env", "prod") &&
     !user.traits["team"].contains("admin")
   desired_state: reviewed
   automatic_review:
@@ -301,25 +300,7 @@ existing AMRs. The automatic review service provides the additional user
 traits received from Teleport before the AMR condition is evaluated.
 4. If the AR matches the AMR, the plugin submits a review for the AR.
 
-### Resource ID
-Automatic review rules can be configured based on requested resource IDs. These
-IDs follow a standardized format:
-- `/<cluster>/<kind>/<name>` — used when a sub-resource is not requested.
-- `/<cluster>/<kind>/<name>/<sub-resource>` — used when a sub-resource is requested.
 
-You can identify exact resource IDs by using the `tctl request search` command:
-```sh
-$ tsh request search --kind node
-Name                                 Hostname    Labels Resource ID
------------------------------------- ----------- ------ ----------------------------------
-1111-...                             teleport-01        /example.teleport.sh/node/1111-...
-2222-...                             teleport-02        /example.teleport.sh/node/2222-...
-
-To request access to these resources, run
-> tsh request create \
-  --resource /example.teleport.sh/node/1111-... \
-  --resource /example.teleport.sh/node/2222-...
-```
 
 ## Security & Auditability
 Automatic reviews are already a supported feature, although it is currently
@@ -453,55 +434,65 @@ or by providing a user-friendly interface to preview and test rules before they
 are created. One potential approach is leveraging Teleport Access Graph to
 visualize and review automatic review rules.
 
-### Resource Friendly Names
+### Resource ID and Friendly Names
 From a UX perspective, using resource IDs in access monitoring rule conditions
 is not ideal. The IDs tend to be verbose, and they are not easily discoverable
-in the WebUI.
+in the WebUI. These IDs follow a standardized format:
+- `/<cluster>/<kind>/<name>` — used when a sub-resource is not requested.
+- `/<cluster>/<kind>/<name>/<sub-resource>` — used when a sub-resource is requested.
+
+You can identify exact resource IDs by using the `tctl request search` command:
+```sh
+$ tsh request search --kind node
+Name                                 Hostname    Labels Resource ID
+------------------------------------ ----------- ------ ----------------------------------
+1111-...                             teleport-01        /example.teleport.sh/node/1111-...
+2222-...                             teleport-02        /example.teleport.sh/node/2222-...
+
+To request access to these resources, run
+> tsh request create \
+  --resource /example.teleport.sh/node/1111-... \
+  --resource /example.teleport.sh/node/2222-...
+```
 
 Some resources can be converted into a friendly name format, but this is not
-supported for all resource types, and there is no standardized format. We should
-consider supporting a standardized format of friendly names that is easily
-discoverable within the WebUI.
+supported for all resource types, and there is no standardized format.
 
-### Resource Labels
-One of the goals is to enable automatic review rules based on resource labels.
-However, this is currently difficult to implement due to limitations in the
-condition predicate expression language.
+For these reasons, access monitoring rules will not support matching on resource
+IDs or names.
 
-#### Extend Predicate Expresion Language
-One solution to this limitation is to extend the functionality of the predicate
-language to support some form of iterator function.
 
-For example, if `access_request.spec.requested_resources` is instead assigned a
-dictionary with a structure similar to the following:
-```json
-{
-  "id": "resource-id",
-  "labels": {
-    "env": "prod",
-  },
-}
-```
+### Predicate Expression Macros
+The Teleport predicate expression language does not currently support
+[macros](https://github.com/google/cel-spec/blob/master/doc/langdef.md#macros).
+These would be useful in configuring more complex match conditions, and we
+should consider extending the language to support some of these.
 
-Then a `condition` could be written to match a request if all requested resources
-have the label `env: prod`, like so:
-``` yaml
+These macros would give users more control over the access monitoring rule match
+condition. Here are some examples that would not be possible with only the
+`has_labels` function:
+
+```yaml
+# This condition would match if all requested resources have the labels
+# `env: dev` or `env: state`.
 condition: |-
   access_request.spec.requested_resources.
-  foreach(r => r["labels"]["env"].contains("prod"))
+  all(resource, resource.labels["env"].contains_any("dev", "stage"))
 ```
 
-#### Resource Condition Field
-Another solution could involve introducing a separate `resource_condition` field
-to define additional match conditions that are applied independently to each
-requested resource. This would not require extending the predicate expression
-language.
-
-For example, a `resource_condition` could be written to match a request if all
-requested resources have the label `env: prod`, like this:
 ```yaml
-resource_condition: |-
-  requested_resource.spec.labels["env"].contains("prod")
+# This condition would match if all requested resources are either
+# - nodes with label `env: dev`
+# - apps with label `env: app-dev`
+condition: |-
+  access_request.spec.requested_resources.
+  all(
+    resource,
+    (
+      resource.kind == "node", resource.labels["env"].contains_any("dev") ||
+      resource.kind == "app", resource.labels["env"].contains_any("app-dev")
+    ),
+  )
 ```
 
 ## Implementation Plan
@@ -520,7 +511,7 @@ Monitoring Rules.
 
 ### Resource Access Request
 1. Extend the Access Monitoring Rule to support the `access_request.spec.requested_resources`
-variable.
+variable and the `has_labels` function/method.
 2. Update the automatic review service to allow automatic reviews of resource
 access requests.
 3. Update WebUI standard editor to support configuration of automatic reviews
