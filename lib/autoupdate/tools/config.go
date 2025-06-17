@@ -23,6 +23,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -75,6 +76,13 @@ func (p Tools) PickVersion(version string) *Tool {
 		}
 	}
 	return nil
+}
+
+// HasVersion check that specific version present in collection.
+func (p Tools) HasVersion(version string) bool {
+	return slices.ContainsFunc(p, func(s Tool) bool {
+		return version == s.Version
+	})
 }
 
 func (u *Updater) loadConfig(currentProfile string) (*Config, error) {

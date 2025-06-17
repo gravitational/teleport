@@ -63,35 +63,38 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
+	// Fetch compiled test binary and install to tools dir [v1.2.3].
+	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
+	require.NoError(t, updater.Update(ctx, testVersions[0]))
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+	tctlPath, err := updater.ToolPath("tctl", testVersions[0])
+	require.NoError(t, err)
+
 	configPath := filepath.Join(homeDir, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0700))
-	executable := filepath.Join(installDir, "tsh")
 	out, err := yaml.Marshal(client.TSHConfig{
 		Aliases: map[string]string{
 			"loginalice": fmt.Sprintf(
 				"%s login --insecure --proxy %s --user alice --auth %s",
-				executable, proxyAddr, constants.LocalConnector,
+				tshPath, proxyAddr, constants.LocalConnector,
 			),
 		},
 	})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(configPath, out, 0600))
 
-	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
-	require.NoError(t, err)
-
 	// Execute alias command which must be transformed to the login command.
 	// Since client tools autoupdates is enabled and target version is set
 	// in the test cluster, we have to update client tools to new version.
-	cmd := exec.CommandContext(ctx, executable, "loginalice")
+	cmd := exec.CommandContext(ctx, tshPath, "loginalice")
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 
 	// Verify tctl status after login.
-	cmd = exec.CommandContext(ctx, filepath.Join(installDir, "tctl"), "status", "--insecure")
+	cmd = exec.CommandContext(ctx, tctlPath, "status", "--insecure")
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -99,7 +102,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v3.2.1].
-	cmd = exec.CommandContext(ctx, executable, "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
 	matches := pattern.FindStringSubmatch(string(out))
@@ -126,15 +129,16 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
-	executable := filepath.Join(installDir, "tsh")
 
 	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
+	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
+	require.NoError(t, updater.Update(ctx, testVersions[0]))
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	// First login with set version during login process
 	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
-	cmd := exec.CommandContext(ctx, executable,
+	cmd := exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
@@ -145,7 +149,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v3.2.1].
-	cmd = exec.CommandContext(ctx, executable, "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err := cmd.Output()
 	require.NoError(t, err)
 	matches := pattern.FindStringSubmatch(string(out))
@@ -170,15 +174,16 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
-	executable := filepath.Join(installDir, "tsh")
 
 	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).UpdateWithLock(ctx, testVersions[0])
+	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
+	require.NoError(t, updater.Update(ctx, testVersions[0]))
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	// Set env variable to forcibly request update on version command.
 	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
-	cmd := exec.CommandContext(ctx, executable, "version")
+	cmd := exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = os.Environ()
 	out, err := cmd.Output()
 	require.NoError(t, err)
@@ -190,7 +195,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Second login has to update profile and disable further managed updates.
-	cmd = exec.CommandContext(ctx, executable,
+	cmd = exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
@@ -199,7 +204,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v3.2.1].
-	cmd = exec.CommandContext(ctx, executable, "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
 	// Check the version.
@@ -226,14 +231,15 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
-	executable := filepath.Join(installDir, "tsh")
 
 	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
+	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
+	require.NoError(t, updater.Update(ctx, testVersions[0]))
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	// Second login has to update profile and disable further managed updates.
-	cmd := exec.CommandContext(ctx, executable,
+	cmd := exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
@@ -242,7 +248,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 
 	// Trying to forcibly use specific version not during login.
 	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
-	cmd = exec.CommandContext(ctx, executable, "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = os.Environ()
 	out, err := cmd.Output()
 	require.NoError(t, err)
@@ -257,7 +263,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	// Run version command to verify that login command executed auto update and
 	// tsh is version [v1.2.3] since it was requested not during login and cluster
 	// has disabled managed updates.
-	cmd = exec.CommandContext(ctx, executable, "version")
+	cmd = exec.CommandContext(ctx, tshPath, "version")
 	out, err = cmd.Output()
 	require.NoError(t, err)
 	matches = pattern.FindStringSubmatch(string(out))

@@ -183,12 +183,28 @@ func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
 
 	// Backward compatibility check. If a version of client tools has already been downloaded to
 	// tools directory, return that.
-	toolsVersion, err := CheckToolVersion(u.toolsDir)
+	toolsVersion, err := CheckExecutedToolVersion(u.toolsDir)
 	if trace.IsNotFound(err) || toolsVersion == u.localVersion {
 		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	tools, err := u.loadTools()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if !tools.HasVersion(toolsVersion) {
+		migrateTools, err := migrateV1(u.toolsDir, u.tools)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, tool := range migrateTools {
+			if err := u.saveTool(tool); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 
 	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
@@ -200,6 +216,11 @@ func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (response *UpdateResponse, err error) {
+	proxyHost, err := utils.Host(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -208,6 +229,12 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
+		// If the environment variable is set during a remote check,
+		// prioritize this version for the current host and use it as the default
+		// for all commands under the current profile.
+		if err := u.updateConfig(proxyHost, requestedVersion, false); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	// No requested version, we continue.
 	case "":
@@ -215,6 +242,9 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
 			return nil, trace.Wrap(err, "checking that request version is semantic")
+		}
+		if err := u.updateConfig(proxyHost, requestedVersion, false); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &UpdateResponse{Version: requestedVersion, ReExec: true}, nil
 	}
@@ -234,48 +264,41 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		return nil, trace.Wrap(err)
 	}
 
-	// If a version of client tools has already been downloaded to
-	// tools directory, return that.
-	toolsVersion, err := CheckToolVersion(u.toolsDir)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	updateResp := &UpdateResponse{Version: toolsVersion, ReExec: true}
+	updateResp := &UpdateResponse{Version: u.localVersion, ReExec: false}
 
 	switch {
 	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
-		updateResp = &UpdateResponse{Version: toolsVersion, ReExec: true, Disabled: true}
-		if toolsVersion == "" {
-			updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}
-		}
+		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
 		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false}
-	case resp.AutoUpdate.ToolsVersion != toolsVersion:
+	default:
 		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
 	}
 
-	proxyHost, err := utils.Host(proxyAddr)
-	if err != nil {
+	if err := u.updateConfig(proxyHost, updateResp.Version, updateResp.Disabled); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	return updateResp, nil
+}
+
+// updateConfig updates configuration for the host by setting version and disabling flag.
+func (u *Updater) updateConfig(proxyHost, version string, disabled bool) error {
 	config, err := u.loadConfig(proxyHost)
 	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	if config == nil {
 		config = &Config{}
 	}
 
-	config.Version = updateResp.Version
-	config.Disabled = updateResp.Disabled
+	config.Version = version
+	config.Disabled = disabled
 	if err := u.saveConfig(proxyHost, config); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-
-	return updateResp, nil
+	return nil
 }
 
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
@@ -382,7 +405,7 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 	}
 
 	// Perform atomic replace so concurrent exec do not fail.
-	toolsMap, err := packaging.ReplaceToolsBinaries(u.toolsDir, f.Name(), extractDir, u.tools)
+	toolsMap, err := packaging.ReplaceToolsBinaries(f.Name(), extractDir, u.tools)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -402,24 +425,33 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 	return nil
 }
 
-// Exec re-executes tool command with same arguments and environ variables.
-func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
+// ToolPath loads full path from config file to specific tool and version.
+func (u *Updater) ToolPath(toolName, toolVersion string) (string, error) {
 	tools, err := u.loadTools()
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	tool := tools.PickVersion(toolsVersion)
+	tool := tools.PickVersion(toolVersion)
 	if tool == nil {
-		return 0, trace.NotFound("tool version %q not found", version)
+		return "", trace.NotFound("tool version %q not found", toolVersion)
+	}
+	relPath, ok := tool.PathMap[toolName]
+	if !ok {
+		return "", trace.NotFound("tool %q not found", toolName)
 	}
 
+	return filepath.Join(u.toolsDir, tool.Package, relPath), nil
+}
+
+// Exec re-executes tool command with same arguments and environ variables.
+func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	path, ok := tool.PathMap[filepath.Base(executablePath)]
-	if !ok {
-		return 0, trace.NotFound("tool %q not found", filepath.Base(executablePath))
+	path, err := u.ToolPath(filepath.Base(executablePath), toolsVersion)
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
 
 	for _, unset := range []string{
