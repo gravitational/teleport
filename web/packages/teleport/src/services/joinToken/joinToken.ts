@@ -20,6 +20,8 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import { WebauthnAssertionResponse } from '../auth';
+import { MfaAuthnResponse } from '../mfa';
 import makeJoinToken from './makeJoinToken';
 import { JoinRule, JoinToken, JoinTokenRequest } from './types';
 
@@ -65,8 +67,13 @@ class JoinTokenService {
       .then(makeJoinToken);
   }
 
-  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
-    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  createJoinToken(
+    req: JoinTokenRequest,
+    mfaResponse: WebauthnAssertionResponse
+  ): Promise<JoinToken> {
+    return api
+      .post(cfg.getJoinTokensUrl(), req, null /* abortSignal */, mfaResponse)
+      .then(makeJoinToken);
   }
 
   fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
