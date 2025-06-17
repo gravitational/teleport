@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package cassandra
+package testing
 
 import (
 	"bytes"
@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/datastax/go-cassandra-native-protocol/client"
@@ -100,6 +101,7 @@ type TestServer struct {
 	tlsConfig *tls.Config
 	logger    *slog.Logger
 	server    *client.CqlServer
+	ct        *ConnectionTracker
 }
 
 // NewTestServer returns a new instance of a test Snowflake server.
@@ -118,7 +120,9 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		server.Listener = tls.NewListener(config.Listener, tlsConfig)
 	}
 
+	ct := &ConnectionTracker{}
 	server.RequestHandlers = []client.RequestHandler{
+		ct.Handler,
 		client.HandshakeHandler,
 		handleMessageOption,
 		handleMessageQuery,
@@ -143,6 +147,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		port:      port,
 		tlsConfig: tlsConfig,
 		server:    server,
+		ct:        ct,
 		logger: utils.NewSlogLoggerForTests().With(
 			teleport.ComponentKey, defaults.ProtocolCassandra,
 			"name", config.Name,
@@ -160,8 +165,23 @@ func (s *TestServer) Serve() error {
 }
 
 // Close closes the server.
+//
+// Note: Given that once the server is closed some shared resources are no longer
+// available, we must guarantee all connections are closed before closing it.
+// Otherwise, this could trigger a panic or raise the data race detector.
+//
+// Relevant issues:
+// - https://github.com/datastax/go-cassandra-native-protocol/issues/38
+// - https://github.com/datastax/go-cassandra-native-protocol/issues/36
 func (s *TestServer) Close() error {
-	return s.server.Close()
+	return trace.NewAggregate(
+		// Stop accepting new connections.
+		s.server.Listener.Close(),
+		// Close active connections.
+		s.ct.CloseAll(),
+		// Teardown the server.
+		s.server.Close(),
+	)
 }
 
 func (s *TestServer) Port() string {
@@ -355,4 +375,34 @@ func handleMessageOption(request *frame.Frame, conn *client.CqlServerConnection,
 		)
 	}
 	return nil
+}
+
+type ConnectionTracker struct {
+	mu          sync.Mutex
+	connections []*client.CqlServerConnection
+}
+
+func (ct *ConnectionTracker) Handler(request *frame.Frame, conn *client.CqlServerConnection, ctx client.RequestHandlerContext) *frame.Frame {
+	switch request.Body.Message.(type) {
+	case *message.Startup:
+		ct.mu.Lock()
+		ct.connections = append(ct.connections, conn)
+		ct.mu.Unlock()
+	}
+
+	return nil
+}
+
+// CloseAll close all cassandra connections.
+func (ct *ConnectionTracker) CloseAll() error {
+	ct.mu.Lock()
+	defer ct.mu.Unlock()
+
+	var errs []error
+	for _, conn := range ct.connections {
+		// It is safe to close already closed connections.
+		errs = append(errs, conn.Close())
+	}
+
+	return trace.NewAggregate(errs...)
 }
