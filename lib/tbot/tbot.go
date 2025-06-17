@@ -123,7 +123,19 @@ type getBotIdentityFn func() *identity.Identity
 // BotIdentity returns the bot's own identity. This will return nil if the bot
 // has not been started.
 func (b *Bot) BotIdentity() *identity.Identity {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	return b.botIdentitySvc.GetIdentity()
+}
+
+// Client returns the bot's API client. This will return nil if the bot has not
+// been started.
+func (b *Bot) Client() *apiclient.Client {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.botIdentitySvc.GetClient()
 }
 
 func (b *Bot) Run(ctx context.Context) (err error) {
@@ -214,6 +226,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}()
 	}
 
+	b.mu.Lock()
 	b.botIdentitySvc = &identityService{
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
@@ -222,6 +235,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
 	}
+	b.mu.Unlock()
+
 	// Initialize bot's own identity. This will load from disk, or fetch a new
 	// identity, and perform an initial renewal if necessary.
 	if err := b.botIdentitySvc.Initialize(ctx); err != nil {

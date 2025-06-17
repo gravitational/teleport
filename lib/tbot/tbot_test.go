@@ -696,7 +696,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	// Wait for the client to be available.
 	var client *client.Client
 	require.Eventually(t, func() bool {
-		client = thirdBot.botIdentitySvc.GetClient()
+		client = thirdBot.Client()
 		return client != nil
 	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
 
