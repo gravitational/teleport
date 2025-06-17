@@ -87,7 +87,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 			select {
 			case <-s.botIdentityReadyCh:
 			case <-ctx.Done():
-				return alpnproxy.LocalProxyConfig{}, nil
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
 			}
 		}
 	}

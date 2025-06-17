@@ -127,7 +127,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 			select {
 			case <-s.botIdentityReadyCh:
 			case <-ctx.Done():
-				return alpnproxy.LocalProxyConfig{}, nil
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
 			}
 		}
 	}
