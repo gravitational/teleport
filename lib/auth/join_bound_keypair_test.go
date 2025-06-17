@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/boundkeypair"
+	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -843,7 +844,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 			BotName:    "test",
 			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
 				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
-					RegistrationSecret: "insecure",
+					InitialPublicKey: correctPublicKey,
 				},
 				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
 					Limit: 2,
@@ -871,12 +872,6 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		return req
 	}
 
-	withSecret := func(secret string) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
-		return func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
-			r.InitialJoinSecret = secret
-		}
-	}
-
 	withJoinState := func(state []byte) func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
 		return func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
 			r.PreviousJoinState = state
@@ -893,7 +888,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	}
 
 	solver := newMockSolver(t, correctPublicKey)
-	response, err := auth.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(withSecret("insecure")), solver.solver())
+	response, err := auth.RegisterUsingBoundKeypairMethod(ctx, makeInitReq(), solver.solver())
 	require.NoError(t, err)
 
 	instance, generation := testExtractBotParamsFromCerts(t, response.Certs)
@@ -902,7 +897,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	firstInstance := instance
 
 	// Register several times.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		response, err = auth.RegisterUsingBoundKeypairMethod(
 			ctx,
 			makeInitReq(withJoinState(response.JoinState), withBotParamsFromIdent(t, response.Certs)),
@@ -926,7 +921,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	secondInstance := instance
 
 	// Register several more times.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		response, err = auth.RegisterUsingBoundKeypairMethod(
 			ctx,
 			makeInitReq(withJoinState(response.JoinState), withBotParamsFromIdent(t, response.Certs)),
