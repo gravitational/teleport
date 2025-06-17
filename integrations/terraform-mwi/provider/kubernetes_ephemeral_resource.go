@@ -53,6 +53,10 @@ type KubernetesEphemeralResourceModel struct {
 	CredentialTTL timetypes.GoDuration                     `tfsdk:"credential_ttl"`
 
 	// Attributes
+	Output *KubernetesEphemeralResourceModelOutput `tfsdk:"output"`
+}
+
+type KubernetesEphemeralResourceModelOutput struct {
 	ClientKey            types.String `tfsdk:"client_key"`
 	Host                 types.String `tfsdk:"host"`
 	TLSServerName        types.String `tfsdk:"tls_server_name"`
@@ -87,26 +91,31 @@ func (r *KubernetesEphemeralResource) Schema(
 				Computed:            true,
 			},
 			// Attributes
-			"client_key": schema.StringAttribute{
-				Computed:            true,
-				Sensitive:           true,
-				MarkdownDescription: "Compatible with the `client_key` argument of the `kubernetes` provider.",
-			},
-			"host": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `host` argument of the `kubernetes` provider.",
-			},
-			"tls_server_name": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `tls_server_name` argument of the `kubernetes` provider.",
-			},
-			"client_certificate": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `client_certificate` argument of the `kubernetes` provider.",
-			},
-			"cluster_ca_certificate": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Compatible with the `cluster_ca_certificate` argument of the `kubernetes` provider.",
+			"output": schema.SingleNestedAttribute{
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"client_key": schema.StringAttribute{
+						Computed:            true,
+						Sensitive:           true,
+						MarkdownDescription: "Compatible with the `client_key` argument of the `kubernetes` provider.",
+					},
+					"host": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `host` argument of the `kubernetes` provider.",
+					},
+					"tls_server_name": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `tls_server_name` argument of the `kubernetes` provider.",
+					},
+					"client_certificate": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `client_certificate` argument of the `kubernetes` provider.",
+					},
+					"cluster_ca_certificate": schema.StringAttribute{
+						Computed:            true,
+						MarkdownDescription: "Compatible with the `cluster_ca_certificate` argument of the `kubernetes` provider.",
+					},
+				},
 			},
 		},
 	}
@@ -151,8 +160,12 @@ func (r *KubernetesEphemeralResource) Open(
 		return
 	}
 
-	data.Host = types.StringValue(
-		fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
-	)
+	out := KubernetesEphemeralResourceModelOutput{
+		Host: types.StringValue(
+			fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
+		),
+	}
+
+	data.Output = &out
 	resp.Diagnostics.Append(resp.Result.Set(ctx, &data)...)
 }
