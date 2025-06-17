@@ -360,7 +360,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(
+	values, next, err := l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -372,6 +372,14 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 			filter:    searchEventsFilter{eventTypes: req.EventTypes},
 			sessionID: "",
 		})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 type searchEventsWithFilterParams struct {
@@ -384,7 +392,7 @@ type searchEventsWithFilterParams struct {
 	sessionID      string
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]apievents.AuditEvent, string, error) {
+func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]events.EventFields, string, error) {
 	if params.limit <= 0 {
 		params.limit = batchReadLimit
 	}
@@ -441,16 +449,8 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWit
 	}
 
 	sort.Sort(toSort)
-	eventArr := make([]apievents.AuditEvent, 0, len(values))
-	for _, fields := range values {
-		event, err := events.FromEventFields(fields)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		eventArr = append(eventArr, event)
-	}
 
-	return eventArr, lastKey, nil
+	return values, lastKey, nil
 }
 
 func (l *Log) query(
@@ -555,7 +555,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		}
 		filter.condition = condFn
 	}
-	return l.searchEventsWithFilter(
+	values, next, err := l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -568,6 +568,14 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 			sessionID: req.SessionID,
 		},
 	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -625,6 +633,30 @@ func (l *Log) Close() error {
 
 func (l *Log) getDocIDForEvent() string {
 	return uuid.New().String()
+}
+
+func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	values, next, err := l.searchEventsWithFilter(
+		ctx,
+		searchEventsWithFilterParams{
+			fromUTC:   req.From,
+			toUTC:     req.To,
+			namespace: apidefaults.Namespace,
+			limit:     req.Limit,
+			order:     req.Order,
+			lastKey:   req.StartKey,
+			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			sessionID: "",
+		})
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSliceToUnstructured(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) purgeExpiredEvents() error {

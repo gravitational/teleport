@@ -5769,30 +5769,23 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
-		From:       req.StartDate.AsTime(),
-		To:         req.EndDate.AsTime(),
-		EventTypes: req.EventTypes,
-		Limit:      int(req.Limit),
-		Order:      types.EventOrder(req.Order),
-		StartKey:   req.StartKey,
-	})
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchUnstructuredEvents(
+		ctx,
+		events.SearchEventsRequest{
+			From:       req.StartDate.AsTime(),
+			To:         req.EndDate.AsTime(),
+			EventTypes: req.EventTypes,
+			Limit:      int(req.Limit),
+			Order:      types.EventOrder(req.Order),
+			StartKey:   req.StartKey,
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	unstructuredEvents := make([]*auditlogpb.EventUnstructured, 0, len(rawEvents))
-	for _, event := range rawEvents {
-		unstructuredEvent, err := apievents.ToUnstructured(event)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		unstructuredEvents = append(unstructuredEvents, unstructuredEvent)
-	}
-
 	return &auditlogpb.EventsUnstructured{
-		Items:   unstructuredEvents,
+		Items:   rawEvents,
 		LastKey: lastkey,
 	}, nil
 }
