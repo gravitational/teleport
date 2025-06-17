@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 const (
@@ -103,7 +104,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
 	}
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "test network stack",
 		Task: func(ctx context.Context) error {
 			if err := forwardBetweenTunAndNetstack(ctx, tun1, testLinkEndpoint); !errIsOK(err) {
@@ -159,7 +160,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	})
 	require.NoError(t, err)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
 			if err := ns.run(ctx); !errIsOK(err) {
@@ -281,7 +282,7 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, clock cl
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "user process gRPC server",
 		Task: func(ctx context.Context) error {
 			return trace.Wrap(grpcServer.Serve(listener), "serving VNet user process gRPC service")
@@ -1288,8 +1289,7 @@ func mustStartFakeWebProxy(
 	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
 	require.NoError(t, err)
 
-	// Run a fake web proxy that will accept any client connection and echo the input back.
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "web proxy",
 		Task: func(ctx context.Context) error {
 			for {

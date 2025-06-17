@@ -36,7 +36,6 @@
     "winston": "^3.14.2"
   },
   "devDependencies": {
-    "@electron/notarize": "^3.0.1",
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",

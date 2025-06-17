@@ -1191,9 +1191,10 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
 		AWSAccount:  kmsConfig.Account,
 		AWSRegion:   kmsConfig.Region,
-		MultiRegion: kmsConfig.MultiRegion,
 		Tags:        kmsConfig.Tags,
+		MultiRegion: kmsConfig.MultiRegion,
 	}
+
 	return nil
 }
 
@@ -1954,12 +1955,14 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 			AD: servicecfg.DatabaseAD{
-				KeytabFile:  database.AD.KeytabFile,
-				Krb5File:    database.AD.Krb5File,
-				Domain:      database.AD.Domain,
-				SPN:         database.AD.SPN,
-				LDAPCert:    database.AD.LDAPCert,
-				KDCHostName: database.AD.KDCHostName,
+				KeytabFile:             database.AD.KeytabFile,
+				Krb5File:               database.AD.Krb5File,
+				Domain:                 database.AD.Domain,
+				SPN:                    database.AD.SPN,
+				LDAPCert:               database.AD.LDAPCert,
+				KDCHostName:            database.AD.KDCHostName,
+				LDAPServiceAccountName: database.AD.LDAPServiceAccountName,
+				LDAPServiceAccountSID:  database.AD.LDAPServiceAccountSID,
 			},
 			Azure: servicecfg.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,

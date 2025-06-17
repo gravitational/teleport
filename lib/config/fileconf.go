@@ -921,10 +921,7 @@ type AWSKMS struct {
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion struct {
-		// Enabled configures new keys to be multi-region.
-		Enabled bool
-	} `yaml:"multi_region,omitempty"`
+	MultiRegion servicecfg.MultiRegionKeyStore `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
@@ -1934,6 +1931,10 @@ type DatabaseAD struct {
 	LDAPCert string `yaml:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName string `yaml:"kdc_host_name,omitempty"`
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.

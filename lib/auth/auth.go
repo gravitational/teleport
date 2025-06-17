@@ -5450,10 +5450,7 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 		return nil
 	}
 
-	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
-		Plugins:              a.Plugins,
-		UnifiedResourceCache: a.UnifiedResourceCache,
-	})
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, a)
 	if errors.Is(err, okta.OktaResourceNotRequestableError) {
 		return trace.Wrap(err)
 	} else if err != nil {
