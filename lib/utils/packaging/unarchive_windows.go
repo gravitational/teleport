@@ -21,10 +21,9 @@
 package packaging
 
 // ReplaceToolsBinaries extracts executables specified by execNames from archivePath into
-// extractDir. After each executable is extracted, it is symlinked from extractDir/[name] to
-// toolsDir/[name].
+// extractDir.
 //
 // For Windows, archivePath must be a .zip file.
 func ReplaceToolsBinaries(archivePath string, extractPath string, execNames []string) (map[string]string, error) {
-	return replaceZip(toolsDir, archivePath, extractPath, execNames)
+	return replaceZip(archivePath, extractPath, execNames)
 }
