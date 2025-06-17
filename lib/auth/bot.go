@@ -255,6 +255,26 @@ func (a *Server) tryLockBotDueToGenerationMismatch(ctx context.Context, username
 	return nil
 }
 
+// shouldEnforceGenerationCounter decides if generation counter checks should be
+// enforced for a given join method. Note that in certain situations the counter
+// may still not technically be enforced, for example, when onboarding a new bot
+// or recovering a bound keypair bot.
+func shouldEnforceGenerationCounter(renewable bool, joinMethod string) bool {
+	if renewable {
+		return true
+	}
+
+	// Note: token renewals are handled by the `renewable` check above, since
+	// those certs are issued via `ServerWithRoles.generateUserCerts()` and do
+	// not have an associated join method.
+	switch joinMethod {
+	case string(types.JoinMethodBoundKeypair):
+		return true
+	default:
+		return false
+	}
+}
+
 // updateBotInstance updates the bot instance associated with the context
 // identity, if any. If the optional `templateAuthRecord` is provided, various
 // metadata fields will be copied into the newly generated auth record.
@@ -383,9 +403,9 @@ func (a *Server) updateBotInstance(
 
 		return trace.AccessDenied("a current identity generation must be provided")
 	} else if currentIdentityGeneration > 0 && currentIdentityGeneration != instanceGeneration {
-		// For now, continue to only enforce generation counter checks on
-		// renewable (i.e. token) identities.
-		if req.renewable {
+		// Generation counter enforcement depends on the type of cert and join
+		// method (if any - token renewals technically have no join method.)
+		if shouldEnforceGenerationCounter(req.renewable, authRecord.JoinMethod) {
 			if err := a.tryLockBotDueToGenerationMismatch(ctx, username); err != nil {
 				l.WithError(err).Warn("Failed to lock bot when a generation mismatch was detected")
 			}
@@ -418,6 +438,8 @@ func (a *Server) updateBotInstance(
 	// compatibility, but only if this is a renewable identity. Previous
 	// versions only expect a nonzero generation counter for token joins, so
 	// setting this for other methods will break compatibility.
+	// Note: new join methods that enforce generation counter checks will not
+	// write a generation counter to user labels (e.g. bound keypair).
 	if req.renewable {
 		if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
 			l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
