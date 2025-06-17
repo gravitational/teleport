@@ -70,11 +70,11 @@ type clientApplicationService struct {
 }
 
 type clientApplicationServiceConfig struct {
-	fqdnResolver          *fqdnResolver
-	localOSConfigProvider *LocalOSConfigProvider
-	clientApplication     ClientApplication
-	homePath              string
-	clock                 clockwork.Clock
+	fqdnResolver                 *fqdnResolver
+	unifiedClusterConfigProvider *UnifiedClusterConfigProvider
+	clientApplication            ClientApplication
+	homePath                     string
+	clock                        clockwork.Clock
 }
 
 func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientApplicationService, error) {
@@ -255,12 +255,15 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 // DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
 // interface.
 func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context, _ *vnetv1.GetTargetOSConfigurationRequest) (*vnetv1.GetTargetOSConfigurationResponse, error) {
-	targetConfig, err := s.cfg.localOSConfigProvider.GetTargetOSConfiguration(ctx)
+	unifiedClusterConfig, err := s.cfg.unifiedClusterConfigProvider.GetUnifiedClusterConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration")
 	}
 	return &vnetv1.GetTargetOSConfigurationResponse{
-		TargetOsConfiguration: targetConfig,
+		TargetOsConfiguration: &vnetv1.TargetOSConfiguration{
+			DnsZones:       unifiedClusterConfig.AllDNSZones(),
+			Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
+		},
 	}, nil
 }
 
