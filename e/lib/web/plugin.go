@@ -28,6 +28,7 @@ import (
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -122,7 +123,7 @@ type Plugin struct {
 
 	// authMiddleware is the auth middleware.
 	authMiddlewareMu sync.RWMutex
-	authMiddleware   *auth.Middleware
+	authMiddleware   *authz.Middleware
 
 	pluginDescriptors map[types.PluginType]pluginDescriptor
 
@@ -192,7 +193,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	}
 
 	p.authMiddlewareMu.Lock()
-	p.authMiddleware = &auth.Middleware{
+	p.authMiddleware = &authz.Middleware{
 		ClusterName: clusterName.GetClusterName(),
 	}
 	p.authMiddlewareMu.Unlock()

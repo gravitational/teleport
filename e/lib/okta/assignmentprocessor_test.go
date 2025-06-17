@@ -64,7 +64,6 @@ func TestProcessAssignments(t *testing.T) {
 		{
 			name:             "empty",
 			assignments:      types.OktaAssignments{},
-			expected:         types.OktaAssignments{},
 			errAssertionFunc: require.NoError,
 		},
 		{
@@ -180,7 +179,6 @@ func TestProcessAssignments(t *testing.T) {
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusPending, startTime, false,
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected:               types.OktaAssignments{},
 			incrementTimeDuration:  time.Minute,
 			skipAssignmentCreation: true,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
@@ -269,7 +267,6 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			expected:              types.OktaAssignments{},
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New[oktaUserID](),

@@ -407,12 +407,7 @@ func TestOnLogin(t *testing.T) {
 		{
 			name:             "no assignments",
 			oktaServiceCount: 1,
-			expected:         []types.OktaAssignment{},
-			cycles: []lockAndOnLoginCycle{
-				{
-					expected: []types.OktaAssignment{},
-				},
-			},
+			cycles:           []lockAndOnLoginCycle{},
 		},
 		{
 			name:             "access requests, no locks",
