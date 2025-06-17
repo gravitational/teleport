@@ -32,11 +32,9 @@ jobs:
           - buildbox-centos7-fips
           - build-centos7-assets
         exclude:
-          # Exclude buildbox, buildbox-node and buildbox-arm on arm64. They are amd64 only
+          # Exclude buildbox and buildbox-arm on arm64. They are amd64 only
           - hostarch: arm64
             target: buildbox
-          - hostarch: arm64
-            target: buildbox-node
           - hostarch: arm64
             target: buildbox-arm
 
