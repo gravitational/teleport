@@ -729,8 +729,16 @@ func botIdentityFromToken(
 		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
 		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
-			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
+			log.InfoContext(ctx, "No existing client state found, will attempt "+
+				"to join with provided registration secret")
+			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
 		} else if err != nil {
+			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
+				"no local credentials are available and no registration secret "+
+				"was provided. To continue, either generate a keypair with "+
+				"`tbot keypair create` and register it with Teleport, or "+
+				"generate a registration secret on Teleport and provide it with"+
+				"the `--registration-secret` flag.")
 			return nil, trace.Wrap(err, "loading bound keypair client state")
 		}
 
