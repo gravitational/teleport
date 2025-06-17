@@ -71,7 +71,7 @@ func RemoveWithSuffix(dir, suffix string, skipNames []string) error {
 // replaceZip un-archives the Teleport package in .zip format, iterates through
 // the compressed content, and ignores everything not matching the binaries specified
 // in the execNames argument. The data is extracted to extractDir, and copies are created in toolsDir.
-func replaceZip(toolsDir string, archivePath string, extractDir string, execNames []string) (map[string]string, error) {
+func replaceZip(archivePath string, extractDir string, execNames []string) (map[string]string, error) {
 	execPaths := make(map[string]string, len(execNames))
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -128,19 +128,11 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			if _, err := io.Copy(destFile, file); err != nil {
 				return trace.Wrap(err)
 			}
-			appPath := filepath.Join(toolsDir, baseName)
-			// For the Windows build, we need to copy the binary to perform updates without requiring
-			// administrative access, which would otherwise be needed for creating symlinks.
-			// Since symlinks are not used on the Windows platform, there's no need to remove appPath
-			// before copying the new binary — it will simply be replaced.
-			if err := utils.CopyFile(dest, appPath, 0o755); err != nil {
-				return trace.Wrap(err)
-			}
 			return trace.Wrap(destFile.Close())
 		}(zipFile); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		execPaths[baseName] = filepath.Join(extractDir, baseName)
+		execPaths[baseName] = baseName
 	}
 
 	return execPaths, nil

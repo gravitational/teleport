@@ -74,16 +74,20 @@ func DefaultClientTools() []string {
 	}
 }
 
-// CheckToolVersion returns current installed client tools version, must return NotFoundError if
-// the client tools is not found in tools directory.
-func CheckToolVersion(toolsDir string) (string, error) {
-	// Find the path to the current executable.
+// CheckExecutedToolVersion invokes the exact executable from the tools directory to retrieve its version.
+func CheckExecutedToolVersion(toolsDir string) (string, error) {
 	path, err := toolName(toolsDir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return "", trace.NotFound("autoupdate tool not found in %q", toolsDir)
+	return CheckToolVersion(path)
+}
+
+// CheckToolVersion returns client tools version, must return NotFoundError if
+// the client tools is not found in specified path.
+func CheckToolVersion(toolPath string) (string, error) {
+	if _, err := os.Stat(toolPath); errors.Is(err, os.ErrNotExist) {
+		return "", trace.NotFound("autoupdate tool not found in %q", toolPath)
 	} else if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -96,11 +100,12 @@ func CheckToolVersion(toolsDir string) (string, error) {
 
 	// Execute "{tsh, tctl} version" and pass in TELEPORT_TOOLS_VERSION=off to
 	// turn off all automatic updates code paths to prevent any recursion.
-	command := exec.CommandContext(ctx, path, "version")
+	command := exec.CommandContext(ctx, toolPath, "version")
 	command.Env = []string{teleportToolsVersionEnv + "=off"}
 	output, err := command.Output()
 	if err != nil {
-		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool", path)
+		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool: %q",
+			toolPath, string(output))
 	}
 
 	// The output for "{tsh, tctl} version" can be multiple lines. Find the
@@ -148,7 +153,13 @@ func CleanUp(toolsDir string, tools []string) error {
 			aggErr = append(aggErr, err)
 		}
 	}
+	if err := os.RemoveAll(filepath.Join(toolsDir, configFileName)); err != nil {
+		aggErr = append(aggErr, err)
+	}
 	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffix, nil); err != nil {
+		aggErr = append(aggErr, err)
+	}
+	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffixV2, nil); err != nil {
 		aggErr = append(aggErr, err)
 	}
 

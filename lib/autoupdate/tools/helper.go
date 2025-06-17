@@ -100,10 +100,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	if resp.ReExec {
-		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		updateAndReExec(ctx, updater, resp.Version, reExecArgs)
 	}
 
 	return nil
@@ -131,15 +128,13 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 	}
 
 	if !resp.Disabled && resp.ReExec {
-		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		updateAndReExec(ctx, updater, resp.Version, reExecArgs)
 	}
+
 	return nil
 }
 
-func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
+func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) {
 	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 	defer cancel()
 	// Download the version of client tools required by the cluster. This
@@ -147,17 +142,19 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// explicitly.
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
-		return trace.Wrap(err)
+		slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", toolsVersion)
+		return
 	}
 
 	// Re-execute client tools with the correct version of client tools.
 	code, err := updater.Exec(toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err)
-		os.Exit(code)
+		slog.ErrorContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
+		// Continue executing the current version of the client tools (tsh, tctl)
+		// to avoid potential issues with the updated version, such as missing
+		// signatures or build errors.
+		return
 	} else if err == nil {
 		os.Exit(code)
 	}
-
-	return nil
 }

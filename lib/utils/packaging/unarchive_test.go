@@ -59,15 +59,13 @@ func TestPackaging(t *testing.T) {
 		require.FileExists(t, archivePath, "archive not created")
 
 		// For the .tar.gz format we extract app by app to check that content discard is not required.
-		toolsMap, err := replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
+		toolsMap, err := replaceTarGz(archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
-		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
-		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
 		for tool, path := range toolsMap {
-			assert.FileExists(t, path, fmt.Sprintf("script: %q not found", tool))
+			assert.FileExists(t, filepath.Join(extractDir, path), fmt.Sprintf("script: %q not found", tool))
 		}
 
-		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
+		data, err := os.ReadFile(filepath.Join(extractDir, "tsh"))
 		require.NoError(t, err)
 		assert.Equal(t, script, string(data))
 	})
@@ -85,17 +83,14 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		toolsMap, err := replacePkg(toolsDir, archivePath, filepath.Join(extractDir, "apps"), []string{"tsh", "tctl"})
+		toolsMap, err := replacePkg(archivePath, filepath.Join(extractDir, "apps"), []string{"tsh", "tctl"})
 		require.NoError(t, err)
-		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
-		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
 		for tool, path := range toolsMap {
-			assert.FileExists(t, path, fmt.Sprintf("script: %q not found", tool))
+			assert.FileExists(t, filepath.Join(extractDir, "apps", path), fmt.Sprintf("script: %q not found", tool))
+			data, err := os.ReadFile(filepath.Join(extractDir, "apps", path))
+			require.NoError(t, err)
+			assert.Equal(t, script, string(data))
 		}
-
-		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
-		require.NoError(t, err)
-		assert.Equal(t, script, string(data))
 	})
 
 	t.Run("zip", func(t *testing.T) {
@@ -108,15 +103,13 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		toolsMap, err := replaceZip(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
+		toolsMap, err := replaceZip(archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
-		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
-		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
 		for tool, path := range toolsMap {
-			assert.FileExists(t, path, fmt.Sprintf("script: %q not found", tool))
+			assert.FileExists(t, filepath.Join(extractDir, path), fmt.Sprintf("script: %q not found", tool))
 		}
 
-		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
+		data, err := os.ReadFile(filepath.Join(extractDir, "tsh"))
 		require.NoError(t, err)
 		assert.Equal(t, script, string(data))
 	})
