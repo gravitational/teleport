@@ -365,11 +365,7 @@ func (s *identityService) Run(ctx context.Context) error {
 		service: s.String(),
 		name:    "bot-identity-renewal",
 		f: func(ctx context.Context) error {
-			if err := s.renew(ctx, storageDestination); err != nil {
-				return err
-			}
-			s.unblockWaiters()
-			return nil
+			return s.renew(ctx, storageDestination)
 		},
 		interval:   s.cfg.CredentialLifetime.RenewalInterval,
 		retryLimit: botIdentityRenewalRetryLimit,
