@@ -43,6 +43,7 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -207,6 +208,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -264,6 +266,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -514,6 +517,8 @@ type Cache struct {
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
 }
+
+var _ authclient.Cache = (*Cache)(nil)
 
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {
