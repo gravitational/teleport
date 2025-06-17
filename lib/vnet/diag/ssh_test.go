@@ -17,10 +17,14 @@
 package diag
 
 import (
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 )
 
 // TestSSHDiag tests the SSH configuration diagnostic, specifically its ability
@@ -177,14 +181,31 @@ Include /Users/user/.tsh/vnet_ssh_config
 				ProfilePath: tc.profilePath,
 			})
 			require.NoError(t, err)
+			userOpenSSHConfigPath := filepath.Join(t.TempDir(), "test_ssh_config")
 
-			// Override isWindows and userHome for the purpose of the test.
+			// Override isWindows and paths for the purpose of the test.
 			diag.isWindows = tc.isWindows
 			diag.userHome = tc.userHome
+			diag.userOpenSSHConfigPath = userOpenSSHConfigPath
 
-			result, err := diag.openSSHConfigIncludesVNetSSHConfig(strings.NewReader(tc.input))
+			if len(tc.input) > 0 {
+				require.NoError(t, os.WriteFile(userOpenSSHConfigPath, []byte(tc.input), 0o600))
+			}
+
+			expectReport := &diagv1.CheckReport{
+				Status: diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK,
+				Report: &diagv1.CheckReport_SshConfigurationReport{
+					SshConfigurationReport: &diagv1.SSHConfigurationReport{
+						UserOpensshConfigPath:                  userOpenSSHConfigPath,
+						VnetSshConfigPath:                      keypaths.VNetSSHConfigPath(tc.profilePath),
+						UserOpensshConfigIncludesVnetSshConfig: tc.expect,
+					},
+				},
+			}
+
+			report, err := diag.Run(t.Context())
 			require.NoError(t, err)
-			require.Equal(t, tc.expect, result)
+			require.Equal(t, expectReport, report)
 		})
 	}
 }

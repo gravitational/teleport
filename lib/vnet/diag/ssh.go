@@ -104,8 +104,14 @@ func (d *SSHDiag) EmptyCheckReport() *diagv1.CheckReport {
 
 func (d *SSHDiag) isVNetSSHConfigIncluded(ctx context.Context) (bool, error) {
 	openSSHConfigFile, err := os.Open(d.userOpenSSHConfigPath)
-	if err != nil {
-		return false, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", d.userOpenSSHConfigPath)
+	err = trace.ConvertSystemError(err)
+	switch {
+	case trace.IsNotFound(err):
+		// If the user OpenSSH config file does not exist, it definetely
+		// doesn't include the VNet SSH config.
+		return false, nil
+	case err != nil:
+		return false, trace.Wrap(err, "opening %s for reading", d.userOpenSSHConfigPath)
 	}
 	defer openSSHConfigFile.Close()
 	return d.openSSHConfigIncludesVNetSSHConfig(openSSHConfigFile)
