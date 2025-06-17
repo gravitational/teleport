@@ -28,12 +28,20 @@ import (
 
 func TestAccKubernetesEphemeralResource(t *testing.T) {
 	const config = `
+provider "teleportmwi" {
+  proxy_server = "example.com:3080"
+  join_method  = "gitlab"
+  join_token   = "example-token"
+}
+
 ephemeral "teleportmwi_kubernetes" "example" {
-  example_input = "example_value"
+  selector = {
+    name = "barry"
+  } 
 }
 
 provider "echo" {
-  data = ephemeral.teleportmwi_kubernetes.example.example_output
+  data = ephemeral.teleportmwi_kubernetes.example.output.host
 }
 
 resource "echo" "test" {}
@@ -54,7 +62,7 @@ resource "echo" "test" {}
 					statecheck.ExpectKnownValue(
 						"echo.test",
 						tfjsonpath.New("data"),
-						knownvalue.StringExact("Hello, example_value!"),
+						knownvalue.StringExact("Hello, barry!"),
 					),
 				},
 			},

@@ -19,11 +19,17 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var (
@@ -40,7 +46,17 @@ func New() func() provider.Provider {
 type Provider struct {
 }
 
-type ProviderModel struct{}
+type ProviderModel struct {
+	// ProxyServer is the address of the Teleport proxy server. This should
+	// exclude the scheme, but include the port.
+	ProxyServer types.String `tfsdk:"proxy_server"`
+	// JoinMethod is the method used to join the cluster.
+	// Must be specified.
+	JoinMethod types.String `tfsdk:"join_method"`
+	// JoinToken is the token used to join the cluster.
+	// Must be specified.
+	JoinToken types.String `tfsdk:"join_token"`
+}
 
 func (p *Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "teleportmwi"
@@ -48,7 +64,27 @@ func (p *Provider) Metadata(ctx context.Context, req provider.MetadataRequest, r
 
 func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// TODO: Configuration for provider.
+		Attributes: map[string]schema.Attribute{
+			"proxy_server": schema.StringAttribute{
+				MarkdownDescription: "The address of the Teleport Proxy service. This should exclude the scheme but should include the port.",
+				Required:            true,
+			},
+			"join_method": schema.StringAttribute{
+				MarkdownDescription: "The join method to use to authenticate to the Teleport cluster.",
+				Required:            true,
+				Validators: []validator.String{
+					stringvalidator.OneOf(config.SupportedJoinMethods...),
+					// Explicitly prohibit the use of the token join method
+					// as we won't be able to persist state for it to work
+					// effectively.
+					stringvalidator.NoneOf(string(apitypes.JoinMethodToken)),
+				},
+			},
+			"join_token": schema.StringAttribute{
+				MarkdownDescription: "The name of the join token to use to authenticate to the Teleport cluster.",
+				Required:            true,
+			},
+		},
 	}
 }
 
