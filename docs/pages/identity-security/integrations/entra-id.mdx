@@ -105,22 +105,22 @@ setup but has a limitation of not being possible to enable the [Identity Securit
 
 To start the onboarding process, access the Teleport Web UI, select "Add New" in the left-hand pane, choose "Integration" and then "Microsoft Entra ID".
 
-![Integration selection screen](../../../../img/access-graph/entra-id/integrations-page.png)
+![Integration selection screen](../../../img/access-graph/entra-id/integrations-page.png)
 
 In the onboarding wizard, choose a Teleport user that will be assigned as the default owner of Access Lists that are created for your Entra groups, and click "Next".
 
-![First step of the Entra ID integration onboarding](../../../../img/access-graph/entra-id/integration-wizard-step-1.png)
+![First step of the Entra ID integration onboarding](../../../img/access-graph/entra-id/integration-wizard-step-1.png)
 
 ### Grant permissions in Azure and finish onboarding
 
 The wizard will now provide you with a script that will set up the necessary permissions in Azure.
 
-![Second step of the Entra ID integration onboarding](../../../../img/access-graph/entra-id/integration-wizard-step-2.png)
+![Second step of the Entra ID integration onboarding](../../../img/access-graph/entra-id/integration-wizard-step-2.png)
 
 Open Azure Cloud Shell by navigating to <a href="https://shell.azure.com">shell.azure.com</a>,
 or by clicking the Cloud Shell icon in the Azure Portal.
 
-![Location of the Cloud Shell button in the Azure Portal](../../../../img/access-graph/entra-id/azure-cloud-shell-button.png)
+![Location of the Cloud Shell button in the Azure Portal](../../../img/access-graph/entra-id/azure-cloud-shell-button.png)
 
 Make sure to use the Bash version of Cloud Shell.
 Once a Cloud Shell instance opens, paste the generated command.
@@ -130,11 +130,11 @@ and grants Teleport read-only permissions to read your directory's data (such as
 Once the script is done setting up the necessary permissions,
 it prints out the data required to finish the integration onboarding.
 
-![Output of the Entra ID onboarding script](../../../../img/access-graph/entra-id/onboarding-script-output.png)
+![Output of the Entra ID onboarding script](../../../img/access-graph/entra-id/onboarding-script-output.png)
 
 Back in the Teleport Web UI, fill out the required data and click "Finish".
 
-![Second step of the Entra ID integration onboarding with required fields filled in](../../../../img/access-graph/entra-id/integration-wizard-step-2-filled.png)
+![Second step of the Entra ID integration onboarding with required fields filled in](../../../img/access-graph/entra-id/integration-wizard-step-2-filled.png)
 
 </TabItem>
 
@@ -530,4 +530,4 @@ In the following example, Bob is assigned to group `AWS-Engineers` in Entra ID.
 This allows him to use SSO to assume the AWS IAM role `Engineers`,
 which in turn allows Bob to access two S3 buckets.
 
-![Example of an Entra ID user's access paths](../../../../img/access-graph/entra-id/entra-sso-path.png)
+![Example of an Entra ID user's access paths](../../../img/access-graph/entra-id/entra-sso-path.png)

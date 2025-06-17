@@ -26,8 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	versionUtil "k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/apimachinery/pkg/version"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -111,22 +109,4 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	return wsResp, nil
-}
-
-var kubeExecSubprotocolV5MinVersion = func() *versionUtil.Version {
-	const kubeExecSubprotocolV5Version = "v1.30.0"
-	return versionUtil.MustParse(kubeExecSubprotocolV5Version)
-}()
-
-func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
-	if serverVersion == nil {
-		return false
-	}
-
-	parsedVersion, err := versionUtil.ParseSemantic(serverVersion.GitVersion)
-	if err != nil {
-		return false
-	}
-
-	return parsedVersion.AtLeast(kubeExecSubprotocolV5MinVersion)
 }
