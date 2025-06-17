@@ -321,8 +321,6 @@ func (t *TLSServer) Serve() error {
 // Middleware is authentication middleware checking every request
 type Middleware struct {
 	authz.Middleware
-	// TODO(tross): Delete ClusterName once e no longer references it.
-	ClusterName string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
 	// GRPCMetrics is the configured gRPC metrics for the interceptors
