@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -53,7 +53,7 @@ const (
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.SPIFFESVIDOutput
 	getBotIdentity getBotIdentityFn
@@ -311,7 +311,7 @@ func (s *SPIFFESVIDOutputService) render(
 
 func generateJWTSVIDs(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt *apiclient.Client,
 	svid config.SVIDRequest,
 	reqs []config.JWTSVID,
 	ttl time.Duration,
@@ -363,7 +363,7 @@ func generateJWTSVIDs(
 // call.
 func generateSVID(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt *apiclient.Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {

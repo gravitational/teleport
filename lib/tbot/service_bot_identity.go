@@ -30,10 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -53,18 +54,17 @@ const botIdentityRenewalRetryLimit = 7
 // identityService is a [bot.Service] that handles renewing the bot's identity.
 // It renews the bot's identity periodically and when receiving a broadcasted
 // reload signal.
-//
-// It does not offer a [bot.OneShotService] implementation as the Bot's identity
-// is renewed automatically during initialization.
 type identityService struct {
 	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
 
-	mu     sync.Mutex
-	client *authclient.Client
-	facade *identity.Facade
+	mu              sync.Mutex
+	client          *apiclient.Client
+	facade          *identity.Facade
+	initialized     chan struct{}
+	initializedOnce sync.Once
 }
 
 // GetIdentity returns the current Bot identity.
@@ -76,10 +76,34 @@ func (s *identityService) GetIdentity() *identity.Identity {
 
 // GetClient returns the facaded client for the Bot identity for use by other
 // components of `tbot`. Consumers should not call `Close` on the client.
-func (s *identityService) GetClient() *authclient.Client {
+func (s *identityService) GetClient() *apiclient.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
+}
+
+// Ready returns a channel that will be closed when the initial identity renewal
+// process has completed. It provides a way to "block" startup of services that
+// cannot gracefully handle the API client being unavailable.
+func (s *identityService) Ready() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.initialized == nil {
+		s.initialized = make(chan struct{})
+	}
+
+	return s.initialized
+}
+
+// IsReady returns whether the initial identity renewal process has completed.
+func (s *identityService) IsReady() bool {
+	select {
+	case <-s.Ready():
+		return true
+	default:
+		return false
+	}
 }
 
 // String returns a human-readable name of the service.
@@ -96,11 +120,11 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 }
 
 // loadIdentityFromStore attempts to load a persisted identity from a store.
-// It then checks:
-// - This identity against the configured onboarding profile.
-// - This identity is not expired
-// If any checks fail, it will not return the loaded identity.
-func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) *identity.Identity {
+//
+// If the persisted identity does not match the onboarding profile/join token,
+// a nil identity will be returned. If the identity certificate has expired, the
+// bool return value will be false.
+func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, bool) {
 	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
 	s.log.InfoContext(ctx, "Loading existing bot identity from store", "store", store)
@@ -109,14 +133,14 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	if err != nil {
 		if trace.IsNotFound(err) {
 			s.log.InfoContext(ctx, "No existing bot identity found in store")
-			return nil
+			return nil, false
 		} else {
 			s.log.WarnContext(
 				ctx,
 				"Failed to load existing bot identity from store",
 				"error", err,
 			)
-			return nil
+			return nil, false
 		}
 	}
 
@@ -130,7 +154,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 				s.log.InfoContext(ctx, "Bot identity loaded from store does not match configured token")
 				// If the token has changed, do not return the loaded
 				// identity.
-				return nil
+				return nil, false
 			}
 		} else {
 			// we failed to get the newly configured token to compare to,
@@ -151,25 +175,26 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	)
 
 	now := time.Now().UTC()
+	valid := true
 	if now.After(loadedIdent.X509Cert.NotAfter) {
+		valid = false
 		s.log.WarnContext(
 			ctx,
 			"Identity loaded from store is expired, it will not be used",
 			"not_after", loadedIdent.X509Cert.NotAfter.Format(time.RFC3339),
 			"current_time", now.Format(time.RFC3339),
 		)
-		return nil
 	} else if now.Before(loadedIdent.X509Cert.NotBefore) {
+		valid = false
 		s.log.WarnContext(
 			ctx,
 			"Identity loaded from store is not yet valid, it will not be used. Confirm that the system time is correct",
 			"not_before", loadedIdent.X509Cert.NotBefore.Format(time.RFC3339),
 			"current_time", now.Format(time.RFC3339),
 		)
-		return nil
 	}
 
-	return loadedIdent
+	return loadedIdent, valid
 }
 
 // Initialize sets up the bot identity at startup. This process has a few
@@ -188,13 +213,11 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	defer span.End()
 
 	s.log.InfoContext(ctx, "Initializing bot identity")
-	// nil will be returned if no identity can be found in store or
-	// the identity in the store is no longer relevant or valid.
-	loadedIdent := s.loadIdentityFromStore(ctx, s.cfg.Storage.Destination)
-	if loadedIdent == nil {
+	loadedIdent, valid := s.loadIdentityFromStore(ctx, s.cfg.Storage.Destination)
+	if !valid {
 		if !s.cfg.Onboarding.HasToken() {
-			// There's no loaded identity to work with, and they've not
-			// configured  a token to use to request an identity :(
+			// If there's no pre-existing identity (or it has expired) and the
+			// configuration contains no join token, we cannot do anything.
 			return trace.BadParameter(
 				"no existing identity found on disk or join token configured",
 			)
@@ -205,29 +228,62 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		)
 	}
 
-	var err error
-	var newIdentity *identity.Identity
-	if loadedIdent != nil {
-		newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.resolver, loadedIdent)
-		if err != nil {
-			return trace.Wrap(err, "renewing identity using loaded identity")
+	var (
+		newIdentity *identity.Identity
+		err         error
+	)
+	if loadedIdent == nil {
+		// If there was no identity already on-disk, or it did not match the
+		// onboarding profile / join token, try to join from scratch.
+		//
+		// If this fails, tbot will exit because we cannot proceed with no
+		// identity at all.
+		if newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil); err != nil {
+			return trace.Wrap(err, "joining with token")
 		}
 	} else {
-		// TODO(noah): If the above renewal fails, do we want to try joining
-		// instead? Is there a sane amount of times to try renewing before
-		// giving up and rejoining?
-		newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil)
+		if valid {
+			// If the identity is valid (not expired), try to renew it.
+			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.resolver, loadedIdent)
+		} else {
+			// If the identity has expired, try to join again from scratch.
+			newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil)
+		}
+
+		// If there was an identity on-disk from a previous run, but renewing it
+		// or re-joining fails, tbot will continue running using the (possibly
+		// expired) existing identity.
+		//
+		// In long-running mode, the Run method will retry the renewal process
+		// in case connectivity to the auth server has been restored etc. In the
+		// meantime, some services may be able to continue operating with cached
+		// data.
+		//
+		// In one-shot mode, the OneShot method will make a ping RPC to test the
+		// connection and exit immediately if the connection is unavailable.
 		if err != nil {
-			return trace.Wrap(err, "joining with token")
+			facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, loadedIdent)
+			client, clientErr := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
+			if clientErr != nil {
+				return trace.Wrap(clientErr)
+			}
+
+			s.mu.Lock()
+			s.facade = facade
+			s.client = client
+			s.mu.Unlock()
+
+			s.log.ErrorContext(ctx, "Failed to renew bot identity. Will attempt to proceed with the old identity, API calls may fail", "error", err)
+			return nil
 		}
 	}
 
+	// We successfully renewed the bot identity!
 	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 	if err := identity.SaveIdentity(ctx, newIdentity, s.cfg.Storage.Destination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Create the facaded client we can share with other components of tbot.
 	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
 	c, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 	if err != nil {
@@ -237,6 +293,8 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.client = c
 	s.facade = facade
 	s.mu.Unlock()
+
+	s.unblockWaiters()
 
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
@@ -250,6 +308,13 @@ func (s *identityService) Close() error {
 	return trace.Wrap(c.Close())
 }
 
+func (s *identityService) OneShot(ctx context.Context) error {
+	if _, err := s.GetClient().Ping(ctx); err != nil {
+		return trace.Wrap(err, "testing auth service connection")
+	}
+	return nil
+}
+
 func (s *identityService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Run")
 	defer span.End()
@@ -259,6 +324,35 @@ func (s *identityService) Run(ctx context.Context) error {
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
 	storageDestination := s.cfg.Storage.Destination
+
+	// Keep retrying renewal if it failed on startup.
+	if !s.IsReady() {
+		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+			Driver: retryutils.NewExponentialDriver(1 * time.Second),
+			Max:    1 * time.Minute,
+			Jitter: retryutils.HalfJitter,
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating retry")
+		}
+
+		for {
+			retry.Inc()
+
+			s.log.InfoContext(ctx, "Unable to renew bot identity on startup. Waiting to retry", "wait", retry.Duration())
+
+			select {
+			case <-retry.After():
+			case <-ctx.Done():
+				return nil
+			}
+
+			if err := s.renew(ctx, storageDestination); err == nil {
+				s.unblockWaiters()
+				break
+			}
+		}
+	}
 
 	s.log.InfoContext(
 		ctx,
@@ -273,12 +367,11 @@ func (s *identityService) Run(ctx context.Context) error {
 		f: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:             s.cfg.CredentialLifetime.RenewalInterval,
-		exitOnRetryExhausted: true,
-		retryLimit:           botIdentityRenewalRetryLimit,
-		log:                  s.log,
-		reloadCh:             reloadCh,
-		waitBeforeFirstRun:   true,
+		interval:           s.cfg.CredentialLifetime.RenewalInterval,
+		retryLimit:         botIdentityRenewalRetryLimit,
+		log:                s.log,
+		reloadCh:           reloadCh,
+		waitBeforeFirstRun: true,
 	})
 	return trace.Wrap(err)
 }
@@ -310,6 +403,17 @@ func (s *identityService) renew(
 	s.log.DebugContext(ctx, "Bot identity persisted", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 
 	return nil
+}
+
+func (s *identityService) unblockWaiters() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.initialized == nil {
+		s.initialized = make(chan struct{})
+	}
+
+	s.initializedOnce.Do(func() { close(s.initialized) })
 }
 
 func renewIdentity(
@@ -356,7 +460,7 @@ func botIdentityFromAuth(
 	ctx context.Context,
 	log *slog.Logger,
 	ident *identity.Identity,
-	client *authclient.Client,
+	client *apiclient.Client,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "botIdentityFromAuth")
@@ -425,7 +529,7 @@ func botIdentityFromToken(
 	ctx context.Context,
 	log *slog.Logger,
 	cfg *config.BotConfig,
-	authClient *authclient.Client,
+	authClient *apiclient.Client,
 ) (*identity.Identity, error) {
 	_, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
@@ -496,8 +600,16 @@ func botIdentityFromToken(
 		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
 		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
-			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
+			log.InfoContext(ctx, "No existing client state found, will attempt "+
+				"to join with provided registration secret")
+			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
 		} else if err != nil {
+			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
+				"no local credentials are available and no registration secret "+
+				"was provided. To continue, either generate a keypair with "+
+				"`tbot keypair create` and register it with Teleport, or "+
+				"generate a registration secret on Teleport and provide it with"+
+				"the `--registration-secret` flag.")
 			return nil, trace.Wrap(err, "loading bound keypair client state")
 		}
 

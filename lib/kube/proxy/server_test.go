@@ -122,7 +122,8 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
-			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 		},
 		log: utils.NewSlogLoggerForTests(),
 	}

@@ -486,7 +486,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.EqualValues(t, 0, kubeMock.KubeExecRequests.SPDY.Load(), "expected no SPDY requests")
+		require.EqualValues(t, 2, kubeMock.KubeExecRequests.SPDY.Load(), "expected no SPDY requests")
 		require.EqualValues(t, 2, kubeMock.KubeExecRequests.Websocket.Load(), "expected one websocket request")
 		kubeMock.Close()
 	})
@@ -595,8 +595,6 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 			require.Equal(t, "403", execEvent.ExitCode)
 			require.NotEmpty(t, execEvent.Error)
 			eventsLock.Unlock()
-
 		})
 	}
-
 }

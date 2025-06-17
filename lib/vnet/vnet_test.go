@@ -283,11 +283,10 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
-		clientApplication:     cfg.fakeClientApp,
-		fqdnResolver:          fqdnResolver,
-		localOSConfigProvider: nil, // OS configuration is not needed in tests.
-		homePath:              cfg.homePath,
-		clock:                 cfg.clock,
+		clientApplication: cfg.fakeClientApp,
+		fqdnResolver:      fqdnResolver,
+		homePath:          cfg.homePath,
+		clock:             cfg.clock,
 	})
 	require.NoError(t, err)
 
@@ -750,20 +749,16 @@ func TestDialFakeApp(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1.root1.example.com"},
-					appSpec{publicAddr: "echo2.root1.example.com"},
-					appSpec{publicAddr: "echo.myzone.example.com"},
-					appSpec{publicAddr: "echo.nested.myzone.example.com"},
-					appSpec{publicAddr: "not.in.a.custom.zone"},
-					appSpec{
+					{publicAddr: "echo1.root1.example.com"},
+					{publicAddr: "echo2.root1.example.com"},
+					{publicAddr: "echo.myzone.example.com"},
+					{publicAddr: "echo.nested.myzone.example.com"},
+					{publicAddr: "not.in.a.custom.zone"},
+					{
 						publicAddr: "multi-port.root1.example.com",
 						tcpPorts: []*types.PortRange{
-							&types.PortRange{
-								Port: 1337,
-							},
-							&types.PortRange{
-								Port: 4242,
-							},
+							{Port: 1337},
+							{Port: 4242},
 						},
 					},
 				},
@@ -774,36 +769,32 @@ func TestDialFakeApp(t *testing.T) {
 				leafClusters: map[string]testClusterSpec{
 					"leaf1.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1.leaf1.example.com"},
-							appSpec{
+							{publicAddr: "echo1.leaf1.example.com"},
+							{
 								publicAddr: "multi-port.leaf1.example.com",
 								tcpPorts: []*types.PortRange{
-									&types.PortRange{
-										Port: 1337,
-									},
-									&types.PortRange{
-										Port: 4242,
-									},
+									{Port: 1337},
+									{Port: 4242},
 								},
 							},
 						},
 					},
 					"leaf2.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1.leaf2.example.com"},
+							{publicAddr: "echo1.leaf2.example.com"},
 						},
 					},
 				},
 			},
 			"root2.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1.root2.example.com"},
-					appSpec{publicAddr: "echo2.root2.example.com"},
+					{publicAddr: "echo1.root2.example.com"},
+					{publicAddr: "echo2.root2.example.com"},
 				},
 				leafClusters: map[string]testClusterSpec{
 					"leaf3.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1.leaf3.example.com"},
+							{publicAddr: "echo1.leaf3.example.com"},
 						},
 					},
 				},
@@ -1045,7 +1036,7 @@ func TestOnNewConnection(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1"},
+					{publicAddr: "echo1"},
 				},
 				cidrRange:    "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{},
@@ -1106,15 +1097,15 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 		clusters: map[string]testClusterSpec{
 			"root.example.com": {
 				apps: []appSpec{
-					appSpec{publicAddr: "echo1"},
-					appSpec{publicAddr: "echo2"},
+					{publicAddr: "echo1"},
+					{publicAddr: "echo2"},
 				},
 				cidrRange: "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{
 					"leaf.example.com": {
 						apps: []appSpec{
-							appSpec{publicAddr: "echo1"},
-							appSpec{publicAddr: "echo2"},
+							{publicAddr: "echo1"},
+							{publicAddr: "echo2"},
 						},
 						cidrRange: "192.168.2.0/24",
 					},
@@ -1297,7 +1288,7 @@ func TestSSH(t *testing.T) {
 		},
 		{
 			// Connection to node in leaf cluster should work.
-			dialAddr:      "node.leaf1.example.com.root1.example.com",
+			dialAddr:      "node.leaf1.example.com",
 			dialPort:      22,
 			expectCIDR:    leaf1CIDR,
 			sshUser:       "testuser",
@@ -1315,7 +1306,7 @@ func TestSSH(t *testing.T) {
 		{
 			// Connection to node in leaf cluster in alternate profile should
 			// work.
-			dialAddr:      "node.leaf2.example.com.root2.example.com",
+			dialAddr:      "node.leaf2.example.com",
 			dialPort:      22,
 			expectCIDR:    leaf2CIDR,
 			sshUser:       "testuser",

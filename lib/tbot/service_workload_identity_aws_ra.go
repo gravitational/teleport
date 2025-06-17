@@ -32,8 +32,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"gopkg.in/ini.v1"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -44,13 +44,14 @@ import (
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.WorkloadIdentityAWSRAService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	resolver          reversetunnelclient.Resolver
-	reloadBroadcaster *channelBroadcaster
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.WorkloadIdentityAWSRAService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	reloadBroadcaster  *channelBroadcaster
 }
 
 // String returns a human-readable description of the service.
@@ -71,13 +72,14 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.cfg.SessionRenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		service:         s.String(),
+		name:            "output-renewal",
+		f:               s.generate,
+		interval:        s.cfg.SessionRenewalInterval,
+		retryLimit:      renewalRetryLimit,
+		log:             s.log,
+		reloadCh:        reloadCh,
+		identityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)
 }

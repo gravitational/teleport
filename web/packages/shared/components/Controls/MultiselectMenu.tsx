@@ -199,20 +199,18 @@ export const MultiselectMenu = <T extends string>({
             </>
           );
           return (
-            <MenuItem
-              disabled={opt.disabled}
-              px={2}
+            <HoverTooltip
               key={opt.value}
-              onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
+              tipContent={(opt.disabled && opt.disabledTooltip) || undefined}
             >
-              {opt.disabled && opt.disabledTooltip ? (
-                <HoverTooltip tipContent={opt.disabledTooltip}>
-                  {$checkbox}
-                </HoverTooltip>
-              ) : (
-                $checkbox
-              )}
-            </MenuItem>
+              <MenuItem
+                disabled={opt.disabled}
+                px={2}
+                onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
+              >
+                {$checkbox}
+              </MenuItem>
+            </HoverTooltip>
           );
         })}
         {buffered && (

@@ -6,6 +6,25 @@ LESS THAN ONE HUNDRED (100) EMPLOYEES AND LESS THAN TEN MILLION DOLLARS
 REQUIREMENTS, THE TELEPORT COMMUNITY EDITION IS MADE AVAILABLE UNDER THIS
 LICENSE.
 
+CRITICAL SECURITY EXCEPTION.
+
+Notwithstanding the foregoing restrictions, any company may download, install, 
+and use specific patch versions of Teleport Community Edition that address 
+critical security vulnerabilities, regardless of employee count or 
+revenue thresholds otherwise applicable. This security-focused exception applies 
+exclusively to versions that (i) are officially designated by Teleport 
+as "Critical Security Exception Versions" on Teleport's GitHub Security Advisory 
+page (currently located at https://github.com/gravitational/teleport/security/advisories and subject to relocation upon notice); 
+and (ii) are specifically identified on such page with the explicit 
+designation "Critical Security Exception Version," along with the 
+corresponding version number and release date.  Teleport maintains sole discretion 
+in determining which versions qualify for this exception.   
+Companies must implement the security patch within thirty (30) days of its official release. 
+While using Teleport under this exception, companies may deploy the software solely for internal 
+operations and may not incorporate it into commercial offerings, redistribute it, 
+or embed it within products or services offered to third parties.
+
+
 INTRODUCTORY NOTE: THIS LICENSE IS A DERIVATIVE WORK OF THE APACHE LICENSE
 VERSION 2.0 (AVAILABLE AT HTTPS://WWW.APACHE.ORG/LICENSES/LICENSE-2.0). IN OTHER
 WORDS, THIS LICENSE CONTAINS ADDITIONAL CONDITIONS THAT THE APACHE LICENSE 2.0
