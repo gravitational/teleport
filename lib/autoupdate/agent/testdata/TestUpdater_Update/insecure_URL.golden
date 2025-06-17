@@ -2,6 +2,7 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
+    path: /usr/local/bin
     base_url: http://example.com
     enabled: true
     pinned: false

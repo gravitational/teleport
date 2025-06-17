@@ -21,6 +21,10 @@ import styled from 'styled-components';
 import {
   alignItems,
   AlignItemsProps,
+  boxShadow,
+  BoxShadowProps,
+  columnGap,
+  ColumnGapProps,
   flexBasis,
   FlexBasisProps,
   flexDirection,
@@ -31,6 +35,8 @@ import {
   GapProps,
   justifyContent,
   JustifyContentProps,
+  rowGap,
+  RowGapProps,
 } from 'design/system';
 
 import Box, { BoxProps } from '../Box';
@@ -42,11 +48,16 @@ export interface FlexProps
     FlexWrapProps,
     FlexDirectionProps,
     FlexBasisProps,
+    BoxShadowProps,
+    RowGapProps,
+    ColumnGapProps,
     GapProps {
   /**
    * Uses inline-flex instead of just flex as the display property.
    */
   inline?: boolean;
+  /** Makes the element and its immediate children have 100% width. */
+  fullWidth?: boolean;
 }
 
 const Flex = styled(Box)<FlexProps>`
@@ -56,7 +67,19 @@ const Flex = styled(Box)<FlexProps>`
   ${flexWrap}
   ${flexBasis}
   ${flexDirection}
-  ${gap};
+  ${boxShadow}
+  ${rowGap}
+  ${columnGap}
+  ${gap}
+
+  ${props =>
+    props.fullWidth &&
+    `
+    width: 100%;
+    & > * {
+      width: 100%;
+    }
+  `}
 `;
 
 Flex.displayName = 'Flex';
@@ -87,20 +110,19 @@ export default Flex;
  *   </Stack>
  * </Stack>
  */
-export const Stack = styled(Flex).attrs({
+export const Stack = styled(Flex).attrs(props => ({
   flexDirection: 'column',
-})`
-  // Prevents children from shrinking, within a stack we pretty much never want that to happen.
-  // Individual children can override this.
-  & > * {
-    flex-shrink: 0;
-  }
-`;
-Stack.defaultProps = {
   gap: 1,
   // align-items: flex-start lets children keep their original size. Otherwise elements like buttons
   // would occupy all available horizontal space instead of the minimal amount of space they need.
   //
   // This is set as a default prop, as in some cases it might be necessary to override align-items.
   alignItems: 'flex-start',
-};
+  ...props,
+}))`
+  & > * {
+    // Prevents children from shrinking, within a stack we pretty much never want that to happen.
+    // Individual children can override this.
+    flex-shrink: 0;
+  }
+`;

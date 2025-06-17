@@ -104,7 +104,7 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		return trace.NotFound("%v: attempted to wait for additional keys in a service with no auth", t.name)
 	}
 
-	clusterName, err := authServer.GetClusterName()
+	clusterName, err := authServer.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

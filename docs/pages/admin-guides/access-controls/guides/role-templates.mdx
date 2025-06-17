@@ -414,9 +414,9 @@ Function | Description
 
 Access and Reviewer Request specifications do not use the same interpolation
 system as logins, labels etc. Instead, you can use the `claims_to_roles` clause
-in the `request` and `review` rules to specify one or more patterns to match.
+in the `request` and `review_requests` rules to specify one or more patterns to match.
 
-For example, given the following rule template:
+For example, given the following rule template for a `request` configuration:
 
 ```yaml
 kind: role

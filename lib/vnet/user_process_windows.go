@@ -24,7 +24,6 @@ import (
 	"os/user"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/sys/windows"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
@@ -38,40 +37,37 @@ import (
 // interface that the admin process uses to query application names and get user
 // certificates for apps. It returns a [ProcessManager] which controls the
 // lifecycle of both the user and admin processes.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, nsi NetworkStackInfo, err error) {
-	// Make sure to close the process manager if returning a non-nil error.
-	defer func() {
-		if pm != nil && err != nil {
-			pm.Close()
-		}
-	}()
-
-	// On Windows the interface name is a constant.
-	nsi.IfaceName = tunInterfaceName
-
+func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 	ipcCreds, err := newIPCCredentials()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "creating credentials for IPC")
+		return trace.Wrap(err, "creating credentials for IPC")
 	}
 	serverTLSConfig, err := ipcCreds.server.serverTLSConfig()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "generating gRPC server TLS config")
+		return trace.Wrap(err, "generating gRPC server TLS config")
 	}
+
+	u, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err, "getting current OS user")
+	}
+	// Uid is documented to be the user's SID on Windows.
+	userSID := u.Uid
 
 	credDir, err := os.MkdirTemp("", "vnet_service_certs")
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "creating temp dir for service certs")
+		return trace.Wrap(err, "creating temp dir for service certs")
 	}
-	if err := secureCredDir(credDir); err != nil {
-		return nil, nsi, trace.Wrap(err, "applying permissions to service credential dir")
+	if err := secureCredDir(credDir, userSID); err != nil {
+		return trace.Wrap(err, "applying permissions to service credential dir")
 	}
-	if err := ipcCreds.client.write(credDir); err != nil {
-		return nil, nsi, trace.Wrap(err, "writing service IPC credentials")
+	if err := ipcCreds.client.write(credDir, 0200); err != nil {
+		return trace.Wrap(err, "writing service IPC credentials")
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "listening on tcp socket")
+		return trace.Wrap(err, "listening on tcp socket")
 	}
 	// grpcServer.Serve takes ownership of (and closes) the listener.
 	grpcServer := grpc.NewServer(
@@ -79,72 +75,69 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	clock := clockwork.NewRealClock()
-	appProvider := newLocalAppProvider(config.ClientApplication, clock)
-	svc := newClientApplicationService(appProvider)
-	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
+	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
 
-	pm, processCtx := newProcessManager()
-	pm.AddCriticalBackgroundTask("admin process", func() error {
+	p.processManager.AddCriticalBackgroundTask("admin process", func() error {
 		log.InfoContext(processCtx, "Starting Windows service")
 		defer func() {
 			// Delete service credentials after the service terminates.
 			if ipcCreds.client.remove(credDir); err != nil {
-				log.ErrorContext(ctx, "Failed to remove service credential files", "error", err)
+				log.ErrorContext(processCtx, "Failed to remove service credential files", "error", err)
 			}
 			if err := os.RemoveAll(credDir); err != nil {
-				log.ErrorContext(ctx, "Failed to remove service credential directory", "error", err)
+				log.ErrorContext(processCtx, "Failed to remove service credential directory", "error", err)
 			}
 		}()
 		return trace.Wrap(runService(processCtx, &windowsAdminProcessConfig{
 			clientApplicationServiceAddr: listener.Addr().String(),
 			serviceCredentialPath:        credDir,
+			userSID:                      userSID,
 		}))
 	})
-	pm.AddCriticalBackgroundTask("gRPC service", func() error {
+	p.processManager.AddCriticalBackgroundTask("gRPC service", func() error {
 		log.InfoContext(processCtx, "Starting gRPC service",
 			"addr", listener.Addr().String())
 		return trace.Wrap(grpcServer.Serve(listener),
 			"serving VNet user process gRPC service")
 	})
-	pm.AddCriticalBackgroundTask("gRPC server closer", func() error {
+	p.processManager.AddCriticalBackgroundTask("gRPC server closer", func() error {
 		// grpcServer.Serve does not stop on its own when processCtx is done, so
 		// this task waits for processCtx and then explicitly stops grpcServer.
 		<-processCtx.Done()
 		grpcServer.GracefulStop()
 		return nil
 	})
-	return pm, nsi, nil
+
+	select {
+	case nsi := <-p.clientApplicationService.networkStackInfo:
+		p.networkStackInfo = nsi
+		return nil
+	case <-processCtx.Done():
+		return trace.Wrap(p.processManager.Wait(), "process manager exited before network stack info was received")
+	}
 }
 
-// secureCredDir sets ACLs so that the current user can write credentials files
-// to dir but cannot read them. Only the LocalSystem account is allowed to read
-// and delete the files.
-func secureCredDir(dir string) error {
-	u, err := user.Current()
-	if err != nil {
-		return trace.Wrap(err, "getting current OS user")
-	}
-	// Uid is documented to be the user's SID on Windows.
-	userSID := u.Uid
+// secureCredDir sets ACLs so that the current user can write and delete
+// credential files in dir, but denies all regular users from reading them. Only
+// the LocalSystem account is allowed to read them.
+func secureCredDir(dir string, userSID string) error {
 	// S-1-5-18 is the well-known SID (security identifier) for the LocalSystem
 	// service account, which the VNet windows service runs as.
 	// * https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
 	const serviceSID = "S-1-5-18"
-	// O: Set Owner as current user (Windows won't allow LocalSystem to be the owner)
-	// G: Set Primary Group as current user
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-definition-language
 	// D: Discretionary ACL
 	//   Grant GA (Generic All) to LocalSystem
 	//   Grant GWSD (Generic Write, Standard Delete) to the current user so we can add files and later delete them
 	//   Deny GR (Generic Read) to WD (Everyone*) so other processes can't read the credentials
-	//   * This doesn't seems to deny access to the LocalSystem account, but all users are denied read access
-	//   * https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings?utm_source=chatgpt.com
+	//   * This doesn't seem to deny access to the LocalSystem account, but all users are denied read access
+	//   * https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
 	//   OICI (Object Inherit, Container Inherit) propagates permissions to files/folders
-	sdString := fmt.Sprintf("O:%[1]sG:%[1]sD:"+
-		"(A;OICI;GA;;;%[2]s)"+
-		"(A;OICI;GWSD;;;%[1]s)"+
+	sdString := fmt.Sprintf("D:"+
+		"(A;OICI;GA;;;%s)"+
+		"(A;OICI;GWSD;;;%s)"+
 		"(D;OICI;GR;;;WD)",
-		userSID, serviceSID,
+		serviceSID, userSID,
 	)
 	if err := applySecurityDescriptor(sdString, dir); err != nil {
 		return trace.Wrap(err)
@@ -157,14 +150,6 @@ func applySecurityDescriptor(sdString, path string) error {
 	if err != nil {
 		return trace.Wrap(err, "parsing security descriptor string %s", sdString)
 	}
-	owner, _, err := sd.Owner()
-	if err != nil {
-		return trace.Wrap(err, "getting owner from security descriptor")
-	}
-	group, _, err := sd.Group()
-	if err != nil {
-		return trace.Wrap(err, "getting group from security descriptor")
-	}
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		return trace.Wrap(err, "getting DACL from security descriptor")
@@ -172,9 +157,9 @@ func applySecurityDescriptor(sdString, path string) error {
 	if err := windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
-		windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION,
-		owner,
-		group,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, // owner
+		nil, // group
 		dacl,
 		nil, // SACL
 	); err != nil {

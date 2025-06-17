@@ -7,6 +7,10 @@ description: This page describes the supported values of the teleport_database r
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
+This page describes the supported values of the teleport_database resource of the Teleport Terraform provider.
+Follow [the database dynamic registration guide](../../../enroll-resources/database-access/guides/dynamic-registration.mdx)
+to complete deploying a database_service and access the database resource
+
 
 
 ## Example Usage
@@ -87,6 +91,8 @@ Optional:
 - `keytab_file` (String) KeytabFile is the path to the Kerberos keytab file.
 - `krb5_file` (String) Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
 - `ldap_cert` (String) LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+- `ldap_service_account_name` (String) LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+- `ldap_service_account_sid` (String) LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
 - `spn` (String) SPN is the service principal name for the database.
 
 
@@ -266,4 +272,3 @@ Optional:
 - `mode` (Number) Mode is a TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".
 - `server_name` (String) ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.
 - `trust_system_cert_pool` (Boolean) TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.
-

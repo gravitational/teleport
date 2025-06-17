@@ -70,7 +70,15 @@ $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https
    - Enables Windows to trust the Teleport certificate authority.
    - Installs the required dynamic link library (DLL) for Teleport to use.
    - Disables Network Level Authentication (NLA) for remote desktop services.
-   - Enables RemoteFX compression, if using Teleport version 15 or newer.
+   - Enables RemoteFX compression.
+
+  In versions below Teleport 17.4.0, the Windows auth package for local users is
+  "greedy" and attempts to process all smart card logins. This prevents smart
+  card logins from outside of Teleport from working, and also makes it
+  impossible to use Teleport to connect as Active Directory users. This is no
+  longer the case with Teleport 17.4.0 and up. To connect as local users and
+  Active Directory users on the same host, you need to register the host twice
+  with Teleport, once with `ad: true` and once with `ad: false`.
 
   Note: in order for the Windows Local Security Authority (LSA) to load the Teleport DLL,
   [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
@@ -139,18 +147,18 @@ following for the Windows Desktop Service:
      proxy_server: <Var name="teleport.example.com" />:443
      auth_token: "/tmp/token"
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
      - name: host1
        ad: false
        addr: 192.0.2.156
 
    auth_service:
-     enabled: no
+     enabled: false
    proxy_service:
-     enabled: no
+     enabled: false
    ssh_service:
-     enabled: no
+     enabled: false
    ```
 
    In this file:
@@ -178,7 +186,7 @@ following for the Windows Desktop Service:
      proxy_server: teleport.example.com:443
      auth_token: /tmp/token
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
      - name: host1
        ad: false
@@ -197,7 +205,7 @@ following for the Windows Desktop Service:
      nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport-proxy.example.com:443
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
       - name: host1
         ad: false
@@ -263,6 +271,7 @@ Now that you have configured a Linux server to run the Windows Desktop Service a
 created a role to allow a Teleport user to connect to Microsoft Windows with a local
 Windows login, you can use the Teleport user assigned the `windows-desktop-admins` role
 to connect to Windows desktops from the Teleport Web UI.
+Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 
@@ -283,8 +292,7 @@ Windows login to use for the connection.
 
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
-   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
-   in the Activity section.
+   To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
 ## Uninstall
 

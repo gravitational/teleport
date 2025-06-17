@@ -48,6 +48,29 @@ message UserLoginEvent {
 
   // the required private key policy for this login.
   string required_private_key_policy = 4;
+
+  // UserOrigin specifies the origin of this user account.
+  //
+  // PostHog property: tp.user_origin
+  UserOrigin user_origin = 5;
+}
+
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// API events and prehogv1.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
 }
 
 // MFAAuthenticationEvent is emitted when a user performs MFA authentication.
@@ -778,6 +801,21 @@ message UICreateNewRoleClickEvent {
 message UICreateNewRoleSaveClickEvent {
   //anonymized
   string user_name = 1;
+  // StandardUsed indicates if the user interacted with the standard editor
+  // tab.
+  bool standard_used = 2;
+  // YamlUsed indicates if the user interacted with the YAML editor tab.
+  bool yaml_used = 3;
+  // ModeWhenSaved indicates which editor tab was active when the Save button
+  // was clicked ("standard" or "yaml"). Note that it's inherently different
+  // from what `StandardUsed` or `YamlUsed` describe; the user can interact
+  // with one kind of editor, then verify the results in another, and
+  // ultimately click Save on any of them.
+  string mode_when_saved = 4;
+  // A list of field paths that prevented the standard editor from being
+  // operational, if any. Looking at these may provide insight into which
+  // missing features should be implemented first.
+  repeated string fields_with_conversion_errors = 5;
 }
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
@@ -1085,6 +1123,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
   INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
+  INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1121,6 +1160,12 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
   INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
   INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+
+  // GITHUBRA denotes GitHub Repo Access.
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -1556,6 +1601,53 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
+// AccessRequestCreateEvent is emitted when an Access Request is created.
+//
+// PostHog event: tp.access_request.create
+message AccessRequestCreateEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+
+  // resource_kinds specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
+}
+
+// AccessRequestReviewEvent is emitted when an Access Request is reviewed.
+//
+// PostHog event: tp.access_request.review
+message AccessRequestReviewEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+
+  // resource_kinds specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
+
+  // is_bot_reviewed indicates whether the access request was automatically
+  // reviewed by a bot.
+  //
+  // PostHog property: tp.access_request.is_bot_reviewed.
+  bool is_bot_reviewed = 3;
+
+  // ProposedState specifies the proposed state of an access request review.
+  enum ProposedState {
+    // PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
+    PROPOSED_STATE_UNSPECIFIED = 0;
+    // PROPOSED_STATE_APPROVED specifies the approved access request state.
+    PROPOSED_STATE_APPROVED = 1;
+    // PROPOSED_STATE_DENIED specifies the denied access request state.
+    PROPOSED_STATE_DENIED = 2;
+  }
+
+  // proposed_state specifies the proposed state of the access request review.
+  //
+  // PostHog property: tp.access_request.proposed_state.
+  ProposedState proposed_state = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1723,10 +1815,17 @@ message SubmitEventRequest {
     // note that 95 is used for "teleport_version" above.
 
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
+
+    AccessRequestCreateEvent access_request_create = 99;
+    AccessRequestReviewEvent access_request_review = 100;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
+
+  reserved 97, 98; // AccessRequestEvent
+  reserved "access_request_create_event";
+  reserved "access_request_review_event";
 }
 message SubmitEventResponse {}
 

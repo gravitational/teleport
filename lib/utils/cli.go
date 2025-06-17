@@ -54,6 +54,8 @@ const (
 	LoggingForDaemon LoggingPurpose = iota
 	// LoggingForCLI configures logging for user face utilities (tctl, tsh).
 	LoggingForCLI
+	// LoggingForMCP configures logging for MCP servers.
+	LoggingForMCP
 )
 
 // LoggingFormat defines the possible logging output formats.
@@ -68,6 +70,9 @@ const (
 
 type logOpts struct {
 	format LoggingFormat
+	// osLogSubsystem is the subsystem used for all loggers created by this process
+	// when sending logs to os_log on macOS. If empty, os_log won't be used.
+	osLogSubsystem string
 }
 
 // LoggerOption enables customizing the global logger.
@@ -77,6 +82,12 @@ type LoggerOption func(opts *logOpts)
 func WithLogFormat(format LoggingFormat) LoggerOption {
 	return func(opts *logOpts) {
 		opts.format = format
+	}
+}
+
+func WithOSLog(subsystem string) LoggerOption {
+	return func(opts *logOpts) {
+		opts.osLogSubsystem = subsystem
 	}
 }
 
@@ -91,7 +102,7 @@ func IsTerminal(w io.Writer) bool {
 }
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) {
+func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) (*slog.Logger, error) {
 	var o logOpts
 
 	for _, opt := range opts {
@@ -101,15 +112,28 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	// If debug or trace logging is not enabled for CLIs,
 	// then discard all log output.
 	if purpose == LoggingForCLI && level > slog.LevelDebug {
-		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
-		return
+		logger := slog.New(slog.DiscardHandler)
+		slog.SetDefault(logger)
+		return logger, nil
 	}
 
-	logutils.Initialize(logutils.Config{
-		Severity:     level.String(),
-		Format:       o.format,
-		EnableColors: IsTerminal(os.Stderr),
+	var output string
+	switch {
+	case o.osLogSubsystem != "":
+		output = logutils.LogOutputOSLog
+	case purpose == LoggingForMCP:
+		output = logutils.LogOutputMCP
+		o.format = LogFormatJSON
+	}
+
+	logger, _, err := logutils.Initialize(logutils.Config{
+		Severity:       level.String(),
+		Format:         o.format,
+		EnableColors:   IsTerminal(os.Stderr),
+		Output:         output,
+		OSLogSubsystem: o.osLogSubsystem,
 	})
+	return logger, trace.Wrap(err)
 }
 
 var initTestLoggerOnce = sync.Once{}
@@ -123,7 +147,7 @@ func InitLoggerForTests() {
 		}
 
 		if !testing.Verbose() {
-			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+			slog.SetDefault(slog.New(slog.DiscardHandler))
 			return
 		}
 

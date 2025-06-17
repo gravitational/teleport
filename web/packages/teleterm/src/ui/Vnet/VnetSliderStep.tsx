@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PropsWithChildren, useEffect, useRef } from 'react';
+import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 import { StepComponentProps } from 'design/StepSlider';
@@ -26,6 +26,8 @@ import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
+import { DiagnosticsAlert } from './DiagnosticsAlert';
+import { textSpacing } from './sliderStep';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { useVnetContext } from './vnetContext';
 
@@ -35,10 +37,28 @@ import { useVnetContext } from './vnetContext';
  */
 export const VnetSliderStep = (props: StepComponentProps) => {
   const visible = props.stepIndex === 1 && props.hasTransitionEnded;
-  const { status, startAttempt, stopAttempt } = useVnetContext();
+  const {
+    status,
+    startAttempt,
+    stopAttempt,
+    runDiagnostics,
+    reinstateDiagnosticsAlert,
+  } = useVnetContext();
   const autoFocusRef = useRefAutoFocus<HTMLElement>({
     shouldFocus: visible,
   });
+  /**
+   * If the user has previously dismissed an alert, requesting a manual run from the VNet panel
+   * should show it again.
+   */
+  const runDiagnosticsFromVnetPanel = useCallback(
+    () =>
+      // Reinstate the alert only after the run has finished. This is so that if there are results
+      // from a previous run, we don't show them immediately after the user requests a manual run of
+      // diagnostics.
+      runDiagnostics().finally(() => reinstateDiagnosticsAlert()),
+    [runDiagnostics, reinstateDiagnosticsAlert]
+  );
 
   return (
     // Padding needs to align with the padding of the previous slider step.
@@ -52,7 +72,10 @@ export const VnetSliderStep = (props: StepComponentProps) => {
         outline: none;
       `}
     >
-      <VnetSliderStepHeader goBack={props.prev} />
+      <VnetSliderStepHeader
+        goBack={props.prev}
+        runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
+      />
       <Flex
         p={textSpacing}
         gap={3}
@@ -81,8 +104,8 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           ) : (
             <Flex flexDirection="column" gap={1}>
               <Text>
-                VNet enables any program to connect to TCP applications
-                protected by Teleport.
+                VNet enables any program to connect to TCP apps protected by
+                Teleport.
               </Text>
               <Text>
                 Start VNet and connect to any TCP app over its public address –
@@ -93,11 +116,13 @@ export const VnetSliderStep = (props: StepComponentProps) => {
       </Flex>
 
       {status.value === 'running' && <DnsZones />}
+
+      <DiagnosticsAlert
+        runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
+      />
     </Box>
   );
 };
-
-const textSpacing = 1;
 
 const ErrorText = (props: PropsWithChildren) => (
   <Text>
@@ -121,12 +146,15 @@ const DnsZones = () => {
   );
   const dnsZonesRefreshRequestedRef = useRef(false);
 
-  useEffect(function refreshListOnOpen() {
-    if (!dnsZonesRefreshRequestedRef.current) {
-      dnsZonesRefreshRequestedRef.current = true;
-      listDNSZones();
-    }
-  }, []);
+  useEffect(
+    function refreshListOnOpen() {
+      if (!dnsZonesRefreshRequestedRef.current) {
+        dnsZonesRefreshRequestedRef.current = true;
+        listDNSZones();
+      }
+    },
+    [listDNSZones]
+  );
 
   if (listDNSZonesAttempt.status === 'error') {
     return (

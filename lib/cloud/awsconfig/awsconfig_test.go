@@ -246,6 +246,28 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "missing credentials source")
 	})
+
+	t.Run("with base config", func(t *testing.T) {
+		ctx := context.Background()
+
+		baseCfg, err := provider.GetConfig(ctx, dummyRegion,
+			WithCredentialsMaybeIntegration(""),
+			WithOIDCIntegrationClient(&fakeOIDCIntegrationClient{unauth: true}),
+		)
+		require.NoError(t, err)
+
+		cfg, err := provider.GetConfig(ctx, dummyRegion,
+			WithSTSClientProvider(stsClt),
+			WithAssumeRole("roleA", "abc123"),
+			WithBaseCredentialsProvider(baseCfg.Credentials),
+		)
+		require.NoError(t, err)
+
+		creds, err := cfg.Credentials.Retrieve(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "role: roleA, externalID: abc123", creds.AccessKeyID)
+		require.Equal(t, "fake-session-token", creds.SessionToken)
+	})
 }
 
 func TestNewCacheKey(t *testing.T) {

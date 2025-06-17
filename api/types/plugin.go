@@ -17,9 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"net/url"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -72,6 +74,8 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeGithub indicates the Github access plugin
+	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
@@ -135,6 +139,7 @@ type PluginStatus interface {
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
 	GetNetIq() *PluginNetIQStatusV1
+	SetDetails(isPluginStatusV1_Details)
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -395,6 +400,17 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_Github:
+		if settings.Github == nil {
+			return trace.BadParameter("missing Github settings")
+		}
+		if err := settings.Github.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Github plugin must be used with the static credentials ref type")
+		}
 	default:
 		return nil
 	}
@@ -553,6 +569,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_Github:
+		return PluginTypeGithub
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
@@ -736,14 +754,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
-
 	return nil
 }
 
@@ -758,14 +771,33 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	// Promote "unknown" credential source values to OIDC for backwards
-	// compatibility with old plugin records
-	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
-		c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
-	}
 
-	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
-		return trace.BadParameter("AWS OIDC integration name must be set")
+	// Handle legacy records that pre-date the polymorphic Credentials settings
+	// TODO(tcsc): remove this check in v19
+	if c.Credentials == nil {
+		// Migrate the legacy, enum-based settings to the new polymorphic
+		// credential block
+
+		// Promote "unknown" credential source values to OIDC for backwards
+		// compatibility with old plugin records
+		if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+			c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+		}
+
+		switch c.CredentialsSource {
+		case AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC:
+			c.Credentials = &AWSICCredentials{
+				Source: &AWSICCredentials_Oidc{
+					Oidc: &AWSICCredentialSourceOIDC{IntegrationName: c.IntegrationName},
+				},
+			}
+		case AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM:
+			c.Credentials = &AWSICCredentials{
+				Source: &AWSICCredentials_System{
+					System: &AWSICCredentialSourceSystem{},
+				},
+			}
+		}
 	}
 
 	if c.Arn == "" {
@@ -784,7 +816,36 @@ func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "checking provisioning config")
 	}
 
+	switch source := c.Credentials.GetSource().(type) {
+	case *AWSICCredentials_Oidc:
+		if source.Oidc.IntegrationName == "" {
+			return trace.BadParameter("AWS OIDC integration name must be set")
+		}
+	}
+
 	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICCredentialsSource,
+// forcing it to use the `jsonpb` unmarshaler, which understands how to unpack
+// values generated from a protobuf `oneof` directive.
+func (s *AWSICCredentials) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICCredentials, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICCredentials) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }
 
 func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
@@ -793,6 +854,28 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` unmarshaler, which understands how to unpack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICResourceFilter) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s AWSICResourceFilter) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, &s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }
 
 func (c *PluginEmailSettings) CheckAndSetDefaults() error {
@@ -859,6 +942,10 @@ func (c PluginStatusV1) GetLastSyncTime() time.Time {
 	return c.LastSyncTime
 }
 
+func (c *PluginStatusV1) SetDetails(settings isPluginStatusV1_Details) {
+	c.Details = settings
+}
+
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
 func (c *PluginGitlabSettings) Validate() error {
 	if c.ApiEndpoint == "" {
@@ -884,5 +971,16 @@ func (c *PluginNetIQSettings) Validate() error {
 		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults checks that the required fields for the Github plugin are set.
+func (c *PluginGithubSettings) Validate() error {
+	if c.ClientId == "" {
+		return trace.BadParameter("client_id must be set")
+	}
+	if c.OrganizationName == "" {
+		return trace.BadParameter("organization_name must be set")
+	}
 	return nil
 }

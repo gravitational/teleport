@@ -25,9 +25,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"iter"
 	"log/slog"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -340,10 +340,10 @@ func (b *EtcdBackend) checkVersion(ctx context.Context) error {
 				return trace.BadParameter("failed to parse etcd version %q: %v", status.Version, err)
 			}
 
-			min := semver.New(teleport.MinimumEtcdVersion)
-			if ver.LessThan(*min) {
+			minEtcdVersion := semver.Version{Major: 3, Minor: 3, Patch: 0}
+			if ver.LessThan(minEtcdVersion) {
 				return trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
-					status.Version, n, teleport.MinimumEtcdVersion)
+					status.Version, n, minEtcdVersion)
 			}
 
 			return nil
@@ -649,6 +649,84 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 	return b.buf.NewWatcher(ctx, watch)
 }
 
+func (b *EtcdBackend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	sort := clientv3.SortAscend
+	if params.Descending {
+		sort = clientv3.SortDescend
+	}
+
+	const defaultPageSize = 1000
+	return func(yield func(backend.Item, error) bool) {
+		inclusiveStartKey := b.prependPrefix(params.StartKey)
+		// etcd's range query includes the start point and excludes the end point,
+		// but Backend.GetRange is supposed to be inclusive at both ends, so we
+		// query until the very next key in lexicographic order (i.e., the same key
+		// followed by a 0 byte)
+		endKey := b.prependPrefix(params.EndKey) + "\x00"
+		count := 0
+
+		pageSize := defaultPageSize
+		for {
+			if params.Limit > backend.NoLimit {
+				pageSize = min(params.Limit-count, defaultPageSize)
+			}
+
+			start := b.clock.Now()
+			re, err := b.clients.Next().Get(ctx, inclusiveStartKey,
+				clientv3.WithRange(endKey),
+				clientv3.WithSort(clientv3.SortByKey, sort),
+				clientv3.WithLimit(int64(pageSize)),
+			)
+			batchReadLatencies.Observe(time.Since(start).Seconds())
+			batchReadRequests.Inc()
+			if err := convertErr(err); err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			if len(re.Kvs) == 0 {
+				return
+			}
+
+			for _, kv := range re.Kvs {
+				value, err := unmarshal(kv.Value)
+				if err != nil {
+					yield(backend.Item{}, trace.Wrap(err))
+					return
+				}
+
+				if !yield(backend.Item{
+					Key:      b.trimPrefix(kv.Key),
+					Value:    value,
+					Revision: toBackendRevision(kv.ModRevision),
+				}, nil) {
+					return
+				}
+
+				count++
+				if params.Limit != backend.NoLimit && count >= params.Limit {
+					return
+				}
+			}
+
+			if params.Descending {
+				endKey = string(re.Kvs[len(re.Kvs)-1].Key)
+			} else {
+				inclusiveStartKey = string(re.Kvs[len(re.Kvs)-1].Key) + "\x00"
+			}
+		}
+	}
+}
+
 // GetRange returns query range
 func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if startKey.IsZero() {
@@ -657,35 +735,18 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	// etcd's range query includes the start point and excludes the end point,
-	// but Backend.GetRange is supposed to be inclusive at both ends, so we
-	// query until the very next key in lexicographic order (i.e., the same key
-	// followed by a 0 byte)
-	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey) + "\x00")}
-	if limit > 0 {
-		opts = append(opts, clientv3.WithLimit(int64(limit)))
-	}
-	start := b.clock.Now()
-	re, err := b.clients.Next().Get(ctx, b.prependPrefix(startKey), opts...)
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err := convertErr(err); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]backend.Item, 0, len(re.Kvs))
-	for _, kv := range re.Kvs {
-		value, err := unmarshal(kv.Value)
+
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		items = append(items, backend.Item{
-			Key:      b.trimPrefix(kv.Key),
-			Value:    value,
-			Revision: toBackendRevision(kv.ModRevision),
-		})
+		result.Items = append(result.Items, item)
+		if limit != backend.NoLimit && len(result.Items) > limit {
+			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, received=%d", limit, len(result.Items))
+		}
 	}
-	sort.Sort(backend.Items(items))
-	return &backend.GetResult{Items: items}, nil
+	return &result, nil
 }
 
 func toBackendRevision(rev int64) string {
@@ -965,8 +1026,6 @@ type leaseKey struct {
 	bucket time.Time
 }
 
-var _ map[leaseKey]struct{} // compile-time hashability check
-
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
@@ -1006,8 +1065,6 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 type ttlKey struct {
 	leaseID int64
 }
-
-var _ map[ttlKey]struct{} // compile-time hashability check
 
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{

@@ -21,6 +21,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"math"
 	"slices"
@@ -154,6 +155,39 @@ func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int
 		}
 	}
 	return res, err
+}
+
+func (s *Reporter) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/Items",
+		oteltrace.WithAttributes(
+			attribute.Int("limit", params.Limit),
+			attribute.String("start_key", params.StartKey.String()),
+			attribute.String("end_key", params.EndKey.String()),
+		),
+	)
+	defer span.End()
+
+	return func(yield func(Item, error) bool) {
+		var count int
+		defer func() {
+			s.trackRequest(ctx, types.OpGet, params.StartKey, params.EndKey)
+			streamingRequests.WithLabelValues(s.Component).Inc()
+			reads.WithLabelValues(s.Component).Add(float64(count))
+
+		}()
+		for item, err := range s.Backend.Items(ctx, params) {
+			if err != nil {
+				streamingRequestsFailed.WithLabelValues(s.Component).Inc()
+			}
+
+			count++
+			if !yield(item, err) || err != nil {
+				return
+			}
+		}
+	}
 }
 
 // Create creates item if it does not exist
@@ -779,6 +813,24 @@ var (
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendFailedReadRequests,
 			Help: "Number of failed read requests to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	streamingRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "backend",
+			Name:      "stream_requests",
+			Help:      "Number of inflight stream requests to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	streamingRequestsFailed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "backend",
+			Name:      "stream_requests_failed",
+			Help:      "Number of failed stream requests to the backend",
 		},
 		[]string{teleport.ComponentLabel},
 	)

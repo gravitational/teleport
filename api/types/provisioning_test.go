@@ -1277,6 +1277,150 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			desc: "azure devops success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						OrganizationID: "0000-0000-0000-0000",
+						Allow: []*ProvisionTokenSpecV2AzureDevops_Rule{
+							{
+								ProjectName: "my-project",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure devops missing spec",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure devops missing org id",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						Allow: []*ProvisionTokenSpecV2AzureDevops_Rule{
+							{
+								ProjectName: "my-project",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure devops missing allow rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						OrganizationID: "0000-0000-0000-0000",
+						Allow:          []*ProvisionTokenSpecV2AzureDevops_Rule{},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure devops allow rule missing key field",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						OrganizationID: "0000-0000-0000-0000",
+						Allow: []*ProvisionTokenSpecV2AzureDevops_Rule{
+							{
+								RepositoryVersion: "aaabbccddeefgghhjjiii",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "minimal bound keypair with pregenerated key",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{
+						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+							InitialPublicKey: "asdf",
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{
+						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+							InitialPublicKey: "asdf",
+						},
+						Recovery: &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+							Limit: 1,
+							Mode:  "",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "bound keypair missing onboarding config",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:        []SystemRole{RoleNode},
+					JoinMethod:   JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

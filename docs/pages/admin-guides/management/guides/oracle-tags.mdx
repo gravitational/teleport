@@ -1,0 +1,31 @@
+---
+title: Oracle Cloud Tags as Teleport Agent Labels
+description: How to set up Teleport Agent labels based on Oracle Cloud tags
+h1: Sync Oracle Cloud tags and Teleport Agent labels
+---
+
+When running on an Oracle Cloud (OCI) Compute instance, Teleport will
+automatically detect and import the instance's freeform and defined tags
+as Teleport labels for SSH servers, applications, databases, and Kubernetes clusters.
+Tags imported this way will have the `oracle/` prefix.
+
+When the Teleport process starts, it fetches all tags from OCI instance
+metadata and adds them as labels. The instance's image must support IMDSv2. 
+The process will update the tags every hour, so newly created or deleted tags
+will be reflected in the labels. No additional permissions are required on the
+instance.
+
+If the freeform tag `teleporthostname` is present, its value (must be lower case)
+will override the node's hostname.
+
+```code
+$ tsh ls
+Node Name            Address        Labels                                                                                                                  
+-------------------- -------------- -------------------------------------------------------------------------------------------
+fakehost.example.com 127.0.0.1:3022 oracle/testing=yes,oracle/definedTagNamespace/environment=staging,oracle/teleporthostname=fakehost.example.com
+```
+
+<Admonition type="note">
+  For services that manage multiple resources (such as the Database Service), each resource will receive the
+  same tags from Oracle.
+</Admonition>

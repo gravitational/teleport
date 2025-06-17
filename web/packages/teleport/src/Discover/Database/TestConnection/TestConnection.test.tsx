@@ -19,14 +19,10 @@
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import {
-  ComponentWrapper,
-  getDbMeta,
-  getDbResourceSpec,
+  getSelectedAwsPostgresDbMeta,
+  resourceSpecSelfHostedMysql,
 } from 'teleport/Discover/Fixtures/databases';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 import { agentService } from 'teleport/services/agents';
 import auth from 'teleport/services/auth/auth';
 import { userEventService } from 'teleport/services/userEvent';
@@ -50,20 +46,17 @@ afterEach(() => {
 });
 
 test('custom db name and user is respected when defined', async () => {
-  const dbMeta = getDbMeta();
+  const dbMeta = getSelectedAwsPostgresDbMeta();
   dbMeta.db.users = ['user1', '*'];
   dbMeta.db.names = ['name1', '*'];
 
   render(
-    <ComponentWrapper
-      dbMeta={dbMeta}
-      resourceSpec={getDbResourceSpec(
-        DatabaseEngine.MySql,
-        DatabaseLocation.SelfHosted
-      )}
+    <RequiredDiscoverProviders
+      agentMeta={dbMeta}
+      resourceSpec={resourceSpecSelfHostedMysql}
     >
       <TestConnection />
-    </ComponentWrapper>
+    </RequiredDiscoverProviders>
   );
 
   // Test with default user and names.

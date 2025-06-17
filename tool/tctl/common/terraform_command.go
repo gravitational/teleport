@@ -250,6 +250,8 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 
 	// Create bot
 	bot := &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
@@ -352,7 +354,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 
 	id := facade.Get()
 
-	clusterName, err := clt.GetClusterName()
+	clusterName, err := clt.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "retrieving cluster name")
 	}

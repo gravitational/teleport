@@ -129,7 +129,7 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 	case req.stderr:
 		streams[remotecommand.StreamStdErr].Write([]byte{})
 	default:
-		streams[streamErr].Write([]byte{})
+		streams[remotecommand.StreamStdErr].Write([]byte{})
 	}
 
 	proxy := &remoteCommandProxy{

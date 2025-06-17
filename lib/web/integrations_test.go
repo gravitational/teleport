@@ -105,12 +105,109 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 	}
 }
 
+func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
+	t.Parallel()
+	wPack := newWebPack(t, 1 /* proxies */)
+	proxy := wPack.proxies[0]
+	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
+	ctx := context.Background()
+
+	// Create Integration
+	const integrationName = "test-integration"
+	trustAnchorARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012"
+	createData := ui.Integration{
+		Name:    integrationName,
+		SubKind: "aws-ra",
+		AWSRA: &ui.IntegrationAWSRASpec{
+			TrustAnchorARN: trustAnchorARN,
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled: false,
+			},
+		},
+	}
+	createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
+	createResp, err := authPack.clt.PostJSON(ctx, createEndpoint, createData)
+	require.NoError(t, err)
+	require.Equal(t, 200, createResp.Code())
+
+	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
+	require.NoError(t, err)
+	require.Equal(t, trustAnchorARN, intgrationResource.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN)
+
+	// Create Integration fails when sync is enabled but config is not set
+	createDataWithoutSyncFields := ui.Integration{
+		Name:    "another-integration",
+		SubKind: "aws-ra",
+		AWSRA: &ui.IntegrationAWSRASpec{
+			TrustAnchorARN: trustAnchorARN,
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled:    true,
+				ProfileARN: "",
+				RoleARN:    "arn:aws:iam::123456789012:role/testrole",
+			},
+		},
+	}
+	createResp, err = authPack.clt.PostJSON(ctx, createEndpoint, createDataWithoutSyncFields)
+	require.ErrorContains(t, err, "missing awsra.profileSync.profileArn field")
+	require.Equal(t, 400, createResp.Code())
+
+	// Get single integration
+	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
+	getResp, err := authPack.clt.Get(ctx, getEndpoint, nil)
+	require.NoError(t, err)
+	require.Equal(t, 200, getResp.Code())
+
+	var resp ui.Integration
+	err = json.Unmarshal(getResp.Bytes(), &resp)
+	require.NoError(t, err)
+	require.Equal(t, createData, resp)
+
+	// Update integration
+	updatedTrustAnchor := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/00000000-0000-0000-0000-123456789012"
+	syncProfileARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/00000000-0000-0000-0000-123456789012"
+	syncRoleARN := "arn:aws:iam::123456789012:role/testrole"
+	updateIntegration := ui.UpdateIntegrationRequest{
+		AWSRA: &ui.IntegrationAWSRASpec{
+			TrustAnchorARN: updatedTrustAnchor,
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled:    true,
+				ProfileARN: syncProfileARN,
+				RoleARN:    syncRoleARN,
+			},
+		},
+	}
+	updateEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
+	updateResp, err := authPack.clt.PutJSON(ctx, updateEndpoint, updateIntegration)
+	require.NoError(t, err)
+	require.Equal(t, 200, updateResp.Code())
+
+	// List integrations
+	listEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
+	listResp, err := authPack.clt.Get(ctx, listEndpoint, nil)
+	require.NoError(t, err)
+	require.Equal(t, 200, listResp.Code())
+
+	var listRespObject ui.IntegrationsListResponse
+	err = json.Unmarshal(listResp.Bytes(), &listRespObject)
+	require.NoError(t, err)
+	require.Len(t, listRespObject.Items, 1)
+	integrationObject := listRespObject.Items[0]
+	require.Equal(t, updatedTrustAnchor, integrationObject.AWSRA.TrustAnchorARN)
+	require.True(t, integrationObject.AWSRA.ProfileSyncConfig.Enabled)
+	require.Equal(t, syncProfileARN, integrationObject.AWSRA.ProfileSyncConfig.ProfileARN)
+	require.Equal(t, syncRoleARN, integrationObject.AWSRA.ProfileSyncConfig.RoleARN)
+
+	// Delete Integration
+	err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)
+	require.NoError(t, err)
+}
+
 type mockUserTasksLister struct {
 	defaultPageSize int64
 	userTasks       []*usertasksv1.UserTask
 }
 
-func (m *mockUserTasksLister) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error) {
+func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize
@@ -203,9 +300,16 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 		}
 
 		var userTasksList []*usertasksv1.UserTask
-		for range 10 {
-			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen}})
-			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved}})
+		ec2UserTasks := 10
+		for range ec2UserTasks {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverEC2}})
+		}
+		rdsUserTasks := 20
+		for range rdsUserTasks {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverRDS}})
+		}
+		for range 100 {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved, TaskType: usertasks.TaskTypeDiscoverEC2}})
 		}
 
 		userTasksClient := &mockUserTasksLister{
@@ -229,7 +333,13 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				SubKind: "aws-oidc",
 				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
 			},
-			UnresolvedUserTasks: 10,
+			UnresolvedUserTasks: ec2UserTasks + rdsUserTasks,
+			AWSEC2: ui.ResourceTypeSummary{
+				UnresolvedUserTasks: ec2UserTasks,
+			},
+			AWSRDS: ui.ResourceTypeSummary{
+				UnresolvedUserTasks: rdsUserTasks,
+			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)
 	})
@@ -784,13 +894,28 @@ func TestGitHubIntegration(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
+		githubServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+			Integration:  integrationName,
+			Organization: orgName,
+		})
+		require.NoError(t, err)
+		_, err = proxy.auth.AuthServer.AuthServer.CreateGitServer(ctx, githubServer)
+		require.NoError(t, err)
+
 		endpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-		t.Run("success", func(t *testing.T) {
+		t.Run("failed because existing git server ", func(t *testing.T) {
 			_, err := authPack.clt.Delete(ctx, endpoint)
+			require.Error(t, err)
+		})
+
+		t.Run("success with associated resources param", func(t *testing.T) {
+			_, err := authPack.clt.Delete(ctx, endpoint+"?associatedresources=true")
 			require.NoError(t, err)
 
 			_, err = authPack.clt.Get(ctx, endpoint, nil)
 			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err))
+			_, err = proxy.auth.AuthServer.AuthServer.GetGitServer(ctx, githubServer.GetName())
 			require.True(t, trace.IsNotFound(err))
 		})
 

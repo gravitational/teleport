@@ -123,10 +123,11 @@ export function useCreateDatabase() {
       awsVpcId: createdDb.awsVpcId,
       agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
-      serviceDeployedMethod:
-        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
-          ? 'skipped'
-          : undefined, // User has to deploy a service (can be auto or manual)
+      ...(dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success && {
+        serviceDeploy: {
+          method: 'skipped',
+        },
+      }),
     });
 
     setAttempt({ status: 'success' });

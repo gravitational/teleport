@@ -17,6 +17,8 @@
 package types
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -819,4 +821,43 @@ func TestResourceHeaderIsEqual(t *testing.T) {
 			require.Equal(t, test.expected, test.h1.IsEqual(test.h2))
 		})
 	}
+}
+
+func TestResourceNames(t *testing.T) {
+	var apps Apps
+	var expectedNames []string
+	for i := 0; i < 10; i++ {
+		app, err := NewAppV3(Metadata{
+			Name: fmt.Sprintf("app-%d", i),
+		}, AppSpecV3{
+			URI: "tcp://localhost:1111",
+		})
+		require.NoError(t, err)
+		apps = append(apps, app)
+		expectedNames = append(expectedNames, app.GetName())
+	}
+
+	require.Equal(t, expectedNames, slices.Collect(ResourceNames(apps)))
+}
+
+func newAppServer(t *testing.T, name string) AppServer {
+	t.Helper()
+	app, err := NewAppServerV3(Metadata{
+		Name:        name,
+		Description: "description",
+	}, AppServerSpecV3{
+		HostID: "hostid",
+		App: &AppV3{
+			Metadata: Metadata{
+				Name:        fmt.Sprintf("%s-app", name),
+				Description: "app description",
+			},
+			Spec: AppSpecV3{
+				URI:        "uri",
+				PublicAddr: "publicaddr",
+			},
+		},
+	})
+	require.NoError(t, err)
+	return app
 }

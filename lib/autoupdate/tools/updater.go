@@ -50,6 +50,9 @@ import (
 const (
 	// teleportToolsVersionEnv is environment name for requesting specific version for update.
 	teleportToolsVersionEnv = "TELEPORT_TOOLS_VERSION"
+	// teleportToolsVersionReExecEnv is internal environment name for transferring original
+	// version to re-executed ones.
+	teleportToolsVersionReExecEnv = "TELEPORT_TOOLS_VERSION_REEXEC"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -345,6 +348,9 @@ func (u *Updater) Exec(args []string) (int, error) {
 	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
 		return 0, trace.Wrap(err)
 	}
+	if err := os.Unsetenv(teleportToolsVersionReExecEnv); err != nil {
+		return 0, trace.Wrap(err)
+	}
 
 	env := os.Environ()
 	executablePath, err := os.Executable()
@@ -354,6 +360,7 @@ func (u *Updater) Exec(args []string) (int, error) {
 	if path == executablePath {
 		env = append(env, teleportToolsVersionEnv+"=off")
 	}
+	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 
 	if runtime.GOOS == constants.WindowsOS {
 		cmd := exec.Command(path, args...)

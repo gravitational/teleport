@@ -26,7 +26,7 @@ import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
 import auth from 'teleport/services/auth';
 
 test('ip address should be visible', async () => {
-  jest.spyOn(auth, 'headlessSSOGet').mockImplementation(
+  jest.spyOn(auth, 'headlessSsoGet').mockImplementation(
     () =>
       new Promise(resolve => {
         resolve({ clientIpAddress: '1.2.3.4' });

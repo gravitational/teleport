@@ -145,6 +145,9 @@ type Database interface {
 	// IsUsernameCaseInsensitive returns true if the database username is case
 	// insensitive.
 	IsUsernameCaseInsensitive() bool
+	// IsAutoUsersEnabled returns true if the database has auto user
+	// provisioning enabled.
+	IsAutoUsersEnabled() bool
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -566,6 +569,10 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 		return DatabaseTypeDynamoDB, true
 	case DatabaseTypeOpenSearch:
 		return DatabaseTypeOpenSearch, true
+	case DatabaseProtocolOracle:
+		if !aws.IsEmpty() {
+			return DatabaseTypeRDSOracle, true
+		}
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
@@ -1126,6 +1133,12 @@ func (d *DatabaseV3) IsUsernameCaseInsensitive() bool {
 	return d.GetProtocol() == DatabaseProtocolCockroachDB
 }
 
+// IsAutoUsersEnabled returns true if the database has auto user
+// provisioning enabled.
+func (d *DatabaseV3) IsAutoUsersEnabled() bool {
+	return d.SupportsAutoUsers() && d.GetAdminUser().Name != ""
+}
+
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
@@ -1139,6 +1152,8 @@ const (
 	DatabaseProtocolMongoDB = "mongodb"
 	// DatabaseProtocolCockroachDB is the CockroachDB database protocol.
 	DatabaseProtocolCockroachDB = "cockroachdb"
+	// DatabaseProtocolOracle is the Oracle database protocol.
+	DatabaseProtocolOracle = "oracle"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1172,6 +1187,8 @@ const (
 	DatabaseTypeMongoAtlas = "mongo-atlas"
 	// DatabaseTypeDocumentDB is the database type for AWS-hosted DocumentDB.
 	DatabaseTypeDocumentDB = "docdb"
+	// DatabaseTypeRDSOracle is AWS-hosted Oracle instance.
+	DatabaseTypeRDSOracle = "rds-oracle"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

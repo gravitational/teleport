@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -267,7 +268,8 @@ func (s *identityService) Run(ctx context.Context) error {
 	)
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		name: "bot-identity-renewal",
+		service: s.String(),
+		name:    "bot-identity-renewal",
 		f: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
@@ -474,19 +476,47 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
-	if params.JoinMethod == types.JoinMethodAzure {
+	// Only set during bound keypair joining, but used both before and after.
+	var boundKeypairState *boundkeypair.ClientState
+
+	switch params.JoinMethod {
+	case types.JoinMethodAzure:
 		params.AzureParams = join.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
-	}
-
-	if params.JoinMethod == types.JoinMethodTerraformCloud {
+	case types.JoinMethodTerraformCloud:
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
+	case types.JoinMethodGitLab:
+		params.GitlabParams = join.GitlabParams{
+			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
+		}
+	case types.JoinMethodBoundKeypair:
+		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
+
+		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
+		if trace.IsNotFound(err) && joinSecret != "" {
+			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
+		} else if err != nil {
+			return nil, trace.Wrap(err, "loading bound keypair client state")
+		}
+
+		params.BoundKeypairParams = boundKeypairState.ToJoinParams(joinSecret)
 	}
 
 	result, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if boundKeypairState != nil {
+		if err := boundKeypairState.UpdateFromRegisterResult(result); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := boundKeypairState.Store(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)

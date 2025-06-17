@@ -18,11 +18,32 @@
 
 import { useEffect, useRef } from 'react';
 
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+
 import { Roles } from './Roles';
 
 export default {
   title: 'Teleport/Roles',
 };
+
+export function Loaded() {
+  return (
+    <TeleportProviderBasic>
+      <Roles {...sample} />
+    </TeleportProviderBasic>
+  );
+}
+
+export function Empty() {
+  return (
+    <TeleportProviderBasic>
+      <Roles
+        {...sample}
+        fetch={async () => ({ items: [], startKey: '' })}
+      />{' '}
+    </TeleportProviderBasic>
+  );
+}
 
 export function Processing() {
   const promiseRef = useRef(Promise.withResolvers<never>());
@@ -30,27 +51,23 @@ export function Processing() {
     const promise = promiseRef.current;
     return () => promise.resolve(undefined);
   }, []);
-  return <Roles {...sample} fetch={() => promiseRef.current.promise} />;
-}
-
-export function Loaded() {
-  return <Roles {...sample} />;
-}
-
-export function Empty() {
   return (
-    <Roles {...sample} fetch={async () => ({ items: [], startKey: '' })} />
+    <TeleportProviderBasic>
+      <Roles {...sample} fetch={() => promiseRef.current.promise} />
+    </TeleportProviderBasic>
   );
 }
 
 export function Failed() {
   return (
-    <Roles
-      {...sample}
-      fetch={async () => {
-        throw new Error('some error message');
-      }}
-    />
+    <TeleportProviderBasic>
+      <Roles
+        {...sample}
+        fetch={async () => {
+          throw new Error('some error message');
+        }}
+      />
+    </TeleportProviderBasic>
   );
 }
 

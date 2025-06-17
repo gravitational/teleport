@@ -26,7 +26,6 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"encoding/pem"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -121,7 +120,7 @@ func newKubeCAKey(kubeCert tls.Certificate) (*keys.PrivateKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := keys.NewSoftwarePrivateKey(signer)
+	privateKey, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,9 +174,8 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 			cert, err := k.cfg.OnExpiredCert(ctx, k)
 			return cert, trace.Wrap(err)
 		},
-		Clock: k.cfg.Clock,
-		// TODO(tross): update this when kube is converted to use slog.
-		Logger:       slog.Default(),
+		Clock:        k.cfg.Clock,
+		Logger:       k.cfg.Logger,
 		CloseContext: k.closeContext,
 	})
 

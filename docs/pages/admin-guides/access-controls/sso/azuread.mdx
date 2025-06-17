@@ -16,6 +16,10 @@ The following steps configure an example SAML authentication connector matching
 Microsoft Entra ID groups with security roles. You can choose to configure other
 options.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="Microsoft Entra ID"!)
+
 ## Prerequisites
 
 Before you get started, you’ll need:
@@ -28,7 +32,7 @@ Before you get started, you’ll need:
 - A Teleport role with access to maintaining `saml` resources. This is available
   in the default `editor` role.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -66,10 +70,11 @@ Before you get started, you’ll need:
 
    ![Edit Basic SAML Configuration](../../../../img/azuread/azuread-6-editbasicsaml.png)
 
-1. Enter the URL for your Teleport Proxy Service host in the **Entity ID** and **Reply URL**  fields:
+1. Enter the URL for your Teleport Proxy Service host in the **Entity ID** and
+   **Reply URL**  fields, for example:
 
    ```code
-   https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/ad
+   https://mytenant.teleport.sh:443/v1/webapi/saml/acs/ad
    ```
 
    ![Put in Entity ID and Reply URL](../../../../img/azuread/azuread-7-entityandreplyurl.png)
@@ -412,6 +417,6 @@ Change the Name ID format to use email instead:
 - In the Teleport role we illustrated in this guide, `external` traits
   are replaced with values from the single sign-on provider that the
   user used to authenticate to Teleport. For full details on how traits
-  work in Teleport roles, see the [Teleport Access Controls
+  work in Teleport roles, see the [Access Controls
   Reference](../../../reference/access-controls/roles.mdx).
 

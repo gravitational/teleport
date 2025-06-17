@@ -27,6 +27,7 @@ import {
   getStaticNameAndIcon,
 } from 'teleterm/ui/services/workspacesService';
 
+import { tabHeight } from './constants';
 import { NewTabItem, TabItem } from './TabItem';
 
 export function Tabs(props: Props) {
@@ -93,9 +94,9 @@ type Props = {
 };
 
 // TODO(bl-nero): Typography should have a more restrictive type.
-const StyledTabs = styled(Box)<TypographyProps>`
+export const StyledTabs = styled(Box)<TypographyProps>`
   background-color: ${props => props.theme.colors.levels.surface};
-  min-height: 32px;
+  min-height: ${tabHeight}px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;

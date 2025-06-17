@@ -157,7 +157,7 @@ export const Small = () => {
       <SlideTabs
         tabs={[
           { key: 'kraken', title: 'Kraken' },
-          { key: 'chubacabra', title: 'Chubacabra' },
+          { key: 'chupacabra', title: 'Chupacabra' },
           { key: 'yeti', title: 'Yeti' },
         ]}
         size="small"
@@ -204,17 +204,45 @@ export const StatusIcons = () => {
         activeIndex={activeIndex}
         onChange={setActiveIndex}
       />
+      <SlideTabs
+        size="medium"
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+      <SlideTabs
+        size="small"
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
     </Flex>
   );
 };
 
-export const DisabledTab = () => {
+export const Disabled = () => {
   return (
     <SlideTabs
       tabs={threeSimpleTabs}
       onChange={() => null}
       activeIndex={1}
       disabled={true}
+    />
+  );
+};
+
+export const DisabledTab = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabs = [
+    { key: 'aws', title: 'aws' },
+    { key: 'automatically', title: 'automatically', disabled: true },
+    { key: 'manually', title: 'manually' },
+  ];
+  return (
+    <SlideTabs
+      tabs={tabs}
+      activeIndex={activeIndex}
+      onChange={setActiveIndex}
     />
   );
 };

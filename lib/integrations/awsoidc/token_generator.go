@@ -41,7 +41,7 @@ type Cache interface {
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
@@ -132,7 +132,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 		return "", trace.Wrap(err)
 	}
 
-	clusterName, err := cacheClt.GetClusterName()
+	clusterName, err := cacheClt.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

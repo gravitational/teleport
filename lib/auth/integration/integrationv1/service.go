@@ -34,6 +34,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -44,7 +45,7 @@ import (
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
@@ -75,6 +76,7 @@ type KeyStoreManager interface {
 type Backend interface {
 	services.Integrations
 	services.PluginStaticCredentials
+	services.GitServers
 }
 
 // ServiceConfig holds configuration options for
@@ -212,7 +214,7 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	return igV1, nil
 }
 
-// CreateIntegration creates a new Okta import rule resource.
+// CreateIntegration creates a new Integration resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -236,7 +238,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
-			return nil, trace.BadParameter("integration name %q must be a valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
+			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
 		}
 	}
 
@@ -326,7 +328,17 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 }
 
 // DeleteIntegration removes the specified Integration resource.
+//
+// This RPC may remove multiple resources in the backend:
+// - Associated resources like Git servers if DeleteAssociatedResources is set
+// - Associated plugin credentials
+// - The integration resource itself
+//
+// Note that there is no rollback if some error happens in the middle of the
+// process.
 func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) (*emptypb.Empty, error) {
+	s.logger.DebugContext(ctx, "Deleting integration", "integration", req.GetName())
+
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -341,6 +353,17 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
+	if req.DeleteAssociatedResources {
+		if err := s.deleteAssociatedResources(ctx, authCtx, ig); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := s.ensureNoAssociatedResources(ctx, ig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.logger.DebugContext(ctx, "Deleted integration", "integration", ig, "credentials", ig.GetCredentials())
 	if err := s.removeStaticCredentials(ctx, ig); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -391,6 +414,10 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
 			Organization: ig.GetGitHubIntegrationSpec().Organization,
 		}
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
+			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
+		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}
@@ -402,4 +429,52 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 // DEPRECATED: can't delete all integrations over gRPC.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
 	return nil, trace.BadParameter("DeleteAllIntegrations is deprecated")
+}
+
+func (s *Service) ensureNoAssociatedResources(ctx context.Context, ig types.Integration) error {
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		return trace.Wrap(s.ensureNoGitHubAssociatedResources(ctx, ig))
+	default:
+		// TODO support this check for other types.
+		return nil
+	}
+}
+
+func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig types.Integration) error {
+	s.logger.DebugContext(ctx, "Checking GitHub integration associated resources", "integration", ig.GetName())
+	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
+		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
+			return trace.BadParameter("git servers associated with integration %s must be deleted first", ig.GetName())
+		}
+		return nil
+	}))
+}
+
+func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
+	default:
+		return trace.NotImplemented("DeleteAssociatedResources not supported for integration kind %q", ig.GetKind())
+	}
+}
+
+func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+	s.logger.DebugContext(ctx, "Deleting git servers associated with integration", "integration", ig.GetName())
+
+	// This RPC only attempts to delete the git server (it's not returning the
+	// git server for the caller to use), so check for types.VerbDelete and
+	// types.VerbList but skip types.Read and authCtx.Checker.CheckAccess on the
+	// resource.
+	if err := authCtx.CheckAccessToKind(types.KindGitServer, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
+		if server.GetGitHub() == nil || server.GetGitHub().Integration != ig.GetName() {
+			return nil
+		}
+		return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
+	}))
 }

@@ -22,82 +22,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
-
-// mockClient is a mock implementation if the Client interface for testing purposes.
-// This is used to precisely check which calls are made by the reconciler during tests.
-// Use newMockClient to create one from stubs. Once the test is over, you must call
-// mockClient.checkIfEmpty to validate all expected calls were made.
-type mockClient struct {
-	getAutoUpdateConfig          *getHandler[*autoupdate.AutoUpdateConfig]
-	getAutoUpdateVersion         *getHandler[*autoupdate.AutoUpdateVersion]
-	getAutoUpdateAgentRollout    *getHandler[*autoupdate.AutoUpdateAgentRollout]
-	createAutoUpdateAgentRollout *createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]
-	updateAutoUpdateAgentRollout *createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]
-	deleteAutoUpdateAgentRollout *deleteHandler
-	getClusterMaintenanceConfig  *legacyGetHandler[*types.ClusterMaintenanceConfigV1]
-}
-
-func (m mockClient) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
-	return m.getAutoUpdateConfig.handle(ctx)
-}
-
-func (m mockClient) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-	return m.getAutoUpdateVersion.handle(ctx)
-}
-
-func (m mockClient) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
-	return m.getAutoUpdateAgentRollout.handle(ctx)
-}
-
-func (m mockClient) CreateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error) {
-	return m.createAutoUpdateAgentRollout.handle(ctx, rollout)
-}
-
-func (m mockClient) UpdateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error) {
-	return m.updateAutoUpdateAgentRollout.handle(ctx, rollout)
-}
-
-func (m mockClient) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
-	return m.deleteAutoUpdateAgentRollout.handle(ctx)
-}
-
-func (m mockClient) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
-	return m.getClusterMaintenanceConfig.handle(ctx)
-}
-
-func (m mockClient) checkIfEmpty(t *testing.T) {
-	require.True(t, m.getAutoUpdateConfig.isEmpty(), "Get autoupdate_config mock not empty")
-	require.True(t, m.getAutoUpdateVersion.isEmpty(), "Get autoupdate_version mock not empty")
-	require.True(t, m.getAutoUpdateAgentRollout.isEmpty(), "Get autoupdate_agent_rollout mock not empty")
-	require.True(t, m.createAutoUpdateAgentRollout.isEmpty(), "Create autoupdate_agent_rollout mock not empty")
-	require.True(t, m.updateAutoUpdateAgentRollout.isEmpty(), "Update autoupdate_agent_rollout mock not empty")
-	require.True(t, m.deleteAutoUpdateAgentRollout.isEmpty(), "Delete autoupdate_agent_rollout mock not empty")
-	require.True(t, m.getClusterMaintenanceConfig.isEmpty(), "Get cluster_maintenance config mock not empty")
-}
-
-func newMockClient(t *testing.T, stubs mockClientStubs) *mockClient {
-	// Fail early if there's a mismatch
-	require.Equal(t, len(stubs.createRolloutAnswers), len(stubs.createRolloutExpects), "invalid stubs, create validations and answers slices are not the same length")
-	require.Equal(t, len(stubs.updateRolloutAnswers), len(stubs.updateRolloutExpects), "invalid stubs, update validations and answers slices are not the same length")
-
-	return &mockClient{
-		getAutoUpdateConfig:          &getHandler[*autoupdate.AutoUpdateConfig]{t, stubs.configAnswers},
-		getAutoUpdateVersion:         &getHandler[*autoupdate.AutoUpdateVersion]{t, stubs.versionAnswers},
-		getAutoUpdateAgentRollout:    &getHandler[*autoupdate.AutoUpdateAgentRollout]{t, stubs.rolloutAnswers},
-		createAutoUpdateAgentRollout: &createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]{t, stubs.createRolloutExpects, stubs.createRolloutAnswers},
-		updateAutoUpdateAgentRollout: &createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]{t, stubs.updateRolloutExpects, stubs.updateRolloutAnswers},
-		deleteAutoUpdateAgentRollout: &deleteHandler{t, stubs.deleteRolloutAnswers},
-		getClusterMaintenanceConfig:  &legacyGetHandler[*types.ClusterMaintenanceConfigV1]{t, stubs.cmcAnswers},
-	}
-}
 
 type mockClientStubs struct {
 	configAnswers        []callAnswer[*autoupdate.AutoUpdateConfig]
@@ -109,6 +41,7 @@ type mockClientStubs struct {
 	updateRolloutExpects []require.ValueAssertionFunc
 	deleteRolloutAnswers []error
 	cmcAnswers           []callAnswer[*types.ClusterMaintenanceConfigV1]
+	reportsAnswers       []callAnswer[[]*autoupdate.AutoUpdateAgentReport]
 }
 
 type callAnswer[T any] struct {
@@ -116,114 +49,108 @@ type callAnswer[T any] struct {
 	err    error
 }
 
-// getHandler is used in a mock client to answer get resource requests during tests.
-// It takes a list of answers and errors and will return them when invoked.
-// If there are no stubs left it fails the test.
-type getHandler[T proto.Message] struct {
-	t       *testing.T
-	answers []callAnswer[T]
-}
+func newMockClient(t *testing.T, stubs mockClientStubs) *testifyMockClient {
+	require.Len(t, stubs.createRolloutAnswers, len(stubs.createRolloutExpects), "invalid stubs, create validations and answers slices are not the same length")
+	require.Len(t, stubs.updateRolloutAnswers, len(stubs.updateRolloutExpects), "invalid stubs, update validations and answers slices are not the same length")
 
-func (h *getHandler[T]) handle(_ context.Context) (T, error) {
-	if len(h.answers) == 0 {
-		require.Fail(h.t, "no answers left")
+	clt := &testifyMockClient{t: t, stubs: stubs}
+
+	for _, answer := range stubs.configAnswers {
+		clt.On("GetAutoUpdateConfig", mock.Anything).Return(answer.result, answer.err).Once()
+	}
+	for _, answer := range stubs.versionAnswers {
+		clt.On("GetAutoUpdateVersion", mock.Anything).Return(answer.result, answer.err).Once()
+	}
+	for _, answer := range stubs.rolloutAnswers {
+		clt.On("GetAutoUpdateAgentRollout", mock.Anything).Return(answer.result, answer.err).Once()
+	}
+	for i, answer := range stubs.createRolloutAnswers {
+		clt.On("CreateAutoUpdateAgentRollout", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			stubs.createRolloutExpects[i](t, args[1])
+		}).Return(answer.result, answer.err).Once()
+	}
+	for i, answer := range stubs.updateRolloutAnswers {
+		clt.On("UpdateAutoUpdateAgentRollout", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			stubs.updateRolloutExpects[i](t, args[1])
+		}).Return(answer.result, answer.err).Once()
+	}
+	for _, answer := range stubs.deleteRolloutAnswers {
+		clt.On("DeleteAutoUpdateAgentRollout", mock.Anything).Return(answer).Once()
+	}
+	for _, answer := range stubs.cmcAnswers {
+		clt.On("GetClusterMaintenanceConfig", mock.Anything).Return(answer.result, answer.err).Once()
+	}
+	for _, answer := range stubs.reportsAnswers {
+		clt.On("ListAutoUpdateAgentReports", mock.Anything, mock.Anything, mock.Anything).Return(answer.result, answer.err).Once()
 	}
 
-	entry := h.answers[0]
-	h.answers = h.answers[1:]
-
-	// We need to deep copy because the reconciler might do updates in place.
-	// We don't want the original resource to be edited as this would mess with other tests.
-	return proto.Clone(entry.result).(T), entry.err
+	return clt
 }
 
-// isEmpty returns true only if all stubs were consumed
-func (h *getHandler[T]) isEmpty() bool {
-	return len(h.answers) == 0
+type testifyMockClient struct {
+	mock.Mock
+	t     *testing.T
+	stubs mockClientStubs
 }
 
-// legacyGetHandler is a getHandler for legacy teleport types (gogo proto-based)
-// A first iteration was trying to be smart and reuse the getHandler logic
-// by converting fixtures before to protoadapt.MessageV2, and converting back to
-// protoadapt.MessageV1 before returning. The resulting code was hard to read and
-// duplicating the logic seems more maintainable.
-type legacyGetHandler[T protoadapt.MessageV1] struct {
-	t       *testing.T
-	answers []callAnswer[T]
+func (n *testifyMockClient) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+	args := n.Called(ctx)
+	result := proto.Clone(args.Get(0).(*autoupdate.AutoUpdateConfig))
+	return result.(*autoupdate.AutoUpdateConfig), args.Error(1)
 }
 
-func (h *legacyGetHandler[T]) handle(_ context.Context) (T, error) {
-	if len(h.answers) == 0 {
-		require.Fail(h.t, "no answers left")
+func (n *testifyMockClient) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+	args := n.Called(ctx)
+	result := proto.Clone(args.Get(0).(*autoupdate.AutoUpdateVersion))
+	return result.(*autoupdate.AutoUpdateVersion), args.Error(1)
+}
+
+func (n *testifyMockClient) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
+	args := n.Called(ctx)
+	result := proto.Clone(args.Get(0).(*autoupdate.AutoUpdateAgentRollout))
+	return result.(*autoupdate.AutoUpdateAgentRollout), args.Error(1)
+}
+
+func (n *testifyMockClient) CreateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error) {
+	args := n.Called(ctx, rollout)
+	result := proto.Clone(args.Get(0).(*autoupdate.AutoUpdateAgentRollout))
+	return result.(*autoupdate.AutoUpdateAgentRollout), args.Error(1)
+}
+
+func (n *testifyMockClient) UpdateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error) {
+	args := n.Called(ctx, rollout)
+	result := proto.Clone(args.Get(0).(*autoupdate.AutoUpdateAgentRollout))
+	return result.(*autoupdate.AutoUpdateAgentRollout), args.Error(1)
+}
+
+func (n *testifyMockClient) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
+	args := n.Called(ctx)
+	return args.Error(0)
+}
+
+func (n *testifyMockClient) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	args := n.Called(ctx)
+	result := apiutils.CloneProtoMsg(args.Get(0).(*types.ClusterMaintenanceConfigV1))
+	return result, args.Error(1)
+}
+
+func (n *testifyMockClient) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, nextKey string) ([]*autoupdate.AutoUpdateAgentReport, string, error) {
+	args := n.Called(ctx, pageSize, nextKey)
+	fixture := args.Get(0).([]*autoupdate.AutoUpdateAgentReport)
+	result := make([]*autoupdate.AutoUpdateAgentReport, 0, len(fixture))
+	for _, report := range fixture {
+		result = append(result, proto.Clone(report).(*autoupdate.AutoUpdateAgentReport))
 	}
-
-	entry := h.answers[0]
-	h.answers = h.answers[1:]
-
-	// We need to deep copy because the reconciler might do updates in place.
-	// We don't want the original resource to be edited as this would mess with other tests.
-	result := apiutils.CloneProtoMsg(entry.result)
-	return result, entry.err
+	return result, "", args.Error(1)
 }
 
-// isEmpty returns true only if all stubs were consumed
-func (h *legacyGetHandler[T]) isEmpty() bool {
-	return len(h.answers) == 0
-}
-
-// createUpdateHandler is used in a mock client to answer create or update resource requests during tests (any request whose arity is 2).
-// It first validates the input using the provided validation function, then it returns the predefined answer and error.
-// If there are no stubs left it fails the test.
-type createUpdateHandler[T proto.Message] struct {
-	t       *testing.T
-	expect  []require.ValueAssertionFunc
-	answers []callAnswer[T]
-}
-
-func (h *createUpdateHandler[T]) handle(_ context.Context, object T) (T, error) {
-	if len(h.expect) == 0 {
-		require.Fail(h.t, "not expecting more calls")
-	}
-	h.expect[0](h.t, object)
-	h.expect = h.expect[1:]
-
-	if len(h.answers) == 0 {
-		require.Fail(h.t, "no answers left")
-	}
-
-	entry := h.answers[0]
-	h.answers = h.answers[1:]
-
-	// We need to deep copy because the reconciler might do updates in place.
-	// We don't want the original resource to be edited as this would mess with other tests.
-	return proto.Clone(entry.result).(T), entry.err
-}
-
-// isEmpty returns true only if all stubs were consumed
-func (h *createUpdateHandler[T]) isEmpty() bool {
-	return len(h.answers) == 0 && len(h.expect) == 0
-}
-
-// deleteHandler is used in a mock client to answer delete resource requests during tests.
-// It takes a list of errors and returns them when invoked.
-// If there are no stubs left it fails the test.
-type deleteHandler struct {
-	t       *testing.T
-	answers []error
-}
-
-func (h *deleteHandler) handle(_ context.Context) error {
-	if len(h.answers) == 0 {
-		require.Fail(h.t, "no answers left")
-	}
-
-	entry := h.answers[0]
-	h.answers = h.answers[1:]
-
-	return entry
-}
-
-// isEmpty returns true only if all stubs were consumed
-func (h *deleteHandler) isEmpty() bool {
-	return len(h.answers) == 0
+func (n *testifyMockClient) checkIfCallsWereDone(t *testing.T) {
+	n.AssertNumberOfCalls(t, "GetAutoUpdateConfig", len(n.stubs.configAnswers))
+	n.AssertNumberOfCalls(t, "GetAutoUpdateVersion", len(n.stubs.versionAnswers))
+	n.AssertNumberOfCalls(t, "GetAutoUpdateAgentRollout", len(n.stubs.rolloutAnswers))
+	n.AssertNumberOfCalls(t, "CreateAutoUpdateAgentRollout", len(n.stubs.createRolloutAnswers))
+	n.AssertNumberOfCalls(t, "UpdateAutoUpdateAgentRollout", len(n.stubs.updateRolloutAnswers))
+	n.AssertNumberOfCalls(t, "DeleteAutoUpdateAgentRollout", len(n.stubs.deleteRolloutAnswers))
+	n.AssertNumberOfCalls(t, "GetClusterMaintenanceConfig", len(n.stubs.cmcAnswers))
+	n.AssertNumberOfCalls(t, "ListAutoUpdateAgentReports", len(n.stubs.reportsAnswers))
 }

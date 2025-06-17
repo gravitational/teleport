@@ -245,10 +245,12 @@ func (s *SAMLIdPServiceProviderV1) CloneResource() ResourceWithLabels {
 	return s.Copy()
 }
 
+const defaultDescription = "SAML Application"
+
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *SAMLIdPServiceProviderV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetEntityID(), s.GetName(), staticSAMLIdPServiceProviderDescription)
+	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetEntityID(), s.GetName(), defaultDescription)
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -387,7 +389,7 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 // preset can be either empty or one of the supported type.
 func (s *SAMLIdPServiceProviderV1) checkAndSetPresetDefaults(preset string) bool {
 	switch preset {
-	case "", samlsp.Unspecified, samlsp.AWSIdentityCenter:
+	case "", samlsp.Unspecified, samlsp.AWSIdentityCenter, samlsp.MicrosoftEntraID:
 		return true
 	case samlsp.GCPWorkforce:
 		if s.GetRelayState() == "" {

@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto"
@@ -50,6 +51,7 @@ type WorkloadIdentityX509Service struct {
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
+	crlCache         *workloadidentity.CRLCache
 }
 
 // String returns a human-readable description of the service.
@@ -74,9 +76,16 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 	)
 	if err != nil {
 		return trace.Wrap(err, "fetching trust bundle set")
-
 	}
-	return s.render(ctx, bundleSet, res, privateKey)
+	crlSet, err := workloadidentity.FetchCRLSet(
+		ctx,
+		s.botAuthClient.WorkloadIdentityRevocationServiceClient(),
+	)
+	if err != nil {
+		return trace.Wrap(err, "fetching CRL set")
+	}
+
+	return s.render(ctx, bundleSet, res, privateKey, crlSet)
 }
 
 // Run runs the service in daemon mode, periodically generating the output and
@@ -85,6 +94,10 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
+	}
+	crlSet, err := s.crlCache.GetCRLSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting CRL set from cache")
 	}
 
 	jitter := retryutils.DefaultJitter
@@ -119,7 +132,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			if err != nil {
 				return trace.Wrap(err, "getting trust bundle set")
 			}
-			s.log.InfoContext(ctx, "Trust bundle set has been updated")
+			s.log.InfoContext(ctx, "Trust bundle set has been updated, will regenerate output")
 			if !newBundleSet.Local.Equal(bundleSet.Local) {
 				// If the local trust domain CA has changed, we need to reissue
 				// the SVID.
@@ -127,6 +140,13 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
+		case <-crlSet.Stale():
+			newCRLSet, err := s.crlCache.GetCRLSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting CRL set from cache")
+			}
+			crlSet = newCRLSet
+			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
 		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
@@ -143,7 +163,9 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				continue
 			}
 		}
-		if err := s.render(ctx, bundleSet, x509Cred, privateKey); err != nil {
+		if err := s.render(
+			ctx, bundleSet, x509Cred, privateKey, crlSet,
+		); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
 			failures++
 			continue
@@ -170,17 +192,21 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		return nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
@@ -233,6 +259,7 @@ func (s *WorkloadIdentityX509Service) render(
 	bundleSet *workloadidentity.BundleSet,
 	x509Cred *workloadidentityv1pb.Credential,
 	privateKey crypto.Signer,
+	crlSet *workloadidentity.CRLSet,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -267,11 +294,18 @@ func (s *WorkloadIdentityX509Service) render(
 		return trace.Wrap(err, "writing svid key")
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{
+	var certPEM bytes.Buffer
+	pem.Encode(&certPEM, &pem.Block{
 		Type:  pemCertificate,
 		Bytes: x509Cred.GetX509Svid().GetCert(),
 	})
-	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM); err != nil {
+	for _, c := range x509Cred.GetX509Svid().GetChain() {
+		pem.Encode(&certPEM, &pem.Block{
+			Type:  pemCertificate,
+			Bytes: c,
+		})
+	}
+	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM.Bytes()); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 
@@ -294,6 +328,13 @@ func (s *WorkloadIdentityX509Service) render(
 		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
+	}
+
+	crlBytes := crlSet.Marshal()
+	if len(crlBytes) > 0 {
+		if err := s.cfg.Destination.Write(ctx, config.SVIDCRLPemPath, crlBytes); err != nil {
+			return trace.Wrap(err, "writing CRL")
+		}
 	}
 
 	s.log.InfoContext(

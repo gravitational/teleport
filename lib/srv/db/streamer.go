@@ -36,7 +36,7 @@ func (s *Server) newSessionRecorder(sessionCtx *common.Session) (libevents.Sessi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(s.connContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

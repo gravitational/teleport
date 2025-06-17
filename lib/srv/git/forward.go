@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -44,6 +46,38 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+var (
+	execSessionCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "exec_sessions_total",
+	})
+
+	execFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "exec_failures_total",
+	})
+
+	userKeyAuthFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "userkeyauth_failures_total",
+	})
+
+	rbacFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "rbac_failures_total",
+	})
+
+	forwardServerPrometheusCollectors = []prometheus.Collector{
+		execSessionCounter,
+		userKeyAuthFailureCounter,
+		rbacFailureCounter,
+	}
 )
 
 // ForwardServerConfig is the configuration for the ForwardServer.
@@ -172,6 +206,10 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := metrics.RegisterPrometheusCollectors(forwardServerPrometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	serverConn, clientConn, err := utils.DualPipeNetConn(cfg.SrcAddr, cfg.DstAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,13 +239,14 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like
 	// CreateIdentityContext and UserKeyAuth to a common package.
 	s.auth, err = srv.NewAuthHandlers(&srv.AuthHandlerConfig{
-		Server:       s,
-		Component:    teleport.ComponentForwardingGit,
-		Emitter:      s.cfg.Emitter,
-		AccessPoint:  cfg.AccessPoint,
-		TargetServer: cfg.TargetServer,
-		FIPS:         cfg.FIPS,
-		Clock:        cfg.Clock,
+		Server:        s,
+		Component:     teleport.ComponentForwardingGit,
+		Emitter:       s.cfg.Emitter,
+		AccessPoint:   cfg.AccessPoint,
+		TargetServer:  cfg.TargetServer,
+		FIPS:          cfg.FIPS,
+		Clock:         cfg.Clock,
+		OnRBACFailure: s.onRBACFailure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -279,42 +318,44 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.UserKeyAuth to verify user cert is signed by UserCA.
+	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
+	// RBAC permissions.
 	permissions, err := s.auth.UserKeyAuth(conn, key)
 	if err != nil {
+		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 
-	// Check RBAC on the git server resource (aka s.cfg.TargetServer).
-	if err := s.checkUserAccess(ident); err != nil {
-		s.logger.ErrorContext(s.Context(), "Permission denied",
-			"error", err,
-			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
-			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
-			"key", key.Type(),
-			"fingerprint", sshutils.Fingerprint(key),
-			"user", cert.KeyId,
-		)
-		return nil, trace.Wrap(err)
+	if _, ok := permissions.Extensions[utils.ExtIntGitForwardingPermit]; !ok {
+		return nil, trace.Errorf("missing git forwarding permit (this is a bug)")
 	}
+
 	return permissions, nil
 }
 
-func (s *ForwardServer) checkUserAccess(ident *sshca.Identity) error {
-	clusterName, err := s.cfg.AccessPoint.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s.cfg.AccessPoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	state, err := services.AccessStateFromSSHIdentity(s.Context(), ident, accessChecker, s.cfg.AccessPoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(accessChecker.CheckAccess(s.cfg.TargetServer, state))
+// onRBACFailure is a callback invoked by the auth handler when auth fails specifically due to an RBAC
+// failure. Used to update events/metrics.
+func (s *ForwardServer) onRBACFailure(conn ssh.ConnMetadata, ident *sshca.Identity, err error) {
+	rbacFailureCounter.Inc()
+	s.emitEvent(&apievents.AuthAttempt{
+		Metadata: apievents.Metadata{
+			Type: events.AuthAttemptEvent,
+			Code: events.AuthAttemptFailureCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login:         gitUser,
+			User:          ident.Username,
+			TrustedDevice: ident.GetDeviceMetadata(),
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  conn.LocalAddr().String(),
+			RemoteAddr: conn.RemoteAddr().String(),
+		},
+		Status: apievents.Status{
+			Success: false,
+			Error:   err.Error(),
+		},
+	})
 }
 
 func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
@@ -445,7 +486,10 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	var r sshutils.ExecReq
 	defer func() {
 		if err != nil {
+			execFailureCounter.Inc()
 			s.emitEvent(s.makeGitCommandEvent(sctx, r.Command, err))
+		} else {
+			execSessionCounter.Inc()
 		}
 	}()
 
@@ -672,6 +716,9 @@ func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 }
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
+}
+func (s *ForwardServer) GetSELinuxEnabled() bool {
+	return false
 }
 
 type serverContextKey struct{}

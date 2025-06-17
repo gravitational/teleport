@@ -18,6 +18,7 @@
 
 import { MemoryRouter } from 'react-router';
 
+import { DiscoverBox } from 'teleport/Discover/Shared';
 import {
   initSelectedOptionsHelper,
   type State,
@@ -31,51 +32,61 @@ export default {
 
 export const NoTraits = () => (
   <MemoryRouter>
-    <SetupAccess {...props} initSelectedOptions={() => []} />
+    <DiscoverBox>
+      <SetupAccess {...props} initSelectedOptions={() => []} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const WithTraits = () => (
   <MemoryRouter>
-    <SetupAccess {...props} />
+    <DiscoverBox>
+      <SetupAccess {...props} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const WithTraitsAutoDiscovery = () => (
   <MemoryRouter>
-    <SetupAccess
-      {...props}
-      agentMeta={{
-        ...props.agentMeta,
-        autoDiscovery: {
-          config: {
-            name: 'some-name',
-            discoveryGroup: 'some-group',
-            aws: [
-              {
-                types: ['eks'],
-                regions: ['us-east-1'],
-                tags: {},
-                kubeAppDiscovery: true,
-                integration: 'some-integration',
-              },
-            ],
+    <DiscoverBox>
+      <SetupAccess
+        {...props}
+        agentMeta={{
+          ...props.agentMeta,
+          autoDiscovery: {
+            config: {
+              name: 'some-name',
+              discoveryGroup: 'some-group',
+              aws: [
+                {
+                  types: ['eks'],
+                  regions: ['us-east-1'],
+                  tags: {},
+                  kubeAppDiscovery: true,
+                  integration: 'some-integration',
+                },
+              ],
+            },
           },
-        },
-      }}
-    />
+        }}
+      />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const NoAccess = () => (
   <MemoryRouter>
-    <SetupAccess {...props} canEditUser={false} />
+    <DiscoverBox>
+      <SetupAccess {...props} canEditUser={false} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const SsoUser = () => (
   <MemoryRouter>
-    <SetupAccess {...props} isSsoUser={true} />
+    <DiscoverBox>
+      <SetupAccess {...props} isSsoUser={true} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 

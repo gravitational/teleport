@@ -184,9 +184,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 	// Validate that the caller is asking for a session that exists and that they have the secret
 	// session token for.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: req.CookieValue,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), req.CookieValue)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Request failed: session does not exist", "error", err)
 		return trace.AccessDenied("access denied")
@@ -231,7 +229,6 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 		webLauncherURLParams := launcherURLParams{
 			publicAddr:          nextRequiredApp,
-			clusterName:         h.clusterName,
 			requiredAppFQDNs:    strings.Join(requiredApps, ","),
 			requiresAppRedirect: true,
 		}
@@ -239,7 +236,13 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), webLauncherURLParams)
+
+		var publicAddrs []string
+		for _, addr := range h.c.ProxyPublicAddrs {
+			publicAddrs = append(publicAddrs, addr.Host())
+		}
+		proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
+		urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
 		// this request does not return a response, so we can pass this value through a custom header instead
 		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	}

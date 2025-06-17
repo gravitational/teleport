@@ -23,16 +23,15 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 )
-
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "diag"))
 
 // RouteConflictConfig includes everything that [RouteConflictDiag] needs to run.
 type RouteConflictConfig struct {
@@ -43,6 +42,11 @@ type RouteConflictConfig struct {
 	Routing Routing
 	// Interfaces abstracts away functions from the net package and calls to ifconfig.
 	Interfaces Interfaces
+	// RefetchRoutesDuration is the duration for which [RouteConflictDiag] is going to wait before
+	// re-fetching the list of network routes on the system if it does not see any routes belonging to
+	// the interface set up by VNet. It will fetch the routes up to three times. If after the third
+	// time there's still no VNet routes, it'll just continue.
+	RefetchRoutesDuration time.Duration
 }
 
 // Routing abstracts away platform-specific logic of obtaining routes with their destinations,
@@ -94,6 +98,10 @@ func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) 
 		return nil, trace.BadParameter("missing net interfaces")
 	}
 
+	if cfg.RefetchRoutesDuration == 0 {
+		cfg.RefetchRoutesDuration = 500 * time.Millisecond
+	}
+
 	return &RouteConflictDiag{
 		cfg: cfg,
 	}, nil
@@ -104,10 +112,10 @@ func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) 
 //
 // If a 3rd-party route conflicts with more than one VNet route, Run returns a single RouteConflict
 // for that 3rd-party route describing the conflict with the first conflicting VNet route.
-func (c *RouteConflictDiag) Run(ctx context.Context) ([]RouteConflict, error) {
+func (c *RouteConflictDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 	retries := 0
 	for {
-		crs, err := c.run(ctx)
+		rcs, err := c.run(ctx)
 		if err != nil {
 			// UnstableIfaceError usually means that an interface was removed between fetching route
 			// messages and getting the details of the interface. In this case, the routes for that
@@ -119,11 +127,30 @@ func (c *RouteConflictDiag) Run(ctx context.Context) ([]RouteConflict, error) {
 			}
 			return nil, trace.Wrap(err)
 		}
-		return crs, nil
+
+		status := diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK
+		if len(rcs) > 0 {
+			status = diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
+		}
+
+		return &diagv1.CheckReport{
+			Status: status,
+			Report: &diagv1.CheckReport_RouteConflictReport{
+				RouteConflictReport: &diagv1.RouteConflictReport{
+					RouteConflicts: rcs,
+				},
+			},
+		}, nil
 	}
 }
 
-func (c *RouteConflictDiag) run(ctx context.Context) ([]RouteConflict, error) {
+func (c *RouteConflictDiag) EmptyCheckReport() *diagv1.CheckReport {
+	return &diagv1.CheckReport{
+		Report: &diagv1.CheckReport_RouteConflictReport{},
+	}
+}
+
+func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
 	// Unlike in other interactions with Interfaces, it doesn't make sense to re-fetch the routes,
 	// hence why NewUnstableIfaceError is not used. If this call gives an error, then VnetIfaceName is
 	// likely wrong.
@@ -132,19 +159,39 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]RouteConflict, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	rds, err := c.cfg.Routing.GetRouteDestinations()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	// If RouteConflictDiag runs soon after starting VNet or logging in to the first cluster, it might
+	// take a few seconds for the VNet admin process to set up relevant network routes. In that
+	// situation, RouteConflictDiag should wait for a brief period and then re-fetch routes.
+	//
+	// If the user does not have a valid cert for any cluster, VNet does not set up any routes. In
+	// that niche case, RouteConflictDiag will sleep for 3 * c.cfg.RefetchRoutesDuration and return no
+	// route conflicts.
+	var rds []RouteDest
 	var vnetDests []RouteDest
-	for _, rd := range rds {
-		if rd.IfaceIndex() == vnetIface.Index {
-			vnetDests = append(vnetDests, rd)
+	attempts := 0
+	for len(vnetDests) == 0 && attempts < 3 {
+		if attempts > 0 {
+			time.Sleep(c.cfg.RefetchRoutesDuration)
+		}
+		attempts++
+
+		rds, err = c.cfg.Routing.GetRouteDestinations()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, rd := range rds {
+			if rd.IfaceIndex() == vnetIface.Index {
+				vnetDests = append(vnetDests, rd)
+			}
 		}
 	}
 
-	var crs []RouteConflict
+	if len(vnetDests) == 0 {
+		return nil, nil
+	}
+
+	var rcs []*diagv1.RouteConflict
 	for _, rd := range rds {
 		if rd.IfaceIndex() == vnetIface.Index {
 			continue
@@ -170,33 +217,22 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]RouteConflict, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			crs = append(crs, RouteConflict{
-				Dest:      rd,
-				VnetDest:  vnetDest,
-				IfaceName: iface.Name,
-				IfaceApp:  ifaceNetworkExtDesc,
+			rcs = append(rcs, &diagv1.RouteConflict{
+				Dest:          rd.String(),
+				VnetDest:      vnetDest.String(),
+				InterfaceName: iface.Name,
+				InterfaceApp:  ifaceNetworkExtDesc,
 			})
 			break
 		}
 	}
 
-	return crs, nil
+	return rcs, nil
 }
 
-// RouteConflict describes a conflict between a route set up by a 3rd-party app where the
-// destination overlaps with a destination in a route set up by VNet.
-type RouteConflict struct {
-	// Dest is the destination of the conflicting route.
-	Dest RouteDest
-	// VnetDest is the destination of a VNet route that Dest overlaps with.
-	VnetDest RouteDest
-	// IfaceName is the name of the interface the route uses, e.g. "utun4".
-	IfaceName string
-	// IfaceApp may contain the name of the application responsible for setting up the interface.
-	// At the moment, the only source of this information is NetworkExtension description included in
-	// the output of `ifconfig -v <interface name>`. Not all VPN applications use this framework, so
-	// it's likely to be empty.
-	IfaceApp string
+// Commands returns the accompanying command showing the state of routes in the system.
+func (c *RouteConflictDiag) Commands(ctx context.Context) []*exec.Cmd {
+	return c.commands(ctx)
 }
 
 // RouteDest allows singular treatment of route destinations, no matter if they have a netmask or not.

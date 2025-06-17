@@ -19,11 +19,13 @@ package services
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 )
 
 // WorkloadIdentities is an interface over the WorkloadIdentities service. This
@@ -74,6 +76,11 @@ func UnmarshalWorkloadIdentity(
 	return UnmarshalProtoResource[*workloadidentityv1pb.WorkloadIdentity](data, opts...)
 }
 
+const (
+	maxMaxJWTSVIDTTL  = time.Hour * 24
+	maxMaxX509SVIDTTL = time.Hour * 24 * 14
+)
+
 // ValidateWorkloadIdentity validates the WorkloadIdentity object. This is
 // performed prior to writing to the backend.
 func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
@@ -94,12 +101,26 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		return trace.BadParameter("spec.spiffe.id: is required")
 	case !strings.HasPrefix(s.Spec.Spiffe.Id, "/"):
 		return trace.BadParameter("spec.spiffe.id: must start with a /")
+	case s.Spec.Spiffe.GetX509().GetMaximumTtl().AsDuration() > maxMaxX509SVIDTTL:
+		return trace.BadParameter("spec.spiffe.x509.maximum_ttl: must be less than %s", maxMaxX509SVIDTTL)
+	case s.Spec.Spiffe.GetJwt().GetMaximumTtl().AsDuration() > maxMaxJWTSVIDTTL:
+		return trace.BadParameter("spec.spiffe.jwt.maximum_ttl: must be less than %s", maxMaxJWTSVIDTTL)
 	}
 
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {
-		if len(rule.Conditions) == 0 {
-			return trace.BadParameter("spec.rules.allow[%d].conditions: must be non-empty", i)
+		if rule.Expression == "" {
+			if len(rule.Conditions) == 0 {
+				return trace.BadParameter("spec.rules.allow[%d].conditions: must be non-empty", i)
+			}
+		} else {
+			if len(rule.Conditions) != 0 {
+				return trace.BadParameter("spec.rules.allow[%d].conditions: is mutually exclusive with expression", i)
+			}
+			if err := expression.Validate(rule.Expression); err != nil {
+				return trace.BadParameter("spec.rules.allow[%d].expression: invalid expression: %s", i, err.Error())
+			}
 		}
+
 		for j, condition := range rule.Conditions {
 			if condition.Attribute == "" {
 				return trace.BadParameter("spec.rules.allow[%d].conditions[%d].attribute: must be non-empty", i, j)

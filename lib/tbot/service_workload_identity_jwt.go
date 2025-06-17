@@ -173,18 +173,22 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	}
 	defer impersonatedClient.Close()
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	credentials, err := workloadidentity.IssueJWTWorkloadIdentity(
 		ctx,
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
 		s.cfg.Audiences,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		nil,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating JWT SVID")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+
 	var credential *workloadidentityv1pb.Credential
 	switch len(credentials) {
 	case 0:

@@ -111,7 +111,7 @@ func TestRejectedClients(t *testing.T) {
 	defer clt.Close()
 
 	t.Run("reject old version", func(t *testing.T) {
-		version := teleport.MinClientSemVersion
+		version := teleport.MinClientSemVer()
 		version.Major--
 		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
 		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
@@ -123,7 +123,7 @@ func TestRejectedClients(t *testing.T) {
 	})
 
 	t.Run("allow valid versions", func(t *testing.T) {
-		version := teleport.MinClientSemVersion
+		version := teleport.MinClientSemVer()
 		version.Major--
 		for i := 0; i < 5; i++ {
 			version.Major++
@@ -697,6 +697,7 @@ func TestRollback(t *testing.T) {
 	// create proxy client just for test purposes
 	proxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	defer proxy.Close()
 
 	// client works before rotation is initiated
 	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
@@ -726,9 +727,12 @@ func TestRollback(t *testing.T) {
 	// new clients work
 	newProxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	defer newProxy.Close()
 
-	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		assert.NoError(ct, err)
+	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:
 	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
@@ -772,17 +776,13 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients with new creds will no longer work as soon as backend modification event propagates.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-		return err != nil
-	}, time.Second*15, time.Millisecond*200)
+		assert.Error(ct, err)
+	}, time.Second*15, time.Millisecond*100)
 
-	grpcClientOld := testSrv.CloneClient(t, proxy)
-	t.Cleanup(func() {
-		require.NoError(t, grpcClientOld.Close())
-	})
 	// clients with old creds will still work
-	_, err = grpcClientOld.GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 }
 
@@ -1476,20 +1476,6 @@ func TestAppServerCRUD(t *testing.T) {
 		PresenceS: clt,
 	}
 	suite.AppServerCRUD(t)
-}
-
-func TestReverseTunnelsCRUD(t *testing.T) {
-	t.Parallel()
-
-	testSrv := newTestTLSServer(t)
-
-	clt, err := testSrv.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.ReverseTunnelsCRUD(t)
 }
 
 func TestUsersCRUD(t *testing.T) {
@@ -2837,13 +2823,7 @@ func TestGenerateCerts(t *testing.T) {
 			expectSSHCertPublicKey equalPublicKey
 		}{
 			{
-				desc:                   "legacy",
-				publicKey:              sshPubKey,
-				tlsPrivateKey:          sshPrivKey,
-				expectSSHCertPublicKey: sshEqualPub,
-			},
-			{
-				desc:                   "split",
+				desc:                   "both keys",
 				sshPublicKey:           sshPubKey,
 				tlsPublicKey:           tlsPubKey,
 				tlsPrivateKey:          tlsPrivKey,
@@ -2868,7 +2848,6 @@ func TestGenerateCerts(t *testing.T) {
 				t.Parallel()
 
 				certs, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-					PublicKey:    tc.publicKey, //nolint:staticcheck // SA1019: testing the deprecated field.
 					SSHPublicKey: tc.sshPublicKey,
 					TLSPublicKey: tc.tlsPublicKey,
 					Username:     user2.GetName(),
@@ -3378,6 +3357,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 // not connect.
 func TestCipherSuites(t *testing.T) {
 	testSrv := newTestTLSServer(t)
+	ctx := context.Background()
 
 	otherServer, err := testSrv.AuthServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -3405,7 +3385,7 @@ func TestCipherSuites(t *testing.T) {
 	require.NoError(t, err)
 
 	// Requests should fail.
-	_, err = client.GetClusterName()
+	_, err = client.GetClusterName(ctx)
 	require.Error(t, err)
 }
 
@@ -4275,7 +4255,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	suite.ExpectResource(t, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
-	clusterNameResource, err := testSrv.Auth().GetClusterName()
+	clusterNameResource, err := testSrv.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
 
 	// update the resource with different labels to test the change
@@ -4297,7 +4277,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = testSrv.Auth().SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	clusterNameResource, err = testSrv.Auth().GetClusterName()
+	clusterNameResource, err = testSrv.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }

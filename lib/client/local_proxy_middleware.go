@@ -52,6 +52,9 @@ type CertChecker struct {
 
 	cert   tls.Certificate
 	certMu sync.Mutex
+
+	err   error
+	errMu sync.Mutex
 }
 
 var _ alpnproxy.LocalProxyMiddleware = (*CertChecker)(nil)
@@ -94,9 +97,9 @@ func WithTTL(ttl time.Duration) CertCheckerOption {
 func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
 	opt := applyOptions(opts...)
 	return NewCertChecker(&DBCertIssuer{
-		Client:     tc,
-		RouteToApp: dbRoute,
-		TTL:        opt.ttl,
+		Client:          tc,
+		RouteToDatabase: dbRoute,
+		TTL:             opt.ttl,
 	}, clock)
 }
 
@@ -142,15 +145,19 @@ func (c *CertChecker) SetCert(cert tls.Certificate) {
 
 // GetOrIssueCert gets the CertChecker's certificate, or issues a new
 // certificate if the it is invalid (e.g. expired) or missing.
-func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, error) {
+func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate, err error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
+
+	defer func() {
+		c.setError(err)
+	}()
 
 	if err := c.checkCert(); err == nil {
 		return c.cert, nil
 	}
 
-	cert, err := c.certIssuer.IssueCert(ctx)
+	cert, err = c.certIssuer.IssueCert(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -170,6 +177,13 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 	return c.cert, nil
 }
 
+// RetrieveError retrieves the happened on while retrieving certificates.
+func (c *CertChecker) RetrieveError() error {
+	c.errMu.Lock()
+	defer c.errMu.Unlock()
+	return c.err
+}
+
 func (c *CertChecker) checkCert() error {
 	leaf, err := utils.TLSCertLeaf(c.cert)
 	if err != nil {
@@ -184,6 +198,12 @@ func (c *CertChecker) checkCert() error {
 	return trace.Wrap(c.certIssuer.CheckCert(leaf))
 }
 
+func (c *CertChecker) setError(err error) {
+	c.errMu.Lock()
+	defer c.errMu.Unlock()
+	c.err = err
+}
+
 // CertIssuer checks and issues certs.
 type CertIssuer interface {
 	// CheckCert checks that an existing certificate is valid.
@@ -196,8 +216,8 @@ type CertIssuer interface {
 type DBCertIssuer struct {
 	// Client is a TeleportClient used to issue certificates when necessary.
 	Client *TeleportClient
-	// RouteToApp contains database routing information.
-	RouteToApp tlsca.RouteToDatabase
+	// RouteToDatabase contains database routing information.
+	RouteToDatabase tlsca.RouteToDatabase
 	// TTL defines the maximum time-to-live for user certificates.
 	// This variable sets the upper limit on the duration for which a certificate
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
@@ -206,7 +226,7 @@ type DBCertIssuer struct {
 }
 
 func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
-	return alpnproxy.CheckDBCertSubject(cert, c.RouteToApp)
+	return alpnproxy.CheckDBCertSubject(cert, c.RouteToDatabase)
 }
 
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
@@ -220,16 +240,11 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var keyRing *KeyRing
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		dbCertParams := ReissueParams{
-			RouteToCluster: c.Client.SiteName,
-			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: c.RouteToApp.ServiceName,
-				Protocol:    c.RouteToApp.Protocol,
-				Username:    c.RouteToApp.Username,
-				Database:    c.RouteToApp.Database,
-			},
-			AccessRequests: accessRequests,
-			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-			TTL:            c.TTL,
+			RouteToCluster:  c.Client.SiteName,
+			RouteToDatabase: RouteToDatabaseToProto(c.RouteToDatabase),
+			AccessRequests:  accessRequests,
+			RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+			TTL:             c.TTL,
 		}
 
 		clusterClient, err := c.Client.ConnectToCluster(ctx)
@@ -237,26 +252,26 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddDatabaseKeyRing(newKey); err != nil {
+		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddDatabaseKeyRing(result.KeyRing); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = newKey
+		keyRing = result.KeyRing
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := keyRing.DBTLSCert(c.RouteToApp.ServiceName)
+	dbCert, err := keyRing.DBTLSCert(c.RouteToDatabase.ServiceName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -304,20 +319,20 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddAppKeyRing(newKey); err != nil {
+		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddAppKeyRing(result.KeyRing); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = newKey
+		keyRing = result.KeyRing
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

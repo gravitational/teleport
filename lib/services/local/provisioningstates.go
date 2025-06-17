@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -37,7 +36,6 @@ const (
 
 // ProvisioningStateService handles low-level CRUD operations for the provisioning status
 type ProvisioningStateService struct {
-	provisioningv1.UnimplementedProvisioningServiceServer
 	service *generic.ServiceWrapper[*provisioningv1.PrincipalState]
 }
 
@@ -46,7 +44,7 @@ var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 // NewProvisioningStateService creates a new ProvisioningStateService backed by
 // the supplied backend.
 func NewProvisioningStateService(backendInstance backend.Backend) (*ProvisioningStateService, error) {
-	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*provisioningv1.PrincipalState]{
+	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*provisioningv1.PrincipalState]{
 		Backend:       backendInstance,
 		ResourceKind:  types.KindProvisioningPrincipalState,
 		BackendPrefix: backend.NewKey(provisioningStatePrefix),
@@ -174,8 +172,8 @@ func (ss *ProvisioningStateService) DeleteProvisioningState(ctx context.Context,
 
 // DeleteDownstreamProvisioningStates deletes *all* provisioning records for
 // a given downstream
-func (ss *ProvisioningStateService) DeleteDownstreamProvisioningStates(ctx context.Context, req *provisioningv1.DeleteDownstreamProvisioningStatesRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, trace.Wrap(ss.service.WithPrefix(req.GetDownstreamId()).DeleteAllResources(ctx))
+func (ss *ProvisioningStateService) DeleteDownstreamProvisioningStates(ctx context.Context, downstreamID services.DownstreamID) error {
+	return trace.Wrap(ss.service.WithPrefix(string(downstreamID)).DeleteAllResources(ctx))
 }
 
 // DeleteAllProvisioningStates deletes *all* provisioning records for a *all*

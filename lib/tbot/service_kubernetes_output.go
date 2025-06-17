@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -78,6 +80,7 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
 		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
@@ -148,12 +151,13 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	// and will fail to generate certs if the cluster doesn't exist or is
 	// offline.
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		id,
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = kubeClusterName
 		},
@@ -161,6 +165,8 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	s.log.InfoContext(
 		ctx,
@@ -260,7 +266,9 @@ func (s *KubernetesOutputService) render(
 		}
 	} else {
 		executablePath, err := s.executablePath()
-		if err != nil {
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+			s.log.WarnContext(ctx, "Kubernetes template will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+		} else if err != nil {
 			return trace.Wrap(err)
 		}
 

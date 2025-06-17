@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -578,6 +579,37 @@ func TestListResources(t *testing.T) {
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				desktopService := NewWindowsDesktopService(presence.Backend)
 				return desktopService.DeleteAllWindowsDesktops(ctx)
+			},
+		},
+		"GitServer": {
+			resourceType: types.KindGitServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+					Organization: "my-org",
+					Integration:  "my-org",
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				gitServer.SetName(name)
+				newLabels := gitServer.GetLabels()
+				maps.Copy(newLabels, labels)
+				gitServer.SetStaticLabels(newLabels)
+
+				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
+				return trace.Wrap(err)
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return gitServerService.DeleteAllGitServers(ctx)
 			},
 		},
 	}
@@ -1323,7 +1355,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		err = presenceService.UpsertReverseTunnel(ctx, rc)
+		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 	}
 
@@ -1373,7 +1405,7 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Upsert a reverse tunnel
-	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
+	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
 	require.NoError(t, err)
 	// Check that the returned resource is the same as the one we upserted
 	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))

@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -47,7 +46,7 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 	cmd := &vnetCommand{
 		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
 	}
-	cmd.Flag("diag", "Run diagnostics after starting VNet").Hidden().BoolVar(&cmd.runDiag)
+	cmd.Flag("diag", "Run diagnostics after starting VNet.").Hidden().BoolVar(&cmd.runDiag)
 	return cmd
 }
 
@@ -56,9 +55,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	processManager, nsi, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{
-		ClientApplication: clientApp,
-	})
+	vnetProcess, err := vnet.RunUserProcess(cf.Context, clientApp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,17 +63,9 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 
 	if c.runDiag {
 		go func() {
-			timeout := 2 * time.Second
-			fmt.Printf("Running diagnostics in %s.\n", timeout)
-			select {
-			case <-cf.Context.Done():
-				return
-			case <-time.After(timeout):
-			}
-			// Sleep is needed to give the admin process time to actually set up the routes.
-			// TODO(ravicious): Figure out how to guarantee that routes are set up without sleeping.
+			fmt.Println("Running diagnostics.")
 			//nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
-			if err := runVnetDiagnostics(cf.Context, nsi); err != nil {
+			if err := runVnetDiagnostics(cf.Context, vnetProcess.NetworkStackInfo()); err != nil {
 				logger.ErrorContext(cf.Context, "Ran into a problem while running diagnostics", "error", err)
 				return
 			}
@@ -84,8 +73,8 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		}()
 	}
 
-	context.AfterFunc(cf.Context, processManager.Close)
-	return trace.Wrap(processManager.Wait())
+	context.AfterFunc(cf.Context, vnetProcess.Close)
+	return trace.Wrap(vnetProcess.Wait())
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
@@ -98,6 +87,14 @@ func newVnetDaemonCommand(app *kingpin.Application) vnetCLICommand {
 
 func newVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
 	return newPlatformVnetServiceCommand(app)
+}
+
+func newVnetInstallServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return newPlatformVnetInstallServiceCommand(app)
+}
+
+func newVnetUninstallServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return newPlatformVnetUninstallServiceCommand(app)
 }
 
 // vnetCommandNotSupported implements vnetCLICommand, it is returned when a specific

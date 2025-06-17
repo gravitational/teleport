@@ -58,6 +58,7 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
+  BotInstances = 'Bot Instances',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -67,12 +68,14 @@ export enum NavTitle {
   EnrollNewIntegration = 'Integration',
   NewAccessList = 'Access List',
   NewBot = 'Bot',
+  NewBotShortcut = 'Enroll New Bot',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
+  WorkloadIdentity = 'Workload Identity',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -81,6 +84,8 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
+  AccessGraphAlerts = 'Alerts',
+  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -145,6 +150,8 @@ export interface TeleportFeature {
   highlightKey?: string;
   /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
   showInDashboard?: boolean;
+  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
+  isHyperLink?: boolean;
 }
 
 export type StickyCluster = {
@@ -197,6 +204,7 @@ export interface FeatureFlags {
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;

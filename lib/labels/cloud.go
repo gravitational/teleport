@@ -45,14 +45,18 @@ const (
 	// GCPLabelNamespace is used as the namespace prefix for any labels imported
 	// from GCP.
 	GCPLabelNamespace = "gcp"
+	// OracleLabelNamespace is used as the namespace prefix for any labels
+	// imported from Oracle Cloud.
+	OracleLabelNamespace = "oracle"
 	// labelUpdatePeriod is the period for updating cloud labels.
 	labelUpdatePeriod = time.Hour
 )
 
 const (
-	awsErrorMessage   = "Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance."
-	azureErrorMessage = "Could not fetch Azure instance's tags."
-	gcpErrorMessage   = "Could not fetch GCP instance's labels, please ensure instance's service principal has read access to instances."
+	awsErrorMessage    = "Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance."
+	azureErrorMessage  = "Could not fetch Azure instance's tags."
+	gcpErrorMessage    = "Could not fetch GCP instance's labels, please ensure instance's service principal has read access to instances."
+	oracleErrorMessage = "Could not fetch Oracle Cloud instance's tags."
 )
 
 // CloudConfig is the configuration for a cloud label service.
@@ -67,6 +71,22 @@ type CloudConfig struct {
 func (conf *CloudConfig) checkAndSetDefaults() error {
 	if conf.Client == nil {
 		return trace.BadParameter("missing parameter: Client")
+	}
+	switch conf.Client.GetType() {
+	case types.InstanceMetadataTypeEC2:
+		conf.namespace = AWSLabelNamespace
+		conf.instanceMetadataHint = awsErrorMessage
+	case types.InstanceMetadataTypeAzure:
+		conf.namespace = AzureLabelNamespace
+		conf.instanceMetadataHint = azureErrorMessage
+	case types.InstanceMetadataTypeGCP:
+		conf.namespace = GCPLabelNamespace
+		conf.instanceMetadataHint = gcpErrorMessage
+	case types.InstanceMetadataTypeOracle:
+		conf.namespace = OracleLabelNamespace
+		conf.instanceMetadataHint = oracleErrorMessage
+	default:
+		return trace.BadParameter("invalid client type: %v", conf.Client.GetType())
 	}
 
 	conf.Clock = cmp.Or(conf.Clock, clockwork.NewRealClock())
@@ -93,35 +113,11 @@ func NewCloudImporter(ctx context.Context, c *CloudConfig) (*CloudImporter, erro
 	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cloudImporter := &CloudImporter{
+	return &CloudImporter{
 		CloudConfig: c,
 		labels:      make(map[string]string),
 		closeCh:     make(chan struct{}),
-	}
-	switch c.Client.GetType() {
-	case types.InstanceMetadataTypeEC2:
-		cloudImporter.initEC2()
-	case types.InstanceMetadataTypeAzure:
-		cloudImporter.initAzure()
-	case types.InstanceMetadataTypeGCP:
-		cloudImporter.initGCP()
-	}
-	return cloudImporter, nil
-}
-
-func (l *CloudImporter) initEC2() {
-	l.namespace = AWSLabelNamespace
-	l.instanceMetadataHint = awsErrorMessage
-}
-
-func (l *CloudImporter) initAzure() {
-	l.namespace = AzureLabelNamespace
-	l.instanceMetadataHint = azureErrorMessage
-}
-
-func (l *CloudImporter) initGCP() {
-	l.namespace = GCPLabelNamespace
-	l.instanceMetadataHint = gcpErrorMessage
+	}, nil
 }
 
 // Get returns the list of updated cloud labels.

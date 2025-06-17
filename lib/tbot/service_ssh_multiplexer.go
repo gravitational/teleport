@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -177,8 +178,10 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	// Generate SSH config
 	proxyCommand := s.cfg.ProxyCommand
 	if len(proxyCommand) == 0 {
-		executablePath, err := os.Executable()
-		if err != nil {
+		executablePath, err := autoupdate.StableExecutable()
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+			s.log.WarnContext(ctx, "SSH multiplexer proxy command will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+		} else if err != nil {
 			return trace.Wrap(err, "determining executable path")
 		}
 		proxyCommand = []string{
@@ -274,13 +277,16 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.proxySSHAddr()
 	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err, "determining proxy web addr")
+		return nil, nil, "", nil, trace.Wrap(err, "determining proxy ssh addr")
 	}
-	proxyHost, _, err = net.SplitHostPort(proxyAddr)
+	proxyHost, _, err = utils.SplitHostPort(proxyAddr)
 	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err)
+		return nil, nil, "", nil, trace.BadParameter(
+			"proxy %+v has no usable public address: %v",
+			proxyAddr, err,
+		)
 	}
 
 	connUpgradeRequired := false
@@ -388,7 +394,8 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		name: "identity-renewal",
+		service: s.String(),
+		name:    "identity-renewal",
 		f: func(ctx context.Context) error {
 			id, err := s.generateIdentity(ctx)
 			if err != nil {

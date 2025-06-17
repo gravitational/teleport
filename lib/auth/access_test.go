@@ -125,7 +125,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleUser)
 	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
 
-	clusterName, err := p.a.GetClusterName()
+	clusterName, err := p.a.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	// Update the user CA with the role.

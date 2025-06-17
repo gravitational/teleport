@@ -1,6 +1,6 @@
 # This check runs only on PRs that are in the merge queue.
 #
-# PRs in the merge queue have already been approved but the reviewers check
+# PRs in the merge queue have already passed changelog validation but the check
 # is still required so this workflow allows the required check to succeed,
 # otherwise PRs in the merge queue would be blocked indefinitely.
 #

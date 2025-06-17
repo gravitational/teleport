@@ -6,6 +6,8 @@ description: This guide shows you how to deploy Teleport on a Kubernetes cluster
 Teleport can provide secure, unified access to your Kubernetes clusters. This
 guide will show you how to deploy Teleport on a Kubernetes cluster using Helm.
 
+## How it works
+
 While completing this guide, you will deploy one Teleport pod each for the Auth
 Service and Proxy Service in your Kubernetes cluster, and a load balancer that
 forwards outside traffic to your Teleport cluster. Users can then access your
@@ -49,19 +51,20 @@ cluster to Teleport.
   $ kubectl get storageclasses
   ```
 
-  <Details title="Launching a fresh EKS cluster with eksctl?" open="false">
+  <details>
+  <summary>Launching a fresh EKS cluster with eksctl?</summary>
 
   If you are using `eksctl` to launch a fresh Amazon Elastic Kubernetes Service
   cluster in order to follow this guide, the following example configuration
   sets up the EBS CSI driver add-on.
 
-  <Notice type="danger">
+  <Admonition type="danger">
 
   The example configuration below assumes that you are familiar with how `eksctl`
   works, are not using your EKS cluster in production, and understand that you
   are proceeding at your own risk.
 
-  </Notice>
+  </Admonition>
 
   Update the cluster name, version, node group size, and region as required:
 
@@ -71,14 +74,14 @@ cluster to Teleport.
   metadata:
     name: my-cluster
     region: us-east-1
-    version: "1.23"
+    version: "1.32"
 
   iam:
     withOIDC: true
 
   addons:
   - name: aws-ebs-csi-driver
-    version: v1.11.4-eksbuild.1
+    version: v1.39.0-eksbuild.1
     attachPolicyARNs:
     - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
 
@@ -89,14 +92,14 @@ cluster to Teleport.
       maxSize: 3
   ```
 
-  </Details>
+  </details>
 
 - The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
   You can download this from our [installation page](../../../installation.mdx).
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
-<Notice type="warning">
+<Admonition type="warning">
 
 It is worth noting that this guide shows you how to set up Kubernetes access
 with the broadest set of permissions. This is suitable for a personal demo
@@ -104,7 +107,7 @@ cluster, but if you would like to set up Kubernetes RBAC for production usage,
 we recommend getting familiar with the [Teleport Kubernetes RBAC
 guide](../../../enroll-resources/kubernetes-access/controls.mdx) before you begin.
 
-</Notice>
+</Admonition>
 
 ## Step 1/2. Install Teleport
 
@@ -196,11 +199,10 @@ chart.
      </TabItem>
    </Tabs>
 
-1. Install the `teleport-cluster` Helm chart using the values file you wrote:
+1. Install the `teleport-cluster` Helm chart using the values file you created:
 
    ```code
    $ helm install teleport-cluster teleport/teleport-cluster \
-     --create-namespace \
      --version (=teleport.version=) \
      --values teleport-cluster-values.yaml
    ```
@@ -220,63 +222,7 @@ chart.
 In this section, you will enable users and services to connect to your cluster
 by creating DNS records that point to the address of your Proxy Service.
 
-The `teleport-cluster` Helm chart exposes the Proxy Service to traffic from the
-internet using a Kubernetes service that sets up an external load balancer with
-your cloud provider.
-
-Obtain the address of your load balancer by following the instructions below.
-
-1. Get information about the Proxy Service load balancer:
-
-   ```code
-   $ kubectl get services/teleport-cluster
-   NAME              TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-   teleport-cluster  LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP                  89s
-   ```
-   
-   The `teleport-cluster` service directs traffic to the Teleport Proxy Service.
-   Notice the `EXTERNAL-IP` field, which shows you the IP address or domain name of
-   the cloud-hosted load balancer. For example, on AWS, you may see a domain name
-   resembling the following:
-   
-   ```text
-   00000000000000000000000000000000-0000000000.us-east-2.elb.amazonaws.com
-   ```
-
-1. Set up two DNS records: `teleport.example.com` for all traffic and
-   `*.teleport.example.com` for any web applications you will register with
-   Teleport. We are assuming that your domain name is `example.com` and
-   `teleport` is the subdomain you have assigned to your Teleport cluster.
-
-   Depending on whether the `EXTERNAL-IP` column above points to an IP address or a
-   domain name, the records will have the following details:
-   
-   <Tabs>
-   <TabItem label="IP Address">
-   
-   |Record Type|Domain Name|Value|
-   |---|---|---|
-   |A|`teleport.example.com`|The IP address of your load balancer|
-   |A|`*.teleport.example.com`|The IP address of your load balancer|
-   
-   </TabItem>
-   <TabItem label="Domain Name">
-   
-   |Record Type|Domain Name|Value|
-   |---|---|---|
-   |CNAME|`teleport.example.com`|The domain name of your load balancer|
-   |CNAME|`*.teleport.example.com`|The domain name of your load balancer|
-   
-   </TabItem>
-   </Tabs>
-
-1. Once you create the records, use the following command to confirm that your
-   Teleport cluster is running:
-
-   ```code
-   $ curl https://<Var name="clusterName" />/webapi/ping
-   {"auth":{"type":"local","second_factor":"on","preferred_local_mfa":"webauthn","allow_passwordless":true,"allow_headless":true,"local":{"name":""},"webauthn":{"rp_id":"teleport.example.com"},"private_key_policy":"none","device_trust":{},"has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","web_listen_addr":"0.0.0.0:3080","public_addr":"teleport.example.com:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"(=teleport.version=)","min_client_version":"12.0.0","cluster_name":"teleport.example.com","automatic_upgrades":false}
-   ```
+(!docs/pages/includes/self-hosted-helm-dns.mdx!)
 
 ## Step 2/2. Create a local user
 
@@ -288,10 +234,9 @@ In this section, we will  create a local user who has access to Kubernetes group
 `system:masters` via the Teleport role `member`. This user also has the built-in
 `access` and `editor` roles for administrative privileges.
 
-Paste the following role specification into a file called `member.yaml`:
+1. Paste the following role specification into a file called `member.yaml`:
 
-(!docs/pages/includes/kubernetes-access/member-role.mdx!)
-
+   (!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
 1. Create the role:
 

@@ -30,7 +30,6 @@ import (
 	"github.com/distribution/reference"
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -252,8 +251,8 @@ func main() {
 	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
 		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified", kc))
-	case semver.Prerelease("v"+kubeversionupdater.Version) != "":
-		ctrl.Log.Info("This is a pre-release updater version, the key usied to sign dev and pre-release builds of Teleport will be trusted.")
+	case kubeversionupdater.Version().PreRelease != "":
+		ctrl.Log.Info("This is a pre-release updater version, the key used to sign dev and pre-release builds of Teleport will be trusted.")
 		validator, err := img.NewCosignSingleKeyValidator(teleportStageOCIPubKey, "staging cosign signature validator", kc)
 		if err != nil {
 			ctrl.Log.Error(err, "failed to build pre-release image validator, exiting")
@@ -315,7 +314,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version)
+	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version().String())
 
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")

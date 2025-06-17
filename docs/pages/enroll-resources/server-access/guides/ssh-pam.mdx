@@ -170,21 +170,9 @@ $ cat /etc/motd
 # WARNING: All activity on this node is being recorded by Teleport
 ```
 
-<Figure
-  align="center"
-  bordered
-  caption="Teleport SSH with updated MOTD"
->
-  ![Teleport SSH with updated MOTD](../../../../img/motd/teleport-with-updated-MOTD.png)
-</Figure>
+![Teleport SSH with updated MOTD](../../../../img/motd/teleport-with-updated-MOTD.png)
 
 ## Create local Unix users on login
-
-<Admonition type="warning">
-Using PAM to create local users on login is obsolete and will be removed in a future version. Refer to the
-[Host user creation](./host-user-creation.mdx) guide to learn how to configure
-Teleport to automatically create local Linux users without PAM.
-</Admonition>
 
 Teleport has the ability to create local Unix users on login. This is
 very helpful if you're a large organization and want to provision local users and home
@@ -192,7 +180,8 @@ directories on the fly.
 
 Using `pam_exec.so` is the easiest way to use the PAM stack to create a user if
 the user does not already exist. `pam_exec.so` usually ships with the operating
-system.
+system. If you do not already use the PAM stack, you may alternatively use
+Teleport's built in support for [automatically provisioning users](./host-user-creation.mdx).
 
 You can either add `pam_exec.so` to the existing PAM stack for your application or
 write a new one for Teleport. In this example, we'll write a new one to simplify how
@@ -241,7 +230,7 @@ $ chmod +x /etc/pam-exec.d/teleport_acct
 
 This script will check if the login assigned to `TELEPORT_LOGIN` exists and, if
 it does not, it will create it. Any error from `useradd` will be written to
-`/tmp/pam.error`. 
+`/tmp/pam.error`.
 
 The environment variables `TELEPORT_USERNAME` and `TELEPORT_ROLES` can be used
 to write richer scripts that may change the system in other ways based on
@@ -252,7 +241,7 @@ identity information.
   The `useradd` command can have a different path than the example above
   depending on your Linux distribution. Adjust to your particular system as needed
   depending on the result of the following command:
-  
+
   ```code
   $ which useradd
   ```
@@ -301,4 +290,3 @@ ssh_service:
     # use the "auth" modules in the PAM config
     use_pam_auth: true
 ```
-

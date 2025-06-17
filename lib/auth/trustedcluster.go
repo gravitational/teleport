@@ -302,7 +302,7 @@ func (a *Server) getCAsForTrustedCluster(ctx context.Context, tc types.TrustedCl
 // DeleteTrustedCluster removes types.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -427,7 +427,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
 func (a *Server) DeleteRemoteCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -615,7 +615,10 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
 	_, err = a.CreateRemoteClusterInternal(ctx, remoteCluster, []types.CertAuthority{remoteCA})
-	if err != nil && !trace.IsAlreadyExists(err) {
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("leaf cluster %q or a cert authority with the same name is already registered with this root cluster, if you are attempting to re-join try removing the existing "+types.KindRemoteCluster+" resource from the root cluster first", remoteClusterName)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -755,5 +758,6 @@ func (a *Server) createReverseTunnel(ctx context.Context, t types.TrustedCluster
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.UpsertReverseTunnel(ctx, reverseTunnel))
+	_, err = a.UpsertReverseTunnel(ctx, reverseTunnel)
+	return trace.Wrap(err)
 }

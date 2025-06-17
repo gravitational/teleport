@@ -62,6 +62,7 @@ Optional:
 
 Optional:
 
+- `pin_cache_ttl` (String) PinCacheTTL is the amount of time in nanoseconds that Teleport clients will cache the user's PIV PIN when hardware key PIN policy is enabled.
 - `piv_slot` (String) PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e".
 - `serial_number_validation` (Attributes) SerialNumberValidation holds settings for hardware key serial number validation. By default, serial number validation is disabled. (see [below for nested schema](#nested-schema-for-spechardware_keyserial_number_validation))
 

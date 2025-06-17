@@ -17,11 +17,10 @@
  */
 
 import { delay, http, HttpResponse } from 'msw';
-import { MemoryRouter, Route } from 'react-router';
+import { Route } from 'react-router';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
 import { connectors } from '../fixtures';
 import { GitHubConnectorEditor } from './GitHubConnectorEditor';
@@ -30,19 +29,40 @@ export default {
   title: 'Teleport/AuthConnectors/GitHubConnectorEditor',
 };
 
-export function Processing() {
+export function Loaded() {
   return (
-    <MemoryRouter
+    <TeleportProviderBasic
       initialEntries={[
         cfg.getEditAuthConnectorRoute('github', 'github_connector'),
       ]}
     >
-      <ContextWrapper>
-        <Route path={cfg.routes.ssoConnector.edit}>
-          <GitHubConnectorEditor />
-        </Route>
-      </ContextWrapper>
-    </MemoryRouter>
+      <Route path={cfg.routes.ssoConnector.edit}>
+        <GitHubConnectorEditor />
+      </Route>
+    </TeleportProviderBasic>
+  );
+}
+Loaded.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
+        HttpResponse.json(connectors[0])
+      ),
+    ],
+  },
+};
+
+export function Processing() {
+  return (
+    <TeleportProviderBasic
+      initialEntries={[
+        cfg.getEditAuthConnectorRoute('github', 'github_connector'),
+      ]}
+    >
+      <Route path={cfg.routes.ssoConnector.edit}>
+        <GitHubConnectorEditor />
+      </Route>
+    </TeleportProviderBasic>
   );
 }
 Processing.parameters = {
@@ -56,44 +76,17 @@ Processing.parameters = {
   },
 };
 
-export function Loaded() {
-  return (
-    <MemoryRouter
-      initialEntries={[
-        cfg.getEditAuthConnectorRoute('github', 'github_connector'),
-      ]}
-    >
-      <ContextWrapper>
-        <Route path={cfg.routes.ssoConnector.edit}>
-          <GitHubConnectorEditor />
-        </Route>
-      </ContextWrapper>
-    </MemoryRouter>
-  );
-}
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
-        HttpResponse.json(connectors[0])
-      ),
-    ],
-  },
-};
-
 export function Failed() {
   return (
-    <MemoryRouter
+    <TeleportProviderBasic
       initialEntries={[
         cfg.getEditAuthConnectorRoute('github', 'github_connector'),
       ]}
     >
-      <ContextWrapper>
-        <Route path={cfg.routes.ssoConnector.edit}>
-          <GitHubConnectorEditor />
-        </Route>
-      </ContextWrapper>
-    </MemoryRouter>
+      <Route path={cfg.routes.ssoConnector.edit}>
+        <GitHubConnectorEditor />
+      </Route>
+    </TeleportProviderBasic>
   );
 }
 Failed.parameters = {
@@ -110,8 +103,3 @@ Failed.parameters = {
     ],
   },
 };
-
-function ContextWrapper({ children }: { children: JSX.Element }) {
-  const ctx = createTeleportContext();
-  return <ContextProvider ctx={ctx}>{children}</ContextProvider>;
-}

@@ -75,6 +75,14 @@ export interface UserLoginEvent {
      * @generated from protobuf field: string required_private_key_policy = 4;
      */
     requiredPrivateKeyPolicy: string;
+    /**
+     * UserOrigin specifies the origin of this user account.
+     *
+     * PostHog property: tp.user_origin
+     *
+     * @generated from protobuf field: prehog.v1alpha.UserOrigin user_origin = 5;
+     */
+    userOrigin: UserOrigin;
 }
 /**
  * MFAAuthenticationEvent is emitted when a user performs MFA authentication.
@@ -1371,6 +1379,37 @@ export interface UICreateNewRoleSaveClickEvent {
      * @generated from protobuf field: string user_name = 1;
      */
     userName: string;
+    /**
+     * StandardUsed indicates if the user interacted with the standard editor
+     * tab.
+     *
+     * @generated from protobuf field: bool standard_used = 2;
+     */
+    standardUsed: boolean;
+    /**
+     * YamlUsed indicates if the user interacted with the YAML editor tab.
+     *
+     * @generated from protobuf field: bool yaml_used = 3;
+     */
+    yamlUsed: boolean;
+    /**
+     * ModeWhenSaved indicates which editor tab was active when the Save button
+     * was clicked ("standard" or "yaml"). Note that it's inherently different
+     * from what `StandardUsed` or `YamlUsed` describe; the user can interact
+     * with one kind of editor, then verify the results in another, and
+     * ultimately click Save on any of them.
+     *
+     * @generated from protobuf field: string mode_when_saved = 4;
+     */
+    modeWhenSaved: string;
+    /**
+     * A list of field paths that prevented the standard editor from being
+     * operational, if any. Looking at these may provide insight into which
+     * missing features should be implemented first.
+     *
+     * @generated from protobuf field: repeated string fields_with_conversion_errors = 5;
+     */
+    fieldsWithConversionErrors: string[];
 }
 /**
  * UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
@@ -2768,6 +2807,94 @@ export interface UserTaskStateEvent {
     instancesCount: number;
 }
 /**
+ * AccessRequestCreateEvent is emitted when an Access Request is created.
+ *
+ * PostHog event: tp.access_request.create
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessRequestCreateEvent
+ */
+export interface AccessRequestCreateEvent {
+    /**
+     * Teleport user name. Anonymized.
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * resource_kinds specifies the kind of resources requested.
+     *
+     * PostHog property: tp.access_request.resource_kinds.
+     *
+     * @generated from protobuf field: repeated string resource_kinds = 2;
+     */
+    resourceKinds: string[];
+}
+/**
+ * AccessRequestReviewEvent is emitted when an Access Request is reviewed.
+ *
+ * PostHog event: tp.access_request.review
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessRequestReviewEvent
+ */
+export interface AccessRequestReviewEvent {
+    /**
+     * Teleport user name. Anonymized.
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * resource_kinds specifies the kind of resources requested.
+     *
+     * PostHog property: tp.access_request.resource_kinds.
+     *
+     * @generated from protobuf field: repeated string resource_kinds = 2;
+     */
+    resourceKinds: string[];
+    /**
+     * is_bot_reviewed indicates whether the access request was automatically
+     * reviewed by a bot.
+     *
+     * PostHog property: tp.access_request.is_bot_reviewed.
+     *
+     * @generated from protobuf field: bool is_bot_reviewed = 3;
+     */
+    isBotReviewed: boolean;
+    /**
+     * proposed_state specifies the proposed state of the access request review.
+     *
+     * PostHog property: tp.access_request.proposed_state.
+     *
+     * @generated from protobuf field: prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state = 4;
+     */
+    proposedState: AccessRequestReviewEvent_ProposedState;
+}
+/**
+ * ProposedState specifies the proposed state of an access request review.
+ *
+ * @generated from protobuf enum prehog.v1alpha.AccessRequestReviewEvent.ProposedState
+ */
+export enum AccessRequestReviewEvent_ProposedState {
+    /**
+     * PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
+     *
+     * @generated from protobuf enum value: PROPOSED_STATE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * PROPOSED_STATE_APPROVED specifies the approved access request state.
+     *
+     * @generated from protobuf enum value: PROPOSED_STATE_APPROVED = 1;
+     */
+    APPROVED = 1,
+    /**
+     * PROPOSED_STATE_DENIED specifies the denied access request state.
+     *
+     * @generated from protobuf enum value: PROPOSED_STATE_DENIED = 2;
+     */
+    DENIED = 2
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
  */
 export interface SubmitEventRequest {
@@ -3362,6 +3489,18 @@ export interface SubmitEventRequest {
          */
         uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent;
     } | {
+        oneofKind: "accessRequestCreate";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessRequestCreateEvent access_request_create = 99;
+         */
+        accessRequestCreate: AccessRequestCreateEvent;
+    } | {
+        oneofKind: "accessRequestReview";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100;
+         */
+        accessRequestReview: AccessRequestReviewEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -3395,6 +3534,51 @@ export interface HelloTeleportRequest {
  * @generated from protobuf message prehog.v1alpha.HelloTeleportResponse
  */
 export interface HelloTeleportResponse {
+}
+/**
+ * UserOrigin is the origin of a user account.
+ * Keep the values in sync with UserOrigin enum defined in
+ * API events and prehogv1.
+ *
+ * @generated from protobuf enum prehog.v1alpha.UserOrigin
+ */
+export enum UserOrigin {
+    /**
+     * Indicates a legacy cluster emitting events without a defined user origin.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * Indicates a local user.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_LOCAL = 1;
+     */
+    LOCAL = 1,
+    /**
+     * Indicates an SSO user originated from the SAML or OIDC connector.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SSO = 2;
+     */
+    SSO = 2,
+    /**
+     * Indicates a user originated from the Okta integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_OKTA = 3;
+     */
+    OKTA = 3,
+    /**
+     * Indicates a user originated from the SCIM integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SCIM = 4;
+     */
+    SCIM = 4,
+    /**
+     * Indicates a user originated from the EntraID integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_ENTRAID = 5;
+     */
+    ENTRAID = 5
 }
 /**
  * the kind of a "resource" as intended by ResourceHeartbeatEvent
@@ -3888,7 +4072,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
      */
-    AWS_IDENTITY_CENTER = 26
+    AWS_IDENTITY_CENTER = 26,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
+     */
+    GITHUB_REPO_ACCESS = 27
 }
 /**
  * IntegrationEnrollStep defines inner configuration steps
@@ -3918,7 +4106,25 @@ export enum IntegrationEnrollStep {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
      */
-    AWSIC_TEST_SCIM_CONNECTION = 4
+    AWSIC_TEST_SCIM_CONNECTION = 4,
+    /**
+     * GITHUBRA denotes GitHub Repo Access.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+     */
+    GITHUBRA_CREATE_INTEGRATION = 5,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+     */
+    GITHUBRA_CREATE_GIT_SERVER = 6,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+     */
+    GITHUBRA_CONFIGURE_SSH_CERT = 7,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
+     */
+    GITHUBRA_CREATE_ROLE = 8
 }
 /**
  * IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -4051,7 +4257,8 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "connector_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "device_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "required_private_key_policy", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "required_private_key_policy", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "user_origin", kind: "enum", T: () => ["prehog.v1alpha.UserOrigin", UserOrigin, "USER_ORIGIN_"] }
         ]);
     }
     create(value?: PartialMessage<UserLoginEvent>): UserLoginEvent {
@@ -4060,6 +4267,7 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
         message.connectorType = "";
         message.deviceId = "";
         message.requiredPrivateKeyPolicy = "";
+        message.userOrigin = 0;
         if (value !== undefined)
             reflectionMergePartial<UserLoginEvent>(this, message, value);
         return message;
@@ -4080,6 +4288,9 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
                     break;
                 case /* string required_private_key_policy */ 4:
                     message.requiredPrivateKeyPolicy = reader.string();
+                    break;
+                case /* prehog.v1alpha.UserOrigin user_origin */ 5:
+                    message.userOrigin = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4105,6 +4316,9 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
         /* string required_private_key_policy = 4; */
         if (message.requiredPrivateKeyPolicy !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.requiredPrivateKeyPolicy);
+        /* prehog.v1alpha.UserOrigin user_origin = 5; */
+        if (message.userOrigin !== 0)
+            writer.tag(5, WireType.Varint).int32(message.userOrigin);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7133,12 +7347,20 @@ export const UICreateNewRoleClickEvent = new UICreateNewRoleClickEvent$Type();
 class UICreateNewRoleSaveClickEvent$Type extends MessageType<UICreateNewRoleSaveClickEvent> {
     constructor() {
         super("prehog.v1alpha.UICreateNewRoleSaveClickEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "standard_used", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "yaml_used", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "mode_when_saved", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "fields_with_conversion_errors", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<UICreateNewRoleSaveClickEvent>): UICreateNewRoleSaveClickEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.standardUsed = false;
+        message.yamlUsed = false;
+        message.modeWhenSaved = "";
+        message.fieldsWithConversionErrors = [];
         if (value !== undefined)
             reflectionMergePartial<UICreateNewRoleSaveClickEvent>(this, message, value);
         return message;
@@ -7150,6 +7372,18 @@ class UICreateNewRoleSaveClickEvent$Type extends MessageType<UICreateNewRoleSave
             switch (fieldNo) {
                 case /* string user_name */ 1:
                     message.userName = reader.string();
+                    break;
+                case /* bool standard_used */ 2:
+                    message.standardUsed = reader.bool();
+                    break;
+                case /* bool yaml_used */ 3:
+                    message.yamlUsed = reader.bool();
+                    break;
+                case /* string mode_when_saved */ 4:
+                    message.modeWhenSaved = reader.string();
+                    break;
+                case /* repeated string fields_with_conversion_errors */ 5:
+                    message.fieldsWithConversionErrors.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7166,6 +7400,18 @@ class UICreateNewRoleSaveClickEvent$Type extends MessageType<UICreateNewRoleSave
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* bool standard_used = 2; */
+        if (message.standardUsed !== false)
+            writer.tag(2, WireType.Varint).bool(message.standardUsed);
+        /* bool yaml_used = 3; */
+        if (message.yamlUsed !== false)
+            writer.tag(3, WireType.Varint).bool(message.yamlUsed);
+        /* string mode_when_saved = 4; */
+        if (message.modeWhenSaved !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.modeWhenSaved);
+        /* repeated string fields_with_conversion_errors = 5; */
+        for (let i = 0; i < message.fieldsWithConversionErrors.length; i++)
+            writer.tag(5, WireType.LengthDelimited).string(message.fieldsWithConversionErrors[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -10412,6 +10658,132 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
  */
 export const UserTaskStateEvent = new UserTaskStateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessRequestCreateEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resource_kinds", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestCreateEvent>): AccessRequestCreateEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.resourceKinds = [];
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestCreateEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestCreateEvent): AccessRequestCreateEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* repeated string resource_kinds */ 2:
+                    message.resourceKinds.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestCreateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* repeated string resource_kinds = 2; */
+        for (let i = 0; i < message.resourceKinds.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resourceKinds[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestCreateEvent
+ */
+export const AccessRequestCreateEvent = new AccessRequestCreateEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestReviewEvent$Type extends MessageType<AccessRequestReviewEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessRequestReviewEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resource_kinds", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "is_bot_reviewed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "proposed_state", kind: "enum", T: () => ["prehog.v1alpha.AccessRequestReviewEvent.ProposedState", AccessRequestReviewEvent_ProposedState, "PROPOSED_STATE_"] }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestReviewEvent>): AccessRequestReviewEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.resourceKinds = [];
+        message.isBotReviewed = false;
+        message.proposedState = 0;
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestReviewEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestReviewEvent): AccessRequestReviewEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* repeated string resource_kinds */ 2:
+                    message.resourceKinds.push(reader.string());
+                    break;
+                case /* bool is_bot_reviewed */ 3:
+                    message.isBotReviewed = reader.bool();
+                    break;
+                case /* prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state */ 4:
+                    message.proposedState = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestReviewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* repeated string resource_kinds = 2; */
+        for (let i = 0; i < message.resourceKinds.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resourceKinds[i]);
+        /* bool is_bot_reviewed = 3; */
+        if (message.isBotReviewed !== false)
+            writer.tag(3, WireType.Varint).bool(message.isBotReviewed);
+        /* prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state = 4; */
+        if (message.proposedState !== 0)
+            writer.tag(4, WireType.Varint).int32(message.proposedState);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestReviewEvent
+ */
+export const AccessRequestReviewEvent = new AccessRequestReviewEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -10509,7 +10881,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent },
             { no: 93, name: "session_recording_access", kind: "message", oneof: "event", T: () => SessionRecordingAccessEvent },
             { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent },
-            { no: 96, name: "ui_integration_enroll_step_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollStepEvent }
+            { no: 96, name: "ui_integration_enroll_step_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollStepEvent },
+            { no: 99, name: "access_request_create", kind: "message", oneof: "event", T: () => AccessRequestCreateEvent },
+            { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -11087,6 +11461,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollStepEvent)
                     };
                     break;
+                case /* prehog.v1alpha.AccessRequestCreateEvent access_request_create */ 99:
+                    message.event = {
+                        oneofKind: "accessRequestCreate",
+                        accessRequestCreate: AccessRequestCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestCreate)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessRequestReviewEvent access_request_review */ 100:
+                    message.event = {
+                        oneofKind: "accessRequestReview",
+                        accessRequestReview: AccessRequestReviewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestReview)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -11384,6 +11770,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96; */
         if (message.event.oneofKind === "uiIntegrationEnrollStepEvent")
             UIIntegrationEnrollStepEvent.internalBinaryWrite(message.event.uiIntegrationEnrollStepEvent, writer.tag(96, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessRequestCreateEvent access_request_create = 99; */
+        if (message.event.oneofKind === "accessRequestCreate")
+            AccessRequestCreateEvent.internalBinaryWrite(message.event.accessRequestCreate, writer.tag(99, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100; */
+        if (message.event.oneofKind === "accessRequestReview")
+            AccessRequestReviewEvent.internalBinaryWrite(message.event.accessRequestReview, writer.tag(100, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

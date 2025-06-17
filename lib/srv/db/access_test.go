@@ -35,7 +35,6 @@ import (
 
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
-	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/google/uuid"
@@ -72,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
@@ -746,7 +747,8 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 // TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
 // databases with an ephemeral client certificate.
 func TestGCPRequireSSL(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -2067,7 +2069,7 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 }
 
 // elasticsearchClient returns an Elasticsearch test DB client.
-func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elasticsearch.TestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolElasticsearch,
@@ -2266,6 +2268,8 @@ func init() {
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2457,6 +2461,8 @@ type agentParams struct {
 	Recorder libevents.SessionRecorder
 	// GetEngineFn can be used to override the engine created in tests.
 	GetEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
+	// DatabaseObjects is used to override the db object importer in tests.
+	DatabaseObjects objects.Objects
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2492,9 +2498,16 @@ func (p *agentParams) setDefaults(c *testContext) {
 	if p.DiscoveryResourceChecker == nil {
 		p.DiscoveryResourceChecker = &fakeDiscoveryResourceChecker{}
 	}
+	if p.DatabaseObjects == nil {
+		// disables the real object importer by default, to avoid unexpected
+		// db admin connection attempts during tests.
+		p.DatabaseObjects = fakeObjectsImporter{}
+	}
 }
 
 func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p agentParams) *Server {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	p.setDefaults(c)
 
 	// Database service credentials.
@@ -2552,12 +2565,17 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: p.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleDatabase},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
+				ServerID: p.HostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
@@ -2591,6 +2609,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		},
 		CADownloader:              p.CADownloader,
 		OnReconcile:               p.OnReconcile,
+		DatabaseObjects:           p.DatabaseObjects,
 		ConnectionMonitor:         connMonitor,
 		CloudClients:              p.CloudClients,
 		AWSConfigProvider:         p.AWSConfigProvider,
@@ -2601,6 +2620,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		InventoryHandle:           inventoryHandle,
 		discoveryResourceChecker:  p.DiscoveryResourceChecker,
 		getEngineFn:               p.GetEngineFn,
+		ConnectedProxyGetter:      reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
@@ -2613,7 +2633,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			case sender := <-inventoryHandle.Sender():
 				dbServer, err := server.getServerInfo(ctx, db)
 				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 					DatabaseServer: dbServer,
 				}))
 			case <-time.After(20 * time.Second):
@@ -3196,12 +3216,15 @@ func withSelfHostedMongoWithAdminUser(name, adminUsername string, opts ...mongod
 
 func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 		}, opts...)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3295,11 +3318,14 @@ func withClickhouseHTTP(name string) withDatabaseOption {
 
 func withElastiCacheRedis(name string, token, engineVersion string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3332,11 +3358,14 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 
 func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3369,11 +3398,14 @@ func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOpt
 
 func withAzureRedis(name string, token string) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 		}, redis.TestServerPassword(token))
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
 
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
@@ -3421,3 +3453,13 @@ var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
 
 // testAWSRegion is the AWS region used in tests.
 const testAWSRegion = "us-east-1"
+
+type fakeObjectsImporter struct{}
+
+func (fakeObjectsImporter) StartImporter(ctx context.Context, database types.Database) error {
+	return objects.NewErrFetcherDisabled("importer is disabled in fake object importer for test")
+}
+
+func (fakeObjectsImporter) StopImporter(databaseName string) error {
+	return objects.NewErrFetcherDisabled("importer is disabled in fake object importer for test")
+}

@@ -32,7 +32,11 @@ service UserTaskService {
   // ListUserTasks returns a list of UserTasks. It supports pagination and filters.
   rpc ListUserTasks(ListUserTasksRequest) returns (ListUserTasksResponse);
   // ListUserTasksByIntegration returns a list of UserTasks filtered by an integration and other optional fields. It supports pagination.
-  rpc ListUserTasksByIntegration(ListUserTasksByIntegrationRequest) returns (ListUserTasksResponse);
+  // Deprecated: Use ListUserTasks instead.
+  rpc ListUserTasksByIntegration(ListUserTasksByIntegrationRequest) returns (ListUserTasksResponse) {
+    // TODO(marco): DELETE IN v19.0.0
+    option deprecated = true;
+  }
   // UpdateUserTask updates an existing User Task.
   rpc UpdateUserTask(UpdateUserTaskRequest) returns (teleport.usertasks.v1.UserTask);
   // DeleteUserTask deletes a User Task.
@@ -62,6 +66,19 @@ message ListUserTasksRequest {
   int64 page_size = 1;
   // page_token is the next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+  // filters is the set of filters to apply when listing User Tasks.
+  ListUserTasksFilters filters = 3;
+}
+
+// ListUserTasksFilters is a set of filters to apply when listing User Tasks.
+// All fields must match for a User Task to be included in the list.
+message ListUserTasksFilters {
+  // integration is the integration name that will be used to filter the returned list.
+  // If empty, this filter is not applied.
+  string integration = 1;
+  // task_state filters the returned tasks by their state.
+  // If empty, this filter is not applied.
+  string task_state = 2;
 }
 
 // ListUserTasksByIntegrationRequest is a request to get a list of User Tasks filtered by an Integration.

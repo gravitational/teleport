@@ -166,11 +166,18 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
-			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			leafClusters, err := s.leaf.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			return len(rootClusters) >= 2 && len(leafClusters) >= 1
+			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+			var foundRoot1, foundRoot2, foundLeaf bool
+			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
+				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
+			}
+
+			for ks := range s.leaf.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				foundLeaf = foundLeaf || ks.GetCluster().GetName() == leafKubeCluster
+			}
+
+			return foundRoot1 && foundRoot2 && foundLeaf
 		}),
 	)
 

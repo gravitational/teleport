@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -54,6 +53,7 @@ import (
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -91,11 +91,9 @@ type ConnectionsHandlerConfig struct {
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
 
-	// AWSSessionProvider is used to provide AWS Sessions.
-	AWSSessionProvider awsutils.AWSSessionProvider
-
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
+	// AWSConfigOptions is used to provide additional options when getting
+	// config.
+	AWSConfigOptions []awsconfig.OptionsFn
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -143,16 +141,14 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-	if c.AWSSessionProvider == nil {
-		return trace.BadParameter("aws session provider missing")
-	}
-	if c.AWSConfigProvider == nil {
-		return trace.BadParameter("aws config provider missing")
+	if c.Logger == nil {
+		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
-			Clock:         c.Clock,
-			SessionGetter: c.AWSSessionProvider,
+			Clock:            c.Clock,
+			AWSConfigOptions: c.AWSConfigOptions,
+			Logger:           c.Logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -164,9 +160,6 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
-	}
-	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	return nil
 }
@@ -182,6 +175,7 @@ type ConnectionsHandler struct {
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
+	mcpServer  *mcp.Server
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -199,7 +193,7 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *auth.Middleware
+	authMiddleware *authz.Middleware
 
 	proxyPort string
 
@@ -213,8 +207,13 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(cfg.AWSConfigOptions...))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
-		AWSConfigProvider: cfg.AWSConfigProvider,
+		AWSConfigProvider: awsConfigProvider,
 		Clock:             cfg.Clock,
 	})
 	if err != nil {
@@ -260,7 +259,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 	go c.expireSessions()
 
-	clustername, err := c.cfg.AccessPoint.GetClusterName()
+	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,6 +273,17 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 	c.tcpServer = tcpServer
+
+	// Handle MCP servers.
+	c.mcpServer, err = mcp.NewServer(mcp.ServerConfig{
+		Emitter:       c.cfg.Emitter,
+		ParentContext: c.closeContext,
+		HostID:        c.cfg.HostID,
+		AccessPoint:   c.cfg.AccessPoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -581,14 +591,19 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
 	// 1. If the application is a TCP application, error out immediately as expected.
-	// 2. If the application is an HTTP application, store the error and let the HTTP handler
+	// 2. If the application is an MCP application, let the MCP server handler
+	//    returns the error on first request.
+	// 3. If the application is an HTTP application, store the error and let the HTTP handler
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
 	if err != nil {
-		if !app.IsTCP() {
-			c.setConnAuth(tlsConn, err)
-		} else {
+		switch {
+		case app.IsTCP():
 			return nil, trace.Wrap(err)
+		case app.IsMCP():
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, err))
+		default:
+			c.setConnAuth(tlsConn, err)
 		}
 	} else {
 		// Monitor the connection an update the context.
@@ -604,17 +619,28 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
-	if app.IsTCP() {
+	switch {
+	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
 		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
-	}
 
-	cleanup := func() {
-		cancel(nil)
-		c.deleteConnAuth(tlsConn)
+	case app.IsMCP():
+		defer cancel(nil)
+		sessionCtx := mcp.SessionCtx{
+			ClientConn: tlsConn,
+			AuthCtx:    authCtx,
+			App:        app,
+		}
+		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, sessionCtx))
+
+	default:
+		cleanup := func() {
+			cancel(nil)
+			c.deleteConnAuth(tlsConn)
+		}
+		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
 	}
-	return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
 }
 
 // handleHTTPApp handles connection for an HTTP application.
@@ -649,11 +675,11 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &auth.Middleware{
+	c.authMiddleware = &authz.Middleware{
 		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
+		Handler:       c,
 	}
-	c.authMiddleware.Wrap(c)
 
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -714,7 +740,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
-	user, err := c.authMiddleware.GetUser(tlsConn.ConnectionState())
+	user, err := c.authMiddleware.GetUser(ctx, tlsConn.ConnectionState())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

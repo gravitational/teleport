@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -58,8 +59,8 @@ const (
 type SystemdService struct {
 	// ServiceName specifies the systemd service name.
 	ServiceName string
-	// PIDPath is a path to a file containing the service's PID.
-	PIDPath string
+	// PIDFile is a path to a file containing the service's PID.
+	PIDFile string
 	// Ready is a readiness checker.
 	Ready ReadyChecker
 	// Log contains a logger.
@@ -98,7 +99,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 
 	// Get initial PID for crash monitoring.
 
-	initPID, err := readInt(s.PIDPath)
+	initPID, err := readInt(s.PIDFile)
 	if errors.Is(err, os.ErrNotExist) {
 		s.Log.InfoContext(ctx, "No existing process detected. Skipping crash monitoring.", unitKey, s.ServiceName)
 	} else if err != nil {
@@ -182,7 +183,7 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 	pidC := make(chan int)
 	var g errgroup.Group
 	g.Go(func() error {
-		return tickFile(ctx, s.PIDPath, pidC, tickC)
+		return tickFile(ctx, s.PIDFile, pidC, tickC)
 	})
 	stablePID, err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
 		initPID, pidC, func(pid int) error {
@@ -371,15 +372,19 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	args := []string{"enable", s.ServiceName}
-	if now {
-		args = append(args, "--now")
-	}
-	code := s.systemctl(ctx, slog.LevelInfo, args...)
+	// The --now flag is not supported in systemd versions older than 220,
+	// so perform enable + start commands instead.
+	code := s.systemctl(ctx, slog.LevelInfo, "enable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to enable systemd service")
 	}
-	s.Log.InfoContext(ctx, "Service enabled.", unitKey, s.ServiceName)
+	if now {
+		code := s.systemctl(ctx, slog.LevelInfo, "start", s.ServiceName)
+		if code != 0 {
+			return trace.Errorf("unable to start systemd service")
+		}
+	}
+	s.Log.InfoContext(ctx, "Systemd service enabled.", unitKey, s.ServiceName, "now", now)
 	return nil
 }
 
@@ -388,15 +393,19 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	args := []string{"disable", s.ServiceName}
-	if now {
-		args = append(args, "--now")
-	}
-	code := s.systemctl(ctx, slog.LevelInfo, args...)
+	// The --now flag is not supported in systemd versions older than 220,
+	// so perform disable + stop commands instead.
+	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
-	s.Log.InfoContext(ctx, "Systemd service disabled.", unitKey, s.ServiceName)
+	if now {
+		code := s.systemctl(ctx, slog.LevelInfo, "stop", s.ServiceName)
+		if code != 0 {
+			return trace.Errorf("unable to stop systemd service")
+		}
+	}
+	s.Log.InfoContext(ctx, "Systemd service disabled.", unitKey, s.ServiceName, "now", now)
 	return nil
 }
 
@@ -404,6 +413,9 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
+	}
+	if hasSystemDBelow(ctx, 238) {
+		return false, trace.Wrap(ErrNotAvailable)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "is-enabled", "--quiet", s.ServiceName)
 	switch {
@@ -434,6 +446,9 @@ func (s SystemdService) IsActive(ctx context.Context) (bool, error) {
 func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
+	}
+	if hasSystemDBelow(ctx, 246) {
+		return false, trace.Wrap(ErrNotAvailable)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
 	if code < 0 {
@@ -466,6 +481,32 @@ func hasSystemD() (bool, error) {
 	return true, nil
 }
 
+// hasSystemDBelow returns true the version of systemd can be determined, and it
+// is below the provided version.
+func hasSystemDBelow(ctx context.Context, i int) bool {
+	cmd := exec.CommandContext(ctx, "systemctl", "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	v, ok := parseSystemDVersion(out)
+	return ok && v < i
+}
+
+// parseSystemDVersion parses the SystemD version from systemctl command output.
+func parseSystemDVersion(out []byte) (int, bool) {
+	first, _, _ := strings.Cut(string(out), "\n")
+	parts := strings.SplitN(first, " ", 3)
+	if len(parts) < 2 || parts[0] != "systemd" {
+		return 0, false
+	}
+	version, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, false
+	}
+	return version, true
+}
+
 // systemctl returns a systemctl subcommand, converting the output to logs.
 // Output sent to stdout is logged at debug level.
 // Output sent to stderr is logged at the level specified by errLevel.
@@ -480,7 +521,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 		return code
 	}
 	if code >= 0 {
-		s.Log.Log(ctx, errLevel, "Error running systemctl.",
+		s.Log.Log(ctx, errLevel, "Non-zero exit code or error running systemctl.",
 			"args", args, "code", code)
 		return code
 	}

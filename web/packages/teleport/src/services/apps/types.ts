@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -32,10 +33,12 @@ export interface App {
   clusterId: string;
   launchUrl: string;
   fqdn: string;
+  useAnyProxyPublicAddr?: boolean;
   awsRoles: AwsRole[];
   awsConsole: boolean;
   requiresRequest?: boolean;
-  isCloudOrTcpEndpoint?: boolean;
+  isTcp?: boolean;
+  isCloud?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
@@ -58,6 +61,15 @@ export interface App {
    * aws_ic_account.
    */
   permissionSets?: PermissionSet[];
+  /**
+   * samlAppLaunchUrl contains service provider specific authentication
+   * endpoints where user should be launched to start SAML authentication.
+   */
+  samlAppLaunchUrls?: SamlAppLaunchUrl[];
+  /**
+   * mcp contains MCP server specific configurations.
+   */
+  mcp?: AppMCP;
 }
 
 export type UserGroupAndDescription = {
@@ -66,9 +78,12 @@ export type UserGroupAndDescription = {
 };
 
 /** AppSubKind defines names of SubKind for App resource. */
-export enum AppSubKind {
-  AwsIcAccount = 'aws_ic_account',
-}
+export {
+  /*
+   * @deprecated Import AppSubKind from 'shared/services' instead.
+   */
+  AppSubKind,
+} from 'shared/services';
 
 /**
  * PermissionSet defines an AWS IAM Identity Center permission set that
@@ -81,4 +96,30 @@ export type PermissionSet = {
   arn: string;
   /** assignmentId is an account assignment ID. */
   assignmentId: string;
+};
+
+/**
+ * SamlAppLaunchUrl contains service provider specific authentication
+ * endpoint where user should be launched to start SAML authentication.
+ */
+export type SamlAppLaunchUrl = {
+  /* launch URL. */
+  url: string;
+  /* friendly name of the URL. */
+  friendlyName?: string;
+};
+
+/**
+ * AppMCP contains MCP server specific configurations.
+ */
+export type AppMCP = {
+  /** Command to launch stdio-based MCP servers. */
+  command: string;
+  /** Args to execute with the command. */
+  args?: string[];
+  /**
+   * The host user account under which the command will be
+   * executed. Required for stdio-based MCP servers.
+   */
+  runAsHostUser: string;
 };

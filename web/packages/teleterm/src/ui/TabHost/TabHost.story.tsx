@@ -29,13 +29,18 @@ import {
   makeDocumentAuthorizeWebSession,
   makeDocumentCluster,
   makeDocumentConnectMyComputer,
+  makeDocumentDesktopSession,
   makeDocumentGatewayApp,
   makeDocumentGatewayCliClient,
   makeDocumentGatewayDatabase,
   makeDocumentGatewayKube,
   makeDocumentPtySession,
   makeDocumentTshNode,
+  makeDocumentVnetDiagReport,
+  makeDocumentVnetInfo,
 } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { TabHostContainer } from './TabHost';
 
@@ -45,7 +50,7 @@ const meta: Meta = {
 
 export default meta;
 
-const allDocuments: Document[] = [
+const allDocuments = [
   makeDocumentCluster(),
   makeDocumentTshNode(),
   makeDocumentConnectMyComputer(),
@@ -56,6 +61,9 @@ const allDocuments: Document[] = [
   makeDocumentAccessRequests(),
   makeDocumentPtySession(),
   makeDocumentAuthorizeWebSession(),
+  makeDocumentVnetDiagReport(),
+  makeDocumentVnetInfo(),
+  makeDocumentDesktopSession(),
 ];
 
 const cluster = makeRootCluster();
@@ -66,11 +74,29 @@ export function Story() {
   return (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
-        <TabHostContainer
-          topBarConnectMyComputerRef={createRef()}
-          topBarAccessRequestRef={createRef()}
-        />
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <TabHostContainer
+              topBarConnectMyComputerRef={createRef()}
+              topBarAccessRequestRef={createRef()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );
 }
+
+// https://stackoverflow.com/questions/53807517/how-to-test-if-two-types-are-exactly-the-same/73461648#73461648
+function assert<T extends never>() {} // eslint-disable-line unused-imports/no-unused-vars
+type TypeEqualityGuard<A, B> = Exclude<A, B> | Exclude<B, A>;
+type ArrayElement<T> = T extends (infer U)[] ? U : never;
+
+type AllExpectedDocs = Exclude<
+  Document,
+  // DocumentBlank isn't rendered with other documents in the real app.
+  { kind: 'doc.blank' }
+>;
+// This is going to raise a type error if allDocuments does not include all expected documents
+// defined in Document.
+assert<TypeEqualityGuard<ArrayElement<typeof allDocuments>, AllExpectedDocs>>();

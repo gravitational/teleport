@@ -1,127 +1,4 @@
 {
-  "navigation": [
-    {
-      "icon": "home",
-      "title": "Get Started",
-      "entries": [
-        {
-          "title": "Introduction to Teleport",
-          "slug": "/"
-        },
-        {
-           "title": "Get Started",
-           "slug": "/get-started/"
-        },
-        {
-          "title": "Core Concepts",
-          "slug": "/core-concepts/"
-        },
-        {
-          "title": "Installation",
-          "slug": "/installation/"
-        },
-        {
-          "title": "Upgrading",
-          "slug": "/upgrading/upgrading/",
-          "entries": [
-            {
-              "title": "Compatibility Overview",
-              "slug": "/upgrading/overview/"
-            },
-            {
-              "title": "Set up Automatic Agent Updates",
-              "slug": "/upgrading/automatic-agent-updates/"
-            },
-            {
-              "title": "Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-	        },
-            {
-              "title": "Client Tool Automatic Updates",
-              "slug": "/upgrading/client-tools-autoupdate/"
-            }
-          ]
-        },
-        {
-          "title": "FAQ",
-          "slug": "/faq/"
-        },
-        {
-          "title": "Usage Reporting and Billing",
-          "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
-        },
-        {
-          "title": "Upcoming Releases",
-          "slug": "/upcoming-releases/"
-        },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
-        {
-          "title": "Changelog",
-          "slug": "/changelog/"
-        }
-      ]
-    },
-    {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
-    },
-    {
-      "icon": "connect",
-      "title": "User Guides",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/connect-your-client/introduction/"
-        },
-        {
-          "title": "Using tsh",
-          "slug": "/connect-your-client/tsh/"
-        },
-        {
-          "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
-        },
-        {
-          "title": "Using Teleport Connect",
-          "slug": "/connect-your-client/teleport-connect/"
-        },
-        {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
-          "title": "Using PuTTY and WinSCP",
-          "slug": "/connect-your-client/putty-winscp/"
-        },
-        {
-          "title": "Database GUI Clients",
-          "slug": "/connect-your-client/gui-clients/"
-        },
-        {
-          "title": "Notifications",
-          "slug": "/connect-your-client/notifications/"
-        }
-      ]
-    },
-    {
-      "title": "Enroll Resources",
-      "icon": "layers",
-      "generateFrom": "enroll-resources",
-      "entries": []
-    },
-    {
-      "icon": "book",
-      "title": "References",
-      "entries": [],
-      "generateFrom": "reference"
-    }
-  ],
   "variables": {
     "clusterDefaults": {
       "clusterName": "teleport.example.com",
@@ -140,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.2.3",
+      "version": "17.4.10",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -201,7 +78,7 @@
       "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
       "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
+      "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
       "version": "1.0.0"
@@ -294,17 +171,11 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
-       "permanent": true
-    },
-    {
       "source": "/access-controls/guides/role-templates/",
       "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
     },
     {
-
       "source": "/enterprise/sso/",
       "destination": "/admin-guides/access-controls/sso/",
       "permanent": true
@@ -316,7 +187,7 @@
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/identity-governance/okta/",
       "permanent": true
     },
     {
@@ -341,7 +212,7 @@
     },
     {
       "source": "/machine-id/introduction/",
-      "destination": "/enroll-resources/machine-id/introduction/",
+      "destination": "/machine-workload-identity/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -366,17 +237,587 @@
     },
     {
       "source": "/access-controls/device-trust/guide/",
-      "destination": "/admin-guides/access-controls/device-trust/guide/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/",
-      "destination": "/admin-guides/access-controls/sso/",
+      "destination": "/identity-governance/device-trust/guide/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/",
+      "destination": "/identity-governance/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/automatic-agent-updates/",
+      "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/",
+      "destination": "/reference/agent-services/auto-discovery-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/kubernetes-application-discovery/",
+      "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/identity-governance/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-only/",
+      "destination": "/identity-governance/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/sync-scim/",
+      "destination": "/identity-governance/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/app-and-group-sync/",
+      "destination": "/identity-governance/okta/app-and-group-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/guided-sso/",
+      "destination": "/identity-governance/okta/guided-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/",
+      "destination": "/identity-governance/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-integration/",
+      "destination": "/identity-governance/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/user-sync/",
+      "destination": "/identity-governance/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/api/getting-started/",
+      "destination": "/admin-guides/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/",
+      "destination": "/enroll-resources/agents/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-iam/",
+      "destination": "/enroll-resources/agents/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/azure/",
+      "destination": "/enroll-resources/agents/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/gcp/",
+      "destination": "/enroll-resources/agents/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/",
+      "destination": "/enroll-resources/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
+      "destination": "/enroll-resources/agents/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/kubernetes/",
+      "destination": "/enroll-resources/agents/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/oracle/",
+      "destination": "/enroll-resources/agents/oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/introduction/",
+      "destination": "/enroll-resources/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/",
+      "destination": "/identity-governance/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/nested-access-lists/",
+      "destination": "/identity-governance/access-lists/nested-access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-monitoring/",
+      "destination": "/identity-governance/access-monitoring/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/",
+      "destination": "/identity-governance/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
+      "destination": "/identity-governance/access-request-plugins/datadog-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-request-plugins/notification-routing-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/opsgenie/",
+      "destination": "/identity-governance/access-request-plugins/opsgenie/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/servicenow/",
+      "destination": "/identity-governance/access-request-plugins/servicenow/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-discord/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-email/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-email/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-jira/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-mattermost/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-msteams/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-pagerduty/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-slack/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/access-request-configuration/",
+      "destination": "/identity-governance/access-requests/access-request-configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/",
+      "destination": "/identity-governance/access-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/automatic-reviews/",
+      "destination": "/identity-governance/access-requests/automatic-reviews/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/oss-role-requests/",
+      "destination": "/identity-governance/access-requests/oss-role-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/resource-requests/",
+      "destination": "/identity-governance/access-requests/resource-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/role-requests/",
+      "destination": "/identity-governance/access-requests/role-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/device-management/",
+      "destination": "/identity-governance/device-trust/device-management/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/",
+      "destination": "/identity-governance/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
+      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/guide/",
+      "destination": "/identity-governance/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/jamf-integration/",
+      "destination": "/identity-governance/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/locking/",
+      "destination": "/identity-governance/locking/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/app-and-group-sync/",
+      "destination": "/identity-governance/okta/app-and-group-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/guided-sso/",
+      "destination": "/identity-governance/okta/guided-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/",
+      "destination": "/identity-governance/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/scim-integration/",
+      "destination": "/identity-governance/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/user-sync/",
+      "destination": "/identity-governance/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/ansible/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/applications/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/databases/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/kubernetes/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/ssh/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/ssh/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/tctl/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/tctl/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/aws/",
+      "destination": "/machine-workload-identity/machine-id/deployment/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/azure-devops/",
+      "destination": "/machine-workload-identity/machine-id/deployment/azure-devops/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/azure/",
+      "destination": "/machine-workload-identity/machine-id/deployment/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/bitbucket/",
+      "destination": "/machine-workload-identity/machine-id/deployment/bitbucket/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/circleci/",
+      "destination": "/machine-workload-identity/machine-id/deployment/circleci/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/",
+      "destination": "/machine-workload-identity/machine-id/deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/gcp/",
+      "destination": "/machine-workload-identity/machine-id/deployment/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/github-actions/",
+      "destination": "/machine-workload-identity/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/gitlab/",
+      "destination": "/machine-workload-identity/machine-id/deployment/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/jenkins/",
+      "destination": "/machine-workload-identity/machine-id/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/kubernetes/",
+      "destination": "/machine-workload-identity/machine-id/deployment/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/linux-tpm/",
+      "destination": "/machine-workload-identity/machine-id/deployment/linux-tpm/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/linux/",
+      "destination": "/machine-workload-identity/machine-id/deployment/linux/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/faq/",
+      "destination": "/machine-workload-identity/machine-id/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/introduction/",
+      "destination": "/machine-workload-identity/machine-id/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/",
+      "destination": "/machine-workload-identity/machine-id/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/manifesto/",
+      "destination": "/machine-workload-identity/machine-id/manifesto/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/troubleshooting/",
+      "destination": "/machine-workload-identity/machine-id/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/aws-oidc-federation/",
+      "destination": "/machine-workload-identity/workload-identity/aws-oidc-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/aws-roles-anywhere/",
+      "destination": "/machine-workload-identity/workload-identity/aws-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/azure-federated-credentials/",
+      "destination": "/machine-workload-identity/workload-identity/azure-federated-credentials/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/best-practices/",
+      "destination": "/machine-workload-identity/workload-identity/best-practices/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/federation/",
+      "destination": "/machine-workload-identity/workload-identity/federation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/gcp-workload-identity-federation-jwt/",
+      "destination": "/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/getting-started/",
+      "destination": "/machine-workload-identity/workload-identity/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/introduction/",
+      "destination": "/machine-workload-identity/workload-identity/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/jwt-svids/",
+      "destination": "/machine-workload-identity/workload-identity/jwt-svids/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/spiffe/",
+      "destination": "/machine-workload-identity/workload-identity/spiffe/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/tsh/",
+      "destination": "/machine-workload-identity/workload-identity/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/workload-attestation/",
+      "destination": "/machine-workload-identity/workload-identity/workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/",
+      "destination": "/identity-security/access-graph/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/identity-activity-center/",
+      "destination": "/identity-security/access-graph/identity-activity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted-helm/",
+      "destination": "/identity-security/access-graph/self-hosted-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
+      "destination": "/identity-security/access-graph/self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/crown-jewels/",
+      "destination": "/identity-security/crown-jewels/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/aws-sync/",
+      "destination": "/identity-security/integrations/aws-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/azure-sync/",
+      "destination": "/identity-security/integrations/azure-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/entra-id/",
+      "destination": "/identity-security/integrations/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/github/",
+      "destination": "/identity-security/integrations/github/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/gitlab/",
+      "destination": "/identity-security/integrations/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/",
+      "destination": "/identity-security/integrations/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/netiq/",
+      "destination": "/identity-security/integrations/netiq/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/ssh-keys-scan/",
+      "destination": "/identity-security/integrations/ssh-keys-scan/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/teleport/",
+      "destination": "/identity-security/integrations/teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-connections/",
+      "destination": "/identity-security/policy-connections/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-how-to-use/",
+      "destination": "/identity-security/policy-how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/",
+      "destination": "/identity-security/teleport-policy/",
       "permanent": true
     }
   ]

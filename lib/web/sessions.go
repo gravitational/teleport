@@ -343,16 +343,11 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		ctx,
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
 	)
@@ -652,7 +647,7 @@ type sessionCacheOptions struct {
 // launches a goroutine that runs until [ctx] is completed which
 // periodically purges invalid sessions.
 func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionCache, error) {
-	clusterName, err := config.proxyClient.GetClusterName()
+	clusterName, err := config.proxyClient.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -786,7 +781,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		return
 	}
 
-	linear := utils.NewDefaultLinear()
+	linear := utils.NewDefaultLinear(s.clock)
 	if s.sessionWatcherStartImmediately {
 		linear.First = 0
 	}
@@ -828,7 +823,7 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 			{
 				Kind: types.KindWebSession,
 				// Watch only for KindWebSession.
-				// SubKinds include KindAppSession, KindSAMLIdPSession, etc.
+				// SubKinds include KindAppSession, KindSnowflakeSession, etc.
 				SubKind: types.KindWebSession,
 			},
 		},

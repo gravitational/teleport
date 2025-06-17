@@ -86,6 +86,7 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 
 func TestRoundtrip(t *testing.T) {
 	accessList := newAccessList(t, "access-list")
+	accessList.ResourceHeader.SetSubKind("access-list-subkind")
 
 	converted, err := FromProto(ToProto(accessList))
 	require.NoError(t, err)

@@ -27,11 +27,29 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
+
+func TestRoleNotFound(t *testing.T) {
+	t.Parallel()
+
+	backend, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	access := NewAccessService(backend)
+
+	_, err = access.GetRole(t.Context(), "test-role")
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err))
+	assert.Equal(t, "role test-role is not found", err.Error())
+}
 
 func TestLockCRUD(t *testing.T) {
 	ctx := context.Background()
@@ -53,7 +71,7 @@ func TestLockCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			Node: "node",
+			ServerID: "node",
 		},
 	})
 	require.NoError(t, err)

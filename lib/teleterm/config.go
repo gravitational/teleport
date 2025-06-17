@@ -49,6 +49,8 @@ type Config struct {
 	InstallationID string
 	// AddKeysToAgent is passed to [client.Config].
 	AddKeysToAgent string
+	// HardwareKeyAgent determines whether the daemon will run the hardware key agent.
+	HardwareKeyAgent bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -70,7 +72,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if !(addr.Network() == "unix" || addr.Network() == "tcp") {
+	if addr.Network() != "unix" && addr.Network() != "tcp" {
 		return trace.BadParameter("network address should start with unix:// or tcp:// or be empty (tcp:// is used in that case)")
 	}
 
