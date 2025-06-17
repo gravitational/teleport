@@ -40,7 +40,7 @@ type githubArgs struct {
 func (p *PluginsCommand) initInstallGithub(parent *kingpin.CmdClause) {
 	p.install.github.cmd = parent.Command("github", "Install an Access Graph Github integration.")
 	p.install.github.cmd.Flag("start-date", "Start date for the audit log ingest in the YYYY-MM-DD format.").
-		Default(time.Now().Add(10 * 24 * time.Hour).UTC().Format(time.DateOnly)).
+		Default(time.Now().Add(-10 * 24 * time.Hour).UTC().Format(time.DateOnly)).
 		StringVar(&p.install.github.startDate)
 }
 
