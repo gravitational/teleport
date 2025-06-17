@@ -871,7 +871,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s",
+		"%s Or specify a service format, one of: %s.",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)

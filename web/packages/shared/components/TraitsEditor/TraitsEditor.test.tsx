@@ -19,6 +19,7 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { AllUserTraits } from 'teleport/services/user';
 
 import {

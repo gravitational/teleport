@@ -18,16 +18,23 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // TestAccessList tests that CRUD operations on access list resources are
@@ -70,7 +77,9 @@ func TestAccessList(t *testing.T) {
 func TestAccessListMembers(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForAuth)
+	const numMembers = 32
+
+	p := newTestPack(t, ForAuth, memoryBackend(true))
 	t.Cleanup(p.Close)
 
 	clock := clockwork.NewFakeClock()
@@ -106,29 +115,45 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := 0; i < 40; i++ {
+	for i := 0; i < numMembers; i++ {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
 
 	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
 	require.NoError(t, err)
-	require.Equal(t, uint32(40), count)
+	require.Equal(t, uint32(numMembers), count)
 	require.Equal(t, uint32(0), listCount)
 
 	// Eventually, this should be reflected in the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
+	timeout := time.After(5 * time.Second)
+	for {
 		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
-		assert.NoError(t, err)
-		return count == uint32(40) && listCount == uint32(0)
-	}, time.Second*2, time.Millisecond*250)
+		require.NoError(t, err)
+		if count == numMembers && listCount == 0 {
+			break
+		}
+		select {
+		case <-timeout:
+			require.Fail(t, "timed out waiting for correct member counts")
+		case <-p.eventsC:
+		}
+	}
 }
 
 // TestAccessListReviews tests that CRUD operations on access list review resources are
 // replicated from the backend to the cache.
 func TestAccessListReviews(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {
+					Enabled: true,
+					Limit:   10,
+				},
+			},
+		},
+	})
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -174,4 +199,159 @@ func TestAccessListReviews(t *testing.T) {
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	})
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-1", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "fake-al-1", "member1"),
+			newAccessListMember(t, "fake-al-1", "member2"),
+		})
+	require.NoError(t, err)
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-2", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "fake-al-2", "member1"),
+			newAccessListMember(t, "fake-al-2", "member2"),
+		})
+	require.NoError(t, err)
+
+	review1 := newAccessListReview(t, "fake-al-1", "initial-review-1")
+	review1, _, err = p.accessLists.CreateAccessListReview(t.Context(), review1)
+	require.NoError(t, err)
+	review2 := newAccessListReview(t, "fake-al-2", "initial-review-2")
+	review2, _, err = p.accessLists.CreateAccessListReview(t.Context(), review2)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
+		require.NoError(t, err)
+		assert.Empty(t, next)
+
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			protocmp.Transform()),
+		)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
+		require.NoError(t, err)
+		assert.Empty(t, next)
+
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			protocmp.Transform()),
+		)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "access-list-test", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "access-list-test", "member1"),
+			newAccessListMember(t, "access-list-test", "member2"),
+		})
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		review := newAccessListReview(t, "access-list-test", "fake-review-"+strconv.Itoa(i))
+		review.Spec.Changes = accesslist.ReviewChanges{}
+		_, _, err = p.accessLists.CreateAccessListReview(t.Context(), review)
+		require.NoError(t, err)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		count := p.cache.collections.accessListReviews.store.len()
+		_ = count
+
+		var start string
+		var out []*accesslist.Review
+		for i := 0; i < 10; i++ {
+			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
+			require.NoError(t, err)
+
+			out = append(out, page...)
+			if next == "" {
+				break
+			}
+			start = next
+		}
+		assert.Len(t, out, 10)
+	}, 15*time.Second, 100*time.Millisecond)
+
+}
+
+func TestCountAccessListMembersScoping(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	p := newTestPack(t, ForAuth, memoryBackend(true))
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	listA, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "list-a", clock))
+	require.NoError(t, err)
+	listB, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "list-b", clock))
+	require.NoError(t, err)
+
+	const (
+		listAUsers = 4
+		listBUsers = 3
+		listALists = 2
+		listBLists = 1
+	)
+
+	for i := range listAUsers {
+		member := newAccessListMember(t, listA.GetName(), fmt.Sprintf("user-%d", i))
+		member.Spec.MembershipKind = accesslist.MembershipKindUser
+		_, err := p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+	for i := range listBUsers {
+		member := newAccessListMember(t, listB.GetName(), fmt.Sprintf("b-user-%d", i))
+		member.Spec.MembershipKind = accesslist.MembershipKindUser
+		_, err := p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+
+	for i := range listALists {
+		nestedList, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, fmt.Sprintf("nested-list-a-%d", i), clock))
+		require.NoError(t, err)
+		member := newAccessListMember(t, listA.GetName(), nestedList.GetName())
+		member.Spec.MembershipKind = accesslist.MembershipKindList
+		_, err = p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+	for i := range listBLists {
+		nestedList, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, fmt.Sprintf("nested-list-b-%d", i), clock))
+		require.NoError(t, err)
+		member := newAccessListMember(t, listB.GetName(), nestedList.GetName())
+		member.Spec.MembershipKind = accesslist.MembershipKindList
+		_, err = p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+
+	// wait for cache to reflect updates
+	timeout := time.After(5 * time.Second)
+	for {
+		aUsers, aLists, err := p.cache.CountAccessListMembers(ctx, listA.GetName())
+		require.NoError(t, err)
+		bUsers, bLists, err := p.cache.CountAccessListMembers(ctx, listB.GetName())
+		require.NoError(t, err)
+		if aUsers == listAUsers && aLists == listALists && bUsers == listBUsers && bLists == listBLists {
+			break
+		}
+		select {
+		case <-timeout:
+			require.Fail(t, "timed out waiting for correct member counts")
+		case <-p.eventsC:
+		}
+	}
 }

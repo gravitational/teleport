@@ -13,6 +13,10 @@ like:
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="GitLab"!)
+
 ## Prerequisites
 
 - At least two groups in GitLab with users assigned. In our examples below,
@@ -20,7 +24,7 @@ like:
 - Teleport role with access to maintaining `oidc` resources.  This is available
   in the default `editor` role.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 

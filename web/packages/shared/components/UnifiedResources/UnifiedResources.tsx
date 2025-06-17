@@ -56,6 +56,7 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';

@@ -30,7 +30,7 @@ import (
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -49,7 +49,7 @@ type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
-	Middleware *auth.Middleware
+	Middleware *authz.Middleware
 	// Service is used to connect to a remote database service.
 	Service common.Service
 	// Log is used for logging.

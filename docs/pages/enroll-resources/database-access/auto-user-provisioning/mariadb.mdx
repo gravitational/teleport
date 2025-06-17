@@ -1,5 +1,6 @@
 ---
 title: MariaDB Automatic User Provisioning 
+sidebar_label: MariaDB
 description: Configure automatic user provisioning for MariaDB.
 ---
 
@@ -29,8 +30,8 @@ The admin user must have privileges within the database to create users and
 grant them privileges. The admin user must also have privileges to monitor user
 processes and role assignments.
 
-In addition, a schema is required for the admin user to log into by default.
-This schema is also used to store custom user attributes and stored procedures.
+In addition, a database is required for the admin user to log into by default.
+This database is also used to store custom user attributes and stored procedures.
 
 <Tabs>
 <TabItem label="RDS MariaDB">
@@ -47,9 +48,7 @@ CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
 ```
 
-Note that Teleport uses `teleport` as the name of the default schema but the
-name is configurable in the Teleport database definition. Replace the database
-name in the last two lines if you wish to use another database name.
+(!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
 
 <Admonition type="warning" title ="Role Admin">
 In order for the admin user to grant a role to a database user, they must be
@@ -83,9 +82,7 @@ CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
 ```
 
-Note that Teleport uses `teleport` as the name of the default schema but the
-name is configurable in the Teleport database definition. Replace the database
-name in the last two lines if you wish to use another database name.
+(!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
 
 <Admonition type="warning" title ="Role Admin">
 In order for the admin user to grant a role to a database user, they must be

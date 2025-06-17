@@ -31,23 +31,26 @@ guide you through configuring the Okta integration.
 
 </details>
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="Okta"!)
+
 ## Prerequisites
 
 - An Okta account with admin access. Your account must include users and at
   least two groups. If you don't already have Okta groups you want to assign to
   Teleport roles don't worry, we'll create example groups below.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
   available in the default `editor` role.
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
 ## Step 1/4. Create & assign groups
 
 Okta indicates a user's group membership as a SAML assertion in the data it
 provides to Teleport. We will configure Teleport to assign the "dev" role to
-members of the `okta-dev` Okta group, and the prest "editor" role to members of
+members of the `okta-dev` Okta group, and the preset "editor" role to members of
 the `okta-admin` group.
 
 If you already have Okta groups you want to assign to "dev" and "editor" roles in
@@ -89,8 +92,8 @@ Provide the following values to their respective fields:
 Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service or Enterprise
 Cloud account domain and port (`443` by default).
 
-- Single sign on URL: 
-   
+- Single sign on URL:
+
   ```
   https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
   ```

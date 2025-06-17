@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -39,7 +38,7 @@ import (
 // ApplicationOutputService generates the artifacts necessary to connect to a
 // HTTP or TCP application using Teleport.
 type ApplicationOutputService struct {
-	botAuthClient     *authclient.Client
+	botAuthClient     *apiclient.Client
 	botCfg            *config.BotConfig
 	cfg               *config.ApplicationOutput
 	getBotIdentity    getBotIdentityFn
@@ -210,7 +209,7 @@ func (s *ApplicationOutputService) render(
 func getRouteToApp(
 	ctx context.Context,
 	botIdentity *identity.Identity,
-	client *authclient.Client,
+	client *apiclient.Client,
 	appName string,
 ) (proto.RouteToApp, types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getRouteToApp")
@@ -233,7 +232,7 @@ func getRouteToApp(
 	return routeToApp, app, nil
 }
 
-func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *apiclient.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
