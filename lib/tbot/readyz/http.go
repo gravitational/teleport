@@ -37,11 +37,13 @@ func HTTPHandler(reg *Registry) http.Handler {
 		status, ok := reg.ServiceStatus(r.PathValue("service"))
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
-			_ = writeJSON(w, struct {
+			if err := writeJSON(w, struct {
 				Error string `json:"error"`
 			}{
 				fmt.Sprintf("Service named %q not found.", r.PathValue("service")),
-			})
+			}); err != nil {
+				slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
+			}
 			return
 		}
 
