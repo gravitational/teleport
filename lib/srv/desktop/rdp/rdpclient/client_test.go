@@ -22,11 +22,13 @@ package rdpclient
 import (
 	"bytes"
 	"context"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/stretchr/testify/require"
 	"log/slog"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 type fakeConn struct {
