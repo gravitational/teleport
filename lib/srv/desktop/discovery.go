@@ -422,7 +422,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
 		defer watcher.Close()
 		tickDuration := 5 * time.Minute
-		expiryDuration := tickDuration + 10*time.Second
+		expiryDuration := tickDuration + 2*time.Minute
 		tick := s.cfg.Clock.NewTicker(tickDuration)
 		defer tick.Stop()
 		for {
