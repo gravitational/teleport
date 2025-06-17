@@ -20,8 +20,10 @@ import React, { useContext, useState } from 'react';
 
 import { Option } from 'shared/components/Select';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { getErrorMessage } from 'shared/utils/error';
 
 import { ResourceLabel } from 'teleport/services/agents';
+import auth from 'teleport/services/auth';
 import {
   createBotToken,
   GITHUB_ACTIONS_LABEL_KEY,
@@ -64,7 +66,7 @@ export function GitHubFlowProvider({
   bot = initialBotState,
 }: React.PropsWithChildren<{ bot?: CreateBotRequest }>) {
   const { resourceService } = useTeleport();
-  const { attempt, run, setAttempt } = useAttempt();
+  const { attempt, setAttempt } = useAttempt();
   const [createBotRequest, setCreateBotRequest] =
     useState<CreateBotRequest>(bot);
   const [repoRules, setRepoRules] = useState<Rule[]>([defaultRule]);
@@ -80,57 +82,78 @@ export function GitHubFlowProvider({
     }
   }
 
-  function createBot(): Promise<boolean> {
-    return run(() =>
-      resourceService
-        .createRole(
-          getRoleYaml(
-            createBotRequest.botName,
-            createBotRequest.labels,
-            createBotRequest.login
-          )
-        )
-        .then(() => {
-          let repoHost = '';
-          // Check if user sent a GitHub Enterprise host address.
-          // We can just check the first rule, as the UI will not allow
-          // using different hosts on multiple rules.
-          if (repoRules.length > 0) {
-            const { host } = parseRepoAddress(repoRules[0].repoAddress);
-            // the enterprise server host should be omited if using github.com
-            if (host !== GITHUB_HOST) {
-              repoHost = host;
-            }
-          }
+  // setting attempt to "success" is skipped because
+  // it saves a re-render caused by it since
+  // after the fetch is successful, we render the
+  // finish step.
+  async function createBot(): Promise<boolean> {
+    setAttempt({ status: 'processing' });
 
-          return createBotToken({
-            integrationName: createBotRequest.botName,
-            joinMethod: 'github',
-            webFlowLabel: GITHUB_ACTIONS_LABEL_VAL,
-            gitHub: {
-              enterpriseServerHost: repoHost,
-              allow: repoRules.map((r): GitHubRepoRule => {
-                const { owner, repository } = parseRepoAddress(r.repoAddress);
-                return {
-                  repository: `${owner}/${repository}`,
-                  repositoryOwner: owner,
-                  actor: r.actor,
-                  environment: r.environment,
-                  ref: r.ref,
-                  refType: r.refType.value || null,
-                  workflow: r.workflowName,
-                };
-              }),
-            },
-          }).then(token => {
-            setTokenName(token.id);
-            return serviceCreateBot({
-              ...createBotRequest,
-              roles: [createBotRequest.botName],
-            });
-          });
-        })
-    );
+    try {
+      // Re-authn once, so we can re-use it for other actions
+      // that require re-authn.
+      const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(
+        true /* allow re-use */
+      );
+
+      await resourceService.createRole(
+        getRoleYaml(
+          createBotRequest.botName,
+          createBotRequest.labels,
+          createBotRequest.login
+        ),
+        mfaResponse
+      );
+
+      let repoHost = '';
+      // Check if user sent a GitHub Enterprise host address.
+      // We can just check the first rule, as the UI will not allow
+      // using different hosts on multiple rules.
+      if (repoRules.length > 0) {
+        const { host } = parseRepoAddress(repoRules[0].repoAddress);
+        // the enterprise server host should be omited if using github.com
+        if (host !== GITHUB_HOST) {
+          repoHost = host;
+        }
+      }
+
+      const token = await createBotToken(
+        {
+          integrationName: createBotRequest.botName,
+          joinMethod: 'github',
+          webFlowLabel: GITHUB_ACTIONS_LABEL_VAL,
+          gitHub: {
+            enterpriseServerHost: repoHost,
+            allow: repoRules.map((r): GitHubRepoRule => {
+              const { owner, repository } = parseRepoAddress(r.repoAddress);
+              return {
+                repository: `${owner}/${repository}`,
+                repositoryOwner: owner,
+                actor: r.actor,
+                environment: r.environment,
+                ref: r.ref,
+                refType: r.refType.value || null,
+                workflow: r.workflowName,
+              };
+            }),
+          },
+        },
+        mfaResponse
+      );
+      setTokenName(token.id);
+
+      await serviceCreateBot(
+        {
+          ...createBotRequest,
+          roles: [createBotRequest.botName],
+        },
+        mfaResponse
+      );
+
+      return true; // success
+    } catch (err) {
+      setAttempt({ status: 'failed', statusText: getErrorMessage(err) });
+    }
   }
 
   const value: GitHubFlowContext = {
