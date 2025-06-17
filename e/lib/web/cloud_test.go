@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -304,6 +305,9 @@ func TestPlugin_withCloudCache(t *testing.T) {
 		if counter == 4 {
 			return "ok2", nil
 		}
+		if counter == 5 {
+			return nil, trace.AccessDenied("error")
+		}
 
 		return nil, nil
 	}
@@ -327,6 +331,11 @@ func TestPlugin_withCloudCache(t *testing.T) {
 	res4, err := handler(httptest.NewRecorder(), r, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, "ok2", res4)
+
+	// unauthorized response returns error
+	_, err = handler(httptest.NewRecorder(), r, nil, nil)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 func TestPlugin_withCloudClusterCache(t *testing.T) {
@@ -348,6 +357,9 @@ func TestPlugin_withCloudClusterCache(t *testing.T) {
 		}
 		if counter == 4 {
 			return "ok2", nil
+		}
+		if counter == 5 {
+			return nil, trace.AccessDenied("error")
 		}
 
 		return nil, nil
@@ -372,4 +384,9 @@ func TestPlugin_withCloudClusterCache(t *testing.T) {
 	res4, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
 	require.NoError(t, err)
 	require.Equal(t, "ok2", res4)
+
+	// unauthorized response returns error
+	_, err = handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 }

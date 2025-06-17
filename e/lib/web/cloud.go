@@ -290,6 +290,9 @@ func (p *Plugin) withCloudCache(fn CloudHandler) CloudHandler {
 	return func(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
 		result, err := fn(w, r, sctx, client)
 		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil, err
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if r.Method != http.MethodGet || lastResult == nil {
@@ -359,6 +362,9 @@ func (p *Plugin) withCloudClusterCache(fn ClusterCloudHandler) ClusterCloudHandl
 	return func(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (any, error) {
 		result, err := fn(w, r, sctx, site, cloudClient)
 		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil, err
+			}
 			if r.Method == http.MethodGet {
 				mu.Lock()
 				defer mu.Unlock()
