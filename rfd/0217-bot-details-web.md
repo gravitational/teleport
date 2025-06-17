@@ -110,7 +110,10 @@ metadata:
   name: bot-robot
 ```
 #### Join tokens
-Lists Join Tokens with a role of "Bot" and `bot_name` matching the bot being viewed. An overflow menu allow navigating to Zero Trust Access > Join Tokens. Clicking an item navigates to to the view/edit page for that token.
+Lists Join Tokens with a role of "Bot" and `bot_name` matching the bot being viewed. An overflow menu allow navigating to **Zero Trust Access > Join Tokens**. Clicking an item navigates to to the view/edit page for that token.
+
+> [!NOTE]
+> TODO: Handle MFA challenge, ideally without blocking the whole page. If the MFA configuration of the cluster can be known on the frontend, then the call can be deferred until the user requests it (and expects the challenge), otherwise the call can be made safely without a challenge.
 
 ![](assets/0217-feature-join-tokens.png)
 **Data source**
@@ -149,8 +152,8 @@ Lists the most recent (max 10) instances for the bot, ordered most recent first.
 
 ![](assets/0217-feature-active-instances.png)
 
-> [!TODO]
-> Add an explanation of the approach to using an in-memory cache to store and maintain an index on an instance's most recent activity timestamp. This allows instance records to be retrieved in order of most recent activity first (or last, although not required).
+> [!NOTE]
+> TODO: Add an explanation of the approach to using an in-memory cache to store and maintain an index on an instance's most recent activity timestamp. This allows instance records to be retrieved in order of most recent activity first (or last, although not required).
 
 #### Edit roles, traits and max session duration (`max_session_ttl`)
 Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allows all changes to be made in a single atomic transaction.
