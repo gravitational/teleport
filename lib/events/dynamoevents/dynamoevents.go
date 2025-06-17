@@ -745,7 +745,10 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 		return nil, "", trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSlice(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
@@ -754,7 +757,10 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 		return nil, "", trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]events.EventFields, string, error) {
@@ -1066,7 +1072,10 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		return nil, "", trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSlice(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 type searchEventsFilter struct {

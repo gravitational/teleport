@@ -201,7 +201,10 @@ func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]
 	}
 	// Convert the raw events to audit events.
 	evts, err := FromEventFieldsSlice(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
@@ -212,7 +215,10 @@ func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEvents
 	}
 	// Convert the raw events to unstructured.
 	evts, err := FromEventFieldsSliceToUnstructured(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]EventFields, string, error) {
@@ -375,7 +381,10 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 	}
 	// Convert the raw events to audit events.
 	evts, err := FromEventFieldsSlice(events)
-	return evts, lastKey, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, lastKey, nil
 }
 
 func (l *FileLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {

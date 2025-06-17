@@ -5901,7 +5901,10 @@ func (a *ServerWithRoles) SearchUnstructuredEvents(ctx context.Context, req even
 	}
 
 	outEvents, lastKey, err = a.alog.SearchUnstructuredEvents(ctx, req)
-	return outEvents, lastKey, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return outEvents, lastKey, nil
 }
 
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes

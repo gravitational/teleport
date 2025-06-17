@@ -370,7 +370,10 @@ func (c *Client) SearchUnstructuredEvents(ctx context.Context, req events.Search
 		req.Order,
 		req.StartKey,
 	)
-	return events, lastKey, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return events, lastKey, nil
 }
 
 // UpsertClusterName not implemented: can only be called locally.

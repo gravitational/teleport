@@ -528,7 +528,10 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	}
 	// Convert the values to apievents.AuditEvent.
 	evts, err := events.FromEventFieldsSlice(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -545,7 +548,10 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		return nil, "", trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSlice(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
@@ -554,7 +560,10 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 		return nil, "", trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) Close() error {

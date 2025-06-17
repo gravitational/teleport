@@ -576,7 +576,10 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	}
 
 	evts, err := events.FromEventFieldsSlice(evtsRaw)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 // SearchUnstructuredEvents implements [events.AuditLogger].
@@ -589,7 +592,10 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 		return nil, next, trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSliceToUnstructured(evtsRaw)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -607,7 +613,10 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		return nil, next, trace.Wrap(err)
 	}
 	evts, err := events.FromEventFieldsSlice(evtsRaw)
-	return evts, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 // sessionIDBase is a randomly-generated UUID used as the basis for deriving
