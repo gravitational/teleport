@@ -140,7 +140,7 @@ func (s *DiscordSuiteOSS) TestMessagePosting() {
 	// Then we check that our fake Discord has received the messages.
 	var messages []discord.DiscordMsg
 	messageSet := make(MessageSet)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
@@ -521,7 +521,7 @@ func (s *DiscordSuiteEnterprise) TestRace() {
 
 	// We create X access requests, this will send 2*X messages as "editor" has two recipients
 	process := lib.NewProcess(ctx)
-	for i := 0; i < s.raceNumber; i++ {
+	for range s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
@@ -535,7 +535,7 @@ func (s *DiscordSuiteEnterprise) TestRace() {
 	}
 
 	// We start 2*X processes, each one will consume a message and approve it
-	for i := 0; i < 2*s.raceNumber; i++ {
+	for range 2 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 			if err != nil {
@@ -576,7 +576,7 @@ func (s *DiscordSuiteEnterprise) TestRace() {
 	// All the access requests should have been approved. Each approval triggers a message update.
 	// As each access requests has 2 messages, this gives us 4 updates per access requests.
 	// We consume all updates and fill counters.
-	for i := 0; i < 2*2*s.raceNumber; i++ {
+	for range 2 * 2 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 			if err != nil {
@@ -599,7 +599,7 @@ func (s *DiscordSuiteEnterprise) TestRace() {
 
 	// We check each message was updated twice by using counters computed previously
 	assert.Equal(t, int32(2*s.raceNumber), threadMsgsCount)
-	threadMsgIDs.Range(func(key, value interface{}) bool {
+	threadMsgIDs.Range(func(key, value any) bool {
 		next := true
 		val, loaded := msgUpdateCounters.LoadAndDelete(key)
 		next = next && assert.True(t, loaded)
@@ -666,7 +666,7 @@ func (s *DiscordSuiteOSS) TestMessagePostingWithAMR() {
 	// Then we check that our fake Discord has received the messages.
 	var messages []discord.DiscordMsg
 	messageSet := make(MessageSet)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})

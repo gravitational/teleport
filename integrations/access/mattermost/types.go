@@ -25,7 +25,7 @@ import (
 
 // Mattermost API types
 
-type Props map[string]interface{}
+type Props map[string]any
 
 type Post struct {
 	ID        string `json:"id,omitempty"`
@@ -48,8 +48,8 @@ type PostAction struct {
 }
 
 type PostActionIntegration struct {
-	URL     string                 `json:"url,omitempty"`
-	Context map[string]interface{} `json:"context,omitempty"`
+	URL     string         `json:"url,omitempty"`
+	Context map[string]any `json:"context,omitempty"`
 }
 
 type User struct {
@@ -86,7 +86,7 @@ func (e ErrorResult) Error() string {
 
 func (post Post) Attachments() []Attachment {
 	var attachments []Attachment
-	if slice, ok := post.Props["attachments"].([]interface{}); ok {
+	if slice, ok := post.Props["attachments"].([]any); ok {
 		for _, dec := range slice {
 			if enc, err := json.Marshal(dec); err == nil {
 				var attachment Attachment
