@@ -244,23 +244,23 @@ const VnetStatus = () => {
         {statusIndicator}
         <Box>
           Proxying TCP and SSH connections to:
-          <Text typography="body2" bold>
+          <Text typography="body2">
             {both.length ? (
               <Box>
-                <ConnectionKindIndicator>TCP</ConnectionKindIndicator>
-                <ConnectionKindIndicator>SSH</ConnectionKindIndicator>
+                <ConnectionKindIndicator bold>TCP</ConnectionKindIndicator>
+                <ConnectionKindIndicator bold>SSH</ConnectionKindIndicator>
                 {both.join(', ')}
               </Box>
             ) : null}
             {justTCP.length ? (
               <Box>
-                <ConnectionKindIndicator>TCP</ConnectionKindIndicator>
+                <ConnectionKindIndicator bold>TCP</ConnectionKindIndicator>
                 {justTCP.join(', ')}
               </Box>
             ) : null}
             {justSSH.length ? (
               <Box>
-                <ConnectionKindIndicator>SSH</ConnectionKindIndicator>
+                <ConnectionKindIndicator bold>SSH</ConnectionKindIndicator>
                 {justSSH.join(', ')}
               </Box>
             ) : null}
