@@ -234,9 +234,11 @@ export function DocumentVnetDiagReport(props: StoryProps) {
   };
   const sshConfigCheckAttempt = makeCheckAttempt({
     status:
-      props.sshConfigAttempt == 'ok'
+      props.sshConfigAttempt === 'ok'
         ? CheckAttemptStatus.OK
         : CheckAttemptStatus.ERROR,
+    error:
+      props.sshConfigAttempt === 'error' ? 'something went wrong' : undefined,
     checkReport: makeCheckReport({
       status: CheckReportStatus.OK,
       report: {
@@ -245,7 +247,7 @@ export function DocumentVnetDiagReport(props: StoryProps) {
       },
     }),
   });
-  if (props.sshConfigCommandAttempt == 'error') {
+  if (props.sshConfigCommandAttempt === 'error') {
     sshConfigCheckAttempt.commands.push({
       status: CommandAttemptStatus.ERROR,
       error: 'something went wrong',
