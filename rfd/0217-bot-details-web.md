@@ -109,13 +109,16 @@ kind: role
 metadata:
   name: bot-robot
 ```
-#### Join tokens
-Lists Join Tokens with a role of "Bot" and `bot_name` matching the bot being viewed. An overflow menu allow navigating to **Zero Trust Access > Join Tokens**. Clicking an item navigates to to the view/edit page for that token.
 
-> [!NOTE]
-> TODO: Handle MFA challenge, ideally without blocking the whole page. If the MFA configuration of the cluster can be known on the frontend, then the call can be deferred until the user requests it (and expects the challenge), otherwise the call can be made safely without a challenge.
+#### Join tokens
+Lists Join Tokens with a role of "Bot" and `bot_name` matching the bot being viewed. An overflow menu allows navigating to **Zero Trust Access > Join Tokens**. Clicking an item navigates to the view/edit page for that token.
 
 ![](assets/0217-feature-join-tokens.png)
+
+To support MFA for Admin Actions, which includes viewing Join Tokens, a call to the endpoint will be made without the standard auto-challenge mechanism. If the call succeeds, the items are displayed without a prompt. If a requires-MFA error is returned, the UI will instead show an alert explaining that verification is required and provide an action to retry. On retry the usual auto-challenge mechanism kicks in to prompt the user, and the items are returned and displayed. This approach provides an improved user experience by giving the user full context before an MFA prompt appears.
+
+![](assets/0217-feature-join-tokens-lock.png)
+
 **Data source**
 ``` yaml
 # Token resource
@@ -128,10 +131,12 @@ spec:
   roles:
   - Bot
 ```
+
 #### Roles and traits
 Provides full lists of roles and traits (well-known and custom). Edit operations are provided for each for convenience, which open the page-wide edit modal with all editable fields available.
 
 ![](assets/0217-feature-roles-traits.png)
+
 **Data source**
 ``` yaml
 # Bot resource
@@ -147,6 +152,7 @@ spec:
     values:
     - nick.marais
 ```
+
 #### Active instances
 Lists the most recent (max 10) instances for the bot, ordered most recent first. A refresh action reloads the data for this panel only, and is provided to make monitoring instance activity easier. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields.
 
