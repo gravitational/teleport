@@ -3063,6 +3063,63 @@ func (x *AWSCloudWatchConfig) GetAccountId() string {
 	return ""
 }
 
+// The CloudWatch logs, consisting of log data and the cursor for querying
+// and paging
+type AWSCloudWatchLogs struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The log data in a protobuf struct form, to be structured and stored in the
+	// Access Graph
+	Logs []*structpb.Struct `protobuf:"bytes,1,rep,name=logs,proto3" json:"logs,omitempty"`
+	// The cursor, for querying and paging
+	Cursor        *AWSCloudWatchCursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AWSCloudWatchLogs) Reset() {
+	*x = AWSCloudWatchLogs{}
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWSCloudWatchLogs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWSCloudWatchLogs) ProtoMessage() {}
+
+func (x *AWSCloudWatchLogs) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AWSCloudWatchLogs.ProtoReflect.Descriptor instead.
+func (*AWSCloudWatchLogs) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *AWSCloudWatchLogs) GetLogs() []*structpb.Struct {
+	if x != nil {
+		return x.Logs
+	}
+	return nil
+}
+
+func (x *AWSCloudWatchLogs) GetCursor() *AWSCloudWatchCursor {
+	if x != nil {
+		return x.Cursor
+	}
+	return nil
+}
+
 // The CloudWatch cursor, providing both a next token and a start time for
 // paging through CloudWatch logs.
 type AWSCloudWatchCursor struct {
@@ -3077,7 +3134,7 @@ type AWSCloudWatchCursor struct {
 
 func (x *AWSCloudWatchCursor) Reset() {
 	*x = AWSCloudWatchCursor{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3089,7 +3146,7 @@ func (x *AWSCloudWatchCursor) String() string {
 func (*AWSCloudWatchCursor) ProtoMessage() {}
 
 func (x *AWSCloudWatchCursor) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3102,7 +3159,7 @@ func (x *AWSCloudWatchCursor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudWatchCursor.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchCursor) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{45}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *AWSCloudWatchCursor) GetNextToken() string {
@@ -3115,63 +3172,6 @@ func (x *AWSCloudWatchCursor) GetNextToken() string {
 func (x *AWSCloudWatchCursor) GetStartTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartTime
-	}
-	return nil
-}
-
-// The CloudWatch logs, consisting of log data and the cursor for querying
-// and paging
-type AWSCloudWatchLogs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The log data in a protobuf struct form, to be structured and stored in the
-	// Access Graph
-	Logs []*structpb.Struct `protobuf:"bytes,1,rep,name=logs,proto3" json:"logs,omitempty"`
-	// The cursor, for querying and paging
-	Cursor        *GitHubAuditLogV1Cursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AWSCloudWatchLogs) Reset() {
-	*x = AWSCloudWatchLogs{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AWSCloudWatchLogs) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AWSCloudWatchLogs) ProtoMessage() {}
-
-func (x *AWSCloudWatchLogs) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSCloudWatchLogs.ProtoReflect.Descriptor instead.
-func (*AWSCloudWatchLogs) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
-}
-
-func (x *AWSCloudWatchLogs) GetLogs() []*structpb.Struct {
-	if x != nil {
-		return x.Logs
-	}
-	return nil
-}
-
-func (x *AWSCloudWatchLogs) GetCursor() *GitHubAuditLogV1Cursor {
-	if x != nil {
-		return x.Cursor
 	}
 	return nil
 }
@@ -3941,15 +3941,15 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\x1b\n" +
 	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"o\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"\x82\x01\n" +
+	"\x11AWSCloudWatchLogs\x12+\n" +
+	"\x04logs\x18\x01 \x03(\v2\x17.google.protobuf.StructR\x04logs\x12@\n" +
+	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\"o\n" +
 	"\x13AWSCloudWatchCursor\x12\x1d\n" +
 	"\n" +
 	"next_token\x18\x01 \x01(\tR\tnextToken\x129\n" +
 	"\n" +
-	"start_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"\x85\x01\n" +
-	"\x11AWSCloudWatchLogs\x12+\n" +
-	"\x04logs\x18\x01 \x03(\v2\x17.google.protobuf.StructR\x04logs\x12C\n" +
-	"\x06cursor\x18\x02 \x01(\v2+.accessgraph.v1alpha.GitHubAuditLogV1CursorR\x06cursor\"\xaf\x01\n" +
+	"start_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"\xaf\x01\n" +
 	"\x1bGitHubAuditLogStreamRequest\x12=\n" +
 	"\x06config\x18\x01 \x01(\v2#.accessgraph.v1alpha.GitHubConfigV1H\x00R\x06config\x12D\n" +
 	"\taudit_log\x18\x02 \x01(\v2%.accessgraph.v1alpha.GitHubAuditLogV1H\x00R\bauditLogB\v\n" +
@@ -4058,8 +4058,8 @@ var file_accessgraph_v1alpha_access_graph_service_proto_goTypes = []any{
 	(*AWSCloudWatchStreamRequest)(nil),   // 42: accessgraph.v1alpha.AWSCloudWatchStreamRequest
 	(*AWSCloudWatchStreamResponse)(nil),  // 43: accessgraph.v1alpha.AWSCloudWatchStreamResponse
 	(*AWSCloudWatchConfig)(nil),          // 44: accessgraph.v1alpha.AWSCloudWatchConfig
-	(*AWSCloudWatchCursor)(nil),          // 45: accessgraph.v1alpha.AWSCloudWatchCursor
-	(*AWSCloudWatchLogs)(nil),            // 46: accessgraph.v1alpha.AWSCloudWatchLogs
+	(*AWSCloudWatchLogs)(nil),            // 45: accessgraph.v1alpha.AWSCloudWatchLogs
+	(*AWSCloudWatchCursor)(nil),          // 46: accessgraph.v1alpha.AWSCloudWatchCursor
 	(*GitHubAuditLogStreamRequest)(nil),  // 47: accessgraph.v1alpha.GitHubAuditLogStreamRequest
 	(*GitHubAuditLogStreamResponse)(nil), // 48: accessgraph.v1alpha.GitHubAuditLogStreamResponse
 	(*GitHubEventsStreamRequest)(nil),    // 49: accessgraph.v1alpha.GitHubEventsStreamRequest
@@ -4087,9 +4087,9 @@ var file_accessgraph_v1alpha_access_graph_service_proto_goTypes = []any{
 	(*AzureResourceList)(nil),            // 71: accessgraph.v1alpha.AzureResourceList
 	(*NetIQResourceList)(nil),            // 72: accessgraph.v1alpha.NetIQResourceList
 	(*structpb.Struct)(nil),              // 73: google.protobuf.Struct
-	(*GitHubAuditLogV1Cursor)(nil),       // 74: accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	(*GitHubConfigV1)(nil),               // 75: accessgraph.v1alpha.GitHubConfigV1
-	(*GitHubAuditLogV1)(nil),             // 76: accessgraph.v1alpha.GitHubAuditLogV1
+	(*GitHubConfigV1)(nil),               // 74: accessgraph.v1alpha.GitHubConfigV1
+	(*GitHubAuditLogV1)(nil),             // 75: accessgraph.v1alpha.GitHubAuditLogV1
+	(*GitHubAuditLogV1Cursor)(nil),       // 76: accessgraph.v1alpha.GitHubAuditLogV1Cursor
 	(*GithubResourceList)(nil),           // 77: accessgraph.v1alpha.GithubResourceList
 	(*GithubSync)(nil),                   // 78: accessgraph.v1alpha.GithubSync
 	(*OktaConfigV1)(nil),                 // 79: accessgraph.v1alpha.OktaConfigV1
@@ -4150,17 +4150,17 @@ var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
 	38, // 48: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
 	40, // 49: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
 	44, // 50: accessgraph.v1alpha.AWSCloudWatchStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudWatchConfig
-	46, // 51: accessgraph.v1alpha.AWSCloudWatchStreamRequest.logs:type_name -> accessgraph.v1alpha.AWSCloudWatchLogs
+	45, // 51: accessgraph.v1alpha.AWSCloudWatchStreamRequest.logs:type_name -> accessgraph.v1alpha.AWSCloudWatchLogs
 	44, // 52: accessgraph.v1alpha.AWSCloudWatchStreamResponse.config:type_name -> accessgraph.v1alpha.AWSCloudWatchConfig
-	45, // 53: accessgraph.v1alpha.AWSCloudWatchStreamResponse.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
+	46, // 53: accessgraph.v1alpha.AWSCloudWatchStreamResponse.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
 	63, // 54: accessgraph.v1alpha.AWSCloudWatchConfig.start_date:type_name -> google.protobuf.Timestamp
-	63, // 55: accessgraph.v1alpha.AWSCloudWatchCursor.start_time:type_name -> google.protobuf.Timestamp
-	73, // 56: accessgraph.v1alpha.AWSCloudWatchLogs.logs:type_name -> google.protobuf.Struct
-	74, // 57: accessgraph.v1alpha.AWSCloudWatchLogs.cursor:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	75, // 58: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	76, // 59: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
-	75, // 60: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	74, // 61: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
+	73, // 55: accessgraph.v1alpha.AWSCloudWatchLogs.logs:type_name -> google.protobuf.Struct
+	46, // 56: accessgraph.v1alpha.AWSCloudWatchLogs.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
+	63, // 57: accessgraph.v1alpha.AWSCloudWatchCursor.start_time:type_name -> google.protobuf.Timestamp
+	74, // 58: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	75, // 59: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
+	74, // 60: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	76, // 61: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
 	77, // 62: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
 	77, // 63: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
 	78, // 64: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync

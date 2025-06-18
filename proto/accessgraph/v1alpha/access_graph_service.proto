@@ -651,15 +651,6 @@ message AWSCloudWatchConfig {
   string account_id = 3;
 }
 
-// The CloudWatch cursor, providing both a next token and a start time for
-// paging through CloudWatch logs.
-message AWSCloudWatchCursor {
-  // The next token used for paging query results
-  string next_token = 1;
-  // The start time used for the query
-  google.protobuf.Timestamp start_time = 2;
-}
-
 // The CloudWatch logs, consisting of log data and the cursor for querying
 // and paging
 message AWSCloudWatchLogs {
@@ -667,7 +658,16 @@ message AWSCloudWatchLogs {
   // Access Graph
   repeated google.protobuf.Struct logs = 1;
   // The cursor, for querying and paging
-  GitHubAuditLogV1Cursor cursor = 2;
+  AWSCloudWatchCursor cursor = 2;
+}
+
+// The CloudWatch cursor, providing both a next token and a start time for
+// paging through CloudWatch logs.
+message AWSCloudWatchCursor {
+  // The next token used for paging query results
+  string next_token = 1;
+  // The start time used for the query
+  google.protobuf.Timestamp start_time = 2;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
