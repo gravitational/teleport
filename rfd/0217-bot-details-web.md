@@ -18,18 +18,18 @@ In the first iteration, the page will show basic details (name, created at, max 
 The feature set of subsequent iterations remains flexible to allow customer and community feedback to shape the direction of the product. This document will be updated to reflect future iterations as they are planned and implemented. A [[#Wishlist features|wish list of features]] is included.
 ## Why
 
-Management operations and diagnostic information on bots is only possible via `tclt` - this change seeks to make these more accessible and more friendly for non-technical users (i.e. users less comfortable on the command line). The new page is targeted mainly at members of the Infrastructure Security team whose role it is to configure and maintain a Teleport deployment, as well as enrol protected resources.
+Management operations and diagnostic information on bots is only possible via `tctl` - this change seeks to make these more accessible and more friendly for non-technical users (i.e. users less comfortable on the command line). The new page is targeted mainly at members of the Infrastructure Security team whose role it is to configure and maintain a Teleport deployment, as well as enroll protected resources.
 
 ## Details
 
 ### Day 1 vs. day 2
-In it's first increment the Bot Details page has no expected differences between day 1 and day 2 experiences, and it's likely to be used by users who are already acquainted with Teleport.
+In its first increment the Bot Details page has no expected differences between day 1 and day 2 experiences, and it's likely to be used by users who are already acquainted with Teleport.
 
 ### User stories
 
 As a member of the **Infrastructure Security team**,
 I would like to **view information about a bot** (such as name and create/updated at & by),
-So that I can track changes to the bot’s configuration for auditing or troubleshooting purposes.
+So that I can track changes to the bot’s configuration for troubleshooting purposes.
 
 As a member of the **Infrastructure Security team**,
 I would like to link out to documentation about **what a bot is and how it works**,
@@ -200,12 +200,12 @@ message BotStatus {
 }
 ```
 
-##### `GET /v1/webapi/tokens?filter_role=Bot&filter_bot_name=:name`
+##### `GET /v1/webapi/tokens?role=Bot&bot=:name`
 
 Fetch join tokens linked to a bot by name.
 
 **Approach**
-Existing endpoint with additional filters added. Filter params will be added; `filter_role` and `filter_bot_name`
+Existing endpoint with additional filters added. Filter params will be added; `role` and `bot`.
 
 ``` protobuf
 // GetTokensRequest is used to request a list of tokens. Filtering by role and bot_name are supported
@@ -226,7 +226,7 @@ _api/proto/teleport/legacy/client/proto/authservice.proto_
 **Performance**
 The existing endpoint does not support pagination. It is not anticipated that use of the endpoint for the Bot Details page will increase usage or load significantly, as such, the endpoint will be used as-is. A bot is likely to have fewer than 20 associated join methods.
 
-##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name&page_size=20&page=/bot-instance/:bot_name/:instance_id`
+##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
 
 Fetch active instances for a bot by name. Endpoint exists.
 
