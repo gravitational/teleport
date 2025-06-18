@@ -62,7 +62,7 @@ describe('reportToText', () => {
           '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
         userOpensshConfigIncludesVnetSshConfig: false,
         userOpensshConfigExists: false,
-        userOpensshConfigContents: "",
+        userOpensshConfigContents: '',
       },
     };
     const report = makeReport({
