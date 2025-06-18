@@ -75,6 +75,11 @@ type runOnIntervalConfig struct {
 	retryLimit           int
 	exitOnRetryExhausted bool
 	waitBeforeFirstRun   bool
+	// identityReadyCh allows the service to wait until the internal bot identity
+	// renewal has completed before running, to avoid spamming the logs if the
+	// service doesn't support gracefully degrading when there is no API client
+	// available.
+	identityReadyCh <-chan struct{}
 }
 
 // runOnInterval runs a function on a given interval, with retries and jitter.
@@ -96,6 +101,19 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 	}
 
 	log := cfg.log.With("task", cfg.name)
+
+	if cfg.identityReadyCh != nil {
+		select {
+		case <-cfg.identityReadyCh:
+		default:
+			log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-cfg.identityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
 
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
