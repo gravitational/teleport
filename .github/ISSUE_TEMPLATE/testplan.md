@@ -1811,6 +1811,8 @@ manualy testing.
   - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
       corresponding Windows desktops
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
+  - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
+  - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
 - Keyboard Layout
   - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
   - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
