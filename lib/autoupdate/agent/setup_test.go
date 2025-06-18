@@ -170,7 +170,7 @@ func TestWriteConfigFiles(t *testing.T) {
 			ns.teleportDropInFile = rebasePath(filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.teleportDropInFile))), ns.teleportDropInFile)
 			ns.deprecatedDropInFile = rebasePath(filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.deprecatedDropInFile))), ns.deprecatedDropInFile)
 			ns.needrestartConfFile = rebasePath(linkDir, filepath.Base(ns.needrestartConfFile))
-			err = ns.writeConfigFiles(ctx, linkDir)
+			err = ns.writeConfigFiles(ctx, linkDir, NewRevision("version", 0))
 			require.NoError(t, err)
 
 			for _, tt := range []struct {
