@@ -349,25 +349,23 @@ type DatabaseInteractiveChecker interface {
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
 	var (
-		dbUsers []string
-		dbRoles []string
+		autoUserEnabled bool
+		dbUsers         []string
+		dbRoles         []string
 	)
 	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
-	dbNames := dbNamesResult.Allowed()
-	if dbNamesResult.WildcardAllowed() {
-		dbNames = append(dbNames, types.Wildcard)
-	}
+	dbNames, _ := dbNamesResult.ToEntities()
 	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
-		dbUsers = res.Allowed()
-		if res.WildcardAllowed() {
-			dbUsers = append(dbUsers, types.Wildcard)
-		}
+		dbUsers, _ = res.ToEntities()
 	}
 	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
 		// Avoid assigning empty slice to keep the resulting roles nil.
 		if len(roles) > 0 {
 			dbRoles = roles
 		}
+	}
+	if autoUser, err := accessChecker.DatabaseAutoUserMode(database); err == nil {
+		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
 	}
 
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
@@ -386,7 +384,7 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		URI:                 database.GetURI(),
 		RequiresRequest:     requiresRequest,
 		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
-		AutoUsersEnabled:    database.IsAutoUsersEnabled(),
+		AutoUsersEnabled:    autoUserEnabled,
 	}
 
 	if database.IsAWSHosted() {
