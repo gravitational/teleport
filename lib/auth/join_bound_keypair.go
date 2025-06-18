@@ -647,7 +647,6 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 			// TODO: Once we have token-specific locking, generate a lock; this
 			// indicates the keypair may have been compromised.
-			// TODO: Audit log event for this.
 			if auditErr := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.BoundKeypairJoinStateVerificationFailed{
 				Metadata: apievents.Metadata{
 					Type: events.BoundKeypairJoinStateVerificationFailed,
