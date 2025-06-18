@@ -110,10 +110,10 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if req.ActiveDirectorySID != "" {
-		adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
-			otherName[adSid]{
+		adUserMapping, err := asn1.Marshal(SubjectAltName[ADSid]{
+			otherName[ADSid]{
 				OID: ADUserMappingInternalOID,
-				Value: adSid{
+				Value: ADSid{
 					Value: []byte(req.ActiveDirectorySID),
 				},
 			}})
@@ -326,10 +326,10 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	ext := pkix.Extension{Id: SubjectAltNameExtensionOID}
 	var err error
 	ext.Value, err = asn1.Marshal(
-		SubjectAltName[upn]{
-			OtherName: otherName[upn]{
+		SubjectAltName[UPN]{
+			OtherName: otherName[UPN]{
 				OID: UPNOtherNameOID,
-				Value: upn{
+				Value: UPN{
 					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
 				},
 			},
@@ -359,11 +359,11 @@ type (
 		Value T `asn1:"tag:0"`
 	}
 
-	upn struct {
+	UPN struct {
 		Value string `asn1:"utf8"`
 	}
 
-	adSid struct {
+	ADSid struct {
 		// Value is the bytes representation of the user's SID string,
 		// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
 		Value []byte // Gets encoded as an asn1 octet string

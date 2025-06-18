@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package winpki
+package test
 
 import (
 	"context"
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/base32"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/winpki"
 	"os"
 	"testing"
 	"time"
@@ -62,6 +65,17 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 
+	ca, err := authServer.AuthServer.GetCertAuthorities(t.Context(), types.UserCA, false)
+	require.NoError(t, err)
+	require.Len(t, ca, 1)
+
+	keys := ca[0].GetActiveKeys()
+	require.Len(t, keys.TLS, 1)
+
+	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
+	require.NoError(t, err)
+	subjectId := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
+
 	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -87,7 +101,7 @@ func TestGenerateCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, client, &GenerateCredentialsRequest{
+			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
 				Username:           user,
 				Domain:             domain,
 				TTL:                5 * time.Minute,
@@ -104,34 +118,34 @@ func TestGenerateCredentials(t *testing.T) {
 
 			require.Equal(t, user, cert.Subject.CommonName)
 			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+				`ldap:///CN=`+subjectId+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
 
 			foundKeyUsage := false
 			foundAltName := false
 			foundAdUserMapping := false
 			for _, extension := range cert.Extensions {
 				switch {
-				case extension.Id.Equal(EnhancedKeyUsageExtensionOID):
+				case extension.Id.Equal(winpki.EnhancedKeyUsageExtensionOID):
 					foundKeyUsage = true
 					var oids []asn1.ObjectIdentifier
 					_, err = asn1.Unmarshal(extension.Value, &oids)
 					require.NoError(t, err)
 					require.Len(t, oids, 2)
-					require.Contains(t, oids, ClientAuthenticationOID)
-					require.Contains(t, oids, SmartcardLogonOID)
-				case extension.Id.Equal(SubjectAltNameExtensionOID):
+					require.Contains(t, oids, winpki.ClientAuthenticationOID)
+					require.Contains(t, oids, winpki.SmartcardLogonOID)
+				case extension.Id.Equal(winpki.SubjectAltNameExtensionOID):
 					foundAltName = true
-					var san SubjectAltName[upn]
+					var san winpki.SubjectAltName[winpki.UPN]
 					_, err = asn1.Unmarshal(extension.Value, &san)
 					require.NoError(t, err)
-					require.Equal(t, UPNOtherNameOID, san.OtherName.OID)
+					require.Equal(t, winpki.UPNOtherNameOID, san.OtherName.OID)
 					require.Equal(t, user+"@"+domain, san.OtherName.Value.Value)
-				case extension.Id.Equal(ADUserMappingExtensionOID):
+				case extension.Id.Equal(winpki.ADUserMappingExtensionOID):
 					foundAdUserMapping = true
-					var adUserMapping SubjectAltName[adSid]
+					var adUserMapping winpki.SubjectAltName[winpki.ADSid]
 					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
 					require.NoError(t, err)
-					require.Equal(t, ADUserMappingInternalOID, adUserMapping.OtherName.OID)
+					require.Equal(t, winpki.ADUserMappingInternalOID, adUserMapping.OtherName.OID)
 					require.Equal(t, []byte(testSid), adUserMapping.OtherName.Value.Value)
 
 				}
@@ -174,7 +188,7 @@ func TestCRLDN(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.crlDN, crlDN(test.clusterName, "test.goteleport.com", test.caType))
+			require.Equal(t, test.crlDN, winpki.CRLDN(test.clusterName, "test.goteleport.com", test.caType))
 		})
 	}
 }

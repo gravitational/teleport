@@ -129,7 +129,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, c
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
 	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := crlDN(issuer, c.cfg.Domain, caType)
+	crlDN := CRLDN(issuer, c.cfg.Domain, caType)
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {

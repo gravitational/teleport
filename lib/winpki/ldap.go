@@ -270,14 +270,14 @@ func crlContainerDN(domain string, caType types.CertAuthType) string {
 	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(domain))
 }
 
-func crlDN(issuerID string, activeDirectoryDomain string, caType types.CertAuthType) string {
+func CRLDN(issuerID string, activeDirectoryDomain string, caType types.CertAuthType) string {
 	return "CN=" + issuerID + "," + crlContainerDN(activeDirectoryDomain, caType)
 }
 
 // CRLDistributionPoint computes the CRL distribution point for certs issued.
 func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority) string {
 	id := base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId)
-	crlDN := crlDN(id, activeDirectoryDomain, caType)
+	crlDN := CRLDN(id, activeDirectoryDomain, caType)
 	return fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
 }
 
