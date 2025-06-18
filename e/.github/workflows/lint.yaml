@@ -74,6 +74,16 @@ jobs:
         with:
           path: e
 
+      - name: Check for untidy go modules
+        shell: bash
+        run: |
+          find e/ -name go.mod -print | while read -r f; do
+            echo "checking $f"
+            pushd "$(dirname "$f")" > /dev/null;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
+            popd > /dev/null;
+          done
+
       - name: Mark paths as safe
         run: git config --global --add safe.directory "$( realpath . )"
 
