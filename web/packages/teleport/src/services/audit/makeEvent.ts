@@ -28,7 +28,6 @@ import {
   RawEvent,
   RawEvents,
 } from './types';
-import { status } from '@grpc/grpc-js';
 
 const formatElasticsearchEvent: (
   json:
