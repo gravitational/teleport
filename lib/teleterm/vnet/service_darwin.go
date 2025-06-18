@@ -62,10 +62,20 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.Wrap(err)
 	}
 
+	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
+		ProfilePath: s.cfg.profilePath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
-		DiagChecks:          []diag.DiagCheck{routeConflictDiag},
+		DiagChecks: []diag.DiagCheck{
+			routeConflictDiag,
+			sshDiag,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
