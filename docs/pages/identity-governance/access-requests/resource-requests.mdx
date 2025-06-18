@@ -507,11 +507,11 @@ For Kubernetes namespaced resources, the `resource-id` is in the following forma
 ```
 
 The `API_GROUP` part is only required for resources that are part of the core
-kubernetes group.
+Kubernetes group.
 
 <Admonition type="tip">
 You can run this command to list the namespaced Kubernetes resources,
-including their api group:
+including their API groups:
 
 ```code
 $ kubectl api-resources --namespaced=true -o name --sort-by=name
@@ -557,8 +557,8 @@ The `API_GROUP` part is only required for resources that are part of the core
 kubernetes group.
 
 <Admonition type="tip">
-You can run this command to list the cluster wide Kubernetes resources,
-including their api group:
+You can run this command to list the cluster-wide Kubernetes resources,
+including their API groups:
 
 ```code
 $ kubectl api-resources --namespaced=false -o name --sort-by=name
@@ -632,7 +632,7 @@ requests access to all resources within the namespace.
   - The second `*` represents the api group, so we request access to all
   api groups.
 - `mycluster/prod/*`
-  - `mycluster` is the target kubernetes cluster.
+  - `mycluster` is the target Kubernetes cluster.
   - `prod` is the namespace we are requesting access to. It could also
   be `*` to request access to all namespaces.
   - The final `*` represents the resource name, so we request access to all
