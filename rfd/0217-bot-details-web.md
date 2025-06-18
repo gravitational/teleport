@@ -16,6 +16,7 @@ Add a page to the web app which provides details for a single bot. This page is 
 In the first iteration, the page will show basic details (name, created at, max ttl, etc), roles, traits, linked join methods and *active* bot instances. Deleting and locking the bot is allowed, as well as editing role assignment, allowed logins and max session duration (ttl) - this matches the operations available using `tctl`.
 
 The feature set of subsequent iterations remains flexible to allow customer and community feedback to shape the direction of the product. This document will be updated to reflect future iterations as they are planned and implemented. A [[#Wishlist features|wish list of features]] is included.
+
 ## Why
 
 Management operations and diagnostic information on bots is only possible via `tctl` - this change seeks to make these more accessible and more friendly for non-technical users (i.e. users less comfortable on the command line). The new page is targeted mainly at members of the Infrastructure Security team whose role it is to configure and maintain a Teleport deployment, as well as enroll protected resources.
@@ -23,6 +24,7 @@ Management operations and diagnostic information on bots is only possible via `t
 ## Details
 
 ### Day 1 vs. day 2
+
 In its first increment the Bot Details page has no expected differences between day 1 and day 2 experiences, and it's likely to be used by users who are already acquainted with Teleport.
 
 ### User stories
@@ -66,6 +68,7 @@ Shows basic details and configuration. All items are readonly. Date/time items h
 ![](assets/0217-feature-info.png)
 
 **Data source**
+
 ``` yaml
 # Bot resource (calculated)
 kind: bot
@@ -99,6 +102,7 @@ metadata:
 ```
 
 #### Join tokens
+
 Lists Join Tokens with a role of "Bot" and `bot_name` matching the bot being viewed. An overflow menu allows navigating to **Zero Trust Access > Join Tokens**. Clicking an item navigates to the view/edit page for that token.
 
 ![](assets/0217-feature-join-tokens.png)
@@ -108,6 +112,7 @@ To support MFA for Admin Actions, which includes viewing Join Tokens, a call to 
 ![](assets/0217-feature-join-tokens-lock.png)
 
 **Data source**
+
 ``` yaml
 # Token resource
 kind: token
@@ -121,6 +126,7 @@ spec:
 ```
 
 #### Roles and traits
+
 Provides full lists of roles and traits (well-known and custom). Edit operations are provided for each for convenience, which open the page-wide edit modal with all editable fields available.
 
 ![](assets/0217-feature-roles-traits.png)
@@ -142,6 +148,7 @@ spec:
 ```
 
 #### Active instances
+
 Lists the most recent (max 10) instances for the bot, ordered most recent heartbeat first. A refresh action reloads the data for this panel only, and is provided to make monitoring instance activity easier. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields.
 
 ![](assets/0217-feature-active-instances.png)
@@ -149,20 +156,25 @@ Lists the most recent (max 10) instances for the bot, ordered most recent heartb
 In order to display only the instances with the most recent heartbeat, sorting will be added by cache-enabling bot instances and including an additional index (beyond the standard index on `name`). This index will operate on a combination of the instance id and the timestamp of the most recent heartbeat for each instance. The first page of 10 will be requested and no further paging is required. As part of this work, the Bot Instance list will be upgraded to support sorting (on both `name` and recent `last_active_at`) and will continue to make use of paging.
 
 #### Edit roles, traits and max session duration (`max_session_ttl`)
+
 Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allows all changes to be made in a single atomic transaction.
 
 ![](assets/0217-feature-edit.png)
 
 #### Delete bot
+
 Deletes the bot after confirmation. Shows a loading indicator during the call to the api. On success, navigates to the bots list (`/web/bots`). On error, shows a message within the confirmation dialog.
 
 ![](assets/0217-feature-delete-bot.png)
+
 #### Lock bot
+
 Locks the bot after confirmation. Shows a loading indicator during the call to the api. On success, removes the dialog but remains on the bot detail page. On error, shows a message within the confirmation dialog.
 
 ![](assets/0217-feature-lock-bot.png)
 
 Once a bot is locked, to unlock it requires navigating to **Identity Governance > Session & Identity Locks**, finding the lock in question and removing it. Deleting a lock requires it's UUID, which wont be know on this page.
+
 ### Implementation
 
 #### Data fetching and caching
@@ -180,6 +192,7 @@ Fetch a bot by name, including roles and traits. Endpoint exists and will be reu
 Fetch join tokens linked to a bot by name.
 
 **Approach**
+
 Reuse the existing endpoint and create a new RPC which supports filtering and pagination (although not required by this work). Filtering by role and bot name will be supported.
 
 ``` protobuf
@@ -219,9 +232,11 @@ service AuthService {
 _api/proto/teleport/legacy/client/proto/authservice.proto_
 
 **Performance**
+
 While the endpoint will support pagination it wont be used in this case - a page size of 100 will be used and all pages will be retrieved. It is not anticipated that use of the endpoint for the Bot Details page will increase usage or load significantly. Bot's are likely to have fewer than 20 associated join methods.
 
 **Backwards compatibility**
+
 In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all tokens including those not associated with the bot being viewed. This is because the filter parameters will be ignored and the previous RPC will be used (`GetTokens`).
 
 ##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
@@ -233,6 +248,7 @@ Fetch active instances for a bot by name. Endpoint exists.
 Update roles, traits and config (`max_session_ttl`).
 
 **Approach**
+
 Existing endpoint with additional capabilities added. Currently only updating roles is supported. Support for updating traits and `max_session_ttl` are already supported by the underlying RPC and will be exposed by this endpoint. Not all items of data are saved to the same resource. As such, it's important to ensure the update happens atomically and rolled back on failure.
 
 ##### `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`
@@ -244,9 +260,11 @@ Delete a bot. Existing endpoint.
 Returns in-force locks for the bot, either role or user locks.
 
 **Approach**
+
 Existing endpoint which will be extended to support filtering for in-force locks only, as well as filtering for the provided targets (the bot's user and role). The underlying RPC and it's cache already support these filters.
 
 **Backwards compatibility**
+
 In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all locks including those not in-force and those not targeted at the bot being viewed. To mitigate this, and prevent showing a "locked" status, the frontend app will re-filter for applicable locks and disregard the rest.
 
 ##### `PUT /v1/webapi/sites/:site/locks`
@@ -260,6 +278,7 @@ Implementation of the UI will make heavy use of existing shared components. No n
 #### Feature Flag
 
 A feature flag should be used to allow partial features to be build and merged without worrying about incomplete features being released to customers.
+
 #### Tasks
 
 A rough breakdown of tasks with the goal of delivering implementation items in manageable chunks without requiring large PRs and time consuming reviews.
@@ -275,22 +294,30 @@ A rough breakdown of tasks with the goal of delivering implementation items in m
 9. Delete bot operation
 10. Lock bot operation
 11. Edit operation (inc roles, traits and max session duration)
+
 ### Wishlist features
 
 #### Recent instances (historic)
+
 Similar to the active instance list, except show instances whose credentials have recently expired (in the last 24 hours).
 ![](assets/0217-feature-recent-intances.png)
+
 #### Audit log
+
 Filtered to show only the bot being viewed. Needs to filter the log in a performant way, and likely only available to customers using Athena.
 ![](assets/0217-feature-audit-log.png)
+
 #### Access Graph
+
 Likely a simplified version of the Access Graph focused on the bot and without the ability to explore other parts of the graph.
 ![](assets/0217-feature-access-graph.png)
 
 #### Session recordings
+
 Bot sessions are non-interactive, so recordings are not possible in many cases. Session in this list may show command input and output, but aren't re-playable.
 ![](assets/0217-feature-session-recordings.png)
 
 #### Activity visualisation
+
 A minimalist representation of a bot activity over various time frames. Authentication records as well as heartbeats could be used to provide the data. Otherwise, data from the Audit Log could be used where that data is retrievable in a performant way (i.e. customers using Athena).
 ![](assets/0217-feature-activity-timeseries.png)
