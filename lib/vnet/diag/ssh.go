@@ -107,7 +107,7 @@ func (d *SSHDiag) isVNetSSHConfigIncluded(ctx context.Context) (bool, error) {
 	err = trace.ConvertSystemError(err)
 	switch {
 	case trace.IsNotFound(err):
-		// If the user OpenSSH config file does not exist, it definetely
+		// If the user OpenSSH config file does not exist, it definitely
 		// doesn't include the VNet SSH config.
 		return false, nil
 	case err != nil:
