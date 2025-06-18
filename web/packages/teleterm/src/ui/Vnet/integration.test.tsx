@@ -88,7 +88,7 @@ test.each(tests)(
         clusters: [rootCluster],
       })
     );
-    jest.spyOn(ctx.vnet, 'status').mockReturnValue(
+    jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
       new MockedUnaryCall({
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
         clusters: [rootCluster.name],
@@ -184,7 +184,7 @@ test.each(tests)(
         clusters: [rootCluster],
       })
     );
-    jest.spyOn(ctx.vnet, 'status').mockReturnValue(
+    jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
       new MockedUnaryCall({
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
         clusters: [rootCluster.name],
@@ -245,7 +245,7 @@ test('launching VNet for the first time from the connections panel does not open
       clusters: [rootCluster],
     })
   );
-  jest.spyOn(ctx.vnet, 'status').mockReturnValue(
+  jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
     new MockedUnaryCall({
       appDnsZones: [proxyHostname(rootCluster.proxyHost)],
       clusters: [rootCluster.name],

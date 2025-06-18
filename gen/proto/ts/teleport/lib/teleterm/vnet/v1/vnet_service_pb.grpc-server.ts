@@ -24,8 +24,8 @@ import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
-import { StatusResponse } from "./vnet_service_pb";
-import { StatusRequest } from "./vnet_service_pb";
+import { GetServiceInfoResponse } from "./vnet_service_pb";
+import { GetServiceInfoRequest } from "./vnet_service_pb";
 import { StopResponse } from "./vnet_service_pb";
 import { StopRequest } from "./vnet_service_pb";
 import { StartResponse } from "./vnet_service_pb";
@@ -50,11 +50,11 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     stop: grpc.handleUnaryCall<StopRequest, StopResponse>;
     /**
-     * Status returns the current status of the running VNet service.
+     * GetServiceInfo returns info about the running VNet service.
      *
-     * @generated from protobuf rpc: Status(teleport.lib.teleterm.vnet.v1.StatusRequest) returns (teleport.lib.teleterm.vnet.v1.StatusResponse);
+     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
      */
-    status: grpc.handleUnaryCall<StatusRequest, StatusResponse>;
+    getServiceInfo: grpc.handleUnaryCall<GetServiceInfoRequest, GetServiceInfoResponse>;
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
      * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
@@ -102,15 +102,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         responseSerialize: value => Buffer.from(StopResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(StopRequest.toBinary(value))
     },
-    status: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/Status",
-        originalName: "Status",
+    getServiceInfo: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo",
+        originalName: "GetServiceInfo",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => StatusResponse.fromBinary(bytes),
-        requestDeserialize: bytes => StatusRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(StatusResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(StatusRequest.toBinary(value))
+        responseDeserialize: bytes => GetServiceInfoResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetServiceInfoRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetServiceInfoResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetServiceInfoRequest.toBinary(value))
     },
     getBackgroundItemStatus: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus",

@@ -46,11 +46,11 @@ export const useVnetLauncher = (): {
   launchVnetWithoutFirstTimeCheck: (args?: VnetLauncherArgs) => Promise<void>;
 } => {
   const { notificationsService, workspacesService } = useAppContext();
-  const { start, state, startAttempt, hasEverStarted } = useVnetContext();
+  const { start, status, startAttempt, hasEverStarted } = useVnetContext();
   const { open } = useConnectionsContext();
 
   const launchVnet: () => Promise<boolean> = useCallback(async () => {
-    if (state.value === 'running' || startAttempt.status === 'processing') {
+    if (status.value === 'running' || startAttempt.status === 'processing') {
       return true;
     }
 
@@ -62,7 +62,7 @@ export const useVnetLauncher = (): {
       return false;
     }
     return true;
-  }, [state.value, startAttempt.status, open, start]);
+  }, [status.value, startAttempt.status, open, start]);
 
   const openInfoDoc = useCallback(
     async (args: VnetLauncherArgs) => {

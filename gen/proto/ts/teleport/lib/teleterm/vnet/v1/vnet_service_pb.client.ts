@@ -27,8 +27,8 @@ import type { RunDiagnosticsResponse } from "./vnet_service_pb";
 import type { RunDiagnosticsRequest } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
-import type { StatusResponse } from "./vnet_service_pb";
-import type { StatusRequest } from "./vnet_service_pb";
+import type { GetServiceInfoResponse } from "./vnet_service_pb";
+import type { GetServiceInfoRequest } from "./vnet_service_pb";
 import type { StopResponse } from "./vnet_service_pb";
 import type { StopRequest } from "./vnet_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -55,11 +55,11 @@ export interface IVnetServiceClient {
      */
     stop(input: StopRequest, options?: RpcOptions): UnaryCall<StopRequest, StopResponse>;
     /**
-     * Status returns the current status of the running VNet service.
+     * GetServiceInfo returns info about the running VNet service.
      *
-     * @generated from protobuf rpc: Status(teleport.lib.teleterm.vnet.v1.StatusRequest) returns (teleport.lib.teleterm.vnet.v1.StatusResponse);
+     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
      */
-    status(input: StatusRequest, options?: RpcOptions): UnaryCall<StatusRequest, StatusResponse>;
+    getServiceInfo(input: GetServiceInfoRequest, options?: RpcOptions): UnaryCall<GetServiceInfoRequest, GetServiceInfoResponse>;
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
      * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
@@ -105,13 +105,13 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
         return stackIntercept<StopRequest, StopResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * Status returns the current status of the running VNet service.
+     * GetServiceInfo returns info about the running VNet service.
      *
-     * @generated from protobuf rpc: Status(teleport.lib.teleterm.vnet.v1.StatusRequest) returns (teleport.lib.teleterm.vnet.v1.StatusResponse);
+     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
      */
-    status(input: StatusRequest, options?: RpcOptions): UnaryCall<StatusRequest, StatusResponse> {
+    getServiceInfo(input: GetServiceInfoRequest, options?: RpcOptions): UnaryCall<GetServiceInfoRequest, GetServiceInfoResponse> {
         const method = this.methods[2], opt = this._transport.mergeOptions(options);
-        return stackIntercept<StatusRequest, StatusResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetServiceInfoRequest, GetServiceInfoResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching

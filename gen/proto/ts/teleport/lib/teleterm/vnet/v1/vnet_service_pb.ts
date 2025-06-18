@@ -60,18 +60,18 @@ export interface StopRequest {
 export interface StopResponse {
 }
 /**
- * Request for Status.
+ * Request for GetServiceInfo.
  *
- * @generated from protobuf message teleport.lib.teleterm.vnet.v1.StatusRequest
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
  */
-export interface StatusRequest {
+export interface GetServiceInfoRequest {
 }
 /**
- * StatusResponse contains the status of the running VNet service.
+ * GetServiceInfoResponse contains the status of the running VNet service.
  *
- * @generated from protobuf message teleport.lib.teleterm.vnet.v1.StatusResponse
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
  */
-export interface StatusResponse {
+export interface GetServiceInfoResponse {
     /**
      * app_dns_zones is a deduplicated list of all DNS zones valid as DNS
      * suffixes for connections to TCP apps.
@@ -265,20 +265,20 @@ class StopResponse$Type extends MessageType<StopResponse> {
  */
 export const StopResponse = new StopResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class StatusRequest$Type extends MessageType<StatusRequest> {
+class GetServiceInfoRequest$Type extends MessageType<GetServiceInfoRequest> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.StatusRequest", []);
+        super("teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest", []);
     }
-    create(value?: PartialMessage<StatusRequest>): StatusRequest {
+    create(value?: PartialMessage<GetServiceInfoRequest>): GetServiceInfoRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         if (value !== undefined)
-            reflectionMergePartial<StatusRequest>(this, message, value);
+            reflectionMergePartial<GetServiceInfoRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StatusRequest): StatusRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServiceInfoRequest): GetServiceInfoRequest {
         return target ?? this.create();
     }
-    internalBinaryWrite(message: StatusRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: GetServiceInfoRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -286,28 +286,28 @@ class StatusRequest$Type extends MessageType<StatusRequest> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.StatusRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
  */
-export const StatusRequest = new StatusRequest$Type();
+export const GetServiceInfoRequest = new GetServiceInfoRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class StatusResponse$Type extends MessageType<StatusResponse> {
+class GetServiceInfoResponse$Type extends MessageType<GetServiceInfoResponse> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.StatusResponse", [
+        super("teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse", [
             { no: 1, name: "app_dns_zones", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "clusters", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "ssh_configured", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
-    create(value?: PartialMessage<StatusResponse>): StatusResponse {
+    create(value?: PartialMessage<GetServiceInfoResponse>): GetServiceInfoResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.appDnsZones = [];
         message.clusters = [];
         message.sshConfigured = false;
         if (value !== undefined)
-            reflectionMergePartial<StatusResponse>(this, message, value);
+            reflectionMergePartial<GetServiceInfoResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StatusResponse): StatusResponse {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServiceInfoResponse): GetServiceInfoResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -332,7 +332,7 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
         }
         return message;
     }
-    internalBinaryWrite(message: StatusResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: GetServiceInfoResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* repeated string app_dns_zones = 1; */
         for (let i = 0; i < message.appDnsZones.length; i++)
             writer.tag(1, WireType.LengthDelimited).string(message.appDnsZones[i]);
@@ -349,9 +349,9 @@ class StatusResponse$Type extends MessageType<StatusResponse> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.StatusResponse
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
  */
-export const StatusResponse = new StatusResponse$Type();
+export const GetServiceInfoResponse = new GetServiceInfoResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetBackgroundItemStatusRequest$Type extends MessageType<GetBackgroundItemStatusRequest> {
     constructor() {
@@ -501,7 +501,7 @@ export const RunDiagnosticsResponse = new RunDiagnosticsResponse$Type();
 export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetService", [
     { name: "Start", options: {}, I: StartRequest, O: StartResponse },
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
-    { name: "Status", options: {}, I: StatusRequest, O: StatusResponse },
+    { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse }
 ]);

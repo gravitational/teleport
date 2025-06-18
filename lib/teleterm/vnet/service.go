@@ -221,8 +221,8 @@ func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResp
 	return &api.StopResponse{}, nil
 }
 
-// Status returns the current status of the running VNet service.
-func (s *Service) Status(ctx context.Context, _ *api.StatusRequest) (*api.StatusResponse, error) {
+// GetServiceInfo returns info about the running VNet service.
+func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoRequest) (*api.GetServiceInfoResponse, error) {
 	// Acquire the lock just to check the status of the service. We don't want the actual process of
 	// listing DNS zones to block the user from performing other operations.
 	s.mu.Lock()
@@ -251,7 +251,7 @@ func (s *Service) Status(ctx context.Context, _ *api.StatusRequest) (*api.Status
 	sshConfigured := sshReport.Status == diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK &&
 		sshReport.GetSshConfigurationReport().UserOpensshConfigIncludesVnetSshConfig
 
-	return &api.StatusResponse{
+	return &api.GetServiceInfoResponse{
 		AppDnsZones:   unifiedClusterConfig.AppDNSZones(),
 		Clusters:      unifiedClusterConfig.ClusterNames,
 		SshConfigured: sshConfigured,

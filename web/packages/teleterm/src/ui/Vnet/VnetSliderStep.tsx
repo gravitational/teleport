@@ -38,7 +38,7 @@ import { useVnetContext } from './vnetContext';
 export const VnetSliderStep = (props: StepComponentProps) => {
   const visible = props.stepIndex === 1 && props.hasTransitionEnded;
   const {
-    state,
+    status,
     startAttempt,
     stopAttempt,
     runDiagnostics,
@@ -93,11 +93,11 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           <ErrorText>Could not stop VNet: {stopAttempt.statusText}</ErrorText>
         )}
 
-        {state.value === 'stopped' &&
-          (state.reason.value === 'unexpected-shutdown' ? (
+        {status.value === 'stopped' &&
+          (status.reason.value === 'unexpected-shutdown' ? (
             <ErrorText>
               VNet unexpectedly shut down:{' '}
-              {state.reason.errorMessage ||
+              {status.reason.errorMessage ||
                 'no direct reason was given, please check logs'}
               .
             </ErrorText>
@@ -116,7 +116,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           ))}
       </Flex>
 
-      {state.value === 'running' && <VnetStatus />}
+      {status.value === 'running' && <VnetStatus />}
 
       <DiagnosticsAlert
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
@@ -140,31 +140,32 @@ const ErrorText = (props: PropsWithChildren) => (
  * optimistically displays previously fetched results while fetching new list.
  */
 const VnetStatus = () => {
-  const { fetchStatus, statusAttempt: eagerStatusAttempt } = useVnetContext();
-  const statusAttempt = useDelayedRepeatedAttempt(eagerStatusAttempt);
-  const statusRefreshRequestedRef = useRef(false);
+  const { getServiceInfo, serviceInfoAttempt: eagerServiceInfoAttempt } =
+    useVnetContext();
+  const serviceInfoAttempt = useDelayedRepeatedAttempt(eagerServiceInfoAttempt);
+  const serviceInfoRefreshRequestedRef = useRef(false);
 
   useEffect(
     function refreshListOnOpen() {
-      if (!statusRefreshRequestedRef.current) {
-        statusRefreshRequestedRef.current = true;
-        fetchStatus();
+      if (!serviceInfoRefreshRequestedRef.current) {
+        serviceInfoRefreshRequestedRef.current = true;
+        getServiceInfo();
       }
     },
-    [fetchStatus]
+    [getServiceInfo]
   );
 
-  if (statusAttempt.status === 'error') {
+  if (serviceInfoAttempt.status === 'error') {
     return (
       <Text p={textSpacing}>
         <ConnectionStatusIndicator status="warning" inline mr={2} />
         VNet is running, but Teleport Connect could not fetch its status:{' '}
-        {statusAttempt.statusText}
+        {serviceInfoAttempt.statusText}
         <ButtonSecondary
           ml={2}
           size="small"
           type="button"
-          onClick={fetchStatus}
+          onClick={getServiceInfo}
         >
           Retry
         </ButtonSecondary>
@@ -173,8 +174,8 @@ const VnetStatus = () => {
   }
 
   if (
-    statusAttempt.status === '' ||
-    (statusAttempt.status === 'processing' && !statusAttempt.data)
+    serviceInfoAttempt.status === '' ||
+    (serviceInfoAttempt.status === 'processing' && !serviceInfoAttempt.data)
   ) {
     return (
       <Text p={textSpacing}>
@@ -184,13 +185,13 @@ const VnetStatus = () => {
     );
   }
 
-  const status = statusAttempt.data;
+  const serviceInfo = serviceInfoAttempt.data;
 
   const statusIndicator = (
     <ConnectionStatusIndicator
-      status={statusAttempt.status === 'success' ? 'on' : 'processing'}
+      status={serviceInfoAttempt.status === 'success' ? 'on' : 'processing'}
       title={
-        statusAttempt.status === 'processing'
+        serviceInfoAttempt.status === 'processing'
           ? 'Updating VNet status…'
           : undefined
       }
@@ -199,7 +200,10 @@ const VnetStatus = () => {
     />
   );
 
-  if (status.appDnsZones.length === 0 && status.clusters.length == 0) {
+  if (
+    serviceInfo.appDnsZones.length === 0 &&
+    serviceInfo.clusters.length == 0
+  ) {
     return (
       <Text p={textSpacing}>
         {statusIndicator}
@@ -208,26 +212,21 @@ const VnetStatus = () => {
     );
   }
 
-  const appIndicator = status.appDnsZones.length ? (
+  const appIndicator = serviceInfo.appDnsZones.length ? (
     <Flex>
       <span>{statusIndicator}</span>
-      Proxying TCP connections to {status.appDnsZones.join(', ')}
+      Proxying TCP connections to {serviceInfo.appDnsZones.join(', ')}
     </Flex>
   ) : null;
 
-  const sshIndicator = status.clusters.length ? (
+  const sshIndicator = serviceInfo.clusters.length ? (
     <Flex>
       <span>{statusIndicator}</span>
-      Proxying SSH connections to clusters {status.clusters.join(', ')}
+      Proxying SSH connections to clusters {serviceInfo.clusters.join(', ')}
     </Flex>
   ) : null;
 
-  const sshConfiguredIndicator = status.sshConfigured ? (
-    <Flex>
-      <span>{statusIndicator}</span>
-      SSH clients are configured to use VNet
-    </Flex>
-  ) : (
+  const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
     <Flex>
       <ConnectionStatusIndicator status={'warning'} inline mr={2} />
       SSH clients are not configured to use VNet (See diag report)

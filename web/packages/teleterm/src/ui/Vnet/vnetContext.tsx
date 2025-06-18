@@ -30,7 +30,7 @@ import {
 
 import {
   BackgroundItemStatus,
-  StatusResponse,
+  GetServiceInfoResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
@@ -58,13 +58,13 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet diagnostics.
    */
   isDiagSupported: boolean;
-  state: VnetState;
+  status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
-  fetchStatus: () => Promise<[StatusResponse, Error]>;
-  statusAttempt: Attempt<StatusResponse>;
+  getServiceInfo: () => Promise<[GetServiceInfoResponse, Error]>;
+  serviceInfoAttempt: Attempt<GetServiceInfoResponse>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -111,7 +111,7 @@ export type VnetContext = {
   hasEverStarted: boolean;
 };
 
-export type VnetState =
+export type VnetStatus =
   | { value: 'running' }
   | { value: 'stopped'; reason: VnetStoppedReason };
 
@@ -124,7 +124,7 @@ export const VnetContext = createContext<VnetContext>(null);
 export const VnetContextProvider: FC<
   PropsWithChildren<{ diagnosticsIntervalMs?: number }>
 > = ({ diagnosticsIntervalMs = defaultDiagnosticsIntervalMs, children }) => {
-  const [state, setState] = useState<VnetState>({
+  const [status, setStatus] = useState<VnetStatus>({
     value: 'stopped',
     reason: { value: 'regular-shutdown-or-not-started' },
   });
@@ -175,7 +175,7 @@ export const VnetContextProvider: FC<
         await mainProcessClient.forceFocusWindow({ wait: true });
       }
 
-      setState({ value: 'running' });
+      setStatus({ value: 'running' });
       setAppState({ autoStart: true, hasEverStarted: true });
     }, [vnet, setAppState, appCtx, mainProcessClient])
   );
@@ -222,7 +222,7 @@ export const VnetContextProvider: FC<
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
-      setState({
+      setStatus({
         value: 'stopped',
         reason: { value: 'regular-shutdown-or-not-started' },
       });
@@ -237,8 +237,11 @@ export const VnetContextProvider: FC<
     ])
   );
 
-  const [statusAttempt, fetchStatus] = useAsync(
-    useCallback(() => vnet.status({}).then(({ response }) => response), [vnet])
+  const [serviceInfoAttempt, getServiceInfo] = useAsync(
+    useCallback(
+      () => vnet.getServiceInfo({}).then(({ response }) => response),
+      [vnet]
+    )
   );
 
   /**
@@ -250,12 +253,12 @@ export const VnetContextProvider: FC<
    */
   const getDisabledDiagnosticsReason = useCallback(
     (runDiagnosticsAttempt: Attempt<Report>) =>
-      state.value !== 'running'
+      status.value !== 'running'
         ? 'VNet must be running to run diagnostics'
         : runDiagnosticsAttempt.status === 'processing'
           ? 'Generating diagnostic report…'
           : '',
-    [state.value]
+    [status.value]
   );
 
   const rootClusterUri = useStoreSelector(
@@ -336,7 +339,7 @@ export const VnetContextProvider: FC<
     function handleUnexpectedShutdown() {
       const removeListener = appCtx.addUnexpectedVnetShutdownListener(
         ({ error }) => {
-          setState({
+          setStatus({
             value: 'stopped',
             reason: { value: 'unexpected-shutdown', errorMessage: error },
           });
@@ -430,7 +433,7 @@ export const VnetContextProvider: FC<
         return;
       }
 
-      if (state.value !== 'running') {
+      if (status.value !== 'running') {
         return;
       }
 
@@ -454,7 +457,7 @@ export const VnetContextProvider: FC<
       isDiagSupported,
       diagnosticsIntervalMs,
       runDiagnosticsAndShowNotification,
-      state.value,
+      status.value,
       resetHasActedOnPreviousNotification,
     ]
   );
@@ -464,13 +467,13 @@ export const VnetContextProvider: FC<
       value={{
         isSupported,
         isDiagSupported,
-        state,
+        status,
         start,
         startAttempt,
         stop,
         stopAttempt,
-        fetchStatus,
-        statusAttempt,
+        getServiceInfo,
+        serviceInfoAttempt,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,

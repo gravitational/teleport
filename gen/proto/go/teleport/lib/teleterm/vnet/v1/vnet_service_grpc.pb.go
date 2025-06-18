@@ -37,7 +37,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	VnetService_Start_FullMethodName                   = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
 	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
-	VnetService_Status_FullMethodName                  = "/teleport.lib.teleterm.vnet.v1.VnetService/Status"
+	VnetService_GetServiceInfo_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo"
 	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
 	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
 )
@@ -52,8 +52,8 @@ type VnetServiceClient interface {
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
-	// Status returns the current status of the running VNet service.
-	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
+	// GetServiceInfo returns info about the running VNet service.
+	GetServiceInfo(ctx context.Context, in *GetServiceInfoRequest, opts ...grpc.CallOption) (*GetServiceInfoResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
@@ -90,10 +90,10 @@ func (c *vnetServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...g
 	return out, nil
 }
 
-func (c *vnetServiceClient) Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
+func (c *vnetServiceClient) GetServiceInfo(ctx context.Context, in *GetServiceInfoRequest, opts ...grpc.CallOption) (*GetServiceInfoResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(StatusResponse)
-	err := c.cc.Invoke(ctx, VnetService_Status_FullMethodName, in, out, cOpts...)
+	out := new(GetServiceInfoResponse)
+	err := c.cc.Invoke(ctx, VnetService_GetServiceInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +130,8 @@ type VnetServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
-	// Status returns the current status of the running VNet service.
-	Status(context.Context, *StatusRequest) (*StatusResponse, error)
+	// GetServiceInfo returns info about the running VNet service.
+	GetServiceInfo(context.Context, *GetServiceInfoRequest) (*GetServiceInfoResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
@@ -154,8 +154,8 @@ func (UnimplementedVnetServiceServer) Start(context.Context, *StartRequest) (*St
 func (UnimplementedVnetServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
 }
-func (UnimplementedVnetServiceServer) Status(context.Context, *StatusRequest) (*StatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Status not implemented")
+func (UnimplementedVnetServiceServer) GetServiceInfo(context.Context, *GetServiceInfoRequest) (*GetServiceInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetServiceInfo not implemented")
 }
 func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
@@ -220,20 +220,20 @@ func _VnetService_Stop_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _VnetService_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StatusRequest)
+func _VnetService_GetServiceInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServiceInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(VnetServiceServer).Status(ctx, in)
+		return srv.(VnetServiceServer).GetServiceInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: VnetService_Status_FullMethodName,
+		FullMethod: VnetService_GetServiceInfo_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(VnetServiceServer).Status(ctx, req.(*StatusRequest))
+		return srv.(VnetServiceServer).GetServiceInfo(ctx, req.(*GetServiceInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -290,8 +290,8 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VnetService_Stop_Handler,
 		},
 		{
-			MethodName: "Status",
-			Handler:    _VnetService_Status_Handler,
+			MethodName: "GetServiceInfo",
+			Handler:    _VnetService_GetServiceInfo_Handler,
 		},
 		{
 			MethodName: "GetBackgroundItemStatus",

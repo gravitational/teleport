@@ -156,10 +156,10 @@ export function VnetSliderStep(props: StoryProps) {
   }
 
   if (props.fetchStatus === 'processing') {
-    appContext.vnet.status = () => pendingPromise;
+    appContext.vnet.getServiceInfo = () => pendingPromise;
   } else {
     let firstCall = true;
-    appContext.vnet.status = () => {
+    appContext.vnet.getServiceInfo = () => {
       if (props.fetchStatus === 'processing-with-previous-results') {
         if (firstCall) {
           firstCall = false;
@@ -220,7 +220,7 @@ export function VnetSliderStep(props: StoryProps) {
       <ConnectionsContextProvider>
         <VnetContextProvider>
           {props.fetchStatus === 'processing-with-previous-results' && (
-            <RerequestStatus />
+            <RerequestServiceInfo />
           )}
           <Component
             refCallback={noop}
@@ -236,14 +236,14 @@ export function VnetSliderStep(props: StoryProps) {
   );
 }
 
-const RerequestStatus = () => {
-  const { fetchStatus, statusAttempt } = useVnetContext();
+const RerequestServiceInfo = () => {
+  const { getServiceInfo, serviceInfoAttempt } = useVnetContext();
 
   useEffect(() => {
-    if (statusAttempt.status === 'success') {
-      fetchStatus();
+    if (serviceInfoAttempt.status === 'success') {
+      getServiceInfo();
     }
-  }, [statusAttempt, fetchStatus]);
+  }, [serviceInfoAttempt, getServiceInfo]);
 
   return null;
 };
