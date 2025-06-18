@@ -148,46 +148,51 @@ func (d *SSHDiag) openSSHConfigLineIncludesPath(line, wantPath string) bool {
 	// contain glob wildcards, tokens, environment variables, ~, escaped
 	// characters and may or may not be quoted. This function does not support
 	// glob wildcards, tokens, or environment variables. It splits each argument
-	// at unescaped and unqouted whitespace and if the argument matches wantPath
+	// at unescaped and unquoted whitespace and if the argument matches wantPath
 	// returns true. It does support ~ as an alias for the user's home
 	// directory.
 	var (
 		// b is a running buffer holding the current argument as parsed up to
 		// the current point.
-		b        strings.Builder
-		escape   = false
-		inQuotes = false
+		b strings.Builder
+		// quote holds the opening quote character if one has been found.
+		quote = byte(0)
 	)
 loop:
-	for _, c := range line {
+	for i := 0; i < len(line); i++ {
+		c := line[i]
 		switch {
-		case escape:
-			// Always write escaped characters literally.
-			b.WriteRune(c)
-			escape = false
-		case c == '\\':
-			// The next character is escaped.
-			escape = true
-		case c == '"':
-			// Entering or exiting a quoted section.
-			inQuotes = !inQuotes
+		case c == '\\' && i < len(line)-1 && canBeEscaped(line[i+1]):
+			// Skip the escape char and write the next char literally.
+			i++
+			b.WriteByte(line[i])
+		case quote == 0 && (c == '"' || c == '\''):
+			// Start of quote
+			quote = c
+		case quote != 0 && c == quote:
+			// End of quote
+			quote = 0
 		case b.Len() == 0 && c == '~':
 			// Support ~ as an alias for the user's home directory.
 			b.WriteString(d.userHome)
-		case !inQuotes && isSpace(c):
+		case quote == 0 && c == '#':
+			// Found an unquoted comment in the middle of the line, ignore the rest.
+			break loop
+		case quote == 0 && isSpace(rune(c)):
 			// Reached the end of this argument, check if it matches wantPath.
 			if d.normalizePath(b.String()) == wantPath {
 				return true
 			}
 			b.Reset()
-		case !inQuotes && c == '#':
-			// Found a comment in the middle of the line, ignore the rest.
-			break loop
 		default:
 			// By default just append the current character to the current
 			// argument.
-			b.WriteRune(c)
+			b.WriteByte(c)
 		}
+	}
+	if quote != 0 {
+		// Unmatched quote.
+		return false
 	}
 	// Handle an argument that ends at the end of the line.
 	return d.normalizePath(b.String()) == wantPath
@@ -207,6 +212,15 @@ func (d *SSHDiag) normalizePath(path string) string {
 func isSpace(r rune) bool {
 	switch r {
 	case ' ', '\t':
+		return true
+	}
+	return false
+}
+
+func canBeEscaped(c byte) bool {
+	// https://github.com/openssh/openssh-portable/blob/5f761cdb2331a12318bde24db5ca84ee144a51d1/misc.c#L2089-L2099
+	switch c {
+	case ' ', '\\', '\'', '"':
 		return true
 	}
 	return false

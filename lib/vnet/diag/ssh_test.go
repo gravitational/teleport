@@ -93,6 +93,14 @@ func TestSSHDiag(t *testing.T) {
 			expect:      true,
 		},
 		{
+			desc:        "windows tsh unescaped",
+			profilePath: `C:\Users\User\.tsh`,
+			userHome:    `C:\Users\User`,
+			isWindows:   true,
+			input:       `Include "C:\Users\User\.tsh\vnet_ssh_config"`,
+			expect:      true,
+		},
+		{
 			desc:        "windows tsh unix path",
 			profilePath: `C:\Users\User\.tsh`,
 			userHome:    `C:\Users\User`,
@@ -114,6 +122,14 @@ func TestSSHDiag(t *testing.T) {
 			userHome:    `C:\Users\User`,
 			isWindows:   true,
 			input:       `Include "C:\\Users\\User\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
+			expect:      true,
+		},
+		{
+			desc:        "windows connect unescaped",
+			profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
+			userHome:    `C:\Users\User`,
+			isWindows:   true,
+			input:       `Include "C:\Users\User\AppData\Roaming\Teleport Connect\tsh\vnet_ssh_config"`,
 			expect:      true,
 		},
 		{
@@ -169,10 +185,10 @@ Include /Users/user/.tsh/vnet_ssh_config
 			input:       `Include #/Users/user/.tsh/vnet_ssh_config`,
 		},
 		{
-			desc:        "mine",
-			profilePath: `/Users/nic/Library/Application Support/Electron/tsh`,
-			userHome:    `/Users/nic`,
-			input:       `Include "/Users/nic/Library/Application Support/Electron/tsh/vnet_ssh_config"`,
+			desc:        "single quotes",
+			profilePath: `/Users/user/.tsh`,
+			userHome:    `/Users/user`,
+			input:       `Include '/Users/user/.tsh/vnet_ssh_config'`,
 			expect:      true,
 		},
 	} {
