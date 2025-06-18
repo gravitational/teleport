@@ -27,8 +27,8 @@ import (
 type Status uint
 
 const (
-	// Unknown means no status has been reported for the service.
-	Unknown Status = iota
+	// Initializing means no status has been reported for the service.
+	Initializing Status = iota
 
 	// Healthy means the service is healthy and ready to serve traffic or it has
 	// recently succeeded generating an output.
@@ -41,12 +41,14 @@ const (
 // String implements fmt.Stringer.
 func (s Status) String() string {
 	switch s {
+	case Initializing:
+		return "initializing"
 	case Healthy:
 		return "healthy"
 	case Unhealthy:
 		return "unhealthy"
 	default:
-		return "unknown"
+		return "<unknown status>"
 	}
 }
 
@@ -67,7 +69,7 @@ func (s *Status) UnmarshalJSON(j []byte) error {
 	case "unhealthy":
 		*s = Unhealthy
 	default:
-		*s = Unknown
+		*s = Initializing
 	}
 	return nil
 }
