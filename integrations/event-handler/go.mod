@@ -33,6 +33,7 @@ require (
 	cloud.google.com/go/resourcemanager v1.10.6 // indirect
 	connectrpc.com/connect v1.18.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
+	filippo.io/age v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
