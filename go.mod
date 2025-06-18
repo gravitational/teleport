@@ -97,6 +97,7 @@ require (
 	github.com/go-piv/piv-go v1.11.0
 	github.com/go-resty/resty/v2 v2.12.0
 	github.com/go-webauthn/webauthn v0.10.2
+	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gocql/gocql v1.6.0
 	github.com/gofrs/flock v0.12.1
