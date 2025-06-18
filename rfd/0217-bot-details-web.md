@@ -154,12 +154,11 @@ spec:
 ```
 
 #### Active instances
-Lists the most recent (max 10) instances for the bot, ordered most recent first. A refresh action reloads the data for this panel only, and is provided to make monitoring instance activity easier. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields.
+Lists the most recent (max 10) instances for the bot, ordered most recent heartbeat first. A refresh action reloads the data for this panel only, and is provided to make monitoring instance activity easier. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields.
 
 ![](assets/0217-feature-active-instances.png)
 
-> [!NOTE]
-> TODO: Add an explanation of the approach to using an in-memory cache to store and maintain an index on an instance's most recent activity timestamp. This allows instance records to be retrieved in order of most recent activity first (or last, although not required).
+In order to display only the instances with the most recent heartbeat, sorting will be added by cache-enabling bot instances and including an additional index (beyond the standard index on `name`). This index will operate on a combination of the instance id and the timestamp of the most recent heartbeat for each instance. The first page of 10 will be requested and no further paging is required. As part of this work, the Bot Instance list will be upgraded to support sorting (on both `name` and recent `last_active_at`) and will continue to make use of paging.
 
 #### Edit roles, traits and max session duration (`max_session_ttl`)
 Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allows all changes to be made in a single atomic transaction.
