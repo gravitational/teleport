@@ -51,6 +51,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	setWorkloadIdentityX509CAOverride(ctx, t, process)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	role, err := types.NewRole("issue-foo", types.RoleSpecV6{
@@ -145,6 +146,8 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 
 	expectedSPIFFEID := fmt.Sprintf("spiffe://root/valid/api/%d", os.Getpid())
 	require.Equal(t, expectedSPIFFEID, svid.ID.String())
+	// the override includes a chain with a single certificate
+	require.Len(t, svid.Certificates, 2)
 	require.Equal(t, expectedSPIFFEID, svid.Certificates[0].URIs[0].String())
 	_, _, err = x509svid.Verify(svid.Certificates, source)
 	require.NoError(t, err)

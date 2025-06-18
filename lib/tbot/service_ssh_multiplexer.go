@@ -44,10 +44,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -95,14 +96,15 @@ type SSHMultiplexerService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SSHMultiplexerService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.SSHMultiplexerService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	proxyPingCache     *proxyPingCache
+	reloadBroadcaster  *channelBroadcaster
+	resolver           reversetunnelclient.Resolver
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
@@ -149,7 +151,7 @@ func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger,
 func (s *SSHMultiplexerService) writeArtifacts(
 	ctx context.Context,
 	proxyHost string,
-	authClient *authclient.Client,
+	authClient *apiclient.Client,
 ) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 
@@ -177,8 +179,10 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	// Generate SSH config
 	proxyCommand := s.cfg.ProxyCommand
 	if len(proxyCommand) == 0 {
-		executablePath, err := os.Executable()
-		if err != nil {
+		executablePath, err := autoupdate.StableExecutable()
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+			s.log.WarnContext(ctx, "SSH multiplexer proxy command will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+		} else if err != nil {
 			return trace.Wrap(err, "determining executable path")
 		}
 		proxyCommand = []string{
@@ -215,12 +219,25 @@ func (s *SSHMultiplexerService) writeArtifacts(
 }
 
 func (s *SSHMultiplexerService) setup(ctx context.Context) (
-	_ *authclient.Client,
+	_ *apiclient.Client,
 	_ *cyclingHostDialClient,
 	proxyHost string,
 	_ *libclient.TSHConfig,
 	_ error,
 ) {
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil, nil, "", nil, nil
+			}
+		}
+	}
+
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(
 		muxReqsStartedCounter,
@@ -386,7 +403,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 }
 
 func (s *SSHMultiplexerService) identityRenewalLoop(
-	ctx context.Context, proxyHost string, authClient *authclient.Client,
+	ctx context.Context, proxyHost string, authClient *apiclient.Client,
 ) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
@@ -553,7 +570,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	tshConfig *libclient.TSHConfig,
-	authClient *authclient.Client,
+	authClient *apiclient.Client,
 	hostDialer *cyclingHostDialClient,
 	proxyHost string,
 	downstream net.Conn,
@@ -672,7 +689,7 @@ func (s *SSHMultiplexerService) handleConn(
 		host = cleanTargetHost(host, proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, authClient.APIClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, authClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err, "resolving target host")
 		}

@@ -28,6 +28,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
+// messageEnv is a type parameter to protoMessageVariable. It represents the
+// environment in which the variables will be evaluated, which was previously
+// the message itself but this layer of indirection allows us to add additional
+// variables that aren't from the message.
+type messageEnv[TMessage proto.Message] interface {
+	message() TMessage
+}
+
 // protoMessageVariables builds a map of `typical.Variable`s for the given proto
 // message type. If zeroValError is true, accessing an "unset" string field will
 // return an error instead of the zero value.
@@ -47,7 +55,7 @@ import (
 //
 // Note: we do not support self-referential messages or circular references, these
 // fields will also be ignored.
-func protoMessageVariables[TEnv proto.Message](zeroValError bool) map[string]typical.Variable {
+func protoMessageVariables[TMessage proto.Message, TEnv messageEnv[TMessage]](zeroValError bool) map[string]typical.Variable {
 	// addMessageFields adds each of a messages fields as variables. If it
 	// encounters a sub-message, it recursively calls itself to add the sub
 	// message's fields, prefixed its ancestors' names.
@@ -77,7 +85,7 @@ func protoMessageVariables[TEnv proto.Message](zeroValError bool) map[string]typ
 			// Read the field value from the given TEnv by reading each of the
 			// ancestor messages.
 			get := func(env TEnv) (protoreflect.Value, error) {
-				msg := env.ProtoReflect()
+				msg := env.message().ProtoReflect()
 				names := make([]string, 0)
 				for _, ancestor := range ancestors {
 					msg = msg.Get(ancestor).Message()
@@ -157,7 +165,7 @@ func protoMessageVariables[TEnv proto.Message](zeroValError bool) map[string]typ
 		}
 	}
 
-	var t TEnv
+	var t TMessage
 	addMessageFields(
 		"",  /* prefix */
 		nil, /* ancestors */

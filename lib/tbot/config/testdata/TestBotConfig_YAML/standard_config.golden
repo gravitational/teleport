@@ -1,4 +1,9 @@
 version: v2
+onboarding:
+  token: my-gitlab-token
+  join_method: gitlab
+  gitlab:
+    token_env_var_name: MY_CUSTOM_ENV_VAR
 storage:
   type: directory
   path: /bot/storage
@@ -51,6 +56,8 @@ services:
       systemd:
         enabled: false
       unix: {}
+      sigstore:
+        enabled: false
     credential_ttl: 30s
     renewal_interval: 15s
   - type: example
@@ -90,6 +97,8 @@ services:
       systemd:
         enabled: false
       unix: {}
+      sigstore:
+        enabled: false
     selector:
       name: my-workload-identity
     credential_ttl: 30s

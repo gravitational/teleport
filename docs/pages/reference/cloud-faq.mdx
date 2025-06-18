@@ -54,7 +54,7 @@ See the [Public IP Address Allowlist](../ips.mdx) for the list of IP addresses u
 
 We do not have plans to offer support for inbound connection IP allowlists.
 
-We believe mTLS with strong user and [device identity](../admin-guides/access-controls/device-trust/guide.mdx) provides the best available
+We believe mTLS with strong user and [device identity](../identity-governance/device-trust/guide.mdx) provides the best available
 security for client authentication.
 
 For customers that require IP-based control for compliance purposes, we do
@@ -71,7 +71,7 @@ S3, are established using encryption provided by AWS, both at rest and in transi
 
 You can connect servers, Kubernetes clusters, databases, desktops, and
 applications using [reverse
-tunnels](../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx).
+tunnels](../enroll-resources/agents/agents.mdx).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
@@ -85,7 +85,7 @@ If you plan on connecting more than 10,000 nodes or agents, please contact your 
 ### Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Enterprise Cloud, users can generate
-[dynamic tokens](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx):
+[dynamic tokens](../enroll-resources/agents/join-token.mdx):
 
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)

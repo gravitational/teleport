@@ -51,6 +51,7 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
 
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
+	string(types.JoinMethodAzureDevops),
 	string(types.JoinMethodBitbucket),
 	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodGCP),
@@ -62,6 +63,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
 	string(types.JoinMethodTerraformCloud),
+	string(types.JoinMethodBoundKeypair),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -79,6 +81,23 @@ type TerraformOnboardingConfig struct {
 	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
 	// variant is used.
 	AudienceTag string `yaml:"audience_tag,omitempty"`
+}
+
+// GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
+type GitlabOnboardingConfig struct {
+	// TokenEnvVarName is the name of the environment variable that contains the
+	// GitLab ID token. This can be useful to override in cases where a single
+	// gitlab job needs to authenticate to multiple Teleport clusters.
+	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
+}
+
+// BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
+// method
+type BoundKeypairOnboardingConfig struct {
+	// InitialJoinSecret is the name of the initial joining secret, if any. If
+	// not specified, a keypair must be created using `tbot keypair create` and
+	// registered with Teleport in advance.
+	InitialJoinSecret string
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
@@ -107,6 +126,12 @@ type OnboardingConfig struct {
 
 	// Terraform holds configuration relevant to the `terraform` join method.
 	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
+
+	// Gitlab holds configuration relevant to the `gitlab` join method.
+	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
+
+	// BoundKeypair holds configuration relevant to the `bound_keypair` join method
+	BoundKeypair BoundKeypairOnboardingConfig `yaml:"bound_keypair,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -150,12 +175,17 @@ type BotConfig struct {
 	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
 	Services ServiceConfigs `yaml:"services,omitempty"`
 
-	Debug      bool   `yaml:"debug"`
-	AuthServer string `yaml:"auth_server,omitempty"`
-	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
-	// explicitly point to a Teleport proxy.
-	// Example: "example.teleport.sh:443"
-	ProxyServer        string             `yaml:"proxy_server,omitempty"`
+	Debug       bool   `yaml:"debug"`
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
+	// AuthServerAddressMode controls whether it's permissible to provide a
+	// proxy server address as an auth server address. This is unsupported in
+	// the tbot binary as of v19, but we maintain support for cases where tbot
+	// is embedded in a binary which does not differentiate between address types
+	// such as tctl or the Kubernetes operator.
+	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
+
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 	Oneshot            bool               `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
@@ -201,6 +231,25 @@ func (conf *BotConfig) Address() (string, AddressKind) {
 		return "", AddressKindUnspecified
 	}
 }
+
+// AuthServerAddressMode controls the behavior when a proxy address is given
+// as an auth server address.
+type AuthServerAddressMode int
+
+const (
+	// AuthServerMustBeAuthServer means that only an actual auth server address
+	// may be given.
+	AuthServerMustBeAuthServer AuthServerAddressMode = iota
+
+	// WarnIfAuthServerIsProxy means that a proxy address will be accepted as an
+	// auth server address, but we will log a warning that this is going away in
+	// v19.
+	WarnIfAuthServerIsProxy
+
+	// AllowProxyAsAuthServer means that a proxy address will be accepted as an
+	// auth server address.
+	AllowProxyAsAuthServer
+)
 
 func (conf *BotConfig) CipherSuites() []uint16 {
 	if conf.FIPS {
@@ -624,7 +673,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&version); err != nil {
-		return nil, trace.BadParameter("failed parsing config file version: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing config file version: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 
 	// Reset reader and decoder
@@ -641,7 +690,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 		}
 		latestConfig, err := config.migrate()
 		if err != nil {
@@ -658,7 +707,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		decoder.KnownFields(true)
 		config := &BotConfig{}
 		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 		}
 		return config, nil
 	default:

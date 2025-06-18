@@ -10,12 +10,12 @@
     "directory": "packages/shared"
   },
   "scripts": {
-    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && RUST_MIN_STACK=16777216 RUSTFLAGS=-Ctarget-feature=+simd128 wasm-pack build ./libs/ironrdp --target web"
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && RUST_MIN_STACK=16777216 wasm-pack build ./libs/ironrdp --target web"
   },
   "dependencies": {
     "@gravitational/design": "workspace:*",
     "@xterm/addon-search": "^0.15.0",
-    "ace-builds": "1.39.1",
+    "ace-builds": "1.41.0",
     "events": "3.3.0",
     "highlight-words-core": "^1.2.3"
   }

@@ -91,10 +91,9 @@ type Config struct {
 	Provisioner             services.Provisioner
 	Restrictions            services.Restrictions
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
-	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
-	SPIFFEFederations       cache.SPIFFEFederationReader
+	SPIFFEFederations       services.SPIFFEFederations
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
@@ -103,7 +102,7 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
-	WorkloadIdentity        cache.WorkloadIdentityReader
+	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
@@ -193,7 +192,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Provisioner:             cfg.Provisioner,
 		Restrictions:            cfg.Restrictions,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
-		SAMLIdPSession:          cfg.SAMLIdPSession,
 		SecReports:              cfg.SecReports,
 		SnowflakeSession:        cfg.SnowflakeSession,
 		SPIFFEFederations:       cfg.SPIFFEFederations,

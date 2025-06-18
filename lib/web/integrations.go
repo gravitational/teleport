@@ -104,6 +104,21 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.Wrap(err)
 		}
 
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		ig, err = types.NewIntegrationAWSRA(types.Metadata{
+			Name: req.Name,
+		}, &types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: req.Integration.AWSRA.TrustAnchorARN,
+			ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+				Enabled:    req.Integration.AWSRA.ProfileSyncConfig.Enabled,
+				ProfileARN: req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
+				RoleARN:    req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	default:
 		return nil, trace.BadParameter("subkind %q is not supported", req.SubKind)
 	}
@@ -187,6 +202,23 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		if err := integration.SetCredentials(&cred); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if req.AWSRA != nil {
+		if integration.GetSubKind() != types.IntegrationSubKindAWSRolesAnywhere {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSRolesAnywhere, integration.GetSubKind())
+		}
+
+		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
+		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
+		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
+			Enabled:    req.AWSRA.ProfileSyncConfig.Enabled,
+			ProfileARN: req.AWSRA.ProfileSyncConfig.ProfileARN,
+			RoleARN:    req.AWSRA.ProfileSyncConfig.RoleARN,
+
+			ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
+		}
+		integration.SetAWSRolesAnywhereIntegrationSpec(spec)
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {

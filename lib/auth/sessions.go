@@ -419,6 +419,13 @@ type NewAppSessionRequest struct {
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
+
+	// BotName is the name of the bot that is creating this session.
+	// Empty if not a bot.
+	BotName string
+	// BotInstanceID is the ID of the bot instance that is creating this session.
+	// Empty if not a bot.
+	BotInstanceID string
 }
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -572,6 +579,9 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		// Pass along device extensions from the user.
 		deviceExtensions: req.DeviceExtensions,
 		mfaVerified:      req.MFAVerified,
+		// Pass along bot details to ensure audit logs are correct.
+		botName:       req.BotName,
+		botInstanceID: req.BotInstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -783,30 +793,6 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 		return nil, trace.Wrap(err)
 	}
 	a.logger.DebugContext(ctx, "Generated Snowflake web session", "user", req.Username, "ttl", ttl)
-
-	return session, nil
-}
-
-func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	// TODO(mdwn): implement a module.Features() check.
-
-	if req.SAMLSession == nil {
-		return nil, trace.BadParameter("required SAML session is not populated")
-	}
-
-	// Create services.WebSession for this session.
-	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
-		User:        req.Username,
-		Expires:     req.SAMLSession.ExpireTime,
-		SAMLSession: req.SAMLSession,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = a.UpsertSAMLIdPSession(ctx, session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	a.logger.DebugContext(ctx, "Generated SAML IdP web session", "user", req.Username)
 
 	return session, nil
 }

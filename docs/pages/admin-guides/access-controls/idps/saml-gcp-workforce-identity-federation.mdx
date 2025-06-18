@@ -20,7 +20,7 @@ SAML IdP, so users can sign in into GCP web console by authenticating with Telep
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
@@ -186,6 +186,51 @@ gcloud projects add-iam-policy-binding <GCP_Project_ID> \
 
 Since Teleport role was mapped as a GCP group with attribute mapping, the policy will grant
 access to Teleport user assigned to `gcp-dev` role.
+
+
+## Authenticate gcloud CLI and Google Cloud API clients
+
+GCP offers various ways to obtain short-lived tokens for the workforce pool user.
+These short-lived tokens then can be used with `gcloud` CLI and Google Cloud API clients.
+
+The most straightforward way to obtain credentials is via `gcloud` CLI and browser-based sign-in process.
+
+First, create a login configuration file in your workstation.
+```code
+gcloud iam workforce-pools create-login-config \
+    locations/global/workforcePools/<pool_id>/providers/pool_provider_id \
+    --output-file=/Users/alice/.gcp/my-gcp-workforce-login.json
+```
+
+The command will create a login profile in your workstation.
+```json
+{
+  "universe_domain": "googleapis.com",
+  "universe_cloud_web_domain": "cloud.google",
+  "type": "external_account_authorized_user_login_config",
+  "audience": "//iam.googleapis.com/locations/global/workforcePools/pool_id/providers/pool_provider_id",
+  "auth_url": "https://auth.cloud.google/authorize",
+  "token_url": "https://sts.googleapis.com/v1/oauthtoken",
+  "token_info_url": "https://sts.googleapis.com/v1/introspect"
+}
+```
+
+Now initiate the browser-based sign-in flow.
+```code
+gcloud auth login --login-config=/Users/alice/.gcp/my-gcp-workforce-login.json
+```
+
+A browser window will open and authenticate the user with Teleport SAML IdP.
+After successful authentication, GCP asks the user to confirm to authorize the Google Cloud SDK.
+Once you confirm, GCP will respond with credentials required to set up the `gcloud` CLI.
+
+Now you can use `gcloud` CLI with credentials scoped and configured for the workforce pool user. 
+
+Refer to the GCP docs to learn other methods to obtain credentials that can be used with [`gcloud` CLI or API clients](https://cloud.google.com/iam/docs/workforce-obtaining-short-lived-credentials).
+
+<Admonition type="warning" title="caution">
+GCP recommends safeguarding the login profile configuration file by making it read-only and with an ACL.  
+</Admonition>
 
 
 ## Manual integration

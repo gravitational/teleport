@@ -19,15 +19,22 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  createTeleportContext,
+  getAcl,
+  noAccess,
+} from 'teleport/mocks/contexts';
+import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { RoleDiffProps, RoleDiffState } from '../Roles';
 import { RoleEditorVisualizer } from './RoleEditorVisualizer';
 
+const defaultDemoMode = cfg.entitlements.AccessGraphDemoMode;
 const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
 const defaultIsCloud = cfg.isCloud;
 afterEach(() => {
+  cfg.entitlements.AccessGraphDemoMode = defaultDemoMode;
   cfg.isPolicyEnabled = defaultIsPolicyEnabled;
   cfg.isCloud = defaultIsCloud;
 });
@@ -63,7 +70,7 @@ test('Preview Identity Security button does not show for non-cloud', async () =>
   ).not.toBeInTheDocument();
 });
 
-test('Preview Identity Security button displays for cloud users', async () => {
+test('Preview Identity Security button does not show if entitlement not enabled', async () => {
   cfg.isCloud = true;
   render(
     getComponent(
@@ -72,7 +79,41 @@ test('Preview Identity Security button displays for cloud users', async () => {
       })
     )
   );
+  expect(
+    screen.queryByText('Preview Identity Security')
+  ).not.toBeInTheDocument();
+});
+
+test('Preview Identity Security button displays for cloud users with entitlement', async () => {
+  cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
+  render(
+    getComponent(
+      makeRoleDiffProps({
+        roleDiffState: RoleDiffState.Disabled,
+      })
+    )
+  );
   expect(screen.getByText('Preview Identity Security')).toBeInTheDocument();
+});
+
+test('Preview Identity Security button does not show if user does not have update ACL', async () => {
+  cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
+  const ctx = createTeleportContext({
+    customAcl: { ...getAcl(), accessGraphSettings: noAccess },
+  });
+  render(
+    getComponent(
+      makeRoleDiffProps({
+        roleDiffState: RoleDiffState.Disabled,
+      }),
+      ctx
+    )
+  );
+  expect(
+    screen.queryByText('Preview Identity Security')
+  ).not.toBeInTheDocument();
 });
 
 test('DEMO_READY displays roll diff visualizer with demo banner', async () => {
@@ -112,6 +153,7 @@ test('ERROR displays policy placeholder with error', async () => {
 
 test('LOADING_SETTINGS displays policy placeholder with a preview button in a loading state', async () => {
   cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
   render(
     getComponent(
       makeRoleDiffProps({ roleDiffState: RoleDiffState.LoadingSettings })
@@ -122,6 +164,7 @@ test('LOADING_SETTINGS displays policy placeholder with a preview button in a lo
 
 test('WAITING_FOR_SYNC displays policy placeholder with a preview button in a loading state', async () => {
   cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
   render(
     getComponent(
       makeRoleDiffProps({ roleDiffState: RoleDiffState.WaitingForSync })
@@ -139,8 +182,8 @@ function makeRoleDiffProps(props?: Partial<RoleDiffProps>) {
   };
 }
 
-function getComponent(props: RoleDiffProps) {
-  const ctx = createTeleportContext();
+function getComponent(props: RoleDiffProps, customCtx?: TeleportContext) {
+  const ctx = customCtx || createTeleportContext();
   return (
     <TeleportContextProvider ctx={ctx}>
       <RoleEditorVisualizer currentFlow="creating" roleDiffProps={props} />

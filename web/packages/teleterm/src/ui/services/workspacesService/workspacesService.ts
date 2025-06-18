@@ -63,7 +63,6 @@ import {
   DocumentCluster,
   DocumentGateway,
   DocumentsService,
-  DocumentTshKube,
   DocumentTshNode,
   DocumentVnetInfo,
   getDefaultDocumentClusterQueryParams,
@@ -551,11 +550,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         // DocumentsService
         // TrackedConnectionOperationsFactory
         // here
-        if (
-          d.kind === 'doc.terminal_tsh_kube' ||
-          d.kind === 'doc.terminal_tsh_node'
-        ) {
-          const documentTerminal: DocumentTshKube | DocumentTshNode = {
+        if (d.kind === 'doc.terminal_tsh_node') {
+          const documentTerminal: DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',
@@ -583,6 +579,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
                 ...defaultParams.sort,
                 ...d.queryParams?.sort,
               },
+              statuses: d.queryParams?.statuses
+                ? [...d.queryParams.statuses] // makes the array mutable
+                : defaultParams.statuses,
               resourceKinds: d.queryParams?.resourceKinds
                 ? [...d.queryParams.resourceKinds] // makes the array mutable
                 : defaultParams.resourceKinds,
@@ -594,7 +593,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         if (d.kind === 'doc.vnet_info') {
           const documentVnetInfo: DocumentVnetInfo = {
             ...d,
-            app: undefined,
+            launcherArgs: undefined,
           };
           return documentVnetInfo;
         }

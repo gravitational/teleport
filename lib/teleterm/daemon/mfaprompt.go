@@ -67,7 +67,7 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 	s.mfaMu.Lock()
 	defer s.mfaMu.Unlock()
 
-	return s.tshdEventsClient.PromptMFA(ctx, in)
+	return s.cfg.TshdEventsClient.client.PromptMFA(ctx, in)
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
@@ -77,7 +77,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 	scope := p.cfg.Extensions.GetScope()
 	// No prompt to run, no-op.
-	if !(promptOTP || promptWebauthn || promptSSO) {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 

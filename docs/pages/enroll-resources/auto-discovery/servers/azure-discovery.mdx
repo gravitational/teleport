@@ -3,6 +3,11 @@ title: Automatically Discover Azure Virtual Machines
 description: How to configure Teleport to automatically enroll Azure virtual machines.
 ---
 
+This guide shows you how to set up automatic server discovery for Azure virtual
+machines.
+
+## How it works
+
 The Teleport Discovery Service can connect to Azure and automatically
 discover and enroll virtual machines matching configured labels. It will then
 execute a script on these discovered instances that will install Teleport,
@@ -241,13 +246,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "azure-prod"
   azure:
     - types: ["vm"]
@@ -301,7 +306,7 @@ logs can be found on the targeted VM at
 
 ## Next steps
 
-- Read [Joining Nodes via Azure Managed Identity](../../agents/join-services-to-your-cluster/azure.mdx)
+- Read [Joining Nodes via Azure Managed Identity](../../agents/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../../reference/config.mdx).

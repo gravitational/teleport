@@ -38,7 +38,7 @@ export const SidePanel = ({
       width="500px"
       flexDirection="column"
       borderLeft={1}
-      borderColor="levels.surface"
+      borderColor="interactive.tonal.neutral.0"
     >
       <Flex alignItems="center" justifyContent="space-between" my={3} px={4}>
         {header}

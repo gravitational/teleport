@@ -34,15 +34,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func TestOSCommandPrep(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 
 	// because CheckHomeDir now inspects access to the home directory as the actual user after a rexec,
 	// we need to setup a real, non-root user with a valid home directory in order for this test to
@@ -81,6 +84,7 @@ func TestOSCommandPrep(t *testing.T) {
 		"TERM=xterm",
 		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTYName()),
 		"SSH_SESSION_ID=xxx",
+		"TELEPORT_SESSION=xxx",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
 		"SSH_TELEPORT_USER=teleportUser",
@@ -144,6 +148,8 @@ func TestConfigureCommand(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
+
 	unexpectedKey := "FOO"
 	unexpectedValue := "BAR"
 	// environment values in the server context should not be forwarded
@@ -162,6 +168,8 @@ func TestConfigureCommand(t *testing.T) {
 func TestContinue(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 
 	// Configure Session Context to re-exec "ls".
 	var err error

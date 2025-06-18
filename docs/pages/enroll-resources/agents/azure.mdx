@@ -1,0 +1,100 @@
+---
+title: Joining Services via Azure Managed Identity
+description: Use the Azure join method to join Teleport services to your Teleport cluster on Azure
+---
+
+This guide will explain how to use the **Azure join method** to configure
+Teleport instances to join your Teleport cluster without sharing any secrets
+when they are running in an Azure Virtual Machine.
+
+The Azure join method is available to any Teleport process running in an
+Azure Virtual Machine. Support for joining a cluster with the Proxy Service
+behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
+
+For other methods of joining a Teleport process to a cluster, see [Joining
+Teleport Services to a Cluster](agents.mdx).
+
+## How it works
+
+Under the hood, Teleport processes prove that they are running in your Azure
+subscription by sending a signed attested data document and access token to the
+Teleport Auth Service. The VM's identity must match an allow rule configured in
+your Azure joining token.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- An Azure Virtual Machine running Linux with the Teleport binary installed. The
+  Virtual Machine must have a [Managed
+  Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+  assigned to it with permission to read virtual machine info.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Set up a Managed Identity
+
+Every virtual machine hosting a Teleport process using the Azure method to join
+your Teleport cluster needs a Managed Identity assigned to it. The identity
+requires the `Microsoft.Compute/virtualMachines/read` permission so Teleport can
+look up the virtual machine. No other permissions are required.
+
+(!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
+
+## Step 2/5. Create the Azure joining token
+
+Create the following `token.yaml` with an `allow` rule specifying your Azure
+subscription and the resource group that your VM's identity must match.
+
+(!docs/pages/includes/provision-token/azure-spec.mdx!)
+
+The token name `azure-token` is just an example and can be any value you want to
+use, as long as you use the same value for `join_params.token_name` in Step 3.
+
+Run the following command to create the token:
+
+```code
+$ tctl create -f token.yaml
+```
+
+## Step 3/5 Install Teleport
+
+Install Teleport on your Azure Linux VM.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/5. Configure your Teleport process
+
+The Azure join method can be used for Teleport processes running the SSH, Proxy,
+Kubernetes, Application, Database, or Desktop Service.
+
+Configure your Teleport process with a custom `teleport.yaml` file. Use the
+`join_params` section with `token_name` matching your token created in Step 2
+and `method: azure` as shown in the following example config:
+
+```yaml
+# /etc/teleport.yaml
+version: v3
+teleport:
+  join_params:
+    token_name: azure-token
+    method: azure
+    azure:
+      # client_id is the client ID of the managed identity created in Step 1.
+      client_id: 11111111-1111-1111-1111-111111111111
+  proxy_server: teleport.example.com:443
+ssh_service:
+  enabled: true
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+```
+
+## Step 5/5. Launch your Teleport process
+
+Start Teleport on the Azure VM.
+
+(!docs/pages/includes/start-teleport.mdx!)
+
+Confirm that your Teleport process is able to connect to and join your cluster.
+You're all set!

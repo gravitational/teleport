@@ -19,6 +19,7 @@ package teleport.presence.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/presence/v1/relay_server.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1";
 
@@ -39,6 +40,13 @@ service PresenceService {
   rpc UpsertReverseTunnel(UpsertReverseTunnelRequest) returns (types.ReverseTunnelV2);
   // DeleteReverseTunnel removes an existing ReverseTunnel by name.
   rpc DeleteReverseTunnel(DeleteReverseTunnelRequest) returns (google.protobuf.Empty);
+
+  // GetRelayServer returns a single relay_server by name.
+  rpc GetRelayServer(GetRelayServerRequest) returns (GetRelayServerResponse);
+  // ListRelayServers returns a page of relay_server resources.
+  rpc ListRelayServers(ListRelayServersRequest) returns (ListRelayServersResponse);
+  // DeleteRelayServer deletes a relay_server resource by name.
+  rpc DeleteRelayServer(DeleteRelayServerRequest) returns (DeleteRelayServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -115,3 +123,41 @@ message DeleteReverseTunnelRequest {
   // Name is the name of the ReverseTunnel to delete.
   string name = 1;
 }
+
+// Request message for the PresenceService.GetRelayServer rpc.
+message GetRelayServerRequest {
+  string name = 1;
+}
+
+// Response message for the PresenceService.GetRelayServer rpc.
+message GetRelayServerResponse {
+  RelayServer relay_server = 1;
+}
+
+// Request message for the PresenceService.ListRelayServers rpc.
+message ListRelayServersRequest {
+  // The maximum number of items to return. The service may return fewer than
+  // this value. If unspecified, the service will use a sensible default.
+  int64 page_size = 1;
+
+  // A pagination token returned from a previous request. If empty, the request
+  // will return the first page.
+  string page_token = 2;
+}
+
+// Response message for the PresenceService.ListRelayServers rpc.
+message ListRelayServersResponse {
+  repeated RelayServer relays = 1;
+
+  // A token that can be sent as the page_token to retrieve the next page. If
+  // this field is empty, there are no more pages.
+  string next_page_token = 2;
+}
+
+// Request message for the PresenceService.DeleteRelayServer rpc.
+message DeleteRelayServerRequest {
+  string name = 1;
+}
+
+// Response message for the PresenceService.DeleteRelayServer rpc.
+message DeleteRelayServerResponse {}

@@ -51,7 +51,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       style,
     } = props;
     const [filter, setFilter] = useState('');
-    const anchorRef = useRef<HTMLButtonElement>();
+    const anchorRef = useRef<HTMLButtonElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
       Promise.resolve().then(() => props.getLoginItems())
@@ -130,7 +130,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           width={alignButtonWidthToMenu ? width : null}
           textTransform={props.textTransform}
           size="small"
-          setRef={anchorRef}
+          ref={anchorRef}
           onClick={onOpen}
           style={style}
         >

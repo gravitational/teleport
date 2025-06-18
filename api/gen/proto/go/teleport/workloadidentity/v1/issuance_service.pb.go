@@ -41,9 +41,13 @@ const (
 type X509SVIDParams struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The PKIX, ASN.1 DER public key to encode into the X509 SVID.
-	PublicKey     []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// Whether or not the issuance should use a configured X509 issuer override,
+	// if any. When set, the returned credentials might include a certificate
+	// chain that will be required to use the returned certificate correctly.
+	UseIssuerOverrides bool `protobuf:"varint,2,opt,name=use_issuer_overrides,json=useIssuerOverrides,proto3" json:"use_issuer_overrides,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *X509SVIDParams) Reset() {
@@ -81,6 +85,13 @@ func (x *X509SVIDParams) GetPublicKey() []byte {
 		return x.PublicKey
 	}
 	return nil
+}
+
+func (x *X509SVIDParams) GetUseIssuerOverrides() bool {
+	if x != nil {
+		return x.UseIssuerOverrides
+	}
+	return false
 }
 
 // The parameters for issuing a JWT SVID.
@@ -136,7 +147,11 @@ type X509SVIDCredential struct {
 	// ASN.1 DER encoded X.509 certificate. No PEM.
 	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
 	// The serial number of the X509 SVID.
-	SerialNumber  string `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	SerialNumber string `protobuf:"bytes,2,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	// The certificate chain for the issued X509 SVID (in order from end entity
+	// certificate to root certificate, excluding both ends). ASN.1 DER encoded
+	// X.509 certificate. No PEM. Can be empty.
+	Chain         [][]byte `protobuf:"bytes,3,rep,name=chain,proto3" json:"chain,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,6 +198,13 @@ func (x *X509SVIDCredential) GetSerialNumber() string {
 		return x.SerialNumber
 	}
 	return ""
+}
+
+func (x *X509SVIDCredential) GetChain() [][]byte {
+	if x != nil {
+		return x.Chain
+	}
+	return nil
 }
 
 // The issued JWT SVID credential and any JWT SVID specific metadata.
@@ -768,15 +790,17 @@ var File_teleport_workloadidentity_v1_issuance_service_proto protoreflect.FileDe
 
 const file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc = "" +
 	"\n" +
-	"3teleport/workloadidentity/v1/issuance_service.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a(teleport/workloadidentity/v1/attrs.proto\"/\n" +
+	"3teleport/workloadidentity/v1/issuance_service.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a(teleport/workloadidentity/v1/attrs.proto\"a\n" +
 	"\x0eX509SVIDParams\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\x01 \x01(\fR\tpublicKey\"-\n" +
+	"public_key\x18\x01 \x01(\fR\tpublicKey\x120\n" +
+	"\x14use_issuer_overrides\x18\x02 \x01(\bR\x12useIssuerOverrides\"-\n" +
 	"\rJWTSVIDParams\x12\x1c\n" +
-	"\taudiences\x18\x01 \x03(\tR\taudiences\"M\n" +
+	"\taudiences\x18\x01 \x03(\tR\taudiences\"c\n" +
 	"\x12X509SVIDCredential\x12\x12\n" +
 	"\x04cert\x18\x01 \x01(\fR\x04cert\x12#\n" +
-	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\"7\n" +
+	"\rserial_number\x18\x02 \x01(\tR\fserialNumber\x12\x14\n" +
+	"\x05chain\x18\x03 \x03(\fR\x05chain\"7\n" +
 	"\x11JWTSVIDCredential\x12\x10\n" +
 	"\x03jwt\x18\x01 \x01(\tR\x03jwt\x12\x10\n" +
 	"\x03jti\x18\x02 \x01(\tR\x03jti\"\xc6\x03\n" +

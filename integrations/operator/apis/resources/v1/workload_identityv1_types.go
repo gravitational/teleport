@@ -94,7 +94,9 @@ func (spec *TeleportWorkloadIdentityV1Spec) UnmarshalJSON(data []byte) error {
 // which is necessary for the WorkloadIdentitySpec (and other Proto RFD153
 // resources) to be marshaled correctly into the unstructured object.
 func (spec *TeleportWorkloadIdentityV1Spec) MarshalJSON() ([]byte, error) {
-	return protojson.Marshal((*workloadidentityv1.WorkloadIdentitySpec)(spec))
+	return protojson.MarshalOptions{
+		UseProtoNames: true,
+	}.Marshal((*workloadidentityv1.WorkloadIdentitySpec)(spec))
 }
 
 // DeepCopyInto deep-copies one user spec into another.

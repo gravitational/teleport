@@ -18,8 +18,12 @@
 
 package kubeversionupdater
 
-import "github.com/gravitational/teleport/api"
+import (
+	"github.com/coreos/go-semver/semver"
 
-const Version = api.Version
+	"github.com/gravitational/teleport/api"
+)
 
-var SemVersion = api.SemVersion
+func Version() *semver.Version {
+	return api.SemVer()
+}

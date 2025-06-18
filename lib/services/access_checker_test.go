@@ -41,10 +41,11 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			rv.SetName("dev")
 			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			})
 			rv.SetKubernetesLabels(types.Allow, kubeDevLabels)
@@ -54,16 +55,18 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			rv.SetName("any")
 			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			})
 			rv.SetKubernetesLabels(types.Allow, kubeAnyLabels)
@@ -75,16 +78,18 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			rv.SetName("list-only")
 			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
 				},
 			})
 			rv.SetKubernetesLabels(types.Allow, kubeAnyLabels)
@@ -93,9 +98,10 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 	)
 	localCluster := "cluster"
 	type fields struct {
-		info     *AccessInfo
-		roleSet  RoleSet
-		resource types.KubernetesResource
+		info          *AccessInfo
+		roleSet       RoleSet
+		resource      types.KubernetesResource
+		isClusterWide bool
 	}
 	tests := []struct {
 		name         string
@@ -114,7 +120,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				},
 				roleSet: roleSet,
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbGet},
@@ -122,16 +128,18 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -146,7 +154,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				},
 				roleSet: roleSet,
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "rand",
 					Verbs:     []string{types.KubeVerbGet},
@@ -154,22 +162,25 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -209,18 +220,20 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					},
 				},
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "*",
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  "*",
 				},
 			},
 			wantDenied:   emptySet,
@@ -259,10 +272,11 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					},
 				},
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "",
 				},
 			},
 			wantAllowed:  nil,
@@ -290,30 +304,34 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					},
 				},
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -341,18 +359,20 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					},
 				},
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "",
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -380,24 +400,27 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					},
 				},
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "",
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -412,7 +435,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Roles: []string{"any", "dev"},
 					AllowedResourceIDs: []types.ResourceID{
 						{
-							Kind:            types.KindKubePod,
+							Kind:            "pods",
 							ClusterName:     localCluster,
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "wrongNamespace/wrongPodName",
@@ -420,7 +443,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					},
 				},
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "wrongPodName",
 					Namespace: "wrongNamespace",
 					Verbs:     []string{types.KubeVerbGet},
@@ -439,7 +462,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				},
 				roleSet: listOnlySet,
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbGet},
@@ -447,16 +470,18 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -471,7 +496,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				},
 				roleSet: listOnlySet,
 				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbList},
@@ -479,16 +504,18 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			},
 			wantAllowed: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      "any1",
 					Namespace: "any2",
 					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
 				},
 			},
 			wantDenied:   emptySet,
@@ -505,7 +532,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				AccessState{MFARequired: MFARequiredNever},
 				// Append a matcher that validates if the Kubernetes resource is allowed
 				// by the roles that satisfy the Kubernetes Cluster.
-				NewKubernetesResourceMatcher(tt.fields.resource),
+				NewKubernetesResourceMatcher(tt.fields.resource, tt.fields.isClusterWide),
 			)
 			tt.assertAccess(t, err)
 			sortKubeResourceSlice(gotAllowed)
@@ -872,6 +899,81 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 				AccessState{},
 			)
 			tt.requireError(t, err)
+		})
+	}
+}
+
+func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
+	roleEmptyTools := newRole(func(rv *types.RoleV6) {
+		rv.SetName("empty")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+	})
+	roleNoLabelsMatch := newRole(func(rv *types.RoleV6) {
+		rv.SetName("not-match")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"bar"},
+		})
+	})
+	roleAllowWildcard := newRole(func(rv *types.RoleV6) {
+		rv.SetName("dev")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"dev"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"*"},
+		})
+	})
+	roleExplicitDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("deny-bar")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+		rv.SetMCPPermissions(types.Deny, &types.MCPPermissions{
+			Tools: []string{"foo"},
+		})
+	})
+
+	mcpServer := &types.AppV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: "mcp-everything",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		roles     RoleSet
+		mcpServer types.Application
+		result    EnumerationResult
+	}{
+		{
+			name:      "no tools permission",
+			roles:     NewRoleSet(roleEmptyTools, roleNoLabelsMatch),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				allowedDeniedMap: map[string]bool{},
+			},
+		},
+		{
+			name:      "allow wildcard, deny specific value",
+			roles:     NewRoleSet(roleAllowWildcard, roleExplicitDeny),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				wildcardAllowed: true,
+				allowedDeniedMap: map[string]bool{
+					"foo": false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) {
+				accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
+				enumResult := accessChecker.EnumerateMCPTools(tt.mcpServer)
+				require.Equal(t, tt.result, enumResult)
+			})
 		})
 	}
 }

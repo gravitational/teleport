@@ -44,10 +44,12 @@ func TestCertChecker(t *testing.T) {
 	// certChecker should issue a new cert on first request.
 	cert, err := certChecker.GetOrIssueCert(ctx)
 	require.NoError(t, err)
+	require.NoError(t, certChecker.RetrieveError())
 
 	// subsequent calls should return the same cert.
 	sameCert, err := certChecker.GetOrIssueCert(ctx)
 	require.NoError(t, err)
+	require.NoError(t, certChecker.RetrieveError())
 	require.Equal(t, cert, sameCert)
 
 	// If the current cert expires it should be reissued.
@@ -56,6 +58,7 @@ func TestCertChecker(t *testing.T) {
 
 	cert, err = certChecker.GetOrIssueCert(ctx)
 	require.NoError(t, err)
+	require.NoError(t, certChecker.RetrieveError())
 	require.NotEqual(t, cert, expiredCert)
 
 	// If the current cert fails certIssuer checks, a new one should be issued.
@@ -64,12 +67,20 @@ func TestCertChecker(t *testing.T) {
 
 	cert, err = certChecker.GetOrIssueCert(ctx)
 	require.NoError(t, err)
+	require.NoError(t, certChecker.RetrieveError())
 	require.NotEqual(t, cert, badCert)
 
 	// If issuing a new cert fails, an error is returned.
 	certIssuer.issueErr = trace.BadParameter("failed to issue cert")
 	_, err = certChecker.GetOrIssueCert(ctx)
 	require.ErrorIs(t, err, certIssuer.issueErr, "expected error %v but got %v", certIssuer.issueErr, err)
+	require.ErrorIs(t, certChecker.RetrieveError(), err, "expected retrieve error to be the same get error but got: %v", certChecker.RetrieveError())
+
+	// If the problem is solved, the error is clean up.
+	certIssuer.issueErr = nil
+	_, err = certChecker.GetOrIssueCert(ctx)
+	require.NoError(t, err)
+	require.NoError(t, certChecker.RetrieveError())
 }
 
 func TestLocalCertGenerator(t *testing.T) {

@@ -38,6 +38,11 @@ service WorkloadIdentityIssuanceService {
 message X509SVIDParams {
   // The PKIX, ASN.1 DER public key to encode into the X509 SVID.
   bytes public_key = 1;
+
+  // Whether or not the issuance should use a configured X509 issuer override,
+  // if any. When set, the returned credentials might include a certificate
+  // chain that will be required to use the returned certificate correctly.
+  bool use_issuer_overrides = 2;
 }
 
 // The parameters for issuing a JWT SVID.
@@ -53,6 +58,10 @@ message X509SVIDCredential {
   bytes cert = 1;
   // The serial number of the X509 SVID.
   string serial_number = 2;
+  // The certificate chain for the issued X509 SVID (in order from end entity
+  // certificate to root certificate, excluding both ends). ASN.1 DER encoded
+  // X.509 certificate. No PEM. Can be empty.
+  repeated bytes chain = 3;
 }
 
 // The issued JWT SVID credential and any JWT SVID specific metadata.

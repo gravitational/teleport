@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,7 +74,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
@@ -161,6 +159,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 	t.Run("ExecEvents", suite.bind(testExecEvents))
 	t.Run("ExternalClient", suite.bind(testExternalClient))
+	t.Run("ForceListenerInTunnelMode", suite.bind(testForceListenerInTunnelMode))
 	t.Run("HA", suite.bind(testHA))
 	t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
 	t.Run("Interactive (Reverse Tunnel)", suite.bind(testInteractiveReverseTunnel))
@@ -316,14 +315,14 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest{
+		status, err := clt.GetInventoryStatus(context.Background(), &proto.InventoryStatusRequest{
 			Connected: true,
 		})
 		require.NoError(t, err)
 
 		for _, hello := range status.Connected {
 			for _, s := range hello.Services {
-				if s != types.RoleNode {
+				if s != string(types.RoleNode) {
 					continue
 				}
 				nodeID = hello.ServerID
@@ -2247,17 +2246,14 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	tc.SessionID = uuid.NewString()
-
-	// The SessionID and Web address should be set in the session env vars.
-	cmd := []string{"printenv", sshutils.SessionEnvVar, ";", "printenv", teleport.SSHSessionWebProxyAddr}
+	// The Web address should be set in the session env vars.
+	cmd := []string{"printenv", teleport.SSHSessionWebProxyAddr}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
 	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
 	output := out.String()
-	require.Contains(t, output, tc.SessionID)
 	require.Contains(t, output, tc.WebProxyAddr)
 
 	term := NewTerminal(250)
@@ -2266,7 +2262,6 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	err = tc.SSH(ctx, nil)
 	require.NoError(t, err)
 	output = term.AllOutput()
-	require.Contains(t, output, tc.SessionID)
 	require.Contains(t, output, tc.WebProxyAddr)
 }
 
@@ -2439,28 +2434,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
 	require.NoError(t, err)
 
-	// The known_hosts file should have two certificates, the way bytes.Split
-	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := os.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
+	trustedCerts, err := tc.ClientStore.GetTrustedCerts(tc.WebProxyHost())
 	require.NoError(t, err)
-	parts := bytes.Split(buffer, []byte("\n"))
-	require.Len(t, parts, 3)
-
-	roots := x509.NewCertPool()
-	werr := filepath.Walk(keypaths.CAsDir(tc.KeysDir, Host), func(path string, info fs.FileInfo, err error) error {
-		require.NoError(t, err)
-		if info.IsDir() {
-			return nil
-		}
-		buffer, err = os.ReadFile(path)
-		require.NoError(t, err)
-		ok := roots.AppendCertsFromPEM(buffer)
-		require.True(t, ok)
-		return nil
-	})
-	require.NoError(t, werr)
-	ok := roots.AppendCertsFromPEM(buffer)
-	require.True(t, ok)
+	require.Len(t, trustedCerts, 2)
 
 	// wait for active tunnel connections to be established
 	helpers.WaitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
@@ -4848,7 +4824,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 							assert.NoError(t, err)
 
 							assert.Eventually(t, func() bool {
@@ -6209,9 +6185,14 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		{
 			desc: "Both",
 			// Print slowly so we can confirm that the output isn't interleaved.
-			command:     slowPrintCommand("abcd1234"),
-			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
+			command: slowPrintCommand("abcd1234"),
+			labels:  map[string]string{"spam": "eggs"},
+			expectLines: []string{
+				"Running command on server-01:",
+				"Running command on server-02:",
+				"[server-01] abcd1234",
+				"[server-02] abcd1234",
+			},
 		},
 		{
 			desc:        "Worker only",
@@ -6235,10 +6216,10 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 				Labels:  tt.labels,
 			}
 
-			output, err := runCommand(t, teleport, tt.command, cfg, 1)
+			output, err := runCommand(t, teleport, tt.command, cfg, 3)
 			require.NoError(t, err)
 			outputLines := strings.Split(strings.TrimSpace(output), "\n")
-			require.Len(t, outputLines, len(tt.expectLines))
+			require.Len(t, outputLines, len(tt.expectLines), "raw output:\n%v", output)
 			for _, line := range tt.expectLines {
 				require.Contains(t, outputLines, line)
 			}
@@ -9197,4 +9178,141 @@ func testNegotiatedALPNProtocols(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, protocol, conn.ConnectionState().NegotiatedProtocol)
 		})
 	}
+}
+
+func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *servicecfg.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig())
+
+	// Create a Teleport ssh instance.
+	nodeConfig := func(tunnel, forceListen bool) *servicecfg.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Hostname = Host
+		tconf.SetToken("token")
+
+		if tunnel {
+			tconf.SetAuthServerAddress(utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        main.Web,
+			})
+		} else {
+			tconf.SetAuthServerAddress(utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        main.Auth,
+			})
+		}
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = false
+
+		tconf.SSH.Enabled = true
+
+		if forceListen {
+			tconf.SSH.Addr = utils.NetAddr{
+				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &tconf.FileDescriptors),
+			}
+			tconf.SSH.ForceListen = true
+		}
+
+		return tconf
+	}
+
+	forceListenNode, err := main.StartReverseTunnelNode(nodeConfig(true, true))
+	require.NoError(t, err)
+
+	tunnelOnlyNode, err := main.StartReverseTunnelNode(nodeConfig(true, false))
+	require.NoError(t, err)
+
+	directNode, err := main.StartNode(nodeConfig(false, true))
+	require.NoError(t, err)
+
+	forceListenDirectNode, err := main.StartNode(nodeConfig(false, true))
+	require.NoError(t, err)
+
+	require.NoError(t, main.WaitForNodeCount(context.Background(), helpers.Site, 4))
+
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+		Process:  main.Process,
+		Username: suite.Me.Username,
+	})
+	require.NoError(t, err)
+
+	signer, err := creds.KeyRing.SSHSigner()
+	require.NoError(t, err)
+
+	t.Run("tunnel node", func(t *testing.T) {
+		t.Run("forced listen node", func(t *testing.T) {
+			clt, err := ssh.Dial("tcp", forceListenNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
+				User:            suite.Me.Username,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         15 * time.Second,
+			})
+			require.NoError(t, err)
+
+			ok, resp, err := clt.SendRequest(teleport.VersionRequest, true, nil)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, teleport.Version, string(resp))
+		})
+
+		t.Run("tunnel only node", func(t *testing.T) {
+			_, err := ssh.Dial("tcp", tunnelOnlyNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
+				User:            suite.Me.Username,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         15 * time.Second,
+			})
+			require.Error(t, err)
+		})
+	})
+
+	t.Run("direct node", func(t *testing.T) {
+		t.Run("forced listen node", func(t *testing.T) {
+			clt, err := ssh.Dial("tcp", forceListenDirectNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
+				User:            suite.Me.Username,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         15 * time.Second,
+			})
+			require.NoError(t, err)
+
+			ok, resp, err := clt.SendRequest(teleport.VersionRequest, true, nil)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, teleport.Version, string(resp))
+		})
+
+		t.Run("direct node", func(t *testing.T) {
+			clt, err := ssh.Dial("tcp", directNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
+				User:            suite.Me.Username,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         15 * time.Second,
+			})
+			require.NoError(t, err)
+
+			ok, resp, err := clt.SendRequest(teleport.VersionRequest, true, nil)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, teleport.Version, string(resp))
+		})
+	})
 }

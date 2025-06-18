@@ -34,17 +34,17 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/coreos/go-oidc"
 	"github.com/digitorus/pkcs7"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -87,7 +87,7 @@ type attestedData struct {
 }
 
 type accessTokenClaims struct {
-	jwt.Claims
+	oidc.TokenClaims
 	TenantID string `json:"tid"`
 	Version  string `json:"ver"`
 
@@ -107,18 +107,29 @@ type accessTokenClaims struct {
 	AzureResourceID            string `json:"xms_az_rid"`
 }
 
+func (c *accessTokenClaims) AsJWTClaims() jwt.Claims {
+	return jwt.Claims{
+		Issuer:    c.Issuer,
+		Subject:   c.Subject,
+		Audience:  jwt.Audience(c.Audience),
+		Expiry:    jwt.NewNumericDate(c.Expiration.AsTime()),
+		NotBefore: jwt.NewNumericDate(c.NotBefore.AsTime()),
+		IssuedAt:  jwt.NewNumericDate(c.IssuedAt.AsTime()),
+		ID:        c.JWTID,
+	}
+}
+
 type azureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*accessTokenClaims, error)
 
 type vmClientGetter func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error)
 
 type azureRegisterConfig struct {
-	clock                  clockwork.Clock
 	certificateAuthorities []*x509.Certificate
 	verify                 azureVerifyTokenFunc
 	getVMClient            vmClientGetter
 }
 
-func azureVerifyFuncFromOIDCVerifier(cfg *oidc.Config) azureVerifyTokenFunc {
+func azureVerifyFuncFromOIDCVerifier(clientID string) azureVerifyTokenFunc {
 	return func(ctx context.Context, rawIDToken string) (*accessTokenClaims, error) {
 		token, err := jwt.ParseSigned(rawIDToken)
 		if err != nil {
@@ -133,32 +144,13 @@ func azureVerifyFuncFromOIDCVerifier(cfg *oidc.Config) azureVerifyTokenFunc {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		provider, err := oidc.NewProvider(ctx, issuer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		verifiedToken, err := provider.Verifier(cfg).Verify(ctx, rawIDToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var tokenClaims accessTokenClaims
-		if err := verifiedToken.Claims(&tokenClaims); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &tokenClaims, nil
+		return liboidc.ValidateToken[*accessTokenClaims](ctx, issuer, clientID, rawIDToken)
 	}
 }
 
 func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
-	if cfg.clock == nil {
-		cfg.clock = clockwork.NewRealClock()
-	}
 	if cfg.verify == nil {
-		oidcConfig := &oidc.Config{
-			ClientID: azureAccessTokenAudience,
-			Now:      cfg.clock.Now,
-		}
-		cfg.verify = azureVerifyFuncFromOIDCVerifier(oidcConfig)
+		cfg.verify = azureVerifyFuncFromOIDCVerifier(azureAccessTokenAudience)
 	}
 
 	if cfg.certificateAuthorities == nil {
@@ -278,7 +270,7 @@ func verifyVMIdentity(
 		Time:     requestStart,
 	}
 
-	if err := tokenClaims.Validate(expectedClaims); err != nil {
+	if err := tokenClaims.AsJWTClaims().Validate(expectedClaims); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -301,7 +293,7 @@ func verifyVMIdentity(
 
 	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
 		Token:     accessToken,
-		ExpiresOn: tokenClaims.Expiry.Time(),
+		ExpiresOn: tokenClaims.GetExpiration(),
 	})
 	vmClient, err := cfg.getVMClient(subscriptionID, tokenCredential)
 	if err != nil {
@@ -489,7 +481,7 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(
+		certs, _, err := a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req.RegisterUsingTokenRequest,

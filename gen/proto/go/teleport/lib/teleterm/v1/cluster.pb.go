@@ -463,8 +463,12 @@ type ACL struct {
 	ActiveSessions *ResourceAccess `protobuf:"bytes,14,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`
 	// review_requests defines the ability to review requests
 	ReviewRequests bool `protobuf:"varint,15,opt,name=review_requests,json=reviewRequests,proto3" json:"review_requests,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Indicates whether the user can share a local directory with the remote machine during desktop sessions.
+	DirectorySharingEnabled bool `protobuf:"varint,16,opt,name=directory_sharing_enabled,json=directorySharingEnabled,proto3" json:"directory_sharing_enabled,omitempty"`
+	// Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
+	ClipboardSharingEnabled bool `protobuf:"varint,17,opt,name=clipboard_sharing_enabled,json=clipboardSharingEnabled,proto3" json:"clipboard_sharing_enabled,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *ACL) Reset() {
@@ -591,6 +595,20 @@ func (x *ACL) GetActiveSessions() *ResourceAccess {
 func (x *ACL) GetReviewRequests() bool {
 	if x != nil {
 		return x.ReviewRequests
+	}
+	return false
+}
+
+func (x *ACL) GetDirectorySharingEnabled() bool {
+	if x != nil {
+		return x.DirectorySharingEnabled
+	}
+	return false
+}
+
+func (x *ACL) GetClipboardSharingEnabled() bool {
+	if x != nil {
+		return x.ClipboardSharingEnabled
 	}
 	return false
 }
@@ -777,7 +795,7 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\bUserType\x12\x19\n" +
 	"\x15USER_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fUSER_TYPE_LOCAL\x10\x01\x12\x11\n" +
-	"\rUSER_TYPE_SSO\x10\x02\"\xf1\a\n" +
+	"\rUSER_TYPE_SSO\x10\x02\"\xe9\b\n" +
 	"\x03ACL\x12Q\n" +
 	"\x0fauth_connectors\x18\x02 \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x0eauthConnectors\x12>\n" +
 	"\x05roles\x18\x03 \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x05roles\x12>\n" +
@@ -793,7 +811,9 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\x0faccess_requests\x18\f \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x0eaccessRequests\x12U\n" +
 	"\x11recorded_sessions\x18\r \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x10recordedSessions\x12Q\n" +
 	"\x0factive_sessions\x18\x0e \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x0eactiveSessions\x12'\n" +
-	"\x0freview_requests\x18\x0f \x01(\bR\x0ereviewRequestsJ\x04\b\x01\x10\x02R\bsessions\"\x8e\x01\n" +
+	"\x0freview_requests\x18\x0f \x01(\bR\x0ereviewRequests\x12:\n" +
+	"\x19directory_sharing_enabled\x18\x10 \x01(\bR\x17directorySharingEnabled\x12:\n" +
+	"\x19clipboard_sharing_enabled\x18\x11 \x01(\bR\x17clipboardSharingEnabledJ\x04\b\x01\x10\x02R\bsessions\"\x8e\x01\n" +
 	"\x0eResourceAccess\x12\x12\n" +
 	"\x04list\x18\x01 \x01(\bR\x04list\x12\x12\n" +
 	"\x04read\x18\x02 \x01(\bR\x04read\x12\x12\n" +

@@ -415,7 +415,6 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Setting deprecated field for older proxy clients.
 		SSHPubKey:         req.SshPublicKey,
 		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
@@ -690,27 +689,14 @@ func (a *Server) makeGithubAuthResponse(
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
-		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		req.SshPublicKey,
-		req.TlsPublicKey,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
-		hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
-	)
-	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
+	if len(req.SshPublicKey) != 0 || len(req.TlsPublicKey) != 0 {
 		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
 			UserState:               userState,
 			SessionTTL:              sessionTTL,
-			SSHPubKey:               sshPublicKey,
-			TLSPubKey:               tlsPublicKey,
-			SSHAttestationStatement: sshAttestationStatement,
-			TLSAttestationStatement: tlsAttestationStatement,
+			SSHPubKey:               req.SshPublicKey,
+			TLSPubKey:               req.TlsPublicKey,
+			SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+			TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
 			Compatibility:           req.Compatibility,
 			RouteToCluster:          req.RouteToCluster,
 			KubernetesCluster:       req.KubernetesCluster,
@@ -1038,20 +1024,34 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 		// they're used a lot in test code
 		return nil
 	}
+
 	u, err := url.Parse(clientRedirect)
 	if err != nil {
 		return trace.Wrap(err, "parsing client redirect URL")
 	}
-	if u.Path == sso.WebMFARedirect {
-		// If this is a SSO redirect in the WebUI, allow.
-		return nil
-	}
+
 	if u.Opaque != "" {
 		return trace.BadParameter("unexpected opaque client redirect URL")
 	}
 	if u.User != nil {
 		return trace.BadParameter("unexpected userinfo in client redirect URL")
 	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return trace.BadParameter("unexpected fragment in client redirect URL")
+	}
+
+	// For Web MFA redirect, we expect a relative path. The proxy handling the SSO callback
+	// will will redirect to itself with this relative path.
+	if u.Path == sso.WebMFARedirect {
+		if u.IsAbs() {
+			return trace.BadParameter("invalid scheme in client redirect URL for SSO MFA")
+		}
+		if u.Hostname() != "" {
+			return trace.BadParameter("invalid host name in client redirect URL for SSO MFA")
+		}
+		return nil
+	}
+
 	if u.EscapedPath() != "/callback" {
 		return trace.BadParameter("invalid path in client redirect URL")
 	}
@@ -1059,9 +1059,6 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 		return trace.Wrap(err, "parsing query in client redirect URL")
 	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
 		return trace.BadParameter("malformed query parameters in client redirect URL")
-	}
-	if u.Fragment != "" || u.RawFragment != "" {
-		return trace.BadParameter("unexpected fragment in client redirect URL")
 	}
 
 	// we checked everything but u.Scheme and u.Host now

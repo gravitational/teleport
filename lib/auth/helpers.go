@@ -532,7 +532,6 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		Provisioner:             p.AuthServer.Services.Provisioner,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
-		SAMLIdPSession:          p.AuthServer.Services.Identity,
 		SecReports:              p.AuthServer.Services.SecReports,
 		SnowflakeSession:        p.AuthServer.Services.Identity,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
@@ -1055,6 +1054,10 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 	}
 }
 
+func (i TestIdentity) GetUsername() string {
+	return i.I.GetIdentity().Username
+}
+
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
@@ -1231,12 +1234,17 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 }
 
 // GetTeleportVersion returns current Teleport version.
-func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVersion, nil
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (semver.Version, error) {
+	return *teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.
-func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ semver.Version) error {
+	return nil
+}
+
+// DeleteTeleportVersion error stub function for deleting.
+func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 
@@ -1386,10 +1394,18 @@ func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Ro
 type createUserAndRoleOptions struct {
 	mutateUser []func(user types.User)
 	mutateRole []func(role types.Role)
+	version    string
 }
 
 // CreateUserAndRoleOption is a functional option for CreateUserAndRole
 type CreateUserAndRoleOption func(*createUserAndRoleOptions)
+
+// WithRoleVersion sets the version of the role to be created.
+func WithRoleVersion(version string) CreateUserAndRoleOption {
+	return func(o *createUserAndRoleOptions) {
+		o.version = version
+	}
+}
 
 // WithUserMutator sets a function that will be called to mutate the user before it is created
 func WithUserMutator(mutate ...func(user types.User)) CreateUserAndRoleOption {
@@ -1410,7 +1426,9 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
 func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
-	o := createUserAndRoleOptions{}
+	o := createUserAndRoleOptions{
+		version: types.DefaultRoleVersion,
+	}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -1420,7 +1438,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 		return nil, nil, trace.Wrap(err)
 	}
 
-	role := services.RoleForUser(user)
+	role := services.RoleWithVersionForUser(user, o.version)
 	role.SetLogins(types.Allow, allowedLogins)
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)

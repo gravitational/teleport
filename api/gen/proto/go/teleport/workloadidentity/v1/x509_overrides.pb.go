@@ -120,7 +120,11 @@ func (x *X509IssuerOverride) GetSpec() *X509IssuerOverrideSpec {
 
 // The spec for X509IssuerOverride.
 type X509IssuerOverrideSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of issuer overrides. The public key of each issuer must be unique
+	// across all overrides' issuers, and should match one of the keys in the
+	// cluster's SPIFFE certificate authority.
+	Overrides     []*X509IssuerOverrideSpec_Override `protobuf:"bytes,1,rep,name=overrides,proto3" json:"overrides,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -155,6 +159,71 @@ func (*X509IssuerOverrideSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP(), []int{1}
 }
 
+func (x *X509IssuerOverrideSpec) GetOverrides() []*X509IssuerOverrideSpec_Override {
+	if x != nil {
+		return x.Overrides
+	}
+	return nil
+}
+
+// The override for a single issuer (i.e. a single X.509 certificate in a
+// SPIFFE cert_authority).
+type X509IssuerOverrideSpec_Override struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ASN.1 DER certificate, not included by default in the chain.
+	Issuer []byte `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// ASN.1 DER certificate ordered from leaf to root as it should be presented
+	// by a client or server in a TLS connection. Must not include self-signed
+	// roots of trust.
+	Chain         [][]byte `protobuf:"bytes,2,rep,name=chain,proto3" json:"chain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *X509IssuerOverrideSpec_Override) Reset() {
+	*x = X509IssuerOverrideSpec_Override{}
+	mi := &file_teleport_workloadidentity_v1_x509_overrides_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *X509IssuerOverrideSpec_Override) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*X509IssuerOverrideSpec_Override) ProtoMessage() {}
+
+func (x *X509IssuerOverrideSpec_Override) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_x509_overrides_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use X509IssuerOverrideSpec_Override.ProtoReflect.Descriptor instead.
+func (*X509IssuerOverrideSpec_Override) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *X509IssuerOverrideSpec_Override) GetIssuer() []byte {
+	if x != nil {
+		return x.Issuer
+	}
+	return nil
+}
+
+func (x *X509IssuerOverrideSpec_Override) GetChain() [][]byte {
+	if x != nil {
+		return x.Chain
+	}
+	return nil
+}
+
 var File_teleport_workloadidentity_v1_x509_overrides_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc = "" +
@@ -165,8 +234,12 @@ const file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12H\n" +
-	"\x04spec\x18\x05 \x01(\v24.teleport.workloadidentity.v1.X509IssuerOverrideSpecR\x04spec\"\x18\n" +
-	"\x16X509IssuerOverrideSpecBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\x04spec\x18\x05 \x01(\v24.teleport.workloadidentity.v1.X509IssuerOverrideSpecR\x04spec\"\xaf\x01\n" +
+	"\x16X509IssuerOverrideSpec\x12[\n" +
+	"\toverrides\x18\x01 \x03(\v2=.teleport.workloadidentity.v1.X509IssuerOverrideSpec.OverrideR\toverrides\x1a8\n" +
+	"\bOverride\x12\x16\n" +
+	"\x06issuer\x18\x01 \x01(\fR\x06issuer\x12\x14\n" +
+	"\x05chain\x18\x02 \x03(\fR\x05chainBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var (
 	file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescOnce sync.Once
@@ -180,20 +253,22 @@ func file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP() []byte
 	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescData
 }
 
-var file_teleport_workloadidentity_v1_x509_overrides_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_workloadidentity_v1_x509_overrides_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_workloadidentity_v1_x509_overrides_proto_goTypes = []any{
-	(*X509IssuerOverride)(nil),     // 0: teleport.workloadidentity.v1.X509IssuerOverride
-	(*X509IssuerOverrideSpec)(nil), // 1: teleport.workloadidentity.v1.X509IssuerOverrideSpec
-	(*v1.Metadata)(nil),            // 2: teleport.header.v1.Metadata
+	(*X509IssuerOverride)(nil),              // 0: teleport.workloadidentity.v1.X509IssuerOverride
+	(*X509IssuerOverrideSpec)(nil),          // 1: teleport.workloadidentity.v1.X509IssuerOverrideSpec
+	(*X509IssuerOverrideSpec_Override)(nil), // 2: teleport.workloadidentity.v1.X509IssuerOverrideSpec.Override
+	(*v1.Metadata)(nil),                     // 3: teleport.header.v1.Metadata
 }
 var file_teleport_workloadidentity_v1_x509_overrides_proto_depIdxs = []int32{
-	2, // 0: teleport.workloadidentity.v1.X509IssuerOverride.metadata:type_name -> teleport.header.v1.Metadata
+	3, // 0: teleport.workloadidentity.v1.X509IssuerOverride.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.workloadidentity.v1.X509IssuerOverride.spec:type_name -> teleport.workloadidentity.v1.X509IssuerOverrideSpec
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	2, // 2: teleport.workloadidentity.v1.X509IssuerOverrideSpec.overrides:type_name -> teleport.workloadidentity.v1.X509IssuerOverrideSpec.Override
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_x509_overrides_proto_init() }
@@ -207,7 +282,7 @@ func file_teleport_workloadidentity_v1_x509_overrides_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc), len(file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

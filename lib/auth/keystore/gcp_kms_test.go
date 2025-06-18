@@ -21,6 +21,7 @@ package keystore
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -214,6 +215,40 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 
 	resp := &kmspb.AsymmetricSignResponse{
 		Signature: sig,
+	}
+
+	return resp, nil
+}
+
+func (f *fakeGCPKMSServer) AsymmetricDecrypt(ctx context.Context, req *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	keyState, ok := f.keyVersions[req.Name]
+	if !ok {
+		return nil, trace.NotFound("no such key")
+	}
+	if keyState.cryptoKeyVersion.State != kmspb.CryptoKeyVersion_ENABLED {
+		return nil, trace.BadParameter("cannot fetch key, state has value %s", keyState.cryptoKeyVersion.State)
+	}
+
+	signer, err := keys.ParsePrivateKey(keyState.pem)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	decrypter, ok := signer.Signer.(crypto.Decrypter)
+	if !ok {
+		return nil, trace.Errorf("private key is not a valid decrypter")
+	}
+
+	testRand := mathrandv1.New(mathrandv1.NewSource(0))
+	plaintext, err := decrypter.Decrypt(testRand, req.Ciphertext, &rsa.OAEPOptions{Hash: crypto.SHA256})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &kmspb.AsymmetricDecryptResponse{
+		Plaintext: plaintext,
 	}
 
 	return resp, nil

@@ -20,7 +20,7 @@ import { memo } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
-import { ButtonSecondary } from 'design/Button';
+import { Button } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import { Add, Plus, Trash } from 'design/Icon';
@@ -33,10 +33,12 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { useRule } from 'shared/components/Validation';
 import { precomputed } from 'shared/components/Validation/rules';
 import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
+import { RoleVersion } from 'teleport/services/resources';
 
 import {
   SectionBox,
@@ -49,13 +51,15 @@ import {
   DatabaseAccess,
   GitHubOrganizationAccess,
   KubernetesAccess,
-  kubernetesResourceKindOptions,
+  kubernetesResourceKindOptionsV7,
+  kubernetesResourceKindOptionsV8,
   KubernetesResourceModel,
   kubernetesVerbOptions,
   newKubernetesResourceModel,
   ResourceAccess,
   ResourceAccessKind,
   ServerAccess,
+  supportsKubernetesCustomResources,
   WindowsDesktopAccess,
 } from './standardmodel';
 import { ActionType } from './useStandardModel';
@@ -64,10 +68,10 @@ import {
   DatabaseAccessValidationResult,
   GitHubOrganizationAccessValidationResult,
   KubernetesAccessValidationResult,
-  kubernetesClusterWideResourceKinds,
   KubernetesResourceValidationResult,
   ResourceAccessValidationResult,
   ServerAccessValidationResult,
+  v7kubernetesClusterWideResourceKinds,
   WindowsDesktopAccessValidationResult,
 } from './validation';
 
@@ -165,27 +169,27 @@ export const resourceAccessSections: Record<
   }
 > = {
   kube_cluster: {
-    title: 'Kubernetes',
+    title: 'Kubernetes Access',
     component: KubernetesAccessSection,
   },
   node: {
-    title: 'Servers',
+    title: 'SSH Server Access',
     component: ServerAccessSection,
   },
   app: {
-    title: 'Applications',
+    title: 'Application Access',
     component: AppAccessSection,
   },
   db: {
-    title: 'Databases',
+    title: 'Database Access',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
-    title: 'Windows Desktops',
+    title: 'Windows Desktop Access',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
-    title: 'GitHub Organizations',
+    title: 'GitHub Organization Access',
     component: GitHubOrganizationAccessSection,
   },
 };
@@ -245,6 +249,7 @@ export function ServerAccessSection({
   return (
     <>
       <LabelsInput
+        atLeastOneRow
         legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
@@ -278,6 +283,9 @@ export function KubernetesAccessSection({
   validation,
   onChange,
 }: SectionProps<KubernetesAccess, KubernetesAccessValidationResult>) {
+  const resourcesValidationResult = useRule(
+    precomputed(validation.fields.resources)(value.resources)
+  );
   return (
     <>
       <FieldSelectCreatable
@@ -293,6 +301,7 @@ export function KubernetesAccessSection({
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.groups)}
       />
 
       <FieldSelectCreatable
@@ -308,9 +317,11 @@ export function KubernetesAccessSection({
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.users)}
       />
 
       <LabelsInput
+        atLeastOneRow
         legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
@@ -343,7 +354,9 @@ export function KubernetesAccessSection({
         ))}
 
         <Box>
-          <ButtonSecondary
+          <Button
+            fill={resourcesValidationResult.valid ? 'filled' : 'border'}
+            intent={resourcesValidationResult.valid ? 'neutral' : 'danger'}
             disabled={isProcessing}
             gap={1}
             onClick={() =>
@@ -355,15 +368,69 @@ export function KubernetesAccessSection({
                 ],
               })
             }
+            size="small"
+            inputAlignment
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0
               ? 'Add Another Kubernetes Resource'
               : 'Add a Kubernetes Resource'}
-          </ButtonSecondary>
+          </Button>
         </Box>
       </Flex>
     </>
+  );
+}
+
+function KubernetesResourceKindView({
+  value,
+  validation,
+  isProcessing,
+  onChange,
+  roleVersion,
+}: {
+  value: KubernetesResourceModel;
+  validation: KubernetesResourceValidationResult['kind'];
+  isProcessing: boolean;
+  onChange?(m: KubernetesResourceModel): void;
+  roleVersion: RoleVersion;
+}) {
+  if (!supportsKubernetesCustomResources(roleVersion)) {
+    return (
+      <FieldSelect
+        label="Kind"
+        isDisabled={isProcessing}
+        options={kubernetesResourceKindOptionsV7.filter(
+          elem => roleVersion == 'v7' || elem.value == 'pod' // In v7, we have the fill list, in v6 and earlier, only pod.
+        )}
+        value={value.kind}
+        rule={precomputed(validation)}
+        onChange={k => onChange?.({ ...value, kind: k })}
+      />
+    );
+  }
+  return (
+    <FieldSelectCreatable
+      isSearchable
+      label="Kind (plural)"
+      toolTipContent={
+        <>
+          Resource plural name, e.g. pods, deployments, mycustomresources.
+          Special value <MarkInverse>*</MarkInverse> means any kind.
+        </>
+      }
+      isDisabled={isProcessing}
+      formatCreateLabel={label => `Kind: ${label}`}
+      openMenuOnClick
+      value={value.kind}
+      onChange={kind => onChange?.({ ...value, kind })}
+      menuPosition="fixed"
+      rule={precomputed(validation)}
+      options={kubernetesResourceKindOptionsV8}
+      components={{
+        DropdownIndicator: null,
+      }}
+    />
   );
 }
 
@@ -380,8 +447,9 @@ function KubernetesResourceView({
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
 }) {
-  const { kind, name, namespace, verbs } = value;
+  const { kind, name, namespace, verbs, apiGroup } = value;
   const theme = useTheme();
+  const supportsCrds = supportsKubernetesCustomResources(value.roleVersion);
   return (
     <Box
       border={1}
@@ -404,15 +472,29 @@ function KubernetesResourceView({
           />
         </ButtonIcon>
       </Flex>
-      <FieldSelect
-        label="Kind"
-        isDisabled={isProcessing}
-        options={kubernetesResourceKindOptions}
-        value={kind}
-        rule={precomputed(validation.kind)}
-        onChange={k => onChange?.({ ...value, kind: k })}
-        menuPosition="fixed"
+      <KubernetesResourceKindView
+        value={value}
+        validation={validation.kind}
+        isProcessing={isProcessing}
+        onChange={k => onChange?.({ ...value, ...k })}
+        roleVersion={value.roleVersion}
       />
+      {(supportsCrds || apiGroup) && (
+        <FieldInput
+          label="API Group"
+          required
+          toolTipContent={
+            <>
+              Resource API Group. Special value <MarkInverse>*</MarkInverse>{' '}
+              means any group.
+            </>
+          }
+          disabled={isProcessing}
+          value={apiGroup}
+          rule={precomputed(validation.apiGroup)}
+          onChange={e => onChange?.({ ...value, apiGroup: e.target.value })}
+        />
+      )}
       <FieldInput
         label="Name"
         required
@@ -429,7 +511,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Namespace"
-        required={!kubernetesClusterWideResourceKinds.includes(kind.value)}
+        required={!v7kubernetesClusterWideResourceKinds.includes(kind.value)}
         toolTipContent={
           <>
             Namespace that contains the resource. Special value{' '}
@@ -465,6 +547,7 @@ export function AppAccessSection({
   return (
     <Flex flexDirection="column" gap={3}>
       <LabelsInput
+        atLeastOneRow
         legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
@@ -492,6 +575,13 @@ export function AppAccessSection({
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
         rule={precomputed(validation.fields.gcpServiceAccounts)}
       />
+      <FieldMultiInput
+        label="MCP Tools"
+        disabled={isProcessing}
+        value={value.mcpTools}
+        onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
+        rule={precomputed(validation.fields.mcpTools)}
+      />
     </Flex>
   );
 }
@@ -506,6 +596,7 @@ export function DatabaseAccessSection({
     <>
       <Box mb={3}>
         <LabelsInput
+          atLeastOneRow
           legend="Labels"
           tooltipContent="Access to databases with these labels will be affected by this role"
           disableBtns={isProcessing}
@@ -533,6 +624,7 @@ export function DatabaseAccessSection({
         value={value.names}
         onChange={names => onChange?.({ ...value, names })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.names)}
       />
       <FieldSelectCreatable
         isMulti
@@ -553,6 +645,7 @@ export function DatabaseAccessSection({
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.users)}
       />
       <FieldSelectCreatable
         isMulti
@@ -571,6 +664,7 @@ export function DatabaseAccessSection({
         menuPosition="fixed"
       />
       <LabelsInput
+        atLeastOneRow
         legend="Database Service Labels"
         tooltipContent="The database service labels control which Database Services (Teleport Agents) are visible to the user, which is required when adding Databases in the Enroll New Resource wizard. Access to Databases themselves is controlled by the Database Labels field."
         disableBtns={isProcessing}
@@ -592,6 +686,7 @@ export function WindowsDesktopAccessSection({
     <>
       <Box mb={3}>
         <LabelsInput
+          atLeastOneRow
           legend="Labels"
           disableBtns={isProcessing}
           labels={value.labels}
@@ -613,6 +708,7 @@ export function WindowsDesktopAccessSection({
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.logins)}
       />
     </>
   );
@@ -621,6 +717,7 @@ export function WindowsDesktopAccessSection({
 export function GitHubOrganizationAccessSection({
   value,
   isProcessing,
+  validation,
   onChange,
 }: SectionProps<
   GitHubOrganizationAccess,
@@ -641,6 +738,8 @@ export function GitHubOrganizationAccessSection({
       value={value.organizations}
       onChange={organizations => onChange?.({ ...value, organizations })}
       menuPosition="fixed"
+      rule={precomputed(validation.fields.organizations)}
+      mb={0}
     />
   );
 }

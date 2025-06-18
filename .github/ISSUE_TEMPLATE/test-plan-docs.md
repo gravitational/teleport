@@ -34,15 +34,35 @@ version of Teleport.
 
 - [ ] Update the submodule configuration in `gravitational/docs-website`.
 
-  Remove the directory of the EOL release. Create a directory for the next
-  release using a command similar to the following:
+  1. Remove the `content` directory for the EOL release. Create a directory for
+     the next release using a command similar to the following:
   
-  ```bash
-  git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
-  ```
+     ```bash
+     git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
+     ```
 
-  Verify that `gravitational/docs-website/.gitmodules` contains the latest
-  release and not the EOL release.
+  1. Verify that `gravitational/docs-website/.gitmodules` contains the latest
+     release and not the EOL release.
+
+  1. In `gravitational/docs-website/.gitmodules`, make sure the major version
+     we're releasing corresponds to the major version's release branch, not
+     `master`.
+
+  1. In `gravitational/docs-website/config.json`, ensure that the EOL version
+     has the `deprecated` key set to `true`. Add the next version and update the
+     `branch` field as needed. 
+
+     **DO NOT** update the `isDefault` field, since we only change the default
+     docs site version when we release the new major version on Teleport Cloud.
+
+  1. Test that you have completed these steps successfully by building and
+     running the docs site locally:
+
+     ```bash
+     rm -rf docs/* versioned_docs/* versioned_sidebars/*
+     yarn build
+     yarn serve
+     ```
 
 - [ ] Verify that Teleport version variables are correct and reflect the upcoming
   release. Check `docs/config.json` for this in all supported branches of
@@ -61,13 +81,21 @@ version of Teleport.
     changes introduced by the release. If not, plan to update the docs ASAP and
     notify all relevant teams of the delay.
 
-- [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date and complete
-  for the default docs version. If one release branch has a more complete
-  changelog than others, copy that `CHANGELOG.md` to our other support release
-  branches, e.g.,:
+- [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date. Each
+  version of the docs (i.e., each `gravitational/teleport` release branch shown
+  on the docs website) must include a `CHANGELOG.md` file in which the most
+  recent major version is the one that corresponds to its release branch. 
 
-  ```bash
-  $ git checkout origin/branch/v<release_version> -- CHANGELOG.md
+  On `master`, edit `CHANGELOG.md` to include a heading for the next major
+  version. We can add notes for features in development under this heading on
+  `master`.
+
+  For example, if we cut `branch/v20` from `master`, the `CHANGELOG.md` on
+  `branch/v20` must include `v20` release notes at the top. `master` must begin
+  with a heading for `v21` development notes, e.g.:
+
+  ```markdown
+  ## 21.0.0 (xx/xx/xx)
   ```
 
 - [ ] Verify the accuracy of critical docs pages. Follow the docs guides below

@@ -58,6 +58,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    accessGraphSettings: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     accessMonitoringRule: {
       list: false,
       read: false,
@@ -290,6 +297,13 @@ test('undefined values in context response gives proper default values', async (
     directorySharingEnabled: true,
     fileTransferAccess: true,
     gitServers: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    botInstances: {
       list: false,
       read: false,
       edit: false,

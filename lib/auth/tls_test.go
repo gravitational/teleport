@@ -111,7 +111,7 @@ func TestRejectedClients(t *testing.T) {
 	defer clt.Close()
 
 	t.Run("reject old version", func(t *testing.T) {
-		version := teleport.MinClientSemVersion
+		version := teleport.MinClientSemVer()
 		version.Major--
 		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
 		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
@@ -123,7 +123,7 @@ func TestRejectedClients(t *testing.T) {
 	})
 
 	t.Run("allow valid versions", func(t *testing.T) {
-		version := teleport.MinClientSemVersion
+		version := teleport.MinClientSemVer()
 		version.Major--
 		for i := 0; i < 5; i++ {
 			version.Major++
@@ -2823,13 +2823,7 @@ func TestGenerateCerts(t *testing.T) {
 			expectSSHCertPublicKey equalPublicKey
 		}{
 			{
-				desc:                   "legacy",
-				publicKey:              sshPubKey,
-				tlsPrivateKey:          sshPrivKey,
-				expectSSHCertPublicKey: sshEqualPub,
-			},
-			{
-				desc:                   "split",
+				desc:                   "both keys",
 				sshPublicKey:           sshPubKey,
 				tlsPublicKey:           tlsPubKey,
 				tlsPrivateKey:          tlsPrivKey,
@@ -2854,7 +2848,6 @@ func TestGenerateCerts(t *testing.T) {
 				t.Parallel()
 
 				certs, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-					PublicKey:    tc.publicKey, //nolint:staticcheck // SA1019: testing the deprecated field.
 					SSHPublicKey: tc.sshPublicKey,
 					TLSPublicKey: tc.tlsPublicKey,
 					Username:     user2.GetName(),

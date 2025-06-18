@@ -666,6 +666,52 @@ func (x *WorkloadAttrsSystemd) GetService() string {
 	return ""
 }
 
+// Attributes sourced from the Sigstore workload attestor.
+type WorkloadAttrsSigstore struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Verificiation payloads.
+	Payloads      []*SigstoreVerificationPayload `protobuf:"bytes,1,rep,name=payloads,proto3" json:"payloads,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WorkloadAttrsSigstore) Reset() {
+	*x = WorkloadAttrsSigstore{}
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkloadAttrsSigstore) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkloadAttrsSigstore) ProtoMessage() {}
+
+func (x *WorkloadAttrsSigstore) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkloadAttrsSigstore.ProtoReflect.Descriptor instead.
+func (*WorkloadAttrsSigstore) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *WorkloadAttrsSigstore) GetPayloads() []*SigstoreVerificationPayload {
+	if x != nil {
+		return x.Payloads
+	}
+	return nil
+}
+
 // The attributes provided by `tbot` regarding the workload's attestation.
 // This will be mostly unset if the workload has not requested credentials via
 // the SPIFFE Workload API.
@@ -680,14 +726,16 @@ type WorkloadAttrs struct {
 	// The Docker-specific attributes.
 	Docker *WorkloadAttrsDocker `protobuf:"bytes,4,opt,name=docker,proto3" json:"docker,omitempty"`
 	// The Systemd-specific attributes.
-	Systemd       *WorkloadAttrsSystemd `protobuf:"bytes,5,opt,name=systemd,proto3" json:"systemd,omitempty"`
+	Systemd *WorkloadAttrsSystemd `protobuf:"bytes,5,opt,name=systemd,proto3" json:"systemd,omitempty"`
+	// The Sigstore-specific attributes.
+	Sigstore      *WorkloadAttrsSigstore `protobuf:"bytes,6,opt,name=sigstore,proto3" json:"sigstore,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *WorkloadAttrs) Reset() {
 	*x = WorkloadAttrs{}
-	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[9]
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -699,7 +747,7 @@ func (x *WorkloadAttrs) String() string {
 func (*WorkloadAttrs) ProtoMessage() {}
 
 func (x *WorkloadAttrs) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[9]
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -712,7 +760,7 @@ func (x *WorkloadAttrs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkloadAttrs.ProtoReflect.Descriptor instead.
 func (*WorkloadAttrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{9}
+	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WorkloadAttrs) GetUnix() *WorkloadAttrsUnix {
@@ -750,6 +798,13 @@ func (x *WorkloadAttrs) GetSystemd() *WorkloadAttrsSystemd {
 	return nil
 }
 
+func (x *WorkloadAttrs) GetSigstore() *WorkloadAttrsSigstore {
+	if x != nil {
+		return x.Sigstore
+	}
+	return nil
+}
+
 // Attributes related to the user/bot making the request for a workload
 // identity.
 type UserAttrs struct {
@@ -772,7 +827,7 @@ type UserAttrs struct {
 
 func (x *UserAttrs) Reset() {
 	*x = UserAttrs{}
-	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[10]
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -784,7 +839,7 @@ func (x *UserAttrs) String() string {
 func (*UserAttrs) ProtoMessage() {}
 
 func (x *UserAttrs) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[10]
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -797,7 +852,7 @@ func (x *UserAttrs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserAttrs.ProtoReflect.Descriptor instead.
 func (*UserAttrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{10}
+	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UserAttrs) GetName() string {
@@ -861,7 +916,7 @@ type Attrs struct {
 
 func (x *Attrs) Reset() {
 	*x = Attrs{}
-	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[11]
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -873,7 +928,7 @@ func (x *Attrs) String() string {
 func (*Attrs) ProtoMessage() {}
 
 func (x *Attrs) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[11]
+	mi := &file_teleport_workloadidentity_v1_attrs_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -886,7 +941,7 @@ func (x *Attrs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attrs.ProtoReflect.Descriptor instead.
 func (*Attrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{11}
+	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Attrs) GetWorkload() *WorkloadAttrs {
@@ -914,7 +969,7 @@ var File_teleport_workloadidentity_v1_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_attrs_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/workloadidentity/v1/attrs.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1dteleport/trait/v1/trait.proto\x1a-teleport/workloadidentity/v1/join_attrs.proto\"\xb7\x03\n" +
+	"(teleport/workloadidentity/v1/attrs.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1dteleport/trait/v1/trait.proto\x1a-teleport/workloadidentity/v1/join_attrs.proto\x1a+teleport/workloadidentity/v1/sigstore.proto\"\xb7\x03\n" +
 	"\x17WorkloadAttrsKubernetes\x12\x1a\n" +
 	"\battested\x18\x01 \x01(\bR\battested\x12\x1c\n" +
 	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x19\n" +
@@ -975,7 +1030,9 @@ const file_teleport_workloadidentity_v1_attrs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"L\n" +
 	"\x14WorkloadAttrsSystemd\x12\x1a\n" +
 	"\battested\x18\x01 \x01(\bR\battested\x12\x18\n" +
-	"\aservice\x18\x02 \x01(\tR\aservice\"\x8f\x03\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\"n\n" +
+	"\x15WorkloadAttrsSigstore\x12U\n" +
+	"\bpayloads\x18\x01 \x03(\v29.teleport.workloadidentity.v1.SigstoreVerificationPayloadR\bpayloads\"\xe0\x03\n" +
 	"\rWorkloadAttrs\x12C\n" +
 	"\x04unix\x18\x01 \x01(\v2/.teleport.workloadidentity.v1.WorkloadAttrsUnixR\x04unix\x12U\n" +
 	"\n" +
@@ -983,7 +1040,8 @@ const file_teleport_workloadidentity_v1_attrs_proto_rawDesc = "" +
 	"kubernetes\x12I\n" +
 	"\x06podman\x18\x03 \x01(\v21.teleport.workloadidentity.v1.WorkloadAttrsPodmanR\x06podman\x12I\n" +
 	"\x06docker\x18\x04 \x01(\v21.teleport.workloadidentity.v1.WorkloadAttrsDockerR\x06docker\x12L\n" +
-	"\asystemd\x18\x05 \x01(\v22.teleport.workloadidentity.v1.WorkloadAttrsSystemdR\asystemd\"\xb3\x02\n" +
+	"\asystemd\x18\x05 \x01(\v22.teleport.workloadidentity.v1.WorkloadAttrsSystemdR\asystemd\x12O\n" +
+	"\bsigstore\x18\x06 \x01(\v23.teleport.workloadidentity.v1.WorkloadAttrsSigstoreR\bsigstore\"\xb3\x02\n" +
 	"\tUserAttrs\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x15\n" +
 	"\x06is_bot\x18\x02 \x01(\bR\x05isBot\x12\x19\n" +
@@ -1011,7 +1069,7 @@ func file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP() []byte {
 	return file_teleport_workloadidentity_v1_attrs_proto_rawDescData
 }
 
-var file_teleport_workloadidentity_v1_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_workloadidentity_v1_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_teleport_workloadidentity_v1_attrs_proto_goTypes = []any{
 	(*WorkloadAttrsKubernetes)(nil),          // 0: teleport.workloadidentity.v1.WorkloadAttrsKubernetes
 	(*WorkloadAttrsKubernetesContainer)(nil), // 1: teleport.workloadidentity.v1.WorkloadAttrsKubernetesContainer
@@ -1022,41 +1080,45 @@ var file_teleport_workloadidentity_v1_attrs_proto_goTypes = []any{
 	(*WorkloadAttrsDocker)(nil),              // 6: teleport.workloadidentity.v1.WorkloadAttrsDocker
 	(*WorkloadAttrsDockerContainer)(nil),     // 7: teleport.workloadidentity.v1.WorkloadAttrsDockerContainer
 	(*WorkloadAttrsSystemd)(nil),             // 8: teleport.workloadidentity.v1.WorkloadAttrsSystemd
-	(*WorkloadAttrs)(nil),                    // 9: teleport.workloadidentity.v1.WorkloadAttrs
-	(*UserAttrs)(nil),                        // 10: teleport.workloadidentity.v1.UserAttrs
-	(*Attrs)(nil),                            // 11: teleport.workloadidentity.v1.Attrs
-	nil,                                      // 12: teleport.workloadidentity.v1.WorkloadAttrsKubernetes.LabelsEntry
-	nil,                                      // 13: teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer.LabelsEntry
-	nil,                                      // 14: teleport.workloadidentity.v1.WorkloadAttrsPodmanPod.LabelsEntry
-	nil,                                      // 15: teleport.workloadidentity.v1.WorkloadAttrsDockerContainer.LabelsEntry
-	nil,                                      // 16: teleport.workloadidentity.v1.UserAttrs.LabelsEntry
-	(*v1.Trait)(nil),                         // 17: teleport.trait.v1.Trait
-	(*JoinAttrs)(nil),                        // 18: teleport.workloadidentity.v1.JoinAttrs
+	(*WorkloadAttrsSigstore)(nil),            // 9: teleport.workloadidentity.v1.WorkloadAttrsSigstore
+	(*WorkloadAttrs)(nil),                    // 10: teleport.workloadidentity.v1.WorkloadAttrs
+	(*UserAttrs)(nil),                        // 11: teleport.workloadidentity.v1.UserAttrs
+	(*Attrs)(nil),                            // 12: teleport.workloadidentity.v1.Attrs
+	nil,                                      // 13: teleport.workloadidentity.v1.WorkloadAttrsKubernetes.LabelsEntry
+	nil,                                      // 14: teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer.LabelsEntry
+	nil,                                      // 15: teleport.workloadidentity.v1.WorkloadAttrsPodmanPod.LabelsEntry
+	nil,                                      // 16: teleport.workloadidentity.v1.WorkloadAttrsDockerContainer.LabelsEntry
+	nil,                                      // 17: teleport.workloadidentity.v1.UserAttrs.LabelsEntry
+	(*SigstoreVerificationPayload)(nil),      // 18: teleport.workloadidentity.v1.SigstoreVerificationPayload
+	(*v1.Trait)(nil),                         // 19: teleport.trait.v1.Trait
+	(*JoinAttrs)(nil),                        // 20: teleport.workloadidentity.v1.JoinAttrs
 }
 var file_teleport_workloadidentity_v1_attrs_proto_depIdxs = []int32{
-	12, // 0: teleport.workloadidentity.v1.WorkloadAttrsKubernetes.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsKubernetes.LabelsEntry
+	13, // 0: teleport.workloadidentity.v1.WorkloadAttrsKubernetes.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsKubernetes.LabelsEntry
 	1,  // 1: teleport.workloadidentity.v1.WorkloadAttrsKubernetes.container:type_name -> teleport.workloadidentity.v1.WorkloadAttrsKubernetesContainer
 	4,  // 2: teleport.workloadidentity.v1.WorkloadAttrsPodman.container:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer
 	5,  // 3: teleport.workloadidentity.v1.WorkloadAttrsPodman.pod:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodmanPod
-	13, // 4: teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer.LabelsEntry
-	14, // 5: teleport.workloadidentity.v1.WorkloadAttrsPodmanPod.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodmanPod.LabelsEntry
+	14, // 4: teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodmanContainer.LabelsEntry
+	15, // 5: teleport.workloadidentity.v1.WorkloadAttrsPodmanPod.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodmanPod.LabelsEntry
 	7,  // 6: teleport.workloadidentity.v1.WorkloadAttrsDocker.container:type_name -> teleport.workloadidentity.v1.WorkloadAttrsDockerContainer
-	15, // 7: teleport.workloadidentity.v1.WorkloadAttrsDockerContainer.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsDockerContainer.LabelsEntry
-	2,  // 8: teleport.workloadidentity.v1.WorkloadAttrs.unix:type_name -> teleport.workloadidentity.v1.WorkloadAttrsUnix
-	0,  // 9: teleport.workloadidentity.v1.WorkloadAttrs.kubernetes:type_name -> teleport.workloadidentity.v1.WorkloadAttrsKubernetes
-	3,  // 10: teleport.workloadidentity.v1.WorkloadAttrs.podman:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodman
-	6,  // 11: teleport.workloadidentity.v1.WorkloadAttrs.docker:type_name -> teleport.workloadidentity.v1.WorkloadAttrsDocker
-	8,  // 12: teleport.workloadidentity.v1.WorkloadAttrs.systemd:type_name -> teleport.workloadidentity.v1.WorkloadAttrsSystemd
-	16, // 13: teleport.workloadidentity.v1.UserAttrs.labels:type_name -> teleport.workloadidentity.v1.UserAttrs.LabelsEntry
-	17, // 14: teleport.workloadidentity.v1.UserAttrs.traits:type_name -> teleport.trait.v1.Trait
-	9,  // 15: teleport.workloadidentity.v1.Attrs.workload:type_name -> teleport.workloadidentity.v1.WorkloadAttrs
-	10, // 16: teleport.workloadidentity.v1.Attrs.user:type_name -> teleport.workloadidentity.v1.UserAttrs
-	18, // 17: teleport.workloadidentity.v1.Attrs.join:type_name -> teleport.workloadidentity.v1.JoinAttrs
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	16, // 7: teleport.workloadidentity.v1.WorkloadAttrsDockerContainer.labels:type_name -> teleport.workloadidentity.v1.WorkloadAttrsDockerContainer.LabelsEntry
+	18, // 8: teleport.workloadidentity.v1.WorkloadAttrsSigstore.payloads:type_name -> teleport.workloadidentity.v1.SigstoreVerificationPayload
+	2,  // 9: teleport.workloadidentity.v1.WorkloadAttrs.unix:type_name -> teleport.workloadidentity.v1.WorkloadAttrsUnix
+	0,  // 10: teleport.workloadidentity.v1.WorkloadAttrs.kubernetes:type_name -> teleport.workloadidentity.v1.WorkloadAttrsKubernetes
+	3,  // 11: teleport.workloadidentity.v1.WorkloadAttrs.podman:type_name -> teleport.workloadidentity.v1.WorkloadAttrsPodman
+	6,  // 12: teleport.workloadidentity.v1.WorkloadAttrs.docker:type_name -> teleport.workloadidentity.v1.WorkloadAttrsDocker
+	8,  // 13: teleport.workloadidentity.v1.WorkloadAttrs.systemd:type_name -> teleport.workloadidentity.v1.WorkloadAttrsSystemd
+	9,  // 14: teleport.workloadidentity.v1.WorkloadAttrs.sigstore:type_name -> teleport.workloadidentity.v1.WorkloadAttrsSigstore
+	17, // 15: teleport.workloadidentity.v1.UserAttrs.labels:type_name -> teleport.workloadidentity.v1.UserAttrs.LabelsEntry
+	19, // 16: teleport.workloadidentity.v1.UserAttrs.traits:type_name -> teleport.trait.v1.Trait
+	10, // 17: teleport.workloadidentity.v1.Attrs.workload:type_name -> teleport.workloadidentity.v1.WorkloadAttrs
+	11, // 18: teleport.workloadidentity.v1.Attrs.user:type_name -> teleport.workloadidentity.v1.UserAttrs
+	20, // 19: teleport.workloadidentity.v1.Attrs.join:type_name -> teleport.workloadidentity.v1.JoinAttrs
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_attrs_proto_init() }
@@ -1065,6 +1127,7 @@ func file_teleport_workloadidentity_v1_attrs_proto_init() {
 		return
 	}
 	file_teleport_workloadidentity_v1_join_attrs_proto_init()
+	file_teleport_workloadidentity_v1_sigstore_proto_init()
 	file_teleport_workloadidentity_v1_attrs_proto_msgTypes[0].OneofWrappers = []any{}
 	file_teleport_workloadidentity_v1_attrs_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_workloadidentity_v1_attrs_proto_msgTypes[3].OneofWrappers = []any{}
@@ -1074,7 +1137,7 @@ func file_teleport_workloadidentity_v1_attrs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_attrs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

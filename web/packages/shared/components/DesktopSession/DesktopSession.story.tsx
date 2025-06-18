@@ -26,10 +26,12 @@ import {
 } from 'shared/hooks/useAsync';
 import {
   BitmapFrame,
+  BrowserFileSystem,
   ClientScreenSpec,
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
+import { TdpError as RemoteTdpError } from 'shared/libs/tdp/client';
 
 import { DesktopSession, DesktopSessionProps } from './DesktopSession';
 
@@ -53,10 +55,10 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null);
+  const client = new TdpClient(() => null, new BrowserFileSystem());
   // Don't try to connect to a websocket.
-  client.connect = async spec => {
-    emitFrame(client, spec);
+  client.connect = async options => {
+    emitFrame(client, options.screenSpec);
   };
   return client;
 };
@@ -69,6 +71,7 @@ const props: DesktopSessionProps = {
   client: fakeClient(),
   username: 'user',
   desktop: 'windows-11',
+  browserSupportsSharing: true,
   hasAnotherSession: () => Promise.resolve(false),
 };
 
@@ -86,7 +89,15 @@ export const FetchError = () => (
 export const TdpError = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.ERROR, new Error('some tdp error'));
+    client.emit(
+      TdpClientEvent.ERROR,
+      new RemoteTdpError(
+        'RDP client exited with an error: Connection Timed Out.\n\n' +
+          'Teleport could not connect to the host within the timeout period. This may be due to a firewall blocking the connection, an overloaded system, or network congestion.\n\n' +
+          'To resolve this issue, ensure that the Teleport agent can reach the Windows host.\n\n' +
+          'You can use the command "nc -vz HOST 3389" to help diagnose connectivity problems.'
+      )
+    );
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -96,10 +107,10 @@ export const Connected = () => {
   return <DesktopSession {...props} />;
 };
 
-export const Disconnected = () => {
+export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE, 'session disconnected');
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -161,8 +172,8 @@ export const SharingDisabledRbac = () => (
 
 export const Alerts = () => {
   const client = fakeClient();
-  client.connect = async spec => {
-    emitFrame(client, spec);
+  client.connect = async options => {
+    emitFrame(client, options.screenSpec);
     client.emit(
       TdpClientEvent.TDP_WARNING,
       'Potential performance issues detected. Expect possible lag or instability.'

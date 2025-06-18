@@ -25,6 +25,7 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { AllUserTraits } from 'teleport/services/user';
 
 /**
@@ -52,12 +53,15 @@ const traitsPreset = [
  * @param isLoading if true, it disables all the inputs in the editor.
  * @param configuredTraits holds traits configured for user in current editor.
  * @param setConfiguredTraits sets user traits in current editor.
+ * @param tooltipContent sets optional tooltip content to be displayed next to the label.
+ * @param label sets optional label for the editor. Default is 'User Traits'.
  */
 export function TraitsEditor({
   isLoading,
   configuredTraits,
   setConfiguredTraits,
   tooltipContent,
+  label = 'User Traits',
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -104,17 +108,18 @@ export function TraitsEditor({
 
   return (
     <Box>
-      <Flex gap={2} alignItems="center">
-        <Text typography="body3">User Traits</Text>
+      <Flex gap={2} alignItems="center" mb={2}>
+        <Text typography="body3">{label}</Text>
         {tooltipContent && <IconTooltip>{tooltipContent}</IconTooltip>}
       </Flex>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (
-            <Box mb={-5} key={index}>
-              <Flex alignItems="start" mt={-3}>
-                <Box width="290px" mr={1} mt={4}>
+            <Box mb={-1} key={index}>
+              <Flex alignItems="start">
+                <Box width="290px" minWidth="200px" mr={1}>
                   <FieldSelectCreatable
+                    stylesConfig={customStyles}
                     data-testid="trait-key"
                     options={traitsPreset.map(r => ({
                       value: r,
@@ -140,18 +145,18 @@ export function TraitsEditor({
                     isDisabled={isLoading}
                   />
                 </Box>
-                <Box width="400px" ml={3}>
+                <Box width="400px" minWidth="200px" ml={3}>
                   <FieldSelectCreatable
+                    stylesConfig={customStyles}
                     data-testid="trait-value"
-                    mt={4}
                     ariaLabel="trait-values"
                     placeholder="Type a trait value and press enter"
-                    label="Value"
+                    label="Values"
                     isMulti
                     isSearchable
                     isClearable={false}
                     value={traitValues}
-                    rule={requiredField('Trait value cannot be empty')}
+                    rule={requiredField('Trait values cannot be empty')}
                     onChange={e => {
                       handleInputChange({
                         option: e as Option[],
@@ -167,8 +172,8 @@ export function TraitsEditor({
                 </Box>
                 <ButtonIcon
                   ml={1}
-                  mt={7}
                   size={1}
+                  mt={4}
                   title="Remove Trait"
                   aria-label="Remove Trait"
                   onClick={() => removeTraitPair(index)}
@@ -187,8 +192,7 @@ export function TraitsEditor({
           );
         })}
       </Box>
-
-      <Box mt={5}>
+      <Box mt={1}>
         <ButtonBorder
           onClick={addNewTraitPair}
           css={`
@@ -230,8 +234,11 @@ type InputOptionArray = {
 
 const requireNoDuplicateTraits =
   (configuredTraits: TraitsOption[]) => (enteredTrait: Option) => () => {
+    if (!enteredTrait) {
+      return { valid: true };
+    }
     const traitKey = configuredTraits.map(trait =>
-      trait.traitKey.value.toLowerCase()
+      trait.traitKey?.value.toLowerCase()
     );
     let occurance = 0;
     traitKey.forEach(key => {
@@ -246,7 +253,7 @@ const requireNoDuplicateTraits =
   };
 
 export const emptyTrait = {
-  traitKey: { value: '', label: 'Type a trait name and press enter' },
+  traitKey: null,
   traitValues: [],
 };
 
@@ -257,6 +264,7 @@ export type TraitEditorProps = {
   configuredTraits: TraitsOption[];
   isLoading: boolean;
   tooltipContent?: React.ReactNode;
+  label?: string;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
@@ -280,3 +288,12 @@ export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
   }
   return newTrait;
 }
+
+const customStyles = {
+  placeholder: base => ({
+    ...base,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
+};

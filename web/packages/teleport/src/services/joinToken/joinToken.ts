@@ -20,9 +20,15 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import { MfaChallengeResponse } from '../mfa';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
-import { JoinRule, JoinToken, JoinTokenRequest } from './types';
+import {
+  CreateJoinTokenRequest,
+  JoinRule,
+  JoinToken,
+  JoinTokenRequest,
+} from './types';
 
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
@@ -93,8 +99,21 @@ class JoinTokenService {
       .then(makeJoinToken);
   }
 
-  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
-    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  async createJoinToken(
+    req: CreateJoinTokenRequest,
+    mfaResponse: MfaChallengeResponse
+  ) {
+    return api
+      .post(cfg.getJoinTokensUrl(), req, null /* abortSignal */, mfaResponse)
+      .then(makeJoinToken);
+  }
+
+  async editJoinToken(
+    req: CreateJoinTokenRequest,
+    mfaResponse: MfaChallengeResponse
+  ) {
+    const json = await api.put(cfg.getJoinTokensUrl(), req, mfaResponse);
+    return makeJoinToken(json);
   }
 
   fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {

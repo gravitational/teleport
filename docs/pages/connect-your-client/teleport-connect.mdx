@@ -3,7 +3,7 @@ title: Using Teleport Connect
 description: Using Teleport Connect
 ---
 
-Teleport Connect provides easy and secure access to SSH servers, databases, applications, and
+Teleport Connect provides easy and secure access to SSH servers, databases, applications, Windows desktops, and
 Kubernetes clusters.
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
@@ -159,6 +159,19 @@ Connect with GUI section.
 The database connection tab shows the command that can be used to connect to the database. You can
 modify the database name of the connection and then click the Run button to open a new terminal tab
 with that command executed.
+
+## Connecting to a Windows desktop
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Look for the desktop you wish to connect to and click the Connect button.
+1. Select the user you wish to use and press `Enter`.
+
+A new tab will open with a remote desktop session.
+
+Alternatively, you can look for the desktops in the search bar and press `Enter` to connect to it.
+
+During a remote session, you can share your clipboard and a local directory, if permitted by your role.
 
 ## Connecting to an application
 
@@ -387,7 +400,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -415,7 +428,7 @@ a user set up an agent and then lock the user out of removing the agent.
 
 To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
 with the `teleport.dev/connect-my-computer/owner` label and then [place
-locks](../admin-guides/access-controls/guides/locking.mdx) on those nodes.
+locks](../identity-governance/locking.mdx) on those nodes.
 
 ```code
 $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'

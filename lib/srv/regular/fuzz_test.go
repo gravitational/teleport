@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func FuzzParseProxySubsys(f *testing.F) {
@@ -43,7 +42,7 @@ func FuzzParseProxySubsys(f *testing.F) {
 		server := &Server{
 			hostname:  "redhorse",
 			proxyMode: true,
-			logger:    slog.New(logutils.DiscardHandler{}),
+			logger:    slog.New(slog.DiscardHandler),
 		}
 
 		ctx := &srv.ServerContext{}

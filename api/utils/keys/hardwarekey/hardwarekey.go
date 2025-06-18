@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -33,7 +34,7 @@ type Service interface {
 	NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*Signer, error)
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
-	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+	Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 	// TODO(Joerger): DELETE IN v19.0.0
 	// GetFullKeyRef gets the full [PrivateKeyRef] for an existing hardware private
 	// key in the given slot of the hardware key with the given serial number.
@@ -44,13 +45,17 @@ type Service interface {
 type Signer struct {
 	service Service
 	Ref     *PrivateKeyRef
+	KeyInfo ContextualKeyInfo
 }
 
 // NewSigner returns a [Signer] for the given service and ref.
-func NewSigner(s Service, ref *PrivateKeyRef) *Signer {
+// keyInfo is an optional argument to supply additional contextual info
+// used to add additional context to prompts, e.g. ProxyHost.
+func NewSigner(s Service, ref *PrivateKeyRef, keyInfo ContextualKeyInfo) *Signer {
 	return &Signer{
 		service: s,
 		Ref:     ref,
+		KeyInfo: keyInfo,
 	}
 }
 
@@ -61,7 +66,7 @@ func (h *Signer) Public() crypto.PublicKey {
 
 // Sign implements [crypto.Signer].
 func (h *Signer) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	return h.service.Sign(context.TODO(), h.Ref, rand, digest, opts)
+	return h.service.Sign(context.TODO(), h.Ref, h.KeyInfo, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
@@ -88,7 +93,7 @@ func (h *Signer) WarmupHardwareKey(ctx context.Context) error {
 	// We don't actually need to hash the digest, just make it match the hash size.
 	digest := make([]byte, hash.Size())
 
-	_, err := h.service.Sign(ctx, h.Ref, rand.Reader, digest, hash)
+	_, err := h.service.Sign(ctx, h.Ref, h.KeyInfo, rand.Reader, digest, hash)
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
@@ -98,13 +103,13 @@ func EncodeSigner(p *Signer) ([]byte, error) {
 }
 
 // DecodeSigner decodes an encoded hardware key signer for the given service.
-func DecodeSigner(encodedKey []byte, s Service) (*Signer, error) {
+func DecodeSigner(encodedKey []byte, s Service, keyInfo ContextualKeyInfo) (*Signer, error) {
 	ref, err := decodeKeyRef(encodedKey, s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewSigner(s, ref), nil
+	return NewSigner(s, ref, keyInfo), nil
 }
 
 // PrivateKeyRef references a specific hardware private key.
@@ -120,6 +125,8 @@ type PrivateKeyRef struct {
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
 	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+	// PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+	PINCacheTTL time.Duration `json:"pin_cache_ttl"`
 }
 
 // encode encodes a [PrivateKeyRef] to JSON.
@@ -230,4 +237,46 @@ type PrivateKeyConfig struct {
 	//   - touch & pin   -> 9d
 	//   - touch & !pin  -> 9e
 	CustomSlot PIVSlotKeyString
+	// Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
+	// [AlgorithmEd25519] is not supported by all hardware keys.
+	Algorithm SignatureAlgorithm
+	// ContextualKeyInfo contains additional info to associate with the key.
+	ContextualKeyInfo ContextualKeyInfo
+	// PINCacheTTL is an option to enable PIN caching for this key with the specified TTL.
+	PINCacheTTL time.Duration
 }
+
+// ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
+type ContextualKeyInfo struct {
+	// ProxyHost is the root proxy hostname that the key is associated with.
+	ProxyHost string
+	// Username is a Teleport username that the key is associated with.
+	Username string
+	// ClusterName is a Teleport cluster name that the key is associated with.
+	ClusterName string
+	// AgentKeyInfo contains info associated with an hardware key agent signature request.
+	AgentKeyInfo AgentKeyInfo
+}
+
+// AgentKeyInfo contains info associated with an hardware key agent signature request.
+type AgentKeyInfo struct {
+	// UnknownAgentKey indicates whether this hardware private key is known to the hardware key agent
+	// process, usually based on whether a matching key is found in the process's client key store.
+	//
+	// For unknown agent keys, the hardware key service will check that the certificate in the same
+	// slot as the key matches a Teleport client metadata certificate in order to ensure the agent
+	// doesn't provide access to non teleport client PIV keys.
+	UnknownAgentKey bool
+	// Command is the command reported by the agent client which this agent key is being utilized to
+	// complete, e.g. `tsh ssh server01`.
+	Command string
+}
+
+// SignatureAlgorithm is a signature key algorithm option.
+type SignatureAlgorithm int
+
+const (
+	SignatureAlgorithmEC256 SignatureAlgorithm = iota + 1
+	SignatureAlgorithmEd25519
+	SignatureAlgorithmRSA2048
+)

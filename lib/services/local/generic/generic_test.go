@@ -202,6 +202,46 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	// Retrieve all resources from the stream
+	var streamedResources []*testResource
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Retrieve all resources from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r1.GetName(), r2.GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r2.GetName(), "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource{r2}, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, "", r1.GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
 	require.NoError(t, err)
@@ -452,7 +492,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-	require.Equal(t, "", nextKey)
+	require.Empty(t, nextKey)
 
 	page, nextKey, err = service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
 		return r.Metadata.Name == "r2"
@@ -461,7 +501,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-	require.Equal(t, "", nextKey)
+	require.Empty(t, nextKey)
 }
 
 func TestGenericListResourcesWithFilterForScale(t *testing.T) {

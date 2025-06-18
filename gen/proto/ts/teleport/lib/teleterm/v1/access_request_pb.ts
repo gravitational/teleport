@@ -130,6 +130,20 @@ export interface AccessRequest {
      * @generated from protobuf field: google.protobuf.Timestamp session_ttl = 18;
      */
     sessionTtl?: Timestamp;
+    /**
+     * reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+     * "required". It's only added in response to a dry run request.
+     *
+     * @generated from protobuf field: string reason_mode = 19;
+     */
+    reasonMode: string;
+    /**
+     * reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+     * It's only added in response to a dry run request.
+     *
+     * @generated from protobuf field: repeated string reason_prompts = 20;
+     */
+    reasonPrompts: string[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -246,7 +260,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 15, name: "assume_start_time", kind: "message", T: () => Timestamp },
             { no: 16, name: "max_duration", kind: "message", T: () => Timestamp },
             { no: 17, name: "request_ttl", kind: "message", T: () => Timestamp },
-            { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp }
+            { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp },
+            { no: 19, name: "reason_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 20, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -263,6 +279,8 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         message.resourceIds = [];
         message.resources = [];
         message.promotedAccessListTitle = "";
+        message.reasonMode = "";
+        message.reasonPrompts = [];
         if (value !== undefined)
             reflectionMergePartial<AccessRequest>(this, message, value);
         return message;
@@ -325,6 +343,12 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                     break;
                 case /* google.protobuf.Timestamp session_ttl */ 18:
                     message.sessionTtl = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.sessionTtl);
+                    break;
+                case /* string reason_mode */ 19:
+                    message.reasonMode = reader.string();
+                    break;
+                case /* repeated string reason_prompts */ 20:
+                    message.reasonPrompts.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -392,6 +416,12 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* google.protobuf.Timestamp session_ttl = 18; */
         if (message.sessionTtl)
             Timestamp.internalBinaryWrite(message.sessionTtl, writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* string reason_mode = 19; */
+        if (message.reasonMode !== "")
+            writer.tag(19, WireType.LengthDelimited).string(message.reasonMode);
+        /* repeated string reason_prompts = 20; */
+        for (let i = 0; i < message.reasonPrompts.length; i++)
+            writer.tag(20, WireType.LengthDelimited).string(message.reasonPrompts[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -18,121 +18,90 @@ package vnet
 
 import (
 	"context"
-	"errors"
-	"time"
+	"net"
+	"os"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.zx2c4.com/wireguard/tun"
+	"google.golang.org/grpc"
+	grpccredentials "google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-// runPlatformUserProcess creates a network stack for VNet and runs it in the
-// background. To do this, it also needs to launch an admin process in the
-// background. It returns a [ProcessManager] which controls the lifecycle of
-// both background tasks.
-func runPlatformUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *ProcessManager, nsi NetworkStackInfo, err error) {
-	// Make sure to close the process manager if returning a non-nil error.
-	defer func() {
-		if pm != nil && err != nil {
-			pm.Close()
-		}
-	}()
-
-	ipv6Prefix, err := newIPv6Prefix()
+// runPlatformUserProcess launches a daemon in the background that will handle
+// all networking and OS configuration. The user process exposes a gRPC
+// interface that the daemon uses to query application names and get user
+// certificates for apps. If successful it sets p.processManager and
+// p.networkStackInfo.
+func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
+	ipcCreds, err := newIPCCredentials()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err)
+		return trace.Wrap(err, "creating credentials for IPC")
 	}
-	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-
-	// Create the socket that's used to receive the TUN device from the admin process.
-	socket, socketPath, err := createSocket()
+	serverTLSConfig, err := ipcCreds.server.serverTLSConfig()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err)
+		return trace.Wrap(err, "generating gRPC server TLS config")
 	}
-	log.DebugContext(ctx, "Created unix socket for admin process", "socket", socketPath)
 
-	pm, processCtx := newProcessManager()
-	pm.AddCriticalBackgroundTask("socket closer", func() error {
-		// Keep the socket open until the process context is canceled.
-		// Closing the socket signals the admin process to terminate.
-		<-processCtx.Done()
-		return trace.NewAggregate(processCtx.Err(), socket.Close())
-	})
+	credDir, err := os.MkdirTemp("", "vnet_service_certs")
+	if err != nil {
+		return trace.Wrap(err, "creating temp dir for service certs")
+	}
+	// Write credentials with 0200 so that only root can read them and no user
+	// processes should be able to connect to the service.
+	if err := ipcCreds.client.write(credDir, 0200); err != nil {
+		return trace.Wrap(err, "writing service IPC credentials")
+	}
 
-	pm.AddCriticalBackgroundTask("admin process", func() error {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return trace.Wrap(err, "listening on tcp socket")
+	}
+	// grpcServer.Serve takes ownership of (and closes) the listener.
+	grpcServer := grpc.NewServer(
+		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+	)
+	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
+
+	p.processManager.AddCriticalBackgroundTask("admin process", func() error {
+		defer func() {
+			// Delete service credentials after the service terminates.
+			if ipcCreds.client.remove(credDir); err != nil {
+				log.ErrorContext(processCtx, "Failed to remove service credential files", "error", err)
+			}
+			if err := os.RemoveAll(credDir); err != nil {
+				log.ErrorContext(processCtx, "Failed to remove service credential directory", "error", err)
+			}
+		}()
 		daemonConfig := daemon.Config{
-			SocketPath: socketPath,
-			IPv6Prefix: ipv6Prefix.String(),
-			DNSAddr:    dnsIPv6.String(),
-			HomePath:   cfg.HomePath,
+			ServiceCredentialPath:        credDir,
+			ClientApplicationServiceAddr: listener.Addr().String(),
 		}
 		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
 	})
-
-	recvTUNErr := make(chan error, 1)
-	var tun tun.Device
-	go func() {
-		// Unblocks after receiving a TUN device or when the context gets canceled (and thus socket gets
-		// closed).
-		tunDevice, err := receiveTUNDevice(socket)
-		tun = tunDevice
-		recvTUNErr <- err
-	}()
-
-	// It should be more than waitingForEnablementTimeout in the vnet/daemon package
-	// so that the user sees the error about the background item first.
-	const receiveTunTimeout = time.Minute
-	receiveTunCtx, cancel := context.WithTimeoutCause(ctx, receiveTunTimeout,
-		errors.New("admin process did not send back TUN device within timeout"))
-	defer cancel()
+	p.processManager.AddCriticalBackgroundTask("gRPC service", func() error {
+		log.InfoContext(processCtx, "Starting gRPC service",
+			"addr", listener.Addr().String())
+		return trace.Wrap(grpcServer.Serve(listener),
+			"serving VNet user process gRPC service")
+	})
+	p.processManager.AddCriticalBackgroundTask("gRPC server closer", func() error {
+		// grpcServer.Serve does not stop on its own when processCtx is done, so
+		// this task waits for processCtx and then explicitly stops grpcServer.
+		<-processCtx.Done()
+		grpcServer.GracefulStop()
+		return nil
+	})
 
 	select {
-	case <-receiveTunCtx.Done():
-		return nil, nsi, trace.Wrap(context.Cause(receiveTunCtx))
+	case nsi := <-p.clientApplicationService.networkStackInfo:
+		p.networkStackInfo = nsi
+		return nil
 	case <-processCtx.Done():
-		return nil, nsi, trace.Wrap(context.Cause(processCtx))
-	case err := <-recvTUNErr:
-		if err != nil {
-			if processCtx.Err() != nil {
-				// Both errors being present means that VNet failed to receive a TUN device because of a
-				// problem with the admin process.
-				// Returning error from processCtx will be more informative to the user, e.g., the error
-				// will say "password prompt closed by user" instead of "read from closed socket".
-				log.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
-				return nil, nsi, trace.Wrap(context.Cause(processCtx))
-			}
-			return nil, nsi, trace.Wrap(err, "receiving TUN device from admin process")
-		}
+		return trace.Wrap(p.processManager.Wait(), "process manager exited before network stack info was received")
 	}
-
-	tunDeviceName, err := tun.Name()
-	if err != nil {
-		return nil, nsi, trace.Wrap(err)
-	}
-
-	clock := clockwork.NewRealClock()
-	appProvider := newLocalAppProvider(cfg.ClientApplication, clock)
-	appResolver := newTCPAppResolver(appProvider, clock)
-	ns, err := newNetworkStack(&networkStackConfig{
-		tunDevice:          tun,
-		ipv6Prefix:         ipv6Prefix,
-		dnsIPv6:            dnsIPv6,
-		tcpHandlerResolver: appResolver,
-	})
-	if err != nil {
-		return nil, nsi, trace.Wrap(err)
-	}
-
-	pm.AddCriticalBackgroundTask("network stack", func() error {
-		return trace.Wrap(ns.run(processCtx))
-	})
-
-	nsi = NetworkStackInfo{
-		IfaceName:  tunDeviceName,
-		IPv6Prefix: ipv6Prefix.String(),
-	}
-
-	return pm, nsi, nil
 }

@@ -1,0 +1,52 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.scopes.access.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
+
+// ScopedRole is a role whose resource and permissions are scoped. Scoped roles implement a subset of role
+// features tailored to the usecases of scoped access and scoped access administration. Scoped roles may be
+// assigned to the same user multiple times at various scopes. Scoped roles do not contain deny rules.
+message ScopedRole {
+  // Kind is the resource kind.
+  string kind = 1;
+
+  // SubKind is the resource sub-kind.
+  string sub_kind = 2;
+
+  // Version is the resource version.
+  string version = 3;
+
+  // Metadata contains the resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Scope is the scope of the role resource.
+  string scope = 5;
+
+  // Spec is the role specification.
+  ScopedRoleSpec spec = 6;
+}
+
+// ScopedRoleSpec is the specification of a scoped role.
+message ScopedRoleSpec {
+  // AssignableScopes is a list of scopes to which this role can be assigned.
+  repeated string assignable_scopes = 1;
+
+  // TODO(fspmarshall): port relevant role features to scoped roles.
+}
