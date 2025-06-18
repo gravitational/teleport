@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -107,7 +108,7 @@ func newLocalBackend(
 ) (context.Context, backend.Backend, services.RecordingEncryption) {
 	t.Parallel()
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	clock := clockwork.NewRealClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
@@ -128,7 +129,8 @@ func newManagerConfig(bk backend.Backend, local services.RecordingEncryption, ke
 			LockConfiguration: backend.LockConfiguration{
 				Backend:            bk,
 				LockNameComponents: []string{"recording_encryption"},
-				TTL:                1 * time.Second,
+				TTL:                5 * time.Second,
+				RetryInterval:      10 * time.Millisecond,
 			},
 		},
 	}
@@ -198,6 +200,62 @@ func TestResolveRecordingEncryption(t *testing.T) {
 		require.NotNil(t, key.KeyEncryptionPair)
 		require.NotNil(t, key.RecordingEncryptionPair)
 	}
+}
+
+func TestResolveRecordingEncryptionConcurrent(t *testing.T) {
+	// SETUP
+	ctx, bk, local := newLocalBackend(t)
+
+	serviceAType := types.PrivateKeyType_RAW
+	serviceBType := types.PrivateKeyType_AWS_KMS
+	serviceCType := types.PrivateKeyType_GCP_KMS
+
+	serviceA, err := recordingencryption.NewManager(newManagerConfig(bk, local, serviceAType))
+	require.NoError(t, err)
+
+	serviceB, err := recordingencryption.NewManager(newManagerConfig(bk, local, serviceBType))
+	require.NoError(t, err)
+
+	serviceC, err := recordingencryption.NewManager(newManagerConfig(bk, local, serviceCType))
+	require.NoError(t, err)
+
+	resolveFn := func(service recordingencryption.Resolver, wg *sync.WaitGroup) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := service.ResolveRecordingEncryption(ctx, nil)
+			require.NoError(t, err)
+		}()
+	}
+
+	wg := sync.WaitGroup{}
+	resolveFn(serviceA, &wg)
+	resolveFn(serviceB, &wg)
+	resolveFn(serviceC, &wg)
+	wg.Wait()
+
+	encryption, err := local.GetRecordingEncryption(ctx)
+	require.NoError(t, err)
+
+	activeKeys := encryption.GetSpec().ActiveKeys
+	// each service should have an active wrapped key
+	require.Len(t, activeKeys, 3)
+	var fulfilledKeys int
+	for _, key := range activeKeys {
+		// all wrapped keys should have KeyEncryptionPairs
+		require.NotNil(t, key.KeyEncryptionPair)
+		require.NotEmpty(t, key.KeyEncryptionPair.PublicKey)
+		require.NotEmpty(t, key.KeyEncryptionPair.PrivateKey)
+
+		if key.RecordingEncryptionPair != nil {
+			fulfilledKeys += 1
+		}
+	}
+
+	// only the first service to run should have a fulfilled wrapped key
+	require.Equal(t, 1, fulfilledKeys)
+	err = local.DeleteRecordingEncryption(ctx)
+	require.NoError(t, err)
 }
 
 func TestPostProcessFn(t *testing.T) {
