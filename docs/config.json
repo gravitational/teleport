@@ -879,6 +879,11 @@
       "source": "/enroll-resources/workload-identity/",
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
+    },
+    {
+      "source": "/reference/architecture/proxy-peering/",
+      "destination": "/admin-guides/management/operations/proxy-peering/",
+      "permanent": true
     }
   ]
 }
