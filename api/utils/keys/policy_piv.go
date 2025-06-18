@@ -16,7 +16,7 @@ limitations under the License.
 package keys
 
 import (
-	"github.com/go-piv/piv-go/piv"
+	"github.com/go-piv/piv-go/v2/piv"
 )
 
 // GetPrivateKeyPolicyFromAttestation returns the PrivateKeyPolicy satisfied by the given hardware key attestation.
