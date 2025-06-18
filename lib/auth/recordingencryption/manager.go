@@ -43,9 +43,15 @@ type KeyStore interface {
 	GetDecrypter(ctx context.Context, keyPair *types.EncryptionKeyPair) (crypto.Decrypter, error)
 }
 
+// A Cache fetches a cached *recordingencryptionv1.RecordingEncryption
+type Cache interface {
+	GetRecordingEncryption(context.Context) (*recordingencryptionv1.RecordingEncryption, error)
+}
+
 // ManagerConfig captures all of the dependencies required to instantiate a Manager.
 type ManagerConfig struct {
 	Backend    services.RecordingEncryption
+	Cache      Cache
 	KeyStore   KeyStore
 	Logger     *slog.Logger
 	LockConfig backend.RunWhileLockedConfig
@@ -53,6 +59,7 @@ type ManagerConfig struct {
 
 // NewManager returns a new Manager using the given ManagerConfig.
 func NewManager(cfg ManagerConfig) (*Manager, error) {
+
 	switch {
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend is required")
@@ -64,11 +71,16 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		cfg.Logger = slog.With(teleport.ComponentKey, "recording-encryption-manager")
 	}
 
+	if cfg.Cache == nil {
+		cfg.Cache = cfg.Backend
+	}
+
 	return &Manager{
 		RecordingEncryption: cfg.Backend,
 		keyStore:            cfg.KeyStore,
 		lockConfig:          cfg.LockConfig,
 		logger:              cfg.Logger,
+		cache:               cfg.Cache,
 	}, nil
 }
 
@@ -81,6 +93,12 @@ type Manager struct {
 	logger     *slog.Logger
 	lockConfig backend.RunWhileLockedConfig
 	keyStore   KeyStore
+	cache      Cache
+}
+
+// SetCache overwrites the configured Cache implementation
+func (m *Manager) SetCache(cache Cache) {
+	m.cache = cache
 }
 
 // ensureActiveRecordingEncryption returns the configured RecordingEncryption resource if it exists with active keys. If it does not,
@@ -305,7 +323,7 @@ func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordinge
 // FindDecryptionKey returns the first accessible decryption key that matches one of the given public keys.
 func (m *Manager) FindDecryptionKey(publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
 	ctx := context.Background()
-	encryption, err := m.GetRecordingEncryption(ctx)
+	encryption, err := m.cache.GetRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
