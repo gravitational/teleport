@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Meta } from '@storybook/react';
+import { Meta, StoryObj } from '@storybook/react';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
@@ -51,6 +51,20 @@ type StoryProps = {
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
+};
+
+const defaultArgs: StoryProps = {
+  startVnet: 'success',
+  autoStart: true,
+  appDnsZones: ['teleport.example.com', 'company.test'],
+  clusters: ['teleport.example.com'],
+  sshConfigured: false,
+  fetchStatus: 'success',
+  vnetDiag: true,
+  runDiagnostics: 'success',
+  diagReport: 'ok',
+  isWorkspacePresent: true,
+  unexpectedShutdown: false,
 };
 
 const meta: Meta<StoryProps> = {
@@ -98,23 +112,11 @@ const meta: Meta<StoryProps> = {
         "If there's no workspace, the button to open the diag report is disabled.",
     },
   },
-  args: {
-    startVnet: 'success',
-    autoStart: true,
-    appDnsZones: ['teleport.example.com', 'company.test'],
-    clusters: ['teleport.example.com'],
-    sshConfigured: false,
-    fetchStatus: 'success',
-    vnetDiag: true,
-    runDiagnostics: 'success',
-    diagReport: 'ok',
-    isWorkspacePresent: true,
-    unexpectedShutdown: false,
-  },
+  render: props => <VnetSliderStep {...props} />,
 };
 export default meta;
 
-export function VnetSliderStep(props: StoryProps) {
+function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext({
     platform: props.vnetDiag ? 'darwin' : 'win32',
   });
@@ -249,3 +251,60 @@ const RerequestServiceInfo = () => {
 };
 
 const noop = () => {};
+
+export const CloudCustomer: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['example.teleport.sh'],
+    clusters: ['example.teleport.sh'],
+  },
+};
+
+export const SelfHostedWithDifferentClusterName: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com'],
+    clusters: ['teleport-example'],
+  },
+};
+
+export const SelfHostedWithEqualNameAndLeaf: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com', 'leaf.example.com'],
+    clusters: ['teleport.example.com', 'leaf.example.com'],
+  },
+};
+
+export const SelfHostedWithEqualNameAndDifferentLeaf: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com', 'leaf.example.com'],
+    clusters: ['teleport.example.com', 'teleport-leaf'],
+  },
+};
+
+export const SelfHostedWithEqualNameAndCustomDNSZones: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com', 'company.com', 'apps.company'],
+    clusters: ['teleport.example.com'],
+  },
+};
+
+export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: [
+      'teleport.example.com',
+      'leaf.example.com',
+      'second-leaf.example.com',
+      'company.com',
+    ],
+    clusters: [
+      'teleport.example.com',
+      'teleport-leaf',
+      'second-leaf.example.com',
+    ],
+  },
+};
