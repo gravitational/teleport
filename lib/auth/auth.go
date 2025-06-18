@@ -3700,7 +3700,8 @@ func (a *Server) emitCertCreateEvent(ctx context.Context, issuer *tlsca.CertAuth
 	var certAuthority *apievents.CertificateAuthority
 	if issuer != nil {
 		certAuthority = &apievents.CertificateAuthority{
-			ID:           fmt.Sprintf("%s (type = %s)", issuer.Cert.Issuer.CommonName, types.UserCA),
+			Type:         string(types.UserCA),
+			Domain:       issuer.Cert.Issuer.CommonName,
 			SubjectKeyID: base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId),
 		}
 	}

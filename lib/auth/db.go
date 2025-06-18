@@ -162,10 +162,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// out of the box in crypto/x509) extensions only.
 		certReq.ExtraExtensions = filterExtensions(a.CloseContext(), a.logger, csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping)
 		certReq.KeyUsage = x509.KeyUsageDigitalSignature
-		// CRL Distribution Points (CDP) are required for Windows smartcard certs
-		// for users wanting to RDP. They are not required for the service account
-		// cert that Teleport itself uses to authenticate for LDAP.
-		//
+		// CRL Distribution Points (CDP) are required for Windows smartcard certs.
 		// The CDP is computed here by the auth server issuing the cert and not provided
 		// by the client because the CDP is based on the identity of the issuer, which is
 		// necessary in order to support clusters with multiple issuing certs (HSMs).

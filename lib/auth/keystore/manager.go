@@ -600,6 +600,10 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	}
 
 	certificate, err := tlsca.ParseCertificatePEM(tlsCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	crl, err := GenerateCRL(certificate, signer)
 	if err != nil {
 		return nil, err
@@ -612,18 +616,15 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	}, nil
 }
 
-func crlTemplate() *x509.RevocationList {
-	return &x509.RevocationList{
+func GenerateCRL(caCert *x509.Certificate, signer crypto.Signer) ([]byte, error) {
+	revocationList := &x509.RevocationList{
 		Number:     big.NewInt(1),
 		ThisUpdate: time.Now().Add(-1 * time.Minute), // 1 min in the past to account for clock skew.
 
 		// Note the 10 year expiration date. CRLs are always empty, so they don't need to change frequently.
 		NextUpdate: time.Now().Add(10 * 365 * 24 * time.Hour),
 	}
-}
-
-func GenerateCRL(caCert *x509.Certificate, signer crypto.Signer) ([]byte, error) {
-	crl, err := x509.CreateRevocationList(rand.Reader, crlTemplate(), caCert, signer)
+	crl, err := x509.CreateRevocationList(rand.Reader, revocationList, caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating CRL")
 	}

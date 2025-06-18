@@ -75,7 +75,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	// 2. put the CA cert into NTAuth store in LDAP
 	// 3. put the CRL of the CA into a dedicated LDAP entry
 	//
-	// #1 and #2 are done manually as part of the set up process (see public docs).
+	// #1 and #2 are done manually as part of the set-up process (see public docs).
 	// Below we do #3.
 
 	hasCRL := false
@@ -85,7 +85,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	}
 	for _, ca := range certAuthorities {
 		for _, keyPair := range ca.GetActiveKeys().TLS {
-			if keyPair.CRL != nil {
+			if len(keyPair.CRL) > 0 {
 				hasCRL = true
 				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 				if err != nil {
@@ -100,6 +100,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	}
 
 	// All authorities are missing CRL, let's fall back to legacy behavior
+	// TODO(probakowski): DELETE IN v20.0.0
 	if !hasCRL {
 		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
 		if err != nil {
