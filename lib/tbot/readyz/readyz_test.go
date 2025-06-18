@@ -56,8 +56,8 @@ func TestReadyz(t *testing.T) {
 			readyz.OverallStatus{
 				Status: readyz.Unhealthy,
 				Services: map[string]*readyz.ServiceStatus{
-					"a": {Status: readyz.Unknown},
-					"b": {Status: readyz.Unknown},
+					"a": {Status: readyz.Initializing},
+					"b": {Status: readyz.Initializing},
 				},
 			},
 			response,
