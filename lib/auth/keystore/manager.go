@@ -473,8 +473,8 @@ func (m *Manager) getTLSCertAndSigner(ctx context.Context, keySet types.CAKeySet
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}
-			return keyPair.Cert, signer, nil
+			// signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: backend.name()}
+			return keyPair.Cert, signer.(*keys.PrivateKey).Signer, nil
 		}
 	}
 	return nil, nil, trace.NotFound("no usable TLS key pairs found")
@@ -512,7 +512,8 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &cryptoCountSigner{Signer: signer, keyType: keyTypeJWT, store: backend.name()}, trace.Wrap(err)
+			return signer.(*keys.PrivateKey).Signer, nil
+			// return &cryptoCountSigner{Signer: signer, keyType: keyTypeJWT, store: backend.name()}, trace.Wrap(err)
 		}
 	}
 	return nil, trace.NotFound("no usable JWT key pairs found")
