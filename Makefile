@@ -1081,9 +1081,10 @@ FLAKY_RUNS ?= 3
 FLAKY_TIMEOUT ?= 1h
 FLAKY_TOP_N ?= 20
 FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
+test-go-flaky: rdpclient
 test-go-flaky: FLAGS ?= -race -shuffle on
 test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e e2e -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
-test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
+test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
