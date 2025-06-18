@@ -18,6 +18,7 @@ package provider
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -29,6 +30,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -88,12 +90,66 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 	}
 }
 
+type providerData struct {
+	newBotConfig func() *config.BotConfig
+}
+
 func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var data ProviderModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Shared internal store for the bot.
+	botInternalStore := config.DestinationMemory{}
+	if err := botInternalStore.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot internal store",
+			"Failed to set defaults for bot internal store: "+err.Error(),
+		)
+		return
+	}
+
+	newBotConfig := func() *config.BotConfig {
+		return &config.BotConfig{
+			Version:     "v2",
+			ProxyServer: data.ProxyServer.ValueString(),
+			Storage: &config.StorageConfig{
+				Destination: &botInternalStore,
+			},
+			Onboarding: config.OnboardingConfig{
+				JoinMethod: apitypes.JoinMethod(data.JoinMethod.ValueString()),
+				TokenValue: data.JoinToken.ValueString(),
+			},
+			Oneshot: true,
+		}
+	}
+
+	botCfg := newBotConfig()
+	if err := botCfg.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot config",
+			"Failed to set defaults for bot config: "+err.Error(),
+		)
+		return
+	}
+	bot := tbot.New(botCfg, slog.Default())
+
+	// Run bot just to validate that the configuration is correct.
+	if err := bot.Run(ctx); err != nil {
+		resp.Diagnostics.AddError(
+			"Error running tbot in provider",
+			"Failed to run tbot: "+err.Error(),
+		)
+		return
+	}
+
+	providerData := providerData{
+		newBotConfig: newBotConfig,
+	}
+	resp.DataSourceData = &providerData
+	resp.EphemeralResourceData = &providerData
 }
 
 func (p *Provider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
