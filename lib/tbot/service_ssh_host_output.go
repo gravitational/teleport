@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/loop"
 )
 
 type SSHHostOutputService struct {
@@ -64,15 +65,15 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:         s.String(),
-		name:            "output-renewal",
-		f:               s.generate,
-		interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit:      renewalRetryLimit,
-		log:             s.log,
-		reloadCh:        reloadCh,
-		identityReadyCh: s.botIdentityReadyCh,
+	err := loop.Run(ctx, loop.Config{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		Fn:              s.generate,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)
 }

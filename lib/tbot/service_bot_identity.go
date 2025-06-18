@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -361,17 +362,17 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "bot-identity-renewal",
-		f: func(ctx context.Context) error {
+	err := loop.Run(ctx, loop.Config{
+		Service: s.String(),
+		Name:    "bot-identity-renewal",
+		Fn: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:           s.cfg.CredentialLifetime.RenewalInterval,
-		retryLimit:         botIdentityRenewalRetryLimit,
-		log:                s.log,
-		reloadCh:           reloadCh,
-		waitBeforeFirstRun: true,
+		Interval:           s.cfg.CredentialLifetime.RenewalInterval,
+		RetryLimit:         botIdentityRenewalRetryLimit,
+		Log:                s.log,
+		ReloadCh:           reloadCh,
+		WaitBeforeFirstRun: true,
 	})
 	return trace.Wrap(err)
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/loop"
 )
 
 type heartbeatSubmitter interface {
@@ -95,13 +96,13 @@ func (s *heartbeatService) OneShot(ctx context.Context) error {
 
 func (s *heartbeatService) Run(ctx context.Context) error {
 	isStartup := true
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "submit-heartbeat",
-		log:        s.log,
-		interval:   s.interval,
-		retryLimit: s.retryLimit,
-		f: func(ctx context.Context) error {
+	err := loop.Run(ctx, loop.Config{
+		Service:    s.String(),
+		Name:       "submit-heartbeat",
+		Log:        s.log,
+		Interval:   s.interval,
+		RetryLimit: s.retryLimit,
+		Fn: func(ctx context.Context) error {
 			err := s.heartbeat(ctx, isStartup)
 			// TODO(noah): Remove NotImplemented check at V18 assuming V17 first
 			// major with heartbeating.
@@ -118,7 +119,7 @@ func (s *heartbeatService) Run(ctx context.Context) error {
 			isStartup = false
 			return nil
 		},
-		identityReadyCh: s.botIdentityReadyCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)
 }
