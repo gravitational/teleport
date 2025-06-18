@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -71,15 +72,15 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:         s.String(),
-		name:            "output-renewal",
-		f:               s.generate,
-		interval:        s.cfg.SessionRenewalInterval,
-		retryLimit:      renewalRetryLimit,
-		log:             s.log,
-		reloadCh:        reloadCh,
-		identityReadyCh: s.botIdentityReadyCh,
+	err := loop.Run(ctx, loop.Config{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		Fn:              s.generate,
+		Interval:        s.cfg.SessionRenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)
 }
