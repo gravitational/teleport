@@ -21,11 +21,11 @@ that's responsible for consuming messages from the queue, converting and enhanci
 them with metadata such as location, and writing them as Parquet files in the
 long-term S3 bucket.
 
-AWS Athena powers a query engine in the Identity Activity Center.
-To specify the schema and retrieve data from Parquet files kept in the
-long-term S3 bucket, AWS Athena makes use of an AWS Glue Table. With this
-configuration, audit logs can be efficiently queried and analyzed, leading
-to improved insights and simplified data management for identity security.
+Amazon Athena powers a query engine in the Identity Activity Center. To specify
+the schema and retrieve data from Parquet files kept in the long-term S3 bucket,
+Amazon Athena makes use of an AWS Glue Table. With this configuration, audit
+logs can be efficiently queried and analyzed, leading to improved insights and
+simplified data management for identity security.
 
 ## Prerequisites
 - A running Teleport Enterprise cluster v18.0.0 or later.
@@ -67,7 +67,7 @@ which are necessary for the Terraform script to execute.
 - <Var name="example-transient-bucket"/> is the transient S3 bucket used to store temporary files such as query results and large files.
 - <Var name="example-db"/> is the name of the AWS Glue database.
 - <Var name="example-table"/> is the name of the AWS Glue table.
-- <Var name="example-workgroup"/> is the name of the AWS Athena Workgroup.
+- <Var name="example-workgroup"/> is the name of the Amazon Athena Workgroup.
 - <Var name="aws-account-id"/> is the AWS account id.
 
 Define the variables using the script below or configure them in your
@@ -124,7 +124,7 @@ The Terraform script will output two variables:
 
 </details>
 
-##  Step 2/4. Configure MaxMind GeoIP City database (optional)
+## Step 2/4. Configure MaxMind GeoIP City database (optional)
 
 <Admonition type="note">
 
