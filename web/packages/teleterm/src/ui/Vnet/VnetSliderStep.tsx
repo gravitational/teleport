@@ -24,6 +24,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 
+import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { DiagnosticsAlert } from './DiagnosticsAlert';
@@ -185,8 +186,6 @@ const VnetStatus = () => {
     );
   }
 
-  const serviceInfo = serviceInfoAttempt.data;
-
   const statusIndicator = (
     <ConnectionStatusIndicator
       status={serviceInfoAttempt.status === 'success' ? 'on' : 'processing'}
@@ -197,34 +196,11 @@ const VnetStatus = () => {
       }
       inline
       mr={2}
+      mt={2}
     />
   );
 
-  if (
-    serviceInfo.appDnsZones.length === 0 &&
-    serviceInfo.clusters.length == 0
-  ) {
-    return (
-      <Text p={textSpacing}>
-        {statusIndicator}
-        No clusters connected yet, VNet is not proxying any connections.
-      </Text>
-    );
-  }
-
-  const appIndicator = serviceInfo.appDnsZones.length ? (
-    <Flex>
-      <span>{statusIndicator}</span>
-      Proxying TCP connections to {serviceInfo.appDnsZones.join(', ')}
-    </Flex>
-  ) : null;
-
-  const sshIndicator = serviceInfo.clusters.length ? (
-    <Flex>
-      <span>{statusIndicator}</span>
-      Proxying SSH connections to clusters {serviceInfo.clusters.join(', ')}
-    </Flex>
-  ) : null;
+  const serviceInfo = serviceInfoAttempt.data;
 
   const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
     <Flex>
@@ -233,11 +209,65 @@ const VnetStatus = () => {
     </Flex>
   );
 
+  if (serviceInfo.appDnsZones.length == 0 && serviceInfo.clusters.length == 0) {
+    return (
+      <Flex p={textSpacing}>
+        {statusIndicator}
+        No clusters connected yet, VNet is not proxying any connections.
+      </Flex>
+    );
+  }
+
+  const appDNSZones = new Set(serviceInfo.appDnsZones);
+  const sshClusters = new Set(serviceInfo.clusters);
+
+  if (appDNSZones.difference(sshClusters).size == 0) {
+    return (
+      <Text p={textSpacing}>
+        <Flex>
+          {statusIndicator}
+          Proxying TCP and SSH connections to
+          {' '}{[...appDNSZones].join(', ')}
+        </Flex>
+        {sshConfiguredIndicator}
+      </Text>
+    );
+  }
+
+  const both = [...appDNSZones.intersection(sshClusters)].sort();
+  const justTCP = [...appDNSZones.difference(sshClusters)].sort();
+  const justSSH = [...sshClusters.difference(appDNSZones)].sort();
+
   return (
-    <Text p={textSpacing}>
-      {appIndicator}
-      {sshIndicator}
+    <Box p={textSpacing}>
+      <Flex>
+        {statusIndicator}
+        <Box>
+          Proxying TCP and SSH connections to:
+          <Text typography="body2" bold>
+            {both.length ? (
+              <Box>
+                <ConnectionKindIndicator>TCP</ConnectionKindIndicator>
+                <ConnectionKindIndicator>SSH</ConnectionKindIndicator>
+                {both.join(', ')}
+              </Box>
+            ) : null}
+            {justTCP.length ? (
+              <Box>
+                <ConnectionKindIndicator>TCP</ConnectionKindIndicator>
+                {justTCP.join(', ')}
+              </Box>
+            ) : null}
+            {justSSH.length ? (
+              <Box>
+                <ConnectionKindIndicator>SSH</ConnectionKindIndicator>
+                {justSSH.join(', ')}
+              </Box>
+            ) : null}
+          </Text>
+        </Box>
+      </Flex>
       {sshConfiguredIndicator}
-    </Text>
+    </Box>
   );
 };

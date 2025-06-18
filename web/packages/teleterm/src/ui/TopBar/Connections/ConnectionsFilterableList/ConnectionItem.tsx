@@ -98,18 +98,9 @@ export function ConnectionItem(props: {
               line-height: 16px;
             `}
           >
-            <span
-              css={`
-                font-size: 10px;
-                background: ${props => props.theme.colors.spotBackground[2]};
-                opacity: 0.85;
-                padding: 1px 2px;
-                margin-right: 4px;
-                border-radius: 4px;
-              `}
-            >
+            <ConnectionKindIndicator>
               {getKindName(props.item)}
-            </span>
+            </ConnectionKindIndicator>
             <span
               css={`
                 vertical-align: middle;
@@ -150,6 +141,15 @@ const ConnectionListItem = styled(ListItem)<{ $showClusterName?: boolean }>`
   margin-block-start: ${props =>
     props.$showClusterName ? props.theme.space[1] : 0}px;
   height: unset;
+`;
+
+export const ConnectionKindIndicator = styled.span`
+  font-size: 10px;
+  background: ${props => props.theme.colors.spotBackground[2]};
+  opacity: 0.85;
+  padding: 1px 2px;
+  margin-right: 4px;
+  border-radius: 4px;
 `;
 
 function getKindName(connection: ExtendedTrackedConnection): string {
