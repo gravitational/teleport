@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -54,14 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-)
-
-const (
-	// teleportImpersonateUserHeader is a header that specifies teleport user identity
-	// that the proxy is impersonating.
-	teleportImpersonateUserHeader = "Teleport-Impersonate-User"
-	// teleportImpersonateIPHeader is a header that specifies the real user IP address.
-	teleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
 // AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
@@ -609,80 +600,4 @@ func findPrimarySystemRole(roles []string) *types.SystemRole {
 		}
 	}
 	return nil
-}
-
-// ImpersonatorRoundTripper is a round tripper that impersonates a user with
-// the identity provided.
-type ImpersonatorRoundTripper struct {
-	http.RoundTripper
-}
-
-// NewImpersonatorRoundTripper returns a new impersonator round tripper.
-func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper {
-	return &ImpersonatorRoundTripper{
-		RoundTripper: rt,
-	}
-}
-
-// RoundTrip implements http.RoundTripper interface to include the identity
-// in the request header.
-func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-
-	identity, err := authz.UserFromContext(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b, err := json.Marshal(identity.GetIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.Header.Set(teleportImpersonateUserHeader, string(b))
-
-	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req.Header.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
-
-	return r.RoundTripper.RoundTrip(req)
-}
-
-// CloseIdleConnections ensures that the returned [net.RoundTripper]
-// has a CloseIdleConnections method.
-func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
-	type closeIdler interface {
-		CloseIdleConnections()
-	}
-	if c, ok := r.RoundTripper.(closeIdler); ok {
-		c.CloseIdleConnections()
-	}
-}
-
-// IdentityForwardingHeaders returns a copy of the provided headers with
-// the TeleportImpersonateUserHeader and TeleportImpersonateIPHeader headers
-// set to the identity provided.
-// The returned headers shouln't be used across requests as they contain
-// the client's IP address and the user's identity.
-func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header) (http.Header, error) {
-	identity, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b, err := json.Marshal(identity.GetIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headers := originalHeaders.Clone()
-	headers.Set(teleportImpersonateUserHeader, string(b))
-
-	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headers.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
-	return headers, nil
 }
