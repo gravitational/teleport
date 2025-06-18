@@ -122,7 +122,7 @@ test.each(tests)(
     ).toBeInTheDocument();
     await user.click(within(docVnetInfo).getByText('Start VNet'));
     expect(
-      await screen.findByText(/Proxying TCP connections/)
+      await screen.findByText(/Proxying TCP and SSH connections/)
     ).toBeInTheDocument();
 
     // Verify that a notification is shown and that the address is in the clipboard.
@@ -143,7 +143,7 @@ test.each(tests)(
     await user.click(within(docVnetInfo).getByText('Stop VNet'));
     await user.click(await within(docVnetInfo).findByText('Start VNet'));
     expect(
-      await screen.findByText(/Proxying TCP connections/)
+      await screen.findByText(/Proxying TCP and SSH connections/)
     ).toBeInTheDocument();
 
     // Verify that the address was not copied to the clipboard after the second start from the "Start
@@ -213,7 +213,7 @@ test.each(tests)(
 
     // Verify that VNet is running and that the public address was copied to the clipboard.
     expect(
-      await screen.findByText(/Proxying TCP connections/)
+      await screen.findByText(/Proxying TCP and SSH connections/)
     ).toBeInTheDocument();
     expect(
       await screen.findByText(
