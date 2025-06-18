@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -34,7 +34,7 @@ type ClientCredentialOutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
+	botAuthClient     *apiclient.Client
 	botCfg            *config.BotConfig
 	cfg               *config.UnstableClientCredentialOutput
 	getBotIdentity    getBotIdentityFn

@@ -27,10 +27,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -49,7 +48,7 @@ type ApplicationTunnelService struct {
 	proxyPingCache *proxyPingCache
 	log            *slog.Logger
 	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
+	botClient      *apiclient.Client
 	getBotIdentity getBotIdentityFn
 }
 
@@ -172,7 +171,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		Cert:               *appCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
-	if client.IsALPNConnUpgradeRequired(
+	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
 		s.botCfg.Insecure,
