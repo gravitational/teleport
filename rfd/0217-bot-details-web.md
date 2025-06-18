@@ -28,15 +28,7 @@ In its first increment the Bot Details page has no expected differences between 
 ### User stories
 
 As a member of the **Infrastructure Security team**,
-I would like to **view information about a bot** (such as name and create/updated at & by),
-So that I can track changes to the bot’s configuration for troubleshooting purposes.
-
-As a member of the **Infrastructure Security team**,
-I would like to link out to documentation about **what a bot is and how it works**,
-So that I can get the most out of the capability and feel confident deploying a solution leveraging bots.
-
-As a member of the **Infrastructure Security team**,
-I would like to **edit the assigned roles, allowed traits and max session dutration** for a bot,
+I would like to **edit the assigned roles, allowed traits and max session duration** for a bot,
 So that I can easily extend or reduce the scope of a bot without the need to migrate existing agents (e.g. by needing to recreate the bot) or using `tctl`.
 
 As a member of the **Infrastructure Security team**,
