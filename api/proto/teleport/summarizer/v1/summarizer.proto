@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package teleport.summarizer.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
+
+// InferenceModel resource describes a model and provider-specific parameters.
+message InferenceModel {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  InferenceModelSpec spec = 5;
+}
+
+// InferenceModelSpec defines the model and provider-specific parameters.
+message InferenceModelSpec {
+  oneof provider {
+    BedrockProvider bedrock = 1;
+    OpenAIProvider openai = 2;
+    // Add more providers here in the future.
+  }
+  // Budget is post-MVP, optional for now.
+  Budget budget = 3;
+}
+
+// Bedrock provider-specific parameters.
+message BedrockProvider {
+  string bedrock_model_id = 1;
+}
+
+// OpenAI provider-specific parameters.
+message OpenAIProvider {
+  string openai_model_id = 1;
+  double temperature = 2;
+  string api_key_secret_ref = 3;
+  string base_url = 4;
+}
+
+// Budget for inference model usage (post-MVP).
+message Budget {
+  string time_period = 1; // e.g., "1mo", "1d"
+  int64 input_tokens = 2;
+  int64 output_tokens = 3;
+}
+
+// InferenceSecret resource stores provider secrets.
+message InferenceSecret {
+  teleport.header.v1.Metadata metadata = 1;
+  InferenceSecretSpec spec = 2;
+}
+
+// InferenceSecretSpec defines the secret value for the inference model.
+message InferenceSecretSpec {
+  string value = 1;
+}
+
+// InferencePolicy resource binds sessions to summarizers.
+message InferencePolicy {
+  teleport.header.v1.Metadata metadata = 1;
+  InferencePolicySpec spec = 2;
+}
+
+// InferencePolicySpec defines the policy for session summarization.
+message InferencePolicySpec {
+  repeated string kinds = 1; // Session kinds, e.g., "ssh", "kube", "db"
+  string filter = 2; // Optional filter expression
+  string model = 3; // Name of the inference model to use
+}
