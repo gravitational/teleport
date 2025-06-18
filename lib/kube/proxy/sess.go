@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/moderation"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -931,7 +932,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context: s.forwarder.ctx,
+		Context:   s.forwarder.ctx,
+		Encrypter: recordingencryption.NewEncryptionWrapper(s.ctx.recordingConfig),
 	})
 	if err != nil {
 		return onFinish, trace.Wrap(err)
