@@ -27,8 +27,6 @@ type Client interface {
 
 	// ListAccounts lists Identity Center accounts.
 	ListAccounts(ctx context.Context) ([]*Account, error)
-	// ListAccountsWithAssignedPermissionSetARNs lists Identity Center accounts with assigned permission sets.
-	ListAccountsWithAssignedPermissionSetARNs(ctx context.Context) ([]*AccountWithPermissionSetARNs, error)
 	// ListPermissionSetARNsForAccount lists permission set ARNs that are currently assigned to an Identity Center account.
 	ListPermissionSetARNsForAccount(ctx context.Context, accountID string) ([]string, error)
 	// ListPermissionSets lists permission sets that exist in the Identity Center.
@@ -37,12 +35,6 @@ type Client interface {
 	ListGroups(ctx context.Context) ([]*Group, error)
 	// ListGroupMemberships lists members (users) currently assigned to the Identity Center user groups.
 	ListGroupMemberships(ctx context.Context, groupID string) ([]*GroupMember, error)
-	// ListGroupsWithMembers lists Identity Center user groups with its respective members.
-	ListGroupsWithMembers(ctx context.Context) ([]*GroupWithMembers, error)
-	// ListGroupsWithAccountAndPermAssignment lists Identity Center groups with assigned accounts and permission sets.
-	ListGroupsWithAccountAndPermAssignment(ctx context.Context) ([]*GroupWithAssignment, error)
-	// ListUsersWithAccountAndPermAssignment lists Identity Center users with assigned accounts and permission sets.
-	ListUsersWithAccountAndPermAssignment(ctx context.Context) ([]*UserWithAssignment, error)
 	// ListUsers lists all available users in the Identity Center.
 	ListUsers(ctx context.Context) ([]*User, error)
 	// ListUserAssignments lists account assignment for a user.
@@ -143,27 +135,6 @@ func (c *client) ListAccounts(ctx context.Context) ([]*Account, error) {
 	return out, nil
 }
 
-// ListAccountsWithAssignedPermissionSetARNs lists Identity Center accounts with assigned permission sets.
-func (c *client) ListAccountsWithAssignedPermissionSetARNs(ctx context.Context) ([]*AccountWithPermissionSetARNs, error) {
-	accounts, err := c.ListAccounts(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]*AccountWithPermissionSetARNs, 0, len(accounts))
-	for _, a := range accounts {
-		permsetARNs, err := c.ListPermissionSetARNsForAccount(ctx, a.ID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, &AccountWithPermissionSetARNs{
-			Account:           a,
-			PermissionSetARNs: permsetARNs,
-		})
-	}
-
-	return out, nil
-}
-
 // ListPermissionSetARNsForAccount lists permission set ARNs that are currently assigned to an Identity Center account.
 func (c *client) ListPermissionSetARNsForAccount(ctx context.Context, accountID string) ([]string, error) {
 	var nextToken *string
@@ -198,67 +169,26 @@ func (c *client) ListGroups(ctx context.Context) ([]*Group, error) {
 	var nextToken *string
 	var out []*Group
 	for {
-		groups, err := c.identityStoreClient.ListGroups(ctx, &identitystore.ListGroupsInput{
+		listing, err := c.identityStoreClient.ListGroups(ctx, &identitystore.ListGroupsInput{
 			IdentityStoreId: descResp.IdentityStoreId,
 			NextToken:       nextToken,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, v := range groups.Groups {
+
+		for _, awsGroup := range listing.Groups {
 			out = append(out, &Group{
-				ID:              aws.ToString(v.GroupId),
-				DisplayName:     aws.ToString(v.DisplayName),
-				IdentityStoreID: aws.ToString(v.IdentityStoreId),
+				ID:              aws.ToString(awsGroup.GroupId),
+				DisplayName:     aws.ToString(awsGroup.DisplayName),
+				IdentityStoreID: aws.ToString(awsGroup.IdentityStoreId),
 			})
 		}
-		nextToken = groups.NextToken
+
+		nextToken = listing.NextToken
 		if nextToken == nil {
 			break
 		}
-	}
-	return out, nil
-}
-
-// ListGroupsWithAccountAndPermAssignment lists Identity Center groups with assigned accounts and permission sets.
-func (c *client) ListGroupsWithAccountAndPermAssignment(ctx context.Context) ([]*GroupWithAssignment, error) {
-	groups, err := c.ListGroups(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*GroupWithAssignment, 0, len(groups))
-	for _, g := range groups {
-		assignments, err := c.ListGroupsAssignments(ctx, g.ID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		out = append(out, &GroupWithAssignment{
-			Group:       g,
-			Assignments: assignments,
-		})
-	}
-	return out, nil
-}
-
-// ListUsersWithAccountAndPermAssignment lists Identity Center users with assigned accounts and permission sets.
-func (c *client) ListUsersWithAccountAndPermAssignment(ctx context.Context) ([]*UserWithAssignment, error) {
-	users, err := c.ListUsers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]*UserWithAssignment, 0, len(users))
-	for _, v := range users {
-		assignments, err := c.ListUserAssignments(ctx, v.ID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		out = append(out, &UserWithAssignment{
-			User:        v,
-			Assignments: assignments,
-		})
 	}
 	return out, nil
 }
@@ -309,26 +239,6 @@ func (c *client) ListGroupMemberships(ctx context.Context, groupID string) ([]*G
 		if nextToken == nil {
 			break
 		}
-	}
-	return out, nil
-}
-
-// ListGroupsWithMembers lists Identity Center user groups with its respective members.
-func (c *client) ListGroupsWithMembers(ctx context.Context) ([]*GroupWithMembers, error) {
-	groups, err := c.ListGroups(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var out []*GroupWithMembers
-	for _, g := range groups {
-		members, err := c.ListGroupMemberships(ctx, g.ID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, &GroupWithMembers{
-			Group:   g,
-			Members: members,
-		})
 	}
 	return out, nil
 }

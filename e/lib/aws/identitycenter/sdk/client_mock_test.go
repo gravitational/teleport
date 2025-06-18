@@ -6,6 +6,7 @@ import (
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,18 +14,52 @@ func TestClientMock(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	var c Client = NewClientMock(nil /* custom mock data */)
-	t.Run("should list users with account and permission assignments", func(t *testing.T) {
-		resp, err := c.ListGroupsWithAccountAndPermAssignment(ctx)
+	t.Run("should list groups", func(t *testing.T) {
+		resp, err := c.ListGroups(ctx)
 		require.NoError(t, err)
 		require.Len(t, resp, 2)
 	})
 
-	t.Run("should list groups with account and permission assignments", func(t *testing.T) {
-		resp, err := c.ListUsersWithAccountAndPermAssignment(ctx)
+	t.Run("should list transitive user account assignments", func(t *testing.T) {
+		// Asserts that the mock client returns both directly-assigned account
+		// assignments and assignments granted through group membership for a
+		// given user
+		asmts, err := c.ListAssignments(ctx, "user1", ssoadmintypes.PrincipalTypeUser)
 		require.NoError(t, err)
-		require.Len(t, resp, 2)
+
+		expected := []*Assignment{
+			{
+				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+				AccountID:        "1111111111",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+			},
+			{
+				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+				AccountID:        "2222222222",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
+			},
+			{
+				PrincipalType:    ssoadmintypes.PrincipalTypeGroup,
+				AccountID:        "1111111111",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+			},
+		}
+		require.ElementsMatch(t, expected, asmts)
 	})
 
+	t.Run("should list group account assignments", func(t *testing.T) {
+		asmts, err := c.ListAssignments(ctx, "group2", ssoadmintypes.PrincipalTypeGroup)
+		require.NoError(t, err)
+
+		expected := []*Assignment{
+			{
+				PrincipalType:    ssoadmintypes.PrincipalTypeGroup,
+				AccountID:        "2222222222",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
+			},
+		}
+		require.ElementsMatch(t, expected, asmts)
+	})
 }
 
 func TestAccountAssignmentMock(t *testing.T) {
@@ -114,8 +149,28 @@ func TestAccountAssignmentMock(t *testing.T) {
 }
 
 func assertUsersAssignments(t *testing.T, c Client, want []*UserWithAssignment) {
-	listResp, err := c.ListUsersWithAccountAndPermAssignment(context.Background())
+	listResp, err := listUsersWithAccountAndPermAssignment(context.Background(), c)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(listResp, want))
+}
 
+// listUsersWithAccountAndPermAssignment lists Identity Center users with assigned accounts and permission sets.
+func listUsersWithAccountAndPermAssignment(ctx context.Context, c Client) ([]*UserWithAssignment, error) {
+	users, err := c.ListUsers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]*UserWithAssignment, 0, len(users))
+	for _, v := range users {
+		assignments, err := c.ListUserAssignments(ctx, v.ID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, &UserWithAssignment{
+			User:        v,
+			Assignments: assignments,
+		})
+	}
+	return out, nil
 }

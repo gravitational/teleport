@@ -81,9 +81,7 @@ func (svc *Service) fetchAccounts(ctx context.Context, idStoreID icsdk.IdentityS
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching accounts")
 	}
-
-	filterableItems := toFilterableAccounts(accountList)
-	accountList = icfilters.Filter(svc.importConfig.AccountFilters, filterableItems)
+	accountList = filterAccounts(svc.importConfig.AccountFilters, accountList)
 
 	accounts := make(accountResourceMap, len(accountList))
 	for _, src := range accountList {
@@ -117,10 +115,68 @@ func (svc *Service) fetchPermissionSets(ctx context.Context) (psResourceMap, err
 	return permissionSets, nil
 }
 
-func toFilterableAccounts(items []*icsdk.Account) icfilters.Params[*icsdk.Account] {
-	return icfilters.Params[*icsdk.Account]{
-		Items:   items,
+func filterAccounts(filters icfilters.Filters, src []*icsdk.Account) []*icsdk.Account {
+	return icfilters.Filter(filters, icfilters.Params[*icsdk.Account]{
+		Items:   src,
 		GetName: func(item *icsdk.Account) string { return item.Name },
 		GetID:   func(item *icsdk.Account) string { return item.ID },
+	})
+}
+
+func filterGroups(filters icfilters.Filters, src []*icsdk.Group) []*icsdk.Group {
+	return icfilters.Filter(filters, icfilters.Params[*icsdk.Group]{
+		Items:   src,
+		GetName: func(item *icsdk.Group) string { return item.DisplayName },
+		GetID:   func(item *icsdk.Group) string { return item.ID },
+	})
+}
+
+type accountQuery struct {
+	filters icfilters.Filters
+}
+
+// AccountQueryOption is a function type for customizing an IC Account Listing
+// operation.
+type AccountQueryOption func(*accountQuery)
+
+// WithAccountFilter supplies IC resource filters to be applied to the account
+// listing
+func WithAccountFilter(f icfilters.Filters) AccountQueryOption {
+	return func(q *accountQuery) {
+		q.filters = f
 	}
+}
+
+func collectAccountQueryOptions(opts []AccountQueryOption) accountQuery {
+	var query accountQuery
+	for _, optFn := range opts {
+		optFn(&query)
+	}
+	return query
+}
+
+// ListAccountsWithAssignedPermissionSetARNs lists Identity Center accounts with assigned permission sets.
+func ListAccountsWithAssignedPermissionSetARNs(ctx context.Context, c icsdk.Client, options ...AccountQueryOption) ([]*icsdk.AccountWithPermissionSetARNs, error) {
+	query := collectAccountQueryOptions(options)
+
+	accounts, err := c.ListAccounts(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]*icsdk.AccountWithPermissionSetARNs, 0, len(accounts))
+
+	accounts = filterAccounts(query.filters, accounts)
+
+	for _, a := range accounts {
+		permsetARNs, err := c.ListPermissionSetARNsForAccount(ctx, a.ID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, &icsdk.AccountWithPermissionSetARNs{
+			Account:           a,
+			PermissionSetARNs: permsetARNs,
+		})
+	}
+
+	return out, nil
 }

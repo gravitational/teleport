@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
@@ -479,7 +480,7 @@ func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	accountWithPermSetARNs, err := icClient.ListAccountsWithAssignedPermissionSetARNs(r.Context())
+	accountWithPermSetARNs, err := identitycenter.ListAccountsWithAssignedPermissionSetARNs(r.Context(), icClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -510,7 +511,7 @@ func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWr
 		return nil, trace.Wrap(err)
 	}
 
-	groupWithAssignments, err := icClient.ListGroupsWithAccountAndPermAssignment(r.Context())
+	groupWithAssignments, err := identitycenter.ListGroupsWithAccountAndPermAssignment(r.Context(), icClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

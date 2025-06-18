@@ -187,29 +187,10 @@ func (c *ClientMock) DescribeInstance(ctx context.Context) (*InstanceInfo, error
 }
 
 // ListAccounts returns a list of mocked accounts.
-func (c *ClientMock) ListAccounts(ctx context.Context) ([]*Account, error) {
+func (c *ClientMock) ListAccounts(_ context.Context) ([]*Account, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return c.Accounts, nil
-}
-
-// ListAccountsWithAssignedPermissionSetARNs returns a list of mocked accounts with assigned permission set ARNs.
-func (c *ClientMock) ListAccountsWithAssignedPermissionSetARNs(ctx context.Context) ([]*AccountWithPermissionSetARNs, error) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-
-	var out []*AccountWithPermissionSetARNs
-	for _, acc := range c.Accounts {
-		assignedPermSets, ok := c.AccountPermAssignments[acc.ID]
-		if !ok {
-			assignedPermSets = []string{}
-		}
-		out = append(out, &AccountWithPermissionSetARNs{
-			Account:           acc,
-			PermissionSetARNs: assignedPermSets,
-		})
-	}
-	return out, nil
 }
 
 // ListPermissionSetARNsForAccount returns a list of permission set ARNs assigned to an account.
@@ -238,71 +219,17 @@ func (c *ClientMock) ListGroups(ctx context.Context) ([]*Group, error) {
 }
 
 // ListGroupMemberships returns a list of group members for a given group ID.
-func (c *ClientMock) ListGroupMemberships(ctx context.Context, groupID string) ([]*GroupMember, error) {
+func (c *ClientMock) ListGroupMemberships(_ context.Context, groupID string) ([]*GroupMember, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return c.GroupMemberships[groupID], nil
 }
 
-// ListGroupsWithMembers returns a list of mocked groups with enlisted members.
-func (c *ClientMock) ListGroupsWithMembers(ctx context.Context) ([]*GroupWithMembers, error) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-
-	var out []*GroupWithMembers
-	for _, group := range c.Groups {
-		members := c.GroupMemberships[group.ID]
-		out = append(out, &GroupWithMembers{
-			Group:   group,
-			Members: members,
-		})
-	}
-	return out, nil
-}
-
-// ListGroupsWithAccountAndPermAssignment returns a list of mocked groups with account and permission assignments.
-func (c *ClientMock) ListGroupsWithAccountAndPermAssignment(ctx context.Context) ([]*GroupWithAssignment, error) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-
-	var out []*GroupWithAssignment
-	for _, group := range c.Groups {
-		assignments, ok := c.GroupAssignments[group.ID]
-		if !ok {
-			assignments = []*Assignment{}
-		}
-		out = append(out, &GroupWithAssignment{
-			Group:       group,
-			Assignments: assignments,
-		})
-	}
-	return out, nil
-}
-
 // ListUsers returns a list of mocked users.
-func (c *ClientMock) ListUsers(ctx context.Context) ([]*User, error) {
+func (c *ClientMock) ListUsers(context.Context) ([]*User, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return c.Users, nil
-}
-
-// ListUsersWithAccountAndPermAssignment returns a list of mocked users with account and permission assignments.
-func (c *ClientMock) ListUsersWithAccountAndPermAssignment(ctx context.Context) ([]*UserWithAssignment, error) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-
-	var out []*UserWithAssignment
-	for _, user := range c.Users {
-		assignments, ok := c.UserAssignments[user.ID]
-		if !ok {
-			assignments = []*Assignment{}
-		}
-		out = append(out, &UserWithAssignment{
-			User:        user,
-			Assignments: assignments,
-		})
-	}
-	return out, nil
 }
 
 // ListUserAssignments returns a list of permission assignments for a given user ID.

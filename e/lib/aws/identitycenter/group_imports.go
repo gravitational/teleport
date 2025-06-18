@@ -117,29 +117,29 @@ func (svc *Service) emitImportStatus(ctx context.Context, importStatus *types.AW
 // Important: startGroupsAndGroupMembersImport should be run only once during an initial plugin start
 // and if the group import has not successfully been imported previously. Because we want Teleport to
 // be the source of truth for Identity Center group and group members, repeated imports voids that.
-func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
-	existingList, err := ListICOriginatedAccessLists(ctx, s.accessListSvcCache)
+func (svc *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
+	existingList, err := ListICOriginatedAccessLists(ctx, svc.accessListSvcCache)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newList, err := s.accessListFromICGroups(ctx, toAclOwner(s.importConfig.AccessListDefaultOwners))
+	newList, err := svc.accessListFromICGroups(ctx, toAclOwner(svc.importConfig.AccessListDefaultOwners))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessListReconciler, err := accessListReconciler(s.accessListSvc, existingList, newList)
+	accessListReconciler, err := accessListReconciler(svc.accessListSvc, existingList, newList)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	existingMembers, err := accessListMembersFromTeleport(ctx, accessListNames(existingList), s.accessListSvcCache)
+	existingMembers, err := accessListMembersFromTeleport(ctx, accessListNames(existingList), svc.accessListSvcCache)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newMembers, err := s.accessListMembersFromIC(ctx)
+	newMembers, err := svc.accessListMembersFromIC(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	memberReconciler, err := accessListMembersReconciler(s.accessListSvc, existingMembers, newMembers)
+	memberReconciler, err := accessListMembersReconciler(svc.accessListSvc, existingMembers, newMembers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -148,7 +148,7 @@ func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
 		accessListReconciler.Reconcile(ctx),
 		memberReconciler.Reconcile(ctx),
 	); err != nil {
-		s.emitSyncEvent(ctx, &apievents.AWSICResourceSync{
+		svc.emitSyncEvent(ctx, &apievents.AWSICResourceSync{
 			TotalUserGroups: int32(len(newList)),
 			Status: apievents.Status{
 				UserMessage: "User groups synchronization failed",
@@ -157,7 +157,7 @@ func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s.emitSyncEvent(ctx, &apievents.AWSICResourceSync{
+	svc.emitSyncEvent(ctx, &apievents.AWSICResourceSync{
 		TotalUserGroups: int32(len(newList)),
 		Status: apievents.Status{
 			UserMessage: "User groups imported and synced as Access List",
@@ -171,32 +171,28 @@ func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
 // For each account assignment in Identity Center, a role for that is assigned to the Access List.
 // Role name is configured as "<permission_set_name>-on-<account_name>". This is the same format used
 // by the identity Center role<>permission assignment reconciler.
-func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []accesslist.Owner) (map[string]*accesslist.AccessList, error) {
-	// TODO(tcsc): pass the group import filters down to the IC group lister,
-	//             so we don't have to pull down members & assignments down for
-	//             groups that we're not going to import anyway
-	groupsWithAssignments, err := s.icClient.ListGroupsWithAccountAndPermAssignment(ctx)
+func (svc *Service) accessListFromICGroups(ctx context.Context, defaultOwners []accesslist.Owner) (map[string]*accesslist.AccessList, error) {
+	groupsWithAssignments, err := ListGroupsWithAccountAndPermAssignment(ctx, svc.icClient, WithGroupFilters(svc.importConfig.GroupSyncFilter))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	filterableItems := toFilterableGroupWithAssignment(groupsWithAssignments)
-	groupsWithAssignments = icfilters.Filter(s.importConfig.GroupSyncFilter, filterableItems)
 
-	permSets, err := s.icClient.ListPermissionSets(ctx)
+	permSets, err := svc.icClient.ListPermissionSets(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accounts, err := s.icClient.ListAccounts(ctx)
+	accounts, err := svc.icClient.ListAccounts(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	accounts = filterAccounts(svc.importConfig.AccountFilters, accounts)
 
 	groupsAssignmentWithAccountAndPermissionSetName := groupAccountAndPermAssignments(
 		ctx,
 		groupsWithAssignments,
 		icsdk.ToAccountMap(accounts),
 		icsdk.ToPermissionSetMap(permSets),
-		s.log,
+		svc.log,
 	)
 
 	out := map[string]*accesslist.AccessList{}
@@ -227,21 +223,6 @@ func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []ac
 	}
 
 	return out, nil
-}
-
-func toFilterableGroupWithAssignment(items []*icsdk.GroupWithAssignment) icfilters.Params[*icsdk.GroupWithAssignment] {
-	return icfilters.Params[*icsdk.GroupWithAssignment]{
-		Items:   items,
-		GetName: func(item *icsdk.GroupWithAssignment) string { return item.DisplayName },
-		GetID:   func(item *icsdk.GroupWithAssignment) string { return item.ID }}
-}
-
-func toFilterableGroupWithMembers(items []*icsdk.GroupWithMembers) icfilters.Params[*icsdk.GroupWithMembers] {
-	return icfilters.Params[*icsdk.GroupWithMembers]{
-		Items:   items,
-		GetName: func(item *icsdk.GroupWithMembers) string { return item.DisplayName },
-		GetID:   func(item *icsdk.GroupWithMembers) string { return item.ID },
-	}
 }
 
 // groupWithAccountAndPermAssignment represents Identity Center group with
@@ -316,17 +297,18 @@ func accountAndPermAssignments(
 	return out
 }
 
-// accessListMembersFromIC returns new Acess List members for each group members from Identity Center.
-// Members whose user account does not exist in Teleport are filtered.
-func (s *Service) accessListMembersFromIC(ctx context.Context) (map[string]*accesslist.AccessListMember, error) {
+// accessListMembersFromIC returns new Acess List members for each group members
+// from Identity Center. Members whose user account does not exist in Teleport
+// are filtered.
+func (svc *Service) accessListMembersFromIC(ctx context.Context) (map[string]*accesslist.AccessListMember, error) {
 	out := map[string]*accesslist.AccessListMember{}
 
-	teleportUsers, err := listTeleportUsers(ctx, s.usersSvc)
+	teleportUsers, err := listTeleportUsers(ctx, svc.usersSvc)
 	if err != nil {
 		return nil, trace.Wrap(err, "listing teleport user to filter Access List members.")
 	}
 
-	groupMembersFromIC, err := listGroupMembersFromIC(ctx, s.icClient, s.importConfig.GroupSyncFilter)
+	groupMembersFromIC, err := listGroupMembersFromIC(ctx, svc.icClient, WithGroupFilters(svc.importConfig.GroupSyncFilter))
 	if err != nil {
 		return nil, trace.Wrap(err, "listing group members from identity center")
 	}
@@ -349,22 +331,20 @@ func (s *Service) accessListMembersFromIC(ctx context.Context) (map[string]*acce
 }
 
 // listGroupMembersFromIC returns Identity Center group members with their respective username.
-func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client, filters icfilters.Filters) ([]groupMembersWithIDAndUserName, error) {
+func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client, options ...GroupQueryOption) ([]groupMembersWithIDAndUserName, error) {
 	icUsers, err := icClient.ListUsers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	icUsersMap := icsdk.ToUserMap(icUsers)
 
-	groupWithMembers, err := icClient.ListGroupsWithMembers(ctx)
+	groupWithMembers, err := ListGroupsWithMembers(ctx, icClient, options...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	out := make([]groupMembersWithIDAndUserName, 0, len(groupWithMembers))
-
-	filterableItems := toFilterableGroupWithMembers(groupWithMembers)
-	for _, g := range icfilters.Filter(filters, filterableItems) {
+	for _, g := range groupWithMembers {
 		out = append(out, groupMembersWithIDAndUserName{
 			GroupID: g.ID,
 			Members: memberWithIDAndUsername(g.Members, icUsersMap),
@@ -509,4 +489,75 @@ func wildcardMatcher[T types.Resource](resource T) bool {
 func matchByOriginAWSIdentityCenterLabel[T types.Resource](resource T) bool {
 	origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
 	return ok && origin == common.OriginAWSIdentityCenter
+}
+
+func collectGroupQueryOptions(opts []GroupQueryOption) groupQuery {
+	var query groupQuery
+	for _, optFn := range opts {
+		optFn(&query)
+	}
+	return query
+}
+
+type groupQuery struct {
+	filters icfilters.Filters
+}
+
+// GroupQueryOption defines an option setter for customizing group queries
+type GroupQueryOption func(*groupQuery)
+
+// WithGroupFilters adds filters to the group query
+func WithGroupFilters(f icfilters.Filters) GroupQueryOption {
+	return func(q *groupQuery) {
+		q.filters = f
+	}
+}
+
+// ListGroupsWithMembers lists Identity Center user groups with its respective members.
+func ListGroupsWithMembers(ctx context.Context, c icsdk.Client, options ...GroupQueryOption) ([]*icsdk.GroupWithMembers, error) {
+	query := collectGroupQueryOptions(options)
+
+	groups, err := c.ListGroups(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups = filterGroups(query.filters, groups)
+
+	var out []*icsdk.GroupWithMembers
+	for _, g := range groups {
+		members, err := c.ListGroupMemberships(ctx, g.ID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, &icsdk.GroupWithMembers{
+			Group:   g,
+			Members: members,
+		})
+	}
+	return out, nil
+}
+
+// ListGroupsWithAccountAndPermAssignment lists Identity Center groups with assigned accounts and permission sets.
+func ListGroupsWithAccountAndPermAssignment(ctx context.Context, c icsdk.Client, options ...GroupQueryOption) ([]*icsdk.GroupWithAssignment, error) {
+	query := collectGroupQueryOptions(options)
+
+	groups, err := c.ListGroups(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups = filterGroups(query.filters, groups)
+
+	out := make([]*icsdk.GroupWithAssignment, 0, len(groups))
+	for _, g := range groups {
+		assignments, err := c.ListGroupsAssignments(ctx, g.ID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, &icsdk.GroupWithAssignment{
+			Group:       g,
+			Assignments: assignments,
+		})
+	}
+	return out, nil
 }
