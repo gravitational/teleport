@@ -238,10 +238,30 @@ func (r *KubernetesEphemeralResource) Open(
 		return
 	}
 
-	// TODO: make this bit nil-safe
-	kubectx := cfg.Contexts[cfg.CurrentContext]
-	cluster := cfg.Clusters[kubectx.Cluster]
-	user := cfg.AuthInfos[kubectx.AuthInfo]
+	kubectx, ok := cfg.Contexts[cfg.CurrentContext]
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Error loading kubeconfig context",
+			"Failed to load kubeconfig context: current-context not found in contexts map",
+		)
+		return
+	}
+	cluster, ok := cfg.Clusters[kubectx.Cluster]
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Error loading kubeconfig cluster",
+			"Failed to load kubeconfig cluster: cluster not found in clusters map",
+		)
+		return
+	}
+	user, ok := cfg.AuthInfos[kubectx.AuthInfo]
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Error loading kubeconfig user",
+			"Failed to load kubeconfig user: user not found in users map",
+		)
+		return
+	}
 
 	out := KubernetesEphemeralResourceModelOutput{
 		Host:                 types.StringValue(cluster.Server),
