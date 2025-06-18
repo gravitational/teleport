@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/testing"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 

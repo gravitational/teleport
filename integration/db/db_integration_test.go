@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/testing"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
