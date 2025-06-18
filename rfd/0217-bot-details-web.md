@@ -91,10 +91,6 @@ spec:
       name: nicholas.marais@goteleport.com
   roles:
   - bot-robot # Links to role
-  status:
-    is_locked: false
-    lock_expires: "0001-01-01T00:00:00Z"
-    locked_time: "0001-01-01T00:00:00Z"
 
 # Role resource
 kind: role
@@ -177,20 +173,7 @@ In order to keep the implementation modular, each logical section of the page fe
 
 ##### `GET /v1/webapi/sites/:site/machine-id/bot/:name`
 
-Fetch a bot by name, including roles and traits. Endpoint exists and will be reused. Additional fields for lock state will be added to the Bot resource and populated from the underlying User resource.
-
-``` protobuf
-message BotStatus {
-  // IsLocked indicates if the bot user is locked
-  bool IsLocked = 4
-  // LockedMessage contains the message to display when the bot user is locked
-  string LockedMessage = 5
-  // LockedTime contains the time when bot user was locked
-  google.protobuf.Timestamp LockedTime = 6
-  // LockExpires contains the time this lock will expire
-  google.protobuf.Timestamp LockExpires = 7
-}
-```
+Fetch a bot by name, including roles and traits. Endpoint exists and will be reused. 
 
 ##### `GET /v1/webapi/tokens?role=Bot&bot=:name`
 
@@ -239,7 +222,7 @@ _api/proto/teleport/legacy/client/proto/authservice.proto_
 While the endpoint will support pagination it wont be used in this case - a page size of 100 will be used and all pages will be retrieved. It is not anticipated that use of the endpoint for the Bot Details page will increase usage or load significantly. Bot's are likely to have fewer than 20 associated join methods.
 
 **Backwards compatibility**
-In the scenario where an older version proxy is in place, the endpoint will return without an error, but will return all tokens including those not associated with the bot being viewed. This is because the filter parameters will be ignored and the previous RPC will be used (`GetTokens`).
+In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all tokens including those not associated with the bot being viewed. This is because the filter parameters will be ignored and the previous RPC will be used (`GetTokens`).
 
 ##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
 
@@ -255,6 +238,16 @@ Existing endpoint with additional capabilities added. Currently only updating ro
 ##### `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`
 
 Delete a bot. Existing endpoint.
+
+##### `GET /v1/webapi/sites/:site/locks`
+
+Returns in-force locks for the bot, either role or user locks.
+
+**Approach**
+Existing endpoint which will be extended to support filtering for in-force locks only, as well as filtering for the provided targets (the bot's user and role). The underlying RPC and it's cache already support these filters.
+
+**Backwards compatibility**
+In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all locks including those not in-force and those not targeted at the bot being viewed. To mitigate this, and prevent showing a "locked" status, the frontend app will re-filter for applicable locks and disregard the rest.
 
 ##### `PUT /v1/webapi/sites/:site/locks`
 
