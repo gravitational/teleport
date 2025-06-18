@@ -18,6 +18,7 @@ package diag
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -25,12 +26,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
+)
+
+const (
+	maxOpenSSHConfigFileSize = 1 * 1024 * 1024 // 1 MiB
 )
 
 // SSHConfig includes everything that [SSHDiag] needs to run.
@@ -67,34 +74,9 @@ func NewSSHDiag(cfg *SSHConfig) (*SSHDiag, error) {
 	}, nil
 }
 
-// Run runs the diagnostic.
-func (d *SSHDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
-	included, err := d.isVNetSSHConfigIncluded(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "checking if the default user OpenSSH config includes VNet's SSH configuration")
-	}
-	return &diagv1.CheckReport{
-		// This intentionally always returns CHECK_REPORT_STATUS_OK even if
-		// ~/.ssh/config does not include the VNet generated SSH config. It is
-		// not mandatory to configure SSH and returning an error status would
-		// case an alert and notification in Connect.
-		Status: diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK,
-		Report: &diagv1.CheckReport_SshConfigurationReport{
-			SshConfigurationReport: &diagv1.SSHConfigurationReport{
-				UserOpensshConfigPath:                  d.userOpenSSHConfigPath,
-				VnetSshConfigPath:                      d.vnetSSHConfigPath,
-				UserOpensshConfigIncludesVnetSshConfig: included,
-			},
-		},
-	}, nil
-}
-
-// Commands returns a command that prints the default user OpenSSH config file
-// which may be helpful for debugging.
+// Commands returns no commands for this diagnostic.
 func (d *SSHDiag) Commands(ctx context.Context) []*exec.Cmd {
-	return []*exec.Cmd{
-		exec.CommandContext(ctx, "cat", d.userOpenSSHConfigPath),
-	}
+	return nil
 }
 
 // EmptyCheckReport returns an empty SSH configuration report.
@@ -102,19 +84,63 @@ func (d *SSHDiag) EmptyCheckReport() *diagv1.CheckReport {
 	return &diagv1.CheckReport{Report: &diagv1.CheckReport_SshConfigurationReport{}}
 }
 
-func (d *SSHDiag) isVNetSSHConfigIncluded(ctx context.Context) (bool, error) {
-	openSSHConfigFile, err := os.Open(d.userOpenSSHConfigPath)
-	err = trace.ConvertSystemError(err)
-	switch {
-	case trace.IsNotFound(err):
-		// If the user OpenSSH config file does not exist, it definitely
-		// doesn't include the VNet SSH config.
-		return false, nil
-	case err != nil:
-		return false, trace.Wrap(err, "opening %s for reading", d.userOpenSSHConfigPath)
+// Run runs the diagnostic.
+func (d *SSHDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
+	report, err := d.run(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	defer openSSHConfigFile.Close()
-	return d.openSSHConfigIncludesVNetSSHConfig(openSSHConfigFile)
+	return &diagv1.CheckReport{
+		// This intentionally always returns CHECK_REPORT_STATUS_OK even if
+		// ~/.ssh/config does not include the VNet generated SSH config. It is
+		// not mandatory to configure SSH and returning an error status would
+		// cause an alert and notification in Connect.
+		Status: diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK,
+		Report: &diagv1.CheckReport_SshConfigurationReport{
+			SshConfigurationReport: report,
+		},
+	}, nil
+}
+
+func (d *SSHDiag) run(ctx context.Context) (*diagv1.SSHConfigurationReport, error) {
+	_, err := os.Stat(d.userOpenSSHConfigPath)
+	userOpenSSHConfigExists := err == nil
+	if !userOpenSSHConfigExists {
+		return &diagv1.SSHConfigurationReport{
+			UserOpensshConfigPath: d.userOpenSSHConfigPath,
+			VnetSshConfigPath:     d.vnetSSHConfigPath,
+		}, nil
+	}
+
+	userOpenSSHConfigFile, err := os.Open(d.userOpenSSHConfigPath)
+	if err != nil {
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", d.userOpenSSHConfigPath)
+	}
+	defer userOpenSSHConfigFile.Close()
+
+	userOpenSSHConfigContents, err := io.ReadAll(io.LimitReader(userOpenSSHConfigFile, maxOpenSSHConfigFileSize))
+	if err != nil {
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading %s", d.userOpenSSHConfigPath)
+	}
+	if len(userOpenSSHConfigContents) == maxOpenSSHConfigFileSize {
+		return nil, trace.Errorf("%s is too large to (max size %s)",
+			d.userOpenSSHConfigPath, humanize.Bytes(maxOpenSSHConfigFileSize))
+	}
+	if !utf8.Valid(userOpenSSHConfigContents) {
+		return nil, trace.Errorf("%s is not valid UTF-8", d.userOpenSSHConfigPath)
+	}
+
+	included, err := d.openSSHConfigIncludesVNetSSHConfig(bytes.NewReader(userOpenSSHConfigContents))
+	if err != nil {
+		return nil, trace.Wrap(err, "checking if the default user OpenSSH config includes VNet's SSH configuration")
+	}
+	return &diagv1.SSHConfigurationReport{
+		UserOpensshConfigPath:                  d.userOpenSSHConfigPath,
+		VnetSshConfigPath:                      d.vnetSSHConfigPath,
+		UserOpensshConfigIncludesVnetSshConfig: included,
+		UserOpensshConfigExists:                true,
+		UserOpensshConfigContents:              string(userOpenSSHConfigContents),
+	}, nil
 }
 
 func (d *SSHDiag) openSSHConfigIncludesVNetSSHConfig(r io.Reader) (bool, error) {

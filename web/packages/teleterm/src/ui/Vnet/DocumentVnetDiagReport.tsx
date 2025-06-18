@@ -387,6 +387,8 @@ function CheckReportSSHConfiguration({
     userOpensshConfigPath,
     vnetSshConfigPath,
     userOpensshConfigIncludesVnetSshConfig,
+    userOpensshConfigExists,
+    userOpensshConfigContents,
   } = report.sshConfigurationReport;
   const pathsTable = (
     <Table
@@ -446,7 +448,14 @@ function CheckReportSSHConfiguration({
         </P2>
         <TextSelectCopy text={`Include "${vnetSshConfigPath}"`} bash={false} />
       </Stack>
-      {pathsTable}
+      {userOpensshConfigExists ? (
+        <details>
+          <Summary>
+            Current contents of <code>{userOpensshConfigPath}</code>
+          </Summary>
+          <Pre>{userOpensshConfigContents}</Pre>
+        </details>
+      ) : null}
     </>
   );
 }

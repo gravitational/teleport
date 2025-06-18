@@ -46,9 +46,8 @@ default            link#25            UCSIg               utun4
 | User OpenSSH config file | ~/.ssh/config  |
 | VNet SSH config file     | /Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config  |
 
-\`\`\`
-$ cat ~/.ssh/config
-Include ~/.ssh/includes/*
-\`\`\`
+~/.ssh/config does not exist
+
+
 "
 `;

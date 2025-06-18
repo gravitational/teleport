@@ -215,6 +215,8 @@ Include /Users/user/.tsh/vnet_ssh_config
 						UserOpensshConfigPath:                  userOpenSSHConfigPath,
 						VnetSshConfigPath:                      keypaths.VNetSSHConfigPath(tc.profilePath),
 						UserOpensshConfigIncludesVnetSshConfig: tc.expect,
+						UserOpensshConfigExists:                len(tc.input) > 0,
+						UserOpensshConfigContents:              tc.input,
 					},
 				},
 			}

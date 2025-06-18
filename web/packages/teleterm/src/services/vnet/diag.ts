@@ -161,20 +161,38 @@ function sshConfigurationReportToText({ report }: diag.CheckReport): string {
   if (!reportOneOfIsSSHConfigurationReport(report)) {
     return null;
   }
-  const pathsTable = `
-| File description         | Path |
-| ------------------------ | ---- |
-| User OpenSSH config file | ${report.sshConfigurationReport.userOpensshConfigPath}  |
-| VNet SSH config file     | ${report.sshConfigurationReport.vnetSshConfigPath}  |`;
+  const {
+    userOpensshConfigPath,
+    vnetSshConfigPath,
+    userOpensshConfigIncludesVnetSshConfig,
+    userOpensshConfigExists,
+    userOpensshConfigContents,
+  } = report.sshConfigurationReport;
 
-  if (report.sshConfigurationReport.userOpensshConfigIncludesVnetSshConfig) {
-    return '✅ VNet SSH is configured correctly.\n' + pathsTable;
-  }
-  return (
-    `⚠️ VNet SSH is not configured.
+  const status = userOpensshConfigIncludesVnetSshConfig
+    ? '✅ VNet SSH is configured correctly.'
+    : `⚠️ VNet SSH is not configured.
 
   The user's default SSH configuration file does not include VNet's
   generated configuration file and connections to VNet SSH hosts will
-  not work by default.\n` + pathsTable
-  );
+  not work by default.`;
+
+  const pathsTable = `
+| File description         | Path |
+| ------------------------ | ---- |
+| User OpenSSH config file | ${userOpensshConfigPath}  |
+| VNet SSH config file     | ${vnetSshConfigPath}  |`;
+
+  const currentContents = userOpensshConfigExists
+    ? `Current contents of ${userOpensshConfigPath}:
+
+\`\`\`
+${userOpensshConfigContents}
+\`\`\``
+    : `${userOpensshConfigPath} does not exist`;
+
+  return `${status}
+${pathsTable}
+
+${currentContents}`;
 }

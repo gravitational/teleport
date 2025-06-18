@@ -49,6 +49,12 @@ import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/conne
 import { DocumentVnetDiagReport as Component } from './DocumentVnetDiagReport';
 import { useVnetContext, VnetContextProvider } from './vnetContext';
 
+const defaultUserSSHConfigContents = `Include "/Users/User/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config"
+
+Host github.com
+  IdentityFile ~/.ssh/id_ed25519
+`;
+
 type StoryProps = {
   asText: boolean;
   networkStackAttempt: 'ok' | 'error';
@@ -59,7 +65,8 @@ type StoryProps = {
   routeConflictCommandAttempt: 'ok' | 'error';
   sshConfigAttempt: 'ok' | 'error';
   sshConfigured: boolean;
-  sshConfigCommandAttempt: 'ok' | 'error';
+  userOpenSSHConfigExists: boolean;
+  userOpenSSHConfigContents: string;
   displayUnsupportedCheckAttempt: boolean;
   vnetRunning: boolean;
   reRunDiagnostics: 'success' | 'error' | 'processing';
@@ -99,12 +106,10 @@ const meta: Meta<StoryProps> = {
       control: { type: 'inline-radio' },
       options: ['ok', 'error'],
     },
+    userOpenSSHConfigExists: {},
+    userOpenSSHConfigContents: {},
     sshConfigured: {
       control: { type: 'boolean' },
-    },
-    sshConfigCommandAttempt: {
-      control: { type: 'inline-radio' },
-      options: ['ok', 'error'],
     },
     displayUnsupportedCheckAttempt: {
       description:
@@ -138,7 +143,8 @@ const meta: Meta<StoryProps> = {
     routeConflictCommandAttempt: 'ok',
     sshConfigAttempt: 'ok',
     sshConfigured: false,
-    sshConfigCommandAttempt: 'ok',
+    userOpenSSHConfigExists: true,
+    userOpenSSHConfigContents: defaultUserSSHConfigContents,
     displayUnsupportedCheckAttempt: false,
     vnetRunning: true,
     reRunDiagnostics: 'success',
@@ -231,6 +237,8 @@ export function DocumentVnetDiagReport(props: StoryProps) {
     userOpensshConfigPath: '/Users/User/.ssh/config',
     vnetSshConfigPath:
       '/Users/User/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+    userOpensshConfigExists: props.userOpenSSHConfigExists,
+    userOpensshConfigContents: props.userOpenSSHConfigContents,
   };
   const sshConfigCheckAttempt = makeCheckAttempt({
     status:
@@ -247,21 +255,6 @@ export function DocumentVnetDiagReport(props: StoryProps) {
       },
     }),
   });
-  if (props.sshConfigCommandAttempt === 'error') {
-    sshConfigCheckAttempt.commands.push({
-      status: CommandAttemptStatus.ERROR,
-      error: 'something went wrong',
-      command: 'cat /Users/User/.ssh/config',
-      output: '',
-    });
-  } else {
-    sshConfigCheckAttempt.commands.push({
-      status: CommandAttemptStatus.OK,
-      error: '',
-      command: 'cat /Users/User/.ssh/config',
-      output: userSSHConfigContents,
-    });
-  }
   report.checks.push(sshConfigCheckAttempt);
 
   if (props.displayUnsupportedCheckAttempt) {
@@ -356,10 +349,4 @@ default            link#25            UCSIg               utun4
 239.255.255.250    1:0:5e:7f:ff:fa    UHmLWI                en0       
 255.255.255.255/32 link#14            UCS                   en0      !
 255.255.255.255/32 link#25            UCSI                utun4       
-`;
-
-const userSSHConfigContents = `Include "/Users/User/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config"
-
-Host github.com
-  IdentityFile ~/.ssh/id_ed25519
 `;

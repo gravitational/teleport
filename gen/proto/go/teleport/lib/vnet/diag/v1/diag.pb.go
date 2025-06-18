@@ -781,17 +781,23 @@ func (x *RouteConflict) GetInterfaceApp() string {
 // SSHConfigurationReport describes the state of the system's SSH configuration.
 type SSHConfigurationReport struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UserOpensshConfigPath is the full path to the user's default OpenSSH config
-	// file (~/.ssh/config).
+	// user_openssh_config_path is the full path to the user's default OpenSSH
+	// config file (~/.ssh/config).
 	UserOpensshConfigPath string `protobuf:"bytes,1,opt,name=user_openssh_config_path,json=userOpensshConfigPath,proto3" json:"user_openssh_config_path,omitempty"`
-	// VnetSshConfigPath is the path to VNet's generated OpenSSH-compatible config
-	// file.
+	// vnet_ssh_config_path is the path to VNet's generated OpenSSH-compatible
+	// config file.
 	VnetSshConfigPath string `protobuf:"bytes,2,opt,name=vnet_ssh_config_path,json=vnetSshConfigPath,proto3" json:"vnet_ssh_config_path,omitempty"`
-	// UserOpensshConfigIncludesVnetSshConfig is true if the default OpenSSH user
-	// configuration file includes VNet's SSH config file.
+	// user_openssh_config_includes_vnet_ssh_config is true if the default
+	// OpenSSH user configuration file includes VNet's SSH config file.
 	UserOpensshConfigIncludesVnetSshConfig bool `protobuf:"varint,3,opt,name=user_openssh_config_includes_vnet_ssh_config,json=userOpensshConfigIncludesVnetSshConfig,proto3" json:"user_openssh_config_includes_vnet_ssh_config,omitempty"`
-	unknownFields                          protoimpl.UnknownFields
-	sizeCache                              protoimpl.SizeCache
+	// user_openssh_config_exists is true if a file exists at
+	// user_openssh_config_path (~/.ssh/config).
+	UserOpensshConfigExists bool `protobuf:"varint,4,opt,name=user_openssh_config_exists,json=userOpensshConfigExists,proto3" json:"user_openssh_config_exists,omitempty"`
+	// user_openssh_config_contents contains the contents of the file at
+	// user_openssh_config_path if it exists.
+	UserOpensshConfigContents string `protobuf:"bytes,5,opt,name=user_openssh_config_contents,json=userOpensshConfigContents,proto3" json:"user_openssh_config_contents,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *SSHConfigurationReport) Reset() {
@@ -845,6 +851,20 @@ func (x *SSHConfigurationReport) GetUserOpensshConfigIncludesVnetSshConfig() boo
 	return false
 }
 
+func (x *SSHConfigurationReport) GetUserOpensshConfigExists() bool {
+	if x != nil {
+		return x.UserOpensshConfigExists
+	}
+	return false
+}
+
+func (x *SSHConfigurationReport) GetUserOpensshConfigContents() string {
+	if x != nil {
+		return x.UserOpensshConfigContents
+	}
+	return ""
+}
+
 var File_teleport_lib_vnet_diag_v1_diag_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
@@ -886,11 +906,13 @@ const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
 	"\x04dest\x18\x01 \x01(\tR\x04dest\x12\x1b\n" +
 	"\tvnet_dest\x18\x02 \x01(\tR\bvnetDest\x12%\n" +
 	"\x0einterface_name\x18\x03 \x01(\tR\rinterfaceName\x12#\n" +
-	"\rinterface_app\x18\x04 \x01(\tR\finterfaceApp\"\xe0\x01\n" +
+	"\rinterface_app\x18\x04 \x01(\tR\finterfaceApp\"\xde\x02\n" +
 	"\x16SSHConfigurationReport\x127\n" +
 	"\x18user_openssh_config_path\x18\x01 \x01(\tR\x15userOpensshConfigPath\x12/\n" +
 	"\x14vnet_ssh_config_path\x18\x02 \x01(\tR\x11vnetSshConfigPath\x12\\\n" +
-	",user_openssh_config_includes_vnet_ssh_config\x18\x03 \x01(\bR&userOpensshConfigIncludesVnetSshConfig*w\n" +
+	",user_openssh_config_includes_vnet_ssh_config\x18\x03 \x01(\bR&userOpensshConfigIncludesVnetSshConfig\x12;\n" +
+	"\x1auser_openssh_config_exists\x18\x04 \x01(\bR\x17userOpensshConfigExists\x12?\n" +
+	"\x1cuser_openssh_config_contents\x18\x05 \x01(\tR\x19userOpensshConfigContents*w\n" +
 	"\x12CheckAttemptStatus\x12$\n" +
 	" CHECK_ATTEMPT_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CHECK_ATTEMPT_STATUS_OK\x10\x01\x12\x1e\n" +

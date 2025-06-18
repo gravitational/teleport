@@ -61,6 +61,8 @@ describe('reportToText', () => {
         vnetSshConfigPath:
           '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
         userOpensshConfigIncludesVnetSshConfig: false,
+        userOpensshConfigExists: false,
+        userOpensshConfigContents: "",
       },
     };
     const report = makeReport({
@@ -71,12 +73,6 @@ describe('reportToText', () => {
         }),
         makeCheckAttempt({
           checkReport: sshConfigReport,
-          commands: [
-            makeCommandAttempt({
-              command: 'cat ~/.ssh/config',
-              output: 'Include ~/.ssh/includes/*',
-            }),
-          ],
         }),
       ],
     });

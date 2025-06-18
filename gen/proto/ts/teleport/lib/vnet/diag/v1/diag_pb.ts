@@ -278,26 +278,40 @@ export interface RouteConflict {
  */
 export interface SSHConfigurationReport {
     /**
-     * UserOpensshConfigPath is the full path to the user's default OpenSSH config
-     * file (~/.ssh/config).
+     * user_openssh_config_path is the full path to the user's default OpenSSH
+     * config file (~/.ssh/config).
      *
      * @generated from protobuf field: string user_openssh_config_path = 1;
      */
     userOpensshConfigPath: string;
     /**
-     * VnetSshConfigPath is the path to VNet's generated OpenSSH-compatible config
-     * file.
+     * vnet_ssh_config_path is the path to VNet's generated OpenSSH-compatible
+     * config file.
      *
      * @generated from protobuf field: string vnet_ssh_config_path = 2;
      */
     vnetSshConfigPath: string;
     /**
-     * UserOpensshConfigIncludesVnetSshConfig is true if the default OpenSSH user
-     * configuration file includes VNet's SSH config file.
+     * user_openssh_config_includes_vnet_ssh_config is true if the default
+     * OpenSSH user configuration file includes VNet's SSH config file.
      *
      * @generated from protobuf field: bool user_openssh_config_includes_vnet_ssh_config = 3;
      */
     userOpensshConfigIncludesVnetSshConfig: boolean;
+    /**
+     * user_openssh_config_exists is true if a file exists at
+     * user_openssh_config_path (~/.ssh/config).
+     *
+     * @generated from protobuf field: bool user_openssh_config_exists = 4;
+     */
+    userOpensshConfigExists: boolean;
+    /**
+     * user_openssh_config_contents contains the contents of the file at
+     * user_openssh_config_path if it exists.
+     *
+     * @generated from protobuf field: string user_openssh_config_contents = 5;
+     */
+    userOpensshConfigContents: string;
 }
 /**
  * CheckAttemptStatus describes whether CheckAttempt finished successfully. This is different from
@@ -893,7 +907,9 @@ class SSHConfigurationReport$Type extends MessageType<SSHConfigurationReport> {
         super("teleport.lib.vnet.diag.v1.SSHConfigurationReport", [
             { no: 1, name: "user_openssh_config_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "vnet_ssh_config_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "user_openssh_config_includes_vnet_ssh_config", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 3, name: "user_openssh_config_includes_vnet_ssh_config", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "user_openssh_config_exists", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "user_openssh_config_contents", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SSHConfigurationReport>): SSHConfigurationReport {
@@ -901,6 +917,8 @@ class SSHConfigurationReport$Type extends MessageType<SSHConfigurationReport> {
         message.userOpensshConfigPath = "";
         message.vnetSshConfigPath = "";
         message.userOpensshConfigIncludesVnetSshConfig = false;
+        message.userOpensshConfigExists = false;
+        message.userOpensshConfigContents = "";
         if (value !== undefined)
             reflectionMergePartial<SSHConfigurationReport>(this, message, value);
         return message;
@@ -918,6 +936,12 @@ class SSHConfigurationReport$Type extends MessageType<SSHConfigurationReport> {
                     break;
                 case /* bool user_openssh_config_includes_vnet_ssh_config */ 3:
                     message.userOpensshConfigIncludesVnetSshConfig = reader.bool();
+                    break;
+                case /* bool user_openssh_config_exists */ 4:
+                    message.userOpensshConfigExists = reader.bool();
+                    break;
+                case /* string user_openssh_config_contents */ 5:
+                    message.userOpensshConfigContents = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -940,6 +964,12 @@ class SSHConfigurationReport$Type extends MessageType<SSHConfigurationReport> {
         /* bool user_openssh_config_includes_vnet_ssh_config = 3; */
         if (message.userOpensshConfigIncludesVnetSshConfig !== false)
             writer.tag(3, WireType.Varint).bool(message.userOpensshConfigIncludesVnetSshConfig);
+        /* bool user_openssh_config_exists = 4; */
+        if (message.userOpensshConfigExists !== false)
+            writer.tag(4, WireType.Varint).bool(message.userOpensshConfigExists);
+        /* string user_openssh_config_contents = 5; */
+        if (message.userOpensshConfigContents !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.userOpensshConfigContents);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
