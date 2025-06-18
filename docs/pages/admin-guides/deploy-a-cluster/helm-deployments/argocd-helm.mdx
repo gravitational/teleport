@@ -127,8 +127,43 @@ destination:
 4. Edit this example configuration to match your needs.
 More information on how to modify helm this the helm chart
 and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
-
 5. Then select 'Sync' to apply the changes.
 
-![ArgoCD application page](../../../../img/helm/argocd/sync-appmag.png)
+![ArgoCD application page](../../../../img/helm/argocd/sync-app.png)
 
+
+### Install the `teleport-kube-agent` Helm chart via ArgoCD
+
+#### Prerequisites
+
+- An existing Teleport cluster (at least proxy and auth services)
+- A reachable proxy endpoint
+- A reachable reverse tunnel port on the proxy.
+  The address is automatically retrieved from the Teleport proxy configuration.
+- A join token for the Teleport Cluster.
+
+1. Follow the steps for creating a new app in ArgoCD as above.
+   Using the following yaml as a template to configure the Kube agent.
+
+``` yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-kube-agent
+spec:
+  destination:
+    name: ''
+    namespace: teleport
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: ''
+    repoURL: 'https://charts.releases.teleport.dev'
+    targetRevision: 17.4.10
+    chart: teleport-kube-agent
+  sources: []
+  project: default
+```
+
+2.	Additionally helm parameters can be set in the 'Create App'
+	![ArgoCD application page](../../../../img/helm/argocd/helm-parameters.png)
+3. Once you have finished configuring your the chart. Sync the state to apply the changes.
