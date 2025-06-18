@@ -205,7 +205,7 @@ const VnetStatus = () => {
   const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
     <Flex>
       <ConnectionStatusIndicator status={'warning'} inline mr={2} />
-      SSH clients are not configured to use VNet (See diag report)
+      SSH clients are not configured to use VNet (see diag report).
     </Flex>
   );
 
