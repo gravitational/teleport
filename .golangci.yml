@@ -110,6 +110,7 @@ linters:
             - '!**/integrations/operator/controllers/resources/testlib/**'
           allow:
             - github.com/gravitational/teleport/integrations
+            - github.com/gravitational/teleport/lib/srv/db/cassandra/testing
           deny:
             - pkg: github.com/gravitational/teleport/integration
               desc: integration test should not be imported outside of intergation tests
