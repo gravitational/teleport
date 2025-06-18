@@ -8075,6 +8075,7 @@ func TestGetKubeResources(t *testing.T) {
 			set := NewRoleSet(tc.roles...)
 			accessChecker := makeAccessCheckerWithRoleSet(set)
 			allowed, denied := accessChecker.GetKubeResources(cluster)
+			tc.expectAllowed = append(tc.expectAllowed, types.KubernetesResourceSelfSubjectAccessReview)
 			require.ElementsMatch(t, tc.expectAllowed, allowed, "allow list mismatch")
 			require.ElementsMatch(t, tc.expectDenied, denied, "deny list mismatch")
 		})

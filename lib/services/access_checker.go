@@ -592,7 +592,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			return rolesAllowed, rolesDenied
 		}
 	}
-	return allowed, denied
+	return append(allowed, types.KubernetesResourceSelfSubjectAccessReview), denied
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
