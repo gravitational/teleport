@@ -220,14 +220,15 @@ const VnetStatus = () => {
 
   const appDNSZones = new Set(serviceInfo.appDnsZones);
   const sshClusters = new Set(serviceInfo.clusters);
+  const appAndSshAreEqual =
+    appDNSZones.size == sshClusters.size && appDNSZones.isSubsetOf(sshClusters);
 
-  if (appDNSZones.difference(sshClusters).size == 0) {
+  if (appAndSshAreEqual) {
     return (
       <Text p={textSpacing}>
         <Flex>
           {statusIndicator}
-          Proxying TCP and SSH connections to
-          {' '}{[...appDNSZones].join(', ')}
+          Proxying TCP and SSH connections to {[...appDNSZones].join(', ')}
         </Flex>
         {sshConfiguredIndicator}
       </Text>
