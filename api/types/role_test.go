@@ -188,6 +188,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Name:      "test",
 					APIGroup:  Wildcard,
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 			assertErrorCreation: require.NoError,
 		},
@@ -211,6 +212,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Name:      "test",
 					APIGroup:  "",
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 			assertErrorCreation: require.NoError,
 		},
@@ -316,6 +318,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Name:      "test",
 					APIGroup:  Wildcard,
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 		},
 		{
@@ -355,6 +358,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Name:      "test",
 					APIGroup:  Wildcard,
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 		},
 		{
@@ -413,6 +417,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Verbs:    []string{Wildcard},
 					APIGroup: Wildcard,
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 		},
 		{
@@ -500,6 +505,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Name:  "default",
 					Verbs: []string{Wildcard},
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 		},
 
@@ -580,6 +586,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Verbs:     []string{Wildcard},
 					APIGroup:  Wildcard,
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 		},
 		{
@@ -623,6 +630,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Verbs:     []string{Wildcard},
 					APIGroup:  Wildcard,
 				},
+				KubernetesResourceSelfSubjectAccessReview,
 			},
 		},
 		{
@@ -632,7 +640,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 				resources: nil,
 			},
 			assertErrorCreation: require.NoError,
-			wantAllow:           nil,
+			wantAllow:           []KubernetesResource{KubernetesResourceSelfSubjectAccessReview},
 		},
 	}
 	for _, tt := range tests {
@@ -892,6 +900,7 @@ func appendV7KubeResources() []KubernetesResource {
 		},
 		)
 	}
+	resources = append(resources, KubernetesResourceSelfSubjectAccessReview)
 	return resources
 }
 
