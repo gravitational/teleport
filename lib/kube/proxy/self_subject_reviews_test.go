@@ -433,7 +433,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 }
 
 // TestSelfSubjectAccessReviewsAllowed tests that the SelfSubjectAccessReview
-// endpoint can be accessed even if not explicitely allowed by the role.
+// endpoint can be accessed even if not explicitly allowed by the role.
 func TestSelfSubjectAccessReviewsAllowed(t *testing.T) {
 	t.Parallel()
 
