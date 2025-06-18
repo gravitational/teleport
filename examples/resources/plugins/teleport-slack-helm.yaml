@@ -10,6 +10,6 @@ slack:
   token: "xoxb-11xx"  # Slack Bot OAuth token
 
 # Mapping from role to recipients
-roleToRecipients: []
+roleToRecipients: {}
   # "dev": "devs-slack-channel"
   # "*": ["admin@email.com", "admin-slack-channel"]
