@@ -25,6 +25,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 func NewKubernetesDataSource() datasource.DataSource {
@@ -52,7 +56,9 @@ type KubernetesDataSourceModelOutput struct {
 	ClusterCACertificate types.String `tfsdk:"cluster_ca_certificate"`
 }
 
-type KubernetesDataSource struct{}
+type KubernetesDataSource struct {
+	pd *providerData // provider data, set in Configure
+}
 
 func (d *KubernetesDataSource) Metadata(
 	ctx context.Context,
@@ -124,7 +130,24 @@ func (d *KubernetesDataSource) Configure(
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
 ) {
-	// TODO: Fetch bot config data from the provider.
+	// TODO: wrap in helper?
+	if req.ProviderData == nil {
+		return
+	}
+	pd, ok := req.ProviderData.(*providerData)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected type",
+			fmt.Sprintf(
+				"Expected *providerData, got: %T. Please report this issue to the provider developers.",
+				req.ProviderData,
+			),
+		)
+
+		return
+	}
+	// TODO: end wrap in helper?
+	d.pd = pd
 }
 
 func (r *KubernetesDataSource) loadModelAndSetDefaults(
@@ -158,10 +181,68 @@ func (d *KubernetesDataSource) Read(
 		return
 	}
 
+	dest := &config.DestinationMemory{}
+	if err := dest.CheckAndSetDefaults(); err != nil {
+		panic("boo")
+		return
+	}
+	botCfg := r.pd.newBotConfig()
+	botCfg.Services = config.ServiceConfigs{
+		&config.KubernetesV2Output{
+			Destination: dest,
+			Selectors: []*config.KubernetesSelector{
+				{
+					Name: data.Selector.Name.ValueString(),
+				},
+			},
+			DisableExecPlugin: true,
+		},
+	}
+	if err := botCfg.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot config",
+			"Failed to set defaults for bot config: "+err.Error(),
+		)
+		return
+	}
+	bot := tbot.New(botCfg, slog.Default())
+	if err := bot.Run(ctx); err != nil {
+		resp.Diagnostics.AddError(
+			"Error running tbot in resource",
+			"Failed to run tbot: "+err.Error(),
+		)
+		return
+	}
+
+	// Parse kubeconfig from the destination.
+	destData, err := dest.Read(ctx, "kubeconfig.yaml")
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading kubeconfig",
+			"Failed to read kubeconfig: "+err.Error(),
+		)
+		return
+	}
+	cfg, err := clientcmd.Load(destData)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error parsing kubeconfig",
+			"Failed to load kubeconfig: "+err.Error(),
+		)
+		return
+	}
+
+	// TODO: make this bit nil-safe
+	kubectx := cfg.Contexts[cfg.CurrentContext]
+	cluster := cfg.Clusters[kubectx.Cluster]
+	user := cfg.AuthInfos[kubectx.AuthInfo]
+
 	out := KubernetesDataSourceModelOutput{
-		Host: types.StringValue(
-			fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
-		),
+		Host:                 types.StringValue(cluster.Server),
+		TLSServerName:        types.StringValue(cluster.TLSServerName),
+		ClientKey:            types.StringValue(string(user.ClientKeyData)),
+		ClientCertificate:    types.StringValue(string(user.ClientCertificateData)),
+		ClusterCACertificate: types.StringValue(string(cluster.CertificateAuthorityData)),
 	}
 
 	data.Output = &out
