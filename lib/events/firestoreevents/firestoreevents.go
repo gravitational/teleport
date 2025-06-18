@@ -598,6 +598,8 @@ func (l *Log) getIndexParent() string {
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := firestorebk.IndexList{}
+	// each pair of indexes below are identical except for the sort direction
+	// of createdAt
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
@@ -608,12 +610,20 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
+
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
+	)
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
+
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
@@ -621,6 +631,14 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(sessionIDDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
+	)
+
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, l.logger, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }
