@@ -19,6 +19,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
@@ -183,10 +184,13 @@ func (d *KubernetesDataSource) Read(
 
 	dest := &config.DestinationMemory{}
 	if err := dest.CheckAndSetDefaults(); err != nil {
-		panic("boo")
+		resp.Diagnostics.AddError(
+			"Error setting up memory destination",
+			"Failed to set up memory destination: "+err.Error(),
+		)
 		return
 	}
-	botCfg := r.pd.newBotConfig()
+	botCfg := d.pd.newBotConfig()
 	botCfg.Services = config.ServiceConfigs{
 		&config.KubernetesV2Output{
 			Destination: dest,

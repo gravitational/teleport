@@ -186,7 +186,10 @@ func (r *KubernetesEphemeralResource) Open(
 
 	dest := &config.DestinationMemory{}
 	if err := dest.CheckAndSetDefaults(); err != nil {
-		panic("boo")
+		resp.Diagnostics.AddError(
+			"Error setting up memory destination",
+			"Failed to set up memory destination: "+err.Error(),
+		)
 		return
 	}
 	botCfg := r.pd.newBotConfig()
