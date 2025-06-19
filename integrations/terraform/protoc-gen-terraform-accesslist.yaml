@@ -7,6 +7,7 @@ use_state_for_unknown_by_default: true
 # Top-level type names to export
 types:
     - "AccessList"
+    - "Member"
 
 # These import paths were not being automatically picked up by
 # protoc-gen-terraform without these overrides
@@ -29,6 +30,13 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  Member:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
 
 # These fields will be excluded
 exclude_fields:
@@ -37,16 +45,25 @@ exclude_fields:
     # Read only field
     - "AccessList.spec.owners.ineligible_status"
     - "AccessList.status"
+    # Metadata (we id resources by name on our side)
+    - "Member.header.metadata.id"
+    # Read only field
+    - "Member.spec.ineligible_status"
 
 # These fields will be marked as Computed: true
 computed_fields:
-    # Metadata
     - "AccessList.header.kind"
     - "AccessList.header.metadata.expires"
     - "AccessList.header.metadata.namespace"
     - "AccessList.header.metadata.revision"
     - "AccessList.spec.audit.next_audit_date"
-
+    - "Member.header.kind"
+    - "Member.header.metadata.expires"
+    - "Member.header.metadata.namespace"
+    - "Member.header.metadata.revision"
+    - "Member.spec.name"
+    - "Member.spec.joined"
+    - "Member.spec.added_by"
 
 # These fields will be marked as Required: true
 required_fields:
@@ -54,13 +71,23 @@ required_fields:
     - "AccessList.header.version"
     - "AccessList.spec.owners"
     - "AccessList.spec.grants"
-    - "AccessList.spec.audit"
-    - "AccessList.spec.audit.recurrence"
-    - "AccessList.spec.audit.recurrence.frequency"
+    - "Member.header.version"
+    - "Member.spec.access_list"
+    - "Member.spec.membership_kind"
 
 plan_modifiers:
-    # Force to recreate resource if it's name changes
+    # Force to recreate resource if it's ID changes
     Metadata.name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    # spec.access_list is a part of access_list_member ID. In the backend member's ID is
+    # constructed like:
+    # "{access_list_member.spec.access_list}/{access_list_member.header.metadata.name}"
+    # So the resource should be recreated if the access_list field changes.
+    Member.spec.access_list:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    # If the membership kind changes, that basically means it's a different member now so it should
+    # be replaced.
+    Member.spec.membership_kind:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time
@@ -81,3 +108,6 @@ custom_types:
   "AccessList.spec.audit.next_audit_date": Timestamp
   "AccessList.spec.audit.frequency": Duration
   "AccessList.spec.audit.notifications.start": Duration
+  "Member.header.metadata.expires": Timestamp
+  "Member.spec.joined": Timestamp
+  "Member.spec.expires": Timestamp
