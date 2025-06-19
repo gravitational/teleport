@@ -2369,7 +2369,7 @@ func onLogout(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
-	profiles := append([]*client.ProfileStatus{}, available...)
+	profiles := slices.Clone(available)
 	if active != nil {
 		profiles = append(profiles, active)
 	}
@@ -2687,7 +2687,6 @@ func listNodesAllClusters(cf *CLIConf) error {
 	)
 
 	for _, cluster := range clusters {
-		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -5643,7 +5642,6 @@ func listAppsAllClusters(cf *CLIConf) error {
 		errors   []error
 	)
 	for _, cluster := range clusters {
-		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -5894,7 +5892,6 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 	}
 
 	for _, p := range profiles {
-		p := p
 		proxyAddr := p.ProxyURL.Host
 		if p.IsExpired(time.Now()) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
