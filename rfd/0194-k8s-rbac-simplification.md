@@ -43,12 +43,37 @@ more critically, difficult to get setup on day 1.
 ## Goals
 
 - Make the Teleport agent authoritative
-  - Handle permissions for the users instead of relying on impersonating a
-    different user/group
-- Discourage (or even deprecate?) the use of the `kubernetes_groups` and
-  `kubernetes_users` in favor of `kubernetes_resources`
+- Remove the `kubernetes_groups` and `kubernetes_users` fields from role
+  - This will require a role model version bump to v9
 - Clarify / Improve documentation for the various ways to setup Kubernetes in
   Teleport.
+
+## Prior work
+
+### CRDs
+
+We recently added support for _all_ Kubernetes resources, including CRDs, which
+makes resource management easier as we now use the same resource name/group as
+Kubernetes.
+
+### Complete resources support
+
+We now register all resources available in Kubernetes instead of restricting
+to only a select few. This results in much more consistent permissions
+behavior.
+
+While this is a great step, we still fallback to the underlying Kubernetes
+cluster when hitting an unknown resource (which happens when a new CRD gets
+created), which means we are not yet authoritative.
+
+### Wildcard Kind / Namespace behavior change
+
+Starting with Role v8, the `namespaces` kind only means the resource itself
+instead of the resource everything within it.
+
+Role v8 also changed how the wildcard kind works, it now enforces the
+`namespace` field, which allows setting permission for a specific cluster-wide
+or namespaced resource easily.
 
 ## Proposal
 
@@ -61,155 +86,171 @@ Teleport is super admin and yields reduced permissions to the user based on
 the `kubernetes_resources` and `kubernetes_label` fields from the Teleport
 role.
 
+### Being authoritative
+
+#### New Kubernetes Cluster Role / Binding
+
+To make Teleport authoritative, we need a dedicated Cluster Role / Binding with
+admin privileges.
+
+We'll need to update the Helm chart, the `get-kubeconfig.sh` provisioning
+script as well as the discovery service for ASK, EKS, and GCP.
+
+The new Cluster Role will be named `teleport-cluster-admin` and will have the
+same definition as `cluster-admin`. We don't rely on `cluster-admin` being
+present as the user may have renamed/removed it.
+
+We then will create a Cluster Role Binding to a group also named
+`teleport-cluster-admin`, which will allow us to achieve the same behavior as
+if we were impersonating `system:masters`.
+
+Here is how it would be handled within the `get-kubeconfig.sh` script:
+
+```diff
+diff --git a/examples/k8s-auth/get-kubeconfig.sh b/examples/k8s-auth/get-kubeconfig.sh
+index 77adaae2ea..66b7135194 100755
+--- a/examples/k8s-auth/get-kubeconfig.sh
++++ b/examples/k8s-auth/get-kubeconfig.sh
+@@ -100,6 +100,35 @@ subjects:
+ - kind: ServiceAccount
+   name: ${TELEPORT_SA}
+   namespace: ${NAMESPACE}
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: ClusterRole
++metadata:
++  name: teleport-cluster-admin
++rules:
++- apiGroups:
++  - '*'
++  resources:
++  - '*'
++  verbs:
++  - '*'
++- nonResourceURLs:
++  - '*'
++  verbs:
++  - '*'
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: ClusterRoleBinding
++metadata:
++  name: teleport-cluster-admin
++subjects:
++- kind: Group
++  name: teleport-cluster-admin
++  apiGroup: rbac.authorization.k8s.io
++roleRef:
++  kind: ClusterRole
++  name: teleport-cluster-admin
++  apiGroup: rbac.authorization.k8s.io
+ EOF
+
+ # Checks if secret entry was defined for Service account. If defined it means that Kubernetes server has a
+```
+
+The Helm chart will be updated to use the new role name (not keeping the
+existing one as it doesn't mention 'teleport').
+
+- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/examples/chart/teleport-kube-agent/templates/admin_clusterrolebinding.yaml
+
+#### Unknown resources
+
+To be fully authoritative, we'll need to update the code to deny access to
+unknown resources instead of falling back to the underlying Kubernetes cluster.
+
+- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/lib/kube/proxy/self_subject_reviews.go#L125-L130
+- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/lib/kube/proxy/url.go#L234-L239
+
+To maintain a good user experience, we'll need to implement watchers to monitor
+CRD activity and register any new ones 'live' (as opposed to currently waiting
+5 minutes).
+
 ### Impersonation
 
-To limit the number of code changes, the proposal is to default the
-impersonation to use the Teleport service account.
+The existing impersonation logic will be leveraged. Older role versions will
+still impersonate based on the role-defined user/group, but the new role
+version will use the predefined `teleport-cluster-admin` value.
 
-We will need to make sure the service account has `cluster-admin` permissions.
+The main logic change would look something like
 
-To avoid unexpected access being granted, the `kubernetes_resources` field
-should default to `null` as well instead of the current wildcard.
+```diff
+diff --git a/lib/services/role.go b/lib/services/role.go
+index b2aa02fcb4..db4b2050b7 100644
+--- a/lib/services/role.go
++++ b/lib/services/role.go
+@@ -1453,11 +1453,17 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool,
+                maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+                if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+                        matchedTTL = true
+-                       for _, group := range role.GetKubeGroups(types.Allow) {
+-                               groups[group] = struct{}{}
+-                       }
+-                       for _, user := range role.GetKubeUsers(types.Allow) {
+-                               users[user] = struct{}{}
++
++                       switch role.GetVersion() {
++                       case types.V3, types.V4, types.V5, types.V6, types.V7:
++                               for _, group := range role.GetKubeGroups(types.Allow) {
++                                       groups[group] = struct{}{}
++                               }
++                               for _, user := range role.GetKubeUsers(types.Allow) {
++                                       users[user] = struct{}{}
++                               }
++                       default:
++                               groups["teleport-cluster-admin"] = struct{}{}
+                        }
+                }
+        }
+```
 
-The `kubernetes_user` should default to the Teleport user auth email.
+### New Teleport Role Model
+
+The new role model version will be the same as V8 with `kubernetes_group` and
+`kubernetes_user` fields removed. While we can't remove them from the model,
+if they are set, the validation will reject the role.
+
+- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/api/types/role.go#L1979
+
+#### Downgrade
+
+When working with older agents not supporting the role version, we will attempt
+to downgrade the role. To do so, we'll inject the `kubernetes_group` back with
+the Teleport Cluster Admin role name.
+
+This is handled as part of the grpcserver auth:
+
+- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/lib/auth/grpcserver.go#L1950
 
 ### UX
 
-#### Deprecate `namespace`
+#### Exec confusion
 
-We currently have the `namespace` kind mean "everything within a namespace",
-which has caused confusion with customers and resulting in unexpected access
-granted.
-
-This should be deprecated and removed. It would require a bump on the role
-model to v8 to avoid changing behavior for current customers.
-
-Upgrading to v8 would map the deprecated `namespace` field to `*` while
-swapping `name`/`namespace` as these are equivalent within a namespace:
-
-```yaml
-kind: namespace
-name: foo
-```
-
-and:
-
-```yaml
-kind: '*'
-namespace: foo
-```
-
-Note that the later also grants access to cluster-wide resources outside a
-namespace.
-
-To avoid confusion, this behavior would change and when a `namespace` value is
-set (unless it is `*`), only namespaced resources would be matched.
-To match cluster-wide resource, the namespace field should be omitted or set to
-`*`.
-
-#### CRD / Subresources support
-
-Currently, we only support a hard-coded list of pre-set resources. To enable
-CRD support, i.e. arbitrary kind, a new field `api` will be introduced.
-When not set, the `kind` field would still be restricted to the existing
-hard-coded list, but once set, it can be an arbitrary string.
-
-Similarly, to avoid confusion around sub-resources and the common mistake
-of granting `exec` permission with the `get` verb, a new field `sub_resources`
-will be introduce. If not set, then only the main resource would match, which
-removes the unexpected side-effect for `exec`.
-To avoid confusion, when `sub_resources` are set, the `verbs` field will be
-ignored.
-
-The role would look like this:
-
-```yaml
-kubernetes_resources:
-  - kind: '*'
-    api: 'API'
-    name: '*'
-    namespace: '*'
-    verbs: ['*']
-    sub_resources: ['*']
-```
-
-NOTE: The API field is granular at the group level, encompassing all versions.
-
-#### Web Role Editor
-
-To avoid confusion, in the web role editor, we would remove the ability to set
-and view `kubernetes_group` and `kubernetes_users`.
-
-NOTE: The existing preset role `require-trusted-device` that contains
-`kubernetes_group` will be removed, i.e. new install from Teleport v18 will not
-create that role. Existing installs will not be impacted.
-
-The `kubernetes_resources` section currently "hidden" behind a button should be
-open by default.
-
-The UI will hide the fields when the role is selected to >= 8 but will remain
-as it is today to keep support for v7 roles.
-
-#### Direct enrollment
-
-When enrolling a cluster "directly" (i.e. by adding the `kubernetes_service`
-section in the `teleport.yaml` config), the initial setup of roles/rolebindings
-still needs to be performed calling the following script:
-[get-kubeconfig.sh](../examples/k8s-auth/get-kubeconfig.sh).
-
-This script will be updated to ensure the group for the Teleport SA exists and
-has the `cluster-admin` permissions.
-
-#### Helm enrollment
-
-When using the Helm chart, nothing is expected to change, the chart sets up the
-service account for the agent, as well as the role/binding for impersonation.
-
-As _Helm_ is the favored way to get up and running, we can easily update the
-service account to have the `cluster-admin` permissions.
+As the Kubernetes RBAC doesn't get used anymore, the confusion around _exec_
+being allowed with a `get` verb is gone. Teleport uses a dedicated verb to
+control access to `_exec`.
 
 #### Resource enrollment UI
 
-On the Web UI, the initial page generates a _Helm_ commandline.
+On the Web UI, the initial page generates a _Helm_ command line.
 
 After enrollment, a test page is shown, prompting for a `kubernetes_group`
 value, which defaults to the user's trait.
-With the proposed changes, that page would be skipped, using the Teleport SA
-instead.
+With the proposed changes, that page would be skipped, using Teleport Cluster
+Admin instead.
 
-#### Cluster discovery
+#### Role Editor
 
-Similar to the _Helm_ enrollment, the discovery service sets up the
-role/rolebindings for impersonation. It will be responsible to make
-sure the Teleport SA has the proper permissions.
+The Web UI Role Editor will hide the `kubernetes_group` and `kubernetes_user`
+based on the role version dropdown.
 
-### Backward/Forward compatibility
-
-The idea is to keep the impersonation and remove the ability to set the
-`kubernetes_group` and `kubernetes_users` field in favor of preset values
-(Teleport agent SA and user email).
-To do so, a new role version, `v8` will be introduced, which will indicate
-the web ui not to show those fields.
-When a `v8` role is found, if either the `kubernetes_group` or
-`kubernetes_users` fields are set when a `v8` role is created, updated, or
-upserted the request will be rejected.
-This will allow existing setups will keep working, as `v7` behavior will not
-change.
-
-#### Upgrade UX
-
-For existing customers upgrading to the new version, no change is expected in
-behavior for existing roles. Creating/editing a role with `v8` will behave
-differently than they are used to in `v7` though so displaying a warning for a
-couple of major version with a link to the docs may be warranted to avoid
-confusion.
+- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/web/packages/teleport/src/Roles/RoleEditor/StandardEditor/Resources.tsx#L291-L321
 
 ### Documentation
 
-We should move all mentions of `kubernetes_group` and `kubernetes_users` under
-a dedicated "advanced" documentation page.
-We may consider deprecating the fields and thus remove any links to that page.
+As we still support older role versions, the documentation should specify the
+role version and the impersonation behavior each time it gets mentioned.
 
-As it wouldn't be relevant anymore, we should also remove all mention of
-Kubernetes roles/rolebindings/clusterroles/clusterrolebindings from the main
+The install/setup instructions will be updated with only the latest role
+behavior. Older ways to setup will remain thanks to our versioned
 documentation.
