@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -224,11 +225,15 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 		return count, listCount, trace.Wrap(err)
 	}
 
-	startKey := accessListName + "/" + accesslist.MembershipKindList + "/"
-	endKey := sortcache.NextKey(startKey)
-	listCount := uint32(rg.store.count(accessListMemberKindIndex, startKey, endKey))
+	startUserKey := accessListName + "/" + accesslist.MembershipKindUser + "/"
+	endUserKey := sortcache.NextKey(startUserKey)
+	userCount := uint32(rg.store.count(accessListMemberKindIndex, startUserKey, endUserKey))
 
-	return uint32(rg.store.len()) - listCount, listCount, trace.Wrap(err)
+	startListKey := accessListName + "/" + accesslist.MembershipKindList + "/"
+	endListKey := sortcache.NextKey(startListKey)
+	listCount := uint32(rg.store.count(accessListMemberKindIndex, startListKey, endListKey))
+
+	return userCount, listCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -250,11 +255,8 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
-	start := accessListName
+	start := cmp.Or(pageToken, accessListName)
 	end := sortcache.NextKey(accessListName + "/")
-	if pageToken != "" {
-		start += "/" + pageToken
-	}
 
 	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
@@ -391,10 +393,11 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 
 	start := accessList
+	end := sortcache.NextKey(accessList + "/")
 	if pageToken != "" {
 		start += "/" + pageToken
 	}
 
-	out, next, err := lister.list(ctx, pageSize, start)
+	out, next, err := lister.listRange(ctx, pageSize, start, end)
 	return out, next, trace.Wrap(err)
 }

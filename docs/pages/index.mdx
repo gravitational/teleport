@@ -46,8 +46,8 @@ system and data access between machines and workloads.
 
 Get started with Teleport Machine & Workload Identity:
 
-- [Issue and govern identities for automated systems](enroll-resources/machine-id/introduction.mdx) using Teleport Machine Identity.
-- Replace long-lived API keys and environment secrets that are vulnerable to breaches, mistakes, and exfiltration with short-lived cryptographic identities using x.509 certificates or JWTs via [Teleport Workload Identity](enroll-resources/workload-identity/introduction.mdx).
+- [Issue and govern identities for automated systems](machine-workload-identity/machine-id/introduction.mdx) using Teleport Machine Identity.
+- Replace long-lived API keys and environment secrets that are vulnerable to breaches, mistakes, and exfiltration with short-lived cryptographic identities using x.509 certificates or JWTs via [Teleport Workload Identity](machine-workload-identity/workload-identity/introduction.mdx).
 
 ### Teleport Identity Governance
 
@@ -57,18 +57,18 @@ to human factor or identity attacks.
 
 Get started with Teleport Identity Governance:
 
-- [Access Requests](admin-guides/access-controls/access-requests/access-requests.mdx): Temporarily
+- [Access Requests](identity-governance/access-requests/access-requests.mdx): Temporarily
   provision minimal privileges to complete a task.
-- [Access Lists](admin-guides/access-controls/access-lists/access-lists.mdx): Regularly audit and
+- [Access Lists](identity-governance/access-lists/access-lists.mdx): Regularly audit and
   control membership to specific roles and traits, which then tie easily back
   into Teleport's existing RBAC system.
-- [Device Trust](admin-guides/access-controls/device-trust/device-trust.mdx): Require an up-to-date,
+- [Device Trust](identity-governance/device-trust/device-trust.mdx): Require an up-to-date,
   registered device for each authentication by giving every device a
   cryptographic identity. 
-- [Session & Identity Locks](admin-guides/access-controls/guides/locking.mdx): Lock
+- [Session & Identity Locks](identity-governance/locking.mdx): Lock
   suspicious or compromised identities and stop all their activity across all
   protocols and services.
-- [Access Monitoring](admin-guides/access-controls/access-monitoring.mdx): Detect overly
+- [Access Monitoring](identity-governance/access-monitoring.mdx): Detect overly
   broad privileges and inspect sessions that are not using strong protection,
   such as multi-factor authentication and Device Trust.
 

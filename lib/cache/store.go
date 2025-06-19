@@ -18,6 +18,7 @@ package cache
 
 import (
 	"iter"
+	"reflect"
 
 	"github.com/gravitational/trace"
 
@@ -77,7 +78,7 @@ func (s *store[T, I]) len() int {
 func (s *store[T, I]) get(index I, key string) (T, error) {
 	t, ok := s.cache.Get(index, key)
 	if !ok {
-		return t, trace.NotFound("no value for key %q in index %v", key, index)
+		return t, trace.NotFound("%v %q does not exist", reflect.TypeFor[T](), key)
 	}
 
 	return t, nil
