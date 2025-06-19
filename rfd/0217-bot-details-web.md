@@ -289,7 +289,7 @@ A rough breakdown of tasks with the goal of delivering implementation items in m
 1. Page scaffold, feature flag and UI panel component
 2. Bot info panel
 3. Add filters to endpoint `GET /v1/webapi/tokens?role=Bot&bot=:name`
-4. Enable deeplinking to Join Token view/edit page
+4. Enable deep-linking to Join Token view/edit page
 5. Join tokens panel and MFA support
 6. Roles and traits panels
 7. Enable sorting for endpoint `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
@@ -324,7 +324,7 @@ Likely a simplified version of the Access Graph focused on the bot and without t
 Bot sessions are non-interactive, so recordings are not possible in many cases. Session in this list may show command input and output, but aren't re-playable.
 ![](assets/0217-feature-session-recordings.png)
 
-#### Activity visualisation
+#### Activity visualization
 
 A minimalist representation of a bot activity over various time frames. Authentication records as well as heartbeats could be used to provide the data. Otherwise, data from the Audit Log could be used where that data is retrievable in a performant way (i.e. customers using Athena).
 ![](assets/0217-feature-activity-timeseries.png)
