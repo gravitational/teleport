@@ -7244,6 +7244,19 @@ message PluginAWSICSettings {
   // Credentials represents the AWS credentials used by the Identity Center
   // integration
   AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+
+  // RolesSyncMode indicates how the Identity Center integration will create and
+  // manage roles representing potential Identity Center Account Assignments.
+  //
+  // Possible values are ALL or NONE:
+  //  ALL:           indicates that the AWS Identity Center integration should
+  //                 create and maintain roles for all possible Account Assignments.
+  //  NONE:          indicates that the AWS Identity Center integration should
+  //                 not create any roles representing potential account Account
+  //                 Assignments.
+  // For backwards compatibility, an empty value is treated as equivalent to
+  // to ALL
+  string roles_sync_mode = 12;
 }
 
 // AWSICCredentials holds the credentials for authenticating with AWS
