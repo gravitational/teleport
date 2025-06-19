@@ -83,11 +83,11 @@ export function ChangePin(props: {
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <P2 color="text.slightlyMuted">
+                <P2>
                   The default PIV PIN is not allowed.
                   <br />
                   Please set a new PIV PIN for your hardware key before
-                  proceeding. Both the PIN and PUK must be 4-6 characters long.
+                  proceeding. Both the PIN and PUK must be 6–8 characters long.
                 </P2>
 
                 <FieldInput
@@ -100,7 +100,7 @@ export function ChangePin(props: {
                   rule={requiredAll(
                     requiredField('New PIV PIN is required'),
                     notDefaultPin(),
-                    correctLength('PIV PIN must be 4-6 characters long')
+                    correctLength('PIV PIN must be 6–8 characters long')
                   )}
                 />
                 <FieldInput
@@ -115,11 +115,11 @@ export function ChangePin(props: {
                       doesNotMatch: 'PIV PIN does not match',
                     }),
                     notDefaultPin(),
-                    correctLength('PIV PIN must be 4-6 characters long')
+                    correctLength('PIV PIN must be 6–8 characters long')
                   )}
                 />
 
-                <P2 color="text.slightlyMuted">
+                <P2>
                   To change the PIN, please provide your PUK code.
                   <br />
                   For security purposes, the default PUK ({DEFAULT_PUK}) cannot
@@ -145,7 +145,7 @@ export function ChangePin(props: {
                     rule={requiredAll(
                       requiredField('PUK is required'),
                       notDefaultPuk(),
-                      correctLength('PUK must be 4-6 characters long')
+                      correctLength('PUK must be 6–8 characters long')
                     )}
                   />
                 ) : (
@@ -159,7 +159,7 @@ export function ChangePin(props: {
                       rule={requiredAll(
                         requiredField('New PUK is required'),
                         notDefaultPuk(),
-                        correctLength('PUK must be 4-6 characters long')
+                        correctLength('PUK must be 6–8 characters long')
                       )}
                     />
                     <FieldInput
@@ -169,12 +169,12 @@ export function ChangePin(props: {
                       onChange={e => setConfirmNewPuk(e.target.value)}
                       mb={0}
                       rule={requiredAll(
-                        requiredConfirmed(pin, {
+                        requiredConfirmed(newPuk, {
                           confirm: 'Confirm New PUK is required',
                           doesNotMatch: 'PUK does not match',
                         }),
                         notDefaultPuk(),
-                        correctLength('PUK must be 4-6 characters long')
+                        correctLength('PUK must be 6–8 characters long')
                       )}
                     />
                   </>
@@ -221,7 +221,7 @@ const correctLength =
   value =>
   () => {
     const valid =
-      typeof value === 'string' && value.length >= 4 && value.length <= 6;
+      typeof value === 'string' && value.length >= 6 && value.length <= 8;
     return {
       valid,
       message: !valid ? message : '',

@@ -29,10 +29,10 @@ import {
 
 describe('reportToText', () => {
   it('converts report correctly', () => {
-    const checkReport = makeCheckReport({
+    const routeConflictReport = makeCheckReport({
       status: diag.CheckReportStatus.ISSUES_FOUND,
     });
-    checkReport.report = {
+    routeConflictReport.report = {
       oneofKind: 'routeConflictReport',
       routeConflictReport: {
         routeConflicts: [
@@ -51,11 +51,28 @@ describe('reportToText', () => {
         ],
       },
     };
+    const sshConfigReport = makeCheckReport({
+      status: diag.CheckReportStatus.OK,
+    });
+    sshConfigReport.report = {
+      oneofKind: 'sshConfigurationReport',
+      sshConfigurationReport: {
+        userOpensshConfigPath: '~/.ssh/config',
+        vnetSshConfigPath:
+          '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+        userOpensshConfigIncludesVnetSshConfig: false,
+        userOpensshConfigExists: false,
+        userOpensshConfigContents: '',
+      },
+    };
     const report = makeReport({
       checks: [
         makeCheckAttempt({
-          checkReport,
+          checkReport: routeConflictReport,
           commands: [makeCommandAttempt()],
+        }),
+        makeCheckAttempt({
+          checkReport: sshConfigReport,
         }),
       ],
     });

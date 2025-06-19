@@ -85,20 +85,34 @@ type GitlabParams struct {
 	EnvVarName string
 }
 
+// GetSignerFunc is a function that fetches a keypair from bound keypair client
+// state.
+type GetSignerFunc func(pubKey string) (crypto.Signer, error)
+
+// KeygenFunc is a function to generate a new keypair for bound keypair joining.
+// Clients will generally need to store this for future use, so this function
+// should include some mechanism for storage and retrieval.
+type KeygenFunc func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error)
+
 // BoundKeypairParams are parameters specific to bound-keypair joining.
 type BoundKeypairParams struct {
 	// InitialJoinSecret is a one-time-use joining token for use on first join.
 	// May be unset if a keypair was registered with Auth out of band.
 	InitialJoinSecret string
 
-	// CurrentKey is the keypair currently registered with Auth. On initial
-	// join using `InitialJoinSecret`, this should be nil in favor of `NewKey`.
-	CurrentKey crypto.Signer
-
 	// PreviousJoinState is the previous join state document provided by Auth
 	// alongside the previous set of certs. If this is initial registration, it
 	// can be empty.
 	PreviousJoinState []byte
+
+	// GetSigner is a function that fetches a signer from the client keystore.
+	GetSigner GetSignerFunc
+
+	// RequestNewKeypair is a callback function used to request a new keypair.
+	// This may be called at initial onboarding when `InitialJoinSecret` is set,
+	// or on any join (including the initial join) if `RotateAfter` is set on
+	// the backing token and its value has elapsed.
+	RequestNewKeypair KeygenFunc
 }
 
 // RegisterParams specifies parameters
@@ -212,6 +226,21 @@ func (r *RegisterParams) verifyAuthOrProxyAddress() error {
 	return nil
 }
 
+// BoundKeypairRegistrationResult is the result from a successful bound keypair
+// registration attempt. This contains additional values clients are expected to
+// store for subsequent join attempts.
+type BoundKeypairRegisterResult struct {
+	// BoundPublicKey is the public key trusted by the server after the join
+	// attempt, and can be used to confirm the current public key after
+	// registration or rotation.
+	BoundPublicKey string
+
+	// JoinState is a serialized join state JWT. This should be committed to the
+	// bound keypair client state and provided via `BoundKeypairParams` on the
+	// next join attempt.
+	JoinState []byte
+}
+
 // RegisterResult contains the certificates and the private key generated during
 // the registration process.
 type RegisterResult struct {
@@ -221,6 +250,9 @@ type RegisterResult struct {
 	// generated according to the current signature algorithm suite configured
 	// in the cluster.
 	PrivateKey crypto.Signer
+	// BoundKeypair contains additional results from bound keypair registration
+	// attempts. This is only set when bound keypair joining is used.
+	BoundKeypair *BoundKeypairRegisterResult
 }
 
 // Register is used to get signed certificates when a node, proxy, or bot is
@@ -433,7 +465,14 @@ func registerThroughProxy(
 		case types.JoinMethodOracle:
 			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodBoundKeypair:
-			certs, err = registerUsingBoundKeypairMethod(ctx, joinServiceClient, token, hostKeys, params)
+			// Bound keypair joining needs to set additional fields on the
+			// result, so it constructs the struct internally.
+			result, err := registerUsingBoundKeypairMethod(ctx, joinServiceClient, token, hostKeys, params)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return result, nil
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -523,7 +562,14 @@ func registerThroughAuthClient(
 	case types.JoinMethodTPM:
 		certs, err = registerUsingTPMMethod(ctx, client, token, hostKeys, params)
 	case types.JoinMethodBoundKeypair:
-		certs, err = registerUsingBoundKeypairMethod(ctx, client, token, hostKeys, params)
+		// Bound keypair joining has additional return values, so it constructs
+		// its RegisterResult internally.
+		result, err := registerUsingBoundKeypairMethod(ctx, client, token, hostKeys, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return result, nil
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
@@ -712,7 +758,7 @@ type joinServiceClient interface {
 		ctx context.Context,
 		req *proto.RegisterUsingBoundKeypairInitialRequest,
 		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-	) (*proto.Certs, string, error)
+	) (*client.BoundKeypairRegistrationResponse, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -912,24 +958,8 @@ func registerUsingBoundKeypairMethod(
 	token string,
 	hostKeys *newHostKeys,
 	params RegisterParams,
-) (*proto.Certs, error) {
+) (*RegisterResult, error) {
 	bkParams := params.BoundKeypairParams
-
-	// Build a map of all public keys to signers. At the moment, this is just
-	// the current key, but may include e.g. previous and next keys for use in
-	// case of a failed rotation attempt.
-	// TODO: This implementation is likely to change when rotation is
-	// implemented.
-	signers := map[string]crypto.Signer{}
-
-	if bkParams.CurrentKey != nil {
-		pub, err := sshPubKeyFromSigner(bkParams.CurrentKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating ssh public key from current key signer")
-		}
-
-		signers[pub] = bkParams.CurrentKey
-	}
 
 	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
 		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
@@ -937,25 +967,17 @@ func registerUsingBoundKeypairMethod(
 		PreviousJoinState: bkParams.PreviousJoinState,
 	}
 
-	// TODO: When implementing rotation, we should make use of the returned
-	// public key to ensure that key is marked as the primary.
-	certs, _, err := client.RegisterUsingBoundKeypairMethod(
+	regResponse, err := client.RegisterUsingBoundKeypairMethod(
 		ctx,
 		initReq,
 		func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
 			switch kind := resp.GetResponse().(type) {
 			case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
-				// Unlike other join methods, this function may be called multiple
-				// times to complete challenges using one or both signers, so we'll
-				// use the passed publicKey hint to resolve the proper signer to
-				// use.
-				signer, ok := signers[kind.Challenge.PublicKey]
-				if !ok {
-					return nil, trace.NotFound("could not complete challenge for unknown public key: %+#v", kind.Challenge.PublicKey)
+				signer, err := bkParams.GetSigner(kind.Challenge.PublicKey)
+				if err != nil {
+					return nil, trace.Wrap(err, "could not lookup signer for public key %+v", kind.Challenge.PublicKey)
 				}
 
-				// TODO: might not be worth exporting this func; may be cheaper to
-				// just copy the function here instead.
 				alg, err := jwt.AlgorithmForPublicKey(signer.Public())
 				if err != nil {
 					return nil, trace.Wrap(err, "determining signing algorithm for public key")
@@ -990,15 +1012,47 @@ func registerUsingBoundKeypairMethod(
 					},
 				}, nil
 			case *proto.RegisterUsingBoundKeypairMethodResponse_Rotation:
-				// TODO: Follow up implementation
-				return nil, trace.NotImplemented("keypair rotation not yet implemented")
+				if bkParams.RequestNewKeypair == nil {
+					return nil, trace.BadParameter("RequestNewKeypair is required")
+				}
+
+				slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
+
+				newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(kind.Rotation.SignatureAlgorithmSuite))
+				if err != nil {
+					return nil, trace.Wrap(err, "requesting new keypair")
+				}
+
+				newPubkey, err := sshPubKeyFromSigner(newSigner)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return &proto.RegisterUsingBoundKeypairMethodRequest{
+					Payload: &proto.RegisterUsingBoundKeypairMethodRequest_RotationResponse{
+						RotationResponse: &proto.RegisterUsingBoundKeypairRotationResponse{
+							PublicKey: newPubkey,
+						},
+					},
+				}, nil
 			default:
 				// Note: certs variant is handled by RegisterUsingBoundKeypairMethod()
 				return nil, trace.BadParameter("received unexpected challenge response: %v", resp.GetResponse())
 			}
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return certs, trace.Wrap(err)
+	// Implementation note, callers are expected to call
+	return &RegisterResult{
+		PrivateKey: hostKeys.privateKey,
+		Certs:      regResponse.Certs,
+		BoundKeypair: &BoundKeypairRegisterResult{
+			BoundPublicKey: regResponse.BoundPublicKey,
+			JoinState:      regResponse.JoinState,
+		},
+	}, nil
 }
 
 // readCA will read in CA that will be used to validate the certificate that

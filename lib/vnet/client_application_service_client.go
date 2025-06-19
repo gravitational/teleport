@@ -18,8 +18,12 @@ package vnet
 
 import (
 	"context"
+	"crypto"
+	"crypto/rsa"
+	"io"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
 
@@ -29,7 +33,7 @@ import (
 )
 
 // clientApplicationServiceClient is a gRPC client for the client application
-// service. This client is used in the Windows admin service to make requests to
+// service. This client is used in the VNet admin process to make requests to
 // the VNet client application.
 type clientApplicationServiceClient struct {
 	clt  vnetv1.ClientApplicationServiceClient
@@ -92,21 +96,20 @@ func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
 	return nil
 }
 
-// ResolveAppInfo resolves fqdn to a [*vnetv1.AppInfo], or returns an error if
-// no matching app is found.
-func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
-	resp, err := c.clt.ResolveAppInfo(ctx, &vnetv1.ResolveAppInfoRequest{
+// ResolveFQDN resolves a query for a fully-qualified domain name to a target.
+func (c *clientApplicationServiceClient) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+	resp, err := c.clt.ResolveFQDN(ctx, &vnetv1.ResolveFQDNRequest{
 		Fqdn: fqdn,
 	})
 	// Convert NotFound errors to errNoTCPHandler, which is what the network
-	// stack is looking for. Avoid wrapping, no need to collect a stack trace.
+	// stack is looking for.
 	if trace.IsNotFound(err) {
 		return nil, errNoTCPHandler
 	}
 	if err != nil {
-		return nil, trace.Wrap(err, "calling ResolveAppInfo rpc")
+		return nil, trace.Wrap(err, "calling ResolveFQDN rpc")
 	}
-	return resp.GetAppInfo(), nil
+	return resp, nil
 }
 
 // ReissueAppCert issues a new certificate for the requested app.
@@ -165,4 +168,98 @@ func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Co
 		return nil, trace.Wrap(err, "calling GetTargetOSConfiguration rpc")
 	}
 	return resp.GetTargetOsConfiguration(), nil
+}
+
+// UserTLSCert returns the user TLS certificate for the given profile.
+func (c *clientApplicationServiceClient) UserTLSCert(ctx context.Context, profileName string) (*vnetv1.UserTLSCertResponse, error) {
+	resp, err := c.clt.UserTLSCert(ctx, &vnetv1.UserTLSCertRequest{
+		Profile: profileName,
+	})
+	return resp, trace.Wrap(err, "calling UserTLSCert rpc")
+}
+
+// SignForUserTLS returns a cryptographic signature with the key associated with
+// the user TLS key for the requested profile.
+func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, req *vnetv1.SignForUserTLSRequest) ([]byte, error) {
+	resp, err := c.clt.SignForUserTLS(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForUserTLS rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+// SessionSSHConfig returns user SSH configuration values for an SSH session.
+func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, target dialTarget, user string) (*vnetv1.SessionSSHConfigResponse, error) {
+	resp, err := c.clt.SessionSSHConfig(ctx, &vnetv1.SessionSSHConfigRequest{
+		Profile:     target.profile,
+		RootCluster: target.rootCluster,
+		LeafCluster: target.leafCluster,
+		Address:     target.addr,
+		User:        user,
+	})
+	return resp, trace.Wrap(err, "calling SessionSSHConfig rpc")
+}
+
+// SignForSSHSession signs a digest with the SSH private key associated with the
+// session from a previous call to SessionSSHConfig.
+func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, sessionID string, sign *vnetv1.SignRequest) ([]byte, error) {
+	resp, err := c.clt.SignForSSHSession(ctx, &vnetv1.SignForSSHSessionRequest{
+		SessionId: sessionID,
+		Sign:      sign,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForSSHSession rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+// ExchangeSSHKeys sends hostPublicKey to the client application so that it
+// can write an OpenSSH-compatible configuration file. It returns the user
+// public key that should be trusted for incoming connections from third-party
+// SSH clients.
+func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, hostPublicKey ssh.PublicKey) (ssh.PublicKey, error) {
+	resp, err := c.clt.ExchangeSSHKeys(ctx, &vnetv1.ExchangeSSHKeysRequest{
+		HostPublicKey: hostPublicKey.Marshal(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ExchangeSSHKeys rpc")
+	}
+	userPublicKey, err := ssh.ParsePublicKey(resp.GetUserPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing trusted user public key")
+	}
+	return userPublicKey, nil
+}
+
+// rpcSigner implements [crypto.Signer] for signatures that are issued by the
+// client application over gRPC.
+type rpcSigner struct {
+	pub         crypto.PublicKey
+	sendRequest func(signReq *vnetv1.SignRequest) ([]byte, error)
+}
+
+// Public implements [crypto.Signer.Public] and returns the public key
+// associated with the signer.
+func (s *rpcSigner) Public() crypto.PublicKey {
+	return s.pub
+}
+
+// Sign implements [crypto.Signer.Sign] and issues a signature over digest.
+func (s *rpcSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	req := &vnetv1.SignRequest{
+		Digest: digest,
+	}
+	switch opts.HashFunc() {
+	case 0:
+		req.Hash = vnetv1.Hash_HASH_NONE
+	case crypto.SHA256:
+		req.Hash = vnetv1.Hash_HASH_SHA256
+	default:
+		return nil, trace.BadParameter("unsupported signature hash func %v", opts.HashFunc())
+	}
+	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
+		saltLen := int32(pssOpts.SaltLength)
+		req.PssSaltLength = &saltLen
+	}
+	return s.sendRequest(req)
 }

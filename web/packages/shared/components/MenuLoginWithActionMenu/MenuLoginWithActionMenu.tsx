@@ -54,7 +54,7 @@ export const MenuLoginWithActionMenu = ({
   inputType,
 }: {
   /** Button text for main menu button. */
-  buttonText: string;
+  buttonText?: string;
   /**
    * Handles select or click in main menu items.
    * If isExternalUrl item returned by getLoginItems is true, a button with <a> tag is rendered
@@ -98,7 +98,7 @@ export const MenuLoginWithActionMenu = ({
         placeholder={placeholder}
       />
       <ButtonBorder
-        setRef={moreButtonRef}
+        ref={moreButtonRef}
         px={1}
         size={size}
         onClick={() => setIsOpen(true)}

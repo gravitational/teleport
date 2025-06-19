@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -90,7 +91,15 @@ func TestListKubernetesResources(t *testing.T) {
 				// override the role to allow access to all kube resources.
 				r.SetKubeResources(
 					types.Allow,
-					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}},
+					[]types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
+						},
+					},
 				)
 			},
 		},
@@ -555,7 +564,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "nginx-1",
+							Name:      "cr-nginx-1",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -564,7 +573,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "nginx-2",
+							Name:      "cr-nginx-2",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -573,7 +582,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "test",
+							Name:      "cr-test",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -633,9 +642,11 @@ func initGRPCServer(t *testing.T, testCtx *TestContext, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		ClusterName:   clusterName,
-		Limiter:       limiter,
-		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		Middleware: authz.Middleware{
+			ClusterName:   clusterName,
+			AcceptedUsage: []string{teleport.UsageKubeOnly},
+		},
+		Limiter: limiter,
 	}
 
 	tlsConf := copyAndConfigureTLS(tlsConfig, testCtx.AuthClient, clusterName)

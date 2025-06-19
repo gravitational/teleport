@@ -47,6 +47,7 @@ type heartbeatService struct {
 	botCfg             *config.BotConfig
 	startedAt          time.Time
 	heartbeatSubmitter heartbeatSubmitter
+	botIdentityReadyCh <-chan struct{}
 	interval           time.Duration
 	retryLimit         int
 }
@@ -117,6 +118,7 @@ func (s *heartbeatService) Run(ctx context.Context) error {
 			isStartup = false
 			return nil
 		},
+		identityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)
 }

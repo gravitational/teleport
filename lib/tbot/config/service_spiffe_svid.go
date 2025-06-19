@@ -180,7 +180,7 @@ func (o *SPIFFESVIDOutput) Type() string {
 }
 
 // MarshalYAML marshals the SPIFFESVIDOutput into YAML.
-func (o *SPIFFESVIDOutput) MarshalYAML() (interface{}, error) {
+func (o *SPIFFESVIDOutput) MarshalYAML() (any, error) {
 	type raw SPIFFESVIDOutput
 	return withTypeHeader((*raw)(o), SPIFFESVIDOutputType)
 }

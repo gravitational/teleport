@@ -49,7 +49,7 @@ type workloadIdentityCommands struct {
 func newWorkloadIdentityCommands(
 	app *kingpin.Application,
 ) workloadIdentityCommands {
-	cmd := app.Command("workload-identity", "Issue Workload Identity credentials")
+	cmd := app.Command("workload-identity", "Issue Workload Identity credentials.")
 	cmds := workloadIdentityCommands{
 		issueX509: newIssueX509Command(cmd),
 	}
@@ -71,7 +71,7 @@ func newIssueX509Command(parent *kingpin.CmdClause) *issueX509Command {
 
 	cmd.Flag(
 		"name-selector",
-		"The name of the workload identity to issue",
+		"The name of the workload identity to issue.",
 	).StringVar(&cmd.nameSelector)
 	cmd.Flag(
 		"label-selector",

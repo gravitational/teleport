@@ -92,6 +92,11 @@ func ResourceNames[R Resource, S ~[]R](s S) iter.Seq[string] {
 	return iterutils.Map(GetName, slices.Values(s))
 }
 
+// CompareResourceByNames compares resources by their names.
+func CompareResourceByNames[R Resource](a, b R) int {
+	return strings.Compare(a.GetName(), b.GetName())
+}
+
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
 	Hostname     string
@@ -746,7 +751,7 @@ func GetRevision(v any) (string, error) {
 	case Resource:
 		return r.GetRevision(), nil
 	case ResourceMetadata:
-		return r.GetMetadata().Revision, nil
+		return r.GetMetadata().GetRevision(), nil
 	}
 	return "", trace.BadParameter("unable to determine revision from resource of type %T", v)
 }

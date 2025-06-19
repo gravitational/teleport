@@ -23,7 +23,6 @@ import (
 	"iter"
 	"regexp"
 	"strings"
-	"unicode"
 
 	"github.com/gravitational/trace"
 )
@@ -37,10 +36,14 @@ const (
 	// separator is the character used to separate segments in a scope and is the the value of the root scope.
 	separator = "/"
 
+	// exclusiveChildGlobSegment is the string used to indicate a wildcard match for child segments, used to construct
+	// the exclusive child glob suffix.
+	exclusiveChildGlobSegment = "**"
+
 	// exclusiveChildGlobSuffix is a special suffix used in roles to indicate that the role can be
 	// assigned to any *child* of a given scope, but not to the scope itself (e.g. an assignable scope of
 	// `/aa/**` allows assignment to `/aa/bb`, but not to `/aa`).
-	exclusiveChildGlobSuffix = separator + "**"
+	exclusiveChildGlobSuffix = separator + exclusiveChildGlobSegment
 
 	// maxScopeSize is the maximum size of a scope, including separators.
 	maxScopeSize = 64
@@ -55,33 +58,14 @@ const (
 	// members even when performing looser/weaker validation. This it intended to be an additional
 	// guardrail against erroneous interpretation of future extensions to scope syntax by outdated
 	// agents in the event of improper cross-version compat logic.
-	breakingChars = "\\@(){}\"'%*?#$!+=|<>,;~`&[]"
+	breakingChars = "\\@(){}\"'%*?#$!+=|<>,;~`&[]/"
 )
 
-// ValidateSegment checks if a given scope segment is valid. Generally, one of either [StrongValidate] or
-// [WeakValidate] should be called against the entire scope, but this function is useful for validating segments
-// prior to performing variable interpolation or other operations that involve building scopes from
-// external input. Among other things, using this function in that context is an easy way to prevent
-// multi-segment injection in places where a single segment is expected.
-func ValidateSegment(segment string) error {
-	if segment == "" {
-		return trace.BadParameter("segment is empty")
-	}
-
-	if len(segment) < minSegmentSize {
-		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
-	}
-
-	if !segmentRegexp.MatchString(segment) {
-		return trace.BadParameter("segment %q is malformed", segment)
-	}
-
-	if len(segment) > maxSegmentSize {
-		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
-	}
-
-	return nil
-}
+// Root is the root scope. Non-policy resources being grandfathered into scoping should use this
+// as their default scope value, which will exclude the resource from administration by any policy
+// other than non-scoped policies and root-scoped policies. Note that there is no sane default scoping
+// for a policy. Policy resources should never use this or any other default scope value.
+const Root = separator
 
 // StrongValidate checks if the scope is valid according to all scope formatting rules. This function
 // *must* be called on all scope values received from user input and/or cluster-external sources (e.g.
@@ -102,13 +86,21 @@ func StrongValidate(scope string) error {
 	}
 
 	for segment := range DescendingSegments(scope) {
-		if err := ValidateSegment(segment); err != nil {
+		if err := StrongValidateSegment(segment); err != nil {
 			return trace.BadParameter("scope %q is invalid: %v", scope, err)
 		}
 	}
 
 	if len(scope) > maxScopeSize {
 		return trace.BadParameter("scope %q is too long (max characters %d)", scope, maxScopeSize)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidate(scope); err != nil {
+		return trace.BadParameter("scope would not pass weak validation: %v", err)
 	}
 
 	return nil
@@ -119,28 +111,90 @@ func StrongValidate(scope string) error {
 // about them (e.g. due to significant version drift). Prefer using [StrongValidate] for scopes received from
 // external sources (e.g. user input or identity provider).
 func WeakValidate(scope string) error {
-	for segment := range DescendingSegments(scope) {
-		// check for spaces and control characters
-		for _, r := range segment {
-			if unicode.IsSpace(r) || unicode.IsControl(r) {
-				return trace.BadParameter("scope %q contains invalid segment %q (whitespace or control character)", scope, segment)
-			}
-		}
+	if scope == "" {
+		return trace.BadParameter("scope is empty")
+	}
 
-		// check for breaking characters
-		if strings.ContainsAny(segment, breakingChars) {
-			return trace.BadParameter("scope %q contains invalid segment %q (invalid character)", scope, segment)
+	for segment := range DescendingSegments(scope) {
+		if err := WeakValidateSegment(segment); err != nil {
+			return trace.BadParameter("scope %q is invalid: %v", scope, err)
 		}
 	}
 
 	return nil
 }
 
-// ValidateGlob checks if a scope glob is valid. A scope glob is a special type of scope that
-// may be either a literal or a very simplistic matcher.
-func ValidateGlob(scope string) error {
+// StrongValidateSegment checks if the scope segment is valid according to all scope formatting rules. This function
+// *must* be called on all scope segment values received from user input and/or cluster-external sources (e.g.
+// an identity provider). Use of this function should be avoided when checking the validity of segments
+// from the control-plane in logic that may be run agent-side. Prefer [WeakValidateSegment] in those cases, which
+// is more forgiving of changes to scope formatting rules.
+func StrongValidateSegment(segment string) error {
+	if segment == "" {
+		return trace.BadParameter("segment is empty")
+	}
+
+	if len(segment) < minSegmentSize {
+		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
+	}
+
+	if !segmentRegexp.MatchString(segment) {
+		return trace.BadParameter("segment %q is malformed", segment)
+	}
+
+	if len(segment) > maxSegmentSize {
+		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidateSegment(segment); err != nil {
+		return trace.BadParameter("segment would not pass weak validation: %v", err)
+	}
+
+	return nil
+}
+
+// WeakValidateSegment performs a weak form of validation on a scope segment. This is useful primarily for ensuring
+// that segments received from trusted sources haven't been altered beyond our ability to reason effectively
+// about them (e.g. due to significant version drift). Prefer using [StrongValidateSegment] for segments received from
+// external sources (e.g. user input or identity provider).
+func WeakValidateSegment(segment string) error {
+	// check for spaces and control characters
+	for _, b := range []byte(segment) {
+		if !isNonSpacePrintableASCII(b) {
+			return trace.BadParameter("segment %q contains invalid character", segment)
+		}
+	}
+
+	// check for breaking characters
+	if strings.ContainsAny(segment, breakingChars) {
+		return trace.BadParameter("segment %q contains invalid character", segment)
+	}
+
+	return nil
+}
+
+// isNonSpacePrintableASCII checks if a byte is a non-space printable ASCII character (i.e. a byte in the range
+// [33, 126] inclusive). This is used for weak validation of scope segments and globs.
+func isNonSpacePrintableASCII(b byte) bool {
+	if b < 33 || b > 126 {
+		return false
+	}
+
+	return true
+}
+
+// StrongValidateGlob checks if the scope glob is valid according to all scope formatting rules. This function
+// *must* be called on all scope glob values received from user input and/or cluster-external sources (e.g.
+// an identity provider). Use of this function should be avoided when checking the validity of scope globs
+// from the control-plane in logic that may be run agent-side. Prefer [WeakValidateGlob] in those cases, which
+// is more forgiving of changes to scope glob formatting rules.
+func StrongValidateGlob(scope string) error {
 	if scope == "" {
-		return trace.BadParameter("scope is empty")
+		return trace.BadParameter("scope glob is empty")
 	}
 
 	if scope == exclusiveChildGlobSuffix {
@@ -148,7 +202,41 @@ func ValidateGlob(scope string) error {
 		return nil
 	}
 
-	return StrongValidate(strings.TrimSuffix(scope, exclusiveChildGlobSuffix))
+	if err := StrongValidate(strings.TrimSuffix(scope, exclusiveChildGlobSuffix)); err != nil {
+		return trace.BadParameter("scope glob %q is invalid: %v", scope, err)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidateGlob(scope); err != nil {
+		return trace.BadParameter("scope glob would not pass weak validation: %v", err)
+	}
+
+	return nil
+}
+
+// WeakValidateGlob is a weaker form of validation for scope globs. This is useful primarily for ensuring
+// that scope globs received from trusted sources haven't been altered beyond our ability to reason effectively
+// about them (e.g. due to significant version drift). Prefer using [StrongValidateGlob] for globs received from
+// external sources (e.g. user input or identity provider).
+func WeakValidateGlob(scope string) error {
+	if scope == "" {
+		return trace.BadParameter("scope glob is empty")
+	}
+
+	for segment := range DescendingSegments(scope) {
+		if segment == exclusiveChildGlobSegment {
+			continue
+		}
+
+		if err := WeakValidateSegment(segment); err != nil {
+			return trace.BadParameter("scope glob %q is invalid: %v", scope, err)
+		}
+	}
+
+	return nil
 }
 
 // DescendingSegments produces an iterator over the segments of a scope in descending order.
@@ -244,6 +332,11 @@ func (rel Relationship) String() string {
 // Note that this function does not perform validation, and may return unexpected results when
 // called against invalid scope values.
 func Compare(lhs, rhs string) Relationship {
+	if lhs == "" || rhs == "" {
+		// empty scopes are always orthogonal, including to one-another
+		return Orthogonal
+	}
+
 	lNext, lStop := iter.Pull(DescendingSegments(lhs))
 	defer lStop()
 
@@ -306,6 +399,23 @@ func (s ResourceScope) IsSubjectToPolicyScope(scope string) bool {
 	return rel == Equivalent || rel == Ancestor
 }
 
+// PolicyAssignmentScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.PolicyAssignmentScope(subAssignment.Scope).IsSubjectToPolicyResourceScope(assignment.Scope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope values.
+type PolicyAssignmentScope string
+
+// IsSubjectToPolicyResourceScope checks if this policy assignment scope is subject to the specified policy resource
+// scope. This is used to validate that the individual assignments within a resource conform to the scoping of the
+// overall assignment resource.
+func (s PolicyAssignmentScope) IsSubjectToPolicyResourceScope(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Ancestor
+}
+
 // Glob is a helper for matching scope globs against scopes. This is currently used to support exactly
 // one piece of special syntax, the use of `/component/**` to indicate that a role can be assigned to any child of
 // the specified scope, but not to the scope itself. Ex:
@@ -318,17 +428,104 @@ type Glob string
 
 // Matches checks if the given scope matches this scope glob.
 func (s Glob) Matches(scope string) bool {
-	glob := string(s)
-	var exclusiveChildMatcher bool
-	if strings.HasSuffix(glob, exclusiveChildGlobSuffix) {
-		glob = strings.TrimSuffix(glob, exclusiveChildGlobSuffix)
-		exclusiveChildMatcher = true
+	return matchGlob(string(s), scope)
+}
+
+// IsSubjectToPolicyResourceScope checks if this glob exclusively matches scopes that would be subject to the
+// specified policy resource scope. This is used to validate that the assignable scope globs of a role only
+// permit assignment of that role to scopes that could permissibly be subject to the policies defined by that role.
+func (s Glob) IsSubjectToPolicyResourceScope(scope string) bool {
+	return globIsSubjectToPolicyResourceScope(string(s), scope)
+}
+
+// matchGlob implements glob matching. note that this function technically supports some limited
+// matching behaviors that we don't actually currently allow the use of. e.g. `/foo/**/bar` would match
+// `/foo/baz/bar` (but not  `/foo/baz/bin/bar` or `/foo/bar/`), but we only permit the use of the double-wildcard
+// syntax in the trailing segment for simplicity's sake.
+func matchGlob(glob string, scope string) bool {
+	if glob == "" || scope == "" {
+		return false
 	}
 
-	rel := Compare(glob, scope)
-	if exclusiveChildMatcher {
-		return rel == Descendant
-	} else {
-		return rel == Equivalent
+	gNext, gStop := iter.Pull(DescendingSegments(glob))
+	defer gStop()
+
+	sNext, sStop := iter.Pull(DescendingSegments(scope))
+	defer sStop()
+
+	for {
+		gVal, gOk := gNext()
+		sVal, sOk := sNext()
+
+		switch {
+		case gOk && sOk:
+			// both values have segments left to compare
+			if gVal == sVal {
+				// segments are equivalent, descend into the next segment
+				continue
+			}
+			if gVal == exclusiveChildGlobSegment {
+				// double-wildcard matches any segment, continue
+				continue
+			}
+			// scopes have diverged
+			return false
+		case gOk && !sOk:
+			// the scope is an ancestor of the glob
+			return false
+		case !gOk && sOk:
+			// the glob is an ancestor of the scope
+			return true
+		case !gOk && !sOk:
+			// literal match
+			return true
+		}
+	}
+}
+
+// globIsSubjectToPolicyResourceScope checks if the glob is subject to the specified policy resource scope.
+func globIsSubjectToPolicyResourceScope(glob string, scope string) bool {
+	if glob == "" || scope == "" {
+		return false
+	}
+
+	gNext, gStop := iter.Pull(DescendingSegments(glob))
+	defer gStop()
+
+	sNext, sStop := iter.Pull(DescendingSegments(scope))
+	defer sStop()
+
+	for {
+		gVal, gOk := gNext()
+		sVal, sOk := sNext()
+
+		switch {
+		case gOk && sOk:
+			// both values have segments left to compare
+			if gVal == sVal {
+				// segments are equivalent, descend into the next segment
+				continue
+			}
+			if gVal == exclusiveChildGlobSegment {
+				// we've hit the first wildcard segment and are still descending
+				// through the segments of the scope. this means that the glob may
+				// match a scope orthogonal to the resource scope and therefore does
+				// not conform to subjugation rules.
+				return false
+			}
+			// scopes have diverged
+			return false
+		case gOk && !sOk:
+			// the scope is an ancestor of the glob, anything the glob matches
+			// will be subject to the scope.
+			return true
+		case !gOk && sOk:
+			// the glob is an ancestor of the scope, and is therefore trivially not
+			// subject to the scope.
+			return false
+		case !gOk && !sOk:
+			// literal match, the glob is subject by equivalence to the scope.
+			return true
+		}
 	}
 }

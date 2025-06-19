@@ -35,7 +35,7 @@ import (
 )
 
 type response struct {
-	Value interface{} `json:"value"`
+	Value any `json:"value"`
 }
 
 type Msg struct {
@@ -96,7 +96,7 @@ func NewFakeTeams(concurrency int) *FakeTeams {
 	})
 
 	router.GET("/users", func(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		var v interface{} = []msapi.User{}
+		var v any = []msapi.User{}
 
 		filter := r.URL.Query().Get("$filter")
 		value := filter[strings.Index(filter, "'")+1 : len(filter)-1]
@@ -140,7 +140,7 @@ func NewFakeTeams(concurrency int) *FakeTeams {
 	})
 
 	router.GET("/users/:userID/teamWork/installedApps", func(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		var v interface{} = []msapi.InstalledApp{}
+		var v any = []msapi.InstalledApp{}
 
 		_, ok := s.GetUser(p.ByName("userID"))
 		if !ok {

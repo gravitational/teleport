@@ -71,6 +71,23 @@ describe('processRedirectURI', () => {
         input: '/web/existing/path',
         expected: '/web/existing/path',
       },
+      {
+        name: 'saml idp service provider initiated SSO URL',
+        input:
+          'https://example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+        expected: '/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+      },
+      {
+        name: 'malformed URL',
+        input:
+          'https://example.//attacker.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+        expected: '/web//attacker.com/enterprise/saml-idp/sso',
+      },
+      {
+        name: 'saml idp identity provider initiated SSO URL',
+        input: 'https://example.com/enterprise/saml-idp/login/example-app',
+        expected: '/enterprise/saml-idp/login/example-app',
+      },
     ];
 
   test.each(tests)('$name', ({ input, expected }) => {

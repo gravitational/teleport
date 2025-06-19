@@ -72,12 +72,12 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -750,10 +750,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.WarnContext(ctx, "Failed to save profile", "error", err)
-		return trace.Wrap(err)
-	}
-
-	if err := tools.CheckAndUpdateRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify, os.Args[1:]); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1905,6 +1901,14 @@ type SSHOptions struct {
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
+	// OnChildAuthenticate is a function to run in the child process during
+	// --fork-after authentications. It runs after authentication completes
+	// but before the session begins.
+	OnChildAuthenticate func() error
+}
+
+func (opts SSHOptions) forkAfterAuthentication() bool {
+	return opts.OnChildAuthenticate != nil
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1920,6 +1924,15 @@ func WithHostAddress(addr string) func(*SSHOptions) {
 func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
 		opt.LocalCommandExecutor = executor
+	}
+}
+
+// WithForkAfterAuthentication indicates that tsh is currently reexec-ing
+// for --fork-after-authentication. The given function is called after
+// authentication is complete but before the session starts.
+func WithForkAfterAuthentication(onAuthenticate func() error) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.OnChildAuthenticate = onAuthenticate
 	}
 }
 
@@ -1965,9 +1978,14 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	}
 
 	if len(nodeAddrs) > 1 {
+		if options.forkAfterAuthentication() {
+			return &NonRetryableError{
+				Err: trace.BadParameter("fork after authentication not supported for commands on multiple nodes"),
+			}
+		}
 		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options.LocalCommandExecutor)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options)
 }
 
 // ConnectToNode attempts to establish a connection to the node resolved to by the provided
@@ -2170,7 +2188,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	return nodeClient, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, commandExecutor func(string, []string) error) error {
+func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, options SSHOptions) error {
 	cluster := clt.ClusterName()
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -2194,6 +2212,12 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
+
+	if options.OnChildAuthenticate != nil {
+		if err := options.OnChildAuthenticate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// If forwarding ports were specified, start port forwarding.
 	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
 		return trace.Wrap(err)
@@ -2225,11 +2249,11 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 
 	// After port forwarding, run a local command that uses the connection, and
 	// then disconnect.
-	if commandExecutor != nil {
+	if options.LocalCommandExecutor != nil {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
-		return commandExecutor(tc.Config.HostLogin, command)
+		return options.LocalCommandExecutor(tc.Config.HostLogin, command)
 	}
 
 	if len(command) > 0 {
@@ -2264,7 +2288,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, SSHOptions{})
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -4234,8 +4258,13 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 		}
 		defer rd.Close()
 
-		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
+		if connectorType == constants.SAML {
+			ssoCeremony := sso.NewCLISAMLCeremony(rd, tc.samlSSOLoginInitFn(keyRing, connectorID, connectorType))
+			resp, err := ssoCeremony.Run(ctx)
+			return resp, trace.Wrap(err)
 
+		}
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
 		resp, err := ssoCeremony.Run(ctx)
 		return resp, trace.Wrap(err)
 	}
@@ -5461,4 +5490,102 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 
 	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
 	return trace.Wrap(err)
+}
+
+// DialALPN dials the Proxy with provided client certificate and ALPN protocol.
+func (tc *TeleportClient) DialALPN(ctx context.Context, clientCert tls.Certificate, protocol alpncommon.Protocol) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialALPN",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("protocol", string(protocol)),
+		),
+	)
+	defer span.End()
+
+	dialConfig := client.ALPNDialerConfig{
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			NextProtos:         alpncommon.ProtocolToStringsWithPing(protocol),
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			Certificates:       []tls.Certificate{clientCert},
+		},
+		GetClusterCAs: tc.RootClusterCACertPool,
+	}
+
+	tlsConn, err := client.DialALPN(ctx, tc.WebProxyAddr, dialConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if alpncommon.IsPingProtocol(alpncommon.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		return pingconn.NewTLS(tlsConn), nil
+	}
+	return tlsConn, nil
+}
+
+// DialMCPServer makes a connection to the remote MCP server.
+func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialMCPServer",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("app", appName),
+		),
+	)
+	defer span.End()
+
+	apps, err := tc.ListApps(ctx, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		Namespace:           apidefaults.Namespace,
+		PredicateExpression: fmt.Sprintf("name == %q", strings.TrimSpace(appName)),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch len(apps) {
+	case 0:
+		return nil, trace.NotFound("no MCP servers found")
+	case 1:
+	default:
+		log.WarnContext(ctx, "multiple apps found, using the first one")
+	}
+	if !apps[0].IsMCP() {
+		return nil, trace.BadParameter("app %q is not a MCP server", appName)
+	}
+
+	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tc.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
+}
+
+func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer types.Application) (tls.Certificate, error) {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	appCertParams := ReissueParams{
+		RouteToCluster: tc.SiteName,
+		RouteToApp: proto.RouteToApp{
+			Name:        mcpServer.GetName(),
+			PublicAddr:  mcpServer.GetPublicAddr(),
+			ClusterName: tc.SiteName,
+			URI:         mcpServer.GetURI(),
+		},
+		AccessRequests: profile.ActiveRequests,
+	}
+
+	// Do NOT write the keyring to avoid race condition when AI clients run
+	// multiple tsh at the same time.
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, appCertParams)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
+	return cert, trace.Wrap(err)
 }

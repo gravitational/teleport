@@ -46,7 +46,9 @@ type TargetHealth struct {
 	Status string `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	// error is the health check error observed, when
 	// "status" field != "healthy".
-	Error         string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	// message is additional information meant for a user.
+	Message       string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -95,14 +97,22 @@ func (x *TargetHealth) GetError() string {
 	return ""
 }
 
+func (x *TargetHealth) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_teleport_lib_teleterm_v1_target_health_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_target_health_proto_rawDesc = "" +
 	"\n" +
-	",teleport/lib/teleterm/v1/target_health.proto\x12\x18teleport.lib.teleterm.v1\"<\n" +
+	",teleport/lib/teleterm/v1/target_health.proto\x12\x18teleport.lib.teleterm.v1\"V\n" +
 	"\fTargetHealth\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05errorBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessageBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_target_health_proto_rawDescOnce sync.Once

@@ -53,7 +53,9 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -73,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -104,48 +107,46 @@ type testPack struct {
 	cache        *Cache
 	cacheBackend backend.Backend
 
-	eventsS        *proxyEvents
-	trustS         services.Trust
-	provisionerS   services.Provisioner
-	clusterConfigS services.ClusterConfigurationInternal
-
-	usersS                  services.UsersService
-	accessS                 services.Access
-	dynamicAccessS          services.DynamicAccessCore
-	presenceS               services.Presence
-	appSessionS             services.AppSession
-	snowflakeSessionS       services.SnowflakeSession
-	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
-	restrictions            services.Restrictions
-	apps                    services.Apps
-	kubernetes              services.Kubernetes
-	databases               services.Databases
-	databaseServices        services.DatabaseServices
+	eventsS                 *proxyEvents
+	trustS                  *local.CA
+	provisionerS            *local.ProvisioningService
+	clusterConfigS          *local.ClusterConfigurationService
+	usersS                  *local.IdentityService
+	accessS                 *local.AccessService
+	dynamicAccessS          *local.DynamicAccessService
+	presenceS               *local.PresenceService
+	appSessionS             *local.IdentityService
+	snowflakeSessionS       *local.IdentityService
+	restrictions            *local.RestrictionsService
+	apps                    *local.AppService
+	kubernetes              *local.KubernetesService
+	databases               *local.DatabaseService
+	databaseServices        *local.DatabaseServicesService
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
-	windowsDesktops         services.WindowsDesktops
-	dynamicWindowsDesktops  services.DynamicWindowsDesktops
-	samlIDPServiceProviders services.SAMLIdPServiceProviders
-	userGroups              services.UserGroups
-	okta                    services.Okta
-	integrations            services.Integrations
-	userTasks               services.UserTasks
-	discoveryConfigs        services.DiscoveryConfigs
-	userLoginStates         services.UserLoginStates
-	secReports              services.SecReports
-	accessLists             services.AccessLists
-	kubeWaitingContainers   services.KubeWaitingContainer
-	notifications           services.Notifications
-	accessMonitoringRules   services.AccessMonitoringRules
-	crownJewels             services.CrownJewels
-	databaseObjects         services.DatabaseObjects
+	windowsDesktops         *local.WindowsDesktopService
+	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
+	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
+	userGroups              *local.UserGroupService
+	okta                    *local.OktaService
+	integrations            *local.IntegrationsService
+	userTasks               *local.UserTasksService
+	discoveryConfigs        *local.DiscoveryConfigService
+	userLoginStates         *local.UserLoginStateService
+	secReports              *local.SecReportsService
+	accessLists             *local.AccessListService
+	kubeWaitingContainers   *local.KubeWaitingContainerService
+	notifications           *local.NotificationsService
+	accessMonitoringRules   *local.AccessMonitoringRulesService
+	crownJewels             *local.CrownJewelsService
+	databaseObjects         *local.DatabaseObjectService
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         *local.StaticHostUserService
-	autoUpdateService       services.AutoUpdateService
-	provisioningStates      services.ProvisioningStates
-	identityCenter          services.IdentityCenter
+	autoUpdateService       *local.AutoUpdateService
+	provisioningStates      *local.ProvisioningStateService
+	identityCenter          *local.IdentityCenterService
 	pluginStaticCredentials *local.PluginStaticCredentialsService
-	gitServers              services.GitServers
+	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
 }
@@ -191,8 +192,8 @@ func newPackForAuth(t *testing.T) *testPack {
 	return newTestPack(t, ForAuth)
 }
 
-func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
-	pack, err := newPack(t.TempDir(), setupConfig)
+func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *testPack {
+	pack, err := newPack(t.TempDir(), setupConfig, opts...)
 	require.NoError(t, err)
 	return pack
 }
@@ -290,7 +291,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = idService
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
-	p.samlIdPSessionsS = idService
 	p.webTokenS = idService.WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
@@ -453,7 +453,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -726,7 +725,6 @@ func TestCompletenessInit(t *testing.T) {
 			AppSession:              p.appSessionS,
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
-			SAMLIdPSession:          p.samlIdPSessionsS,
 			WebToken:                p.webTokenS,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
@@ -814,7 +812,6 @@ func TestCompletenessReset(t *testing.T) {
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -973,7 +970,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1070,7 +1066,6 @@ func initStrategy(t *testing.T) {
 		Presence:                p.presenceS,
 		AppSession:              p.appSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
@@ -1247,87 +1242,6 @@ func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	require.NoError(t, err)
 
 	return ut
-}
-
-// TestAuditQuery tests that CRUD operations on access list rule resources are
-// replicated from the backend to the cache.
-func TestAuditQuery(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*secreports.AuditQuery]{
-		newResource: func(name string) (*secreports.AuditQuery, error) {
-			return newAuditQuery(t, name), nil
-		},
-		create: func(ctx context.Context, item *secreports.AuditQuery) error {
-			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      p.secReports.GetSecurityAuditQueries,
-		cacheGet:  p.cache.GetSecurityAuditQuery,
-		cacheList: p.cache.GetSecurityAuditQueries,
-		update: func(ctx context.Context, item *secreports.AuditQuery) error {
-			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
-	})
-}
-
-// TestSecurityReportState tests that CRUD operations on security report state resources are
-// replicated from the backend to the cache.
-func TestSecurityReports(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*secreports.Report]{
-		newResource: func(name string) (*secreports.Report, error) {
-			return newSecurityReport(t, name), nil
-		},
-		create: func(ctx context.Context, item *secreports.Report) error {
-			err := p.secReports.UpsertSecurityReport(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      p.secReports.GetSecurityReports,
-		cacheGet:  p.cache.GetSecurityReport,
-		cacheList: p.cache.GetSecurityReports,
-		update: func(ctx context.Context, item *secreports.Report) error {
-			err := p.secReports.UpsertSecurityReport(ctx, item)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.secReports.DeleteAllSecurityReports,
-	})
-}
-
-// TestSecurityReportState tests that CRUD operations on security report state resources are
-// replicated from the backend to the cache.
-func TestSecurityReportState(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*secreports.ReportState]{
-		newResource: func(name string) (*secreports.ReportState, error) {
-			return newSecurityReportState(t, name), nil
-		},
-		create: func(ctx context.Context, item *secreports.ReportState) error {
-			err := p.secReports.UpsertSecurityReportsState(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      p.secReports.GetSecurityReportsStates,
-		cacheGet:  p.cache.GetSecurityReportState,
-		cacheList: p.cache.GetSecurityReportsStates,
-		update: func(ctx context.Context, item *secreports.ReportState) error {
-			err := p.secReports.UpsertSecurityReportsState(ctx, item)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
-	})
 }
 
 // testResources is a generic tester for resources.
@@ -1894,7 +1808,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebSession:                        &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:                        &types.WebSessionV2{SubKind: types.KindAppSession},
 		types.KindSnowflakeSession:                  &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
-		types.KindSAMLIdPSession:                    &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                          &types.WebTokenV3{},
 		types.KindRemoteCluster:                     &types.RemoteClusterV3{},
 		types.KindKubeServer:                        &types.KubernetesServerV3{},
@@ -1944,6 +1857,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
+		scopedrole.KindScopedRole:                   types.Resource153ToLegacy(&accessv1.ScopedRole{}),
+		scopedrole.KindScopedRoleAssignment:         types.Resource153ToLegacy(&accessv1.ScopedRoleAssignment{}),
+		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 	}
 
 	for name, cfg := range cases {
@@ -2003,6 +1919,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

@@ -68,12 +68,13 @@ func TestUnmarshal(t *testing.T) {
 }
 
 func TestMarshal(t *testing.T) {
-	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
-		ClientID:     "aaa",
-		ClientSecret: "bbb",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-		Display:      "GitHub",
-		EndpointURL:  "https://github.com",
+	connectorWithPublicEndpoint, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:       "aaa",
+		ClientSecret:   "bbb",
+		RedirectURL:    "https://localhost:3080/v1/webapi/github/callback",
+		Display:        "GitHub",
+		EndpointURL:    "https://github.com",
+		APIEndpointURL: "https://api.github.com",
 		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "gravitational",
@@ -84,20 +85,46 @@ func TestMarshal(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("oss", func(t *testing.T) {
-		_, err = MarshalGithubConnector(connector)
+	connectorWithPrivateEndpoint, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:       "aaa",
+		ClientSecret:   "bbb",
+		RedirectURL:    "https://localhost:3080/v1/webapi/github/callback",
+		Display:        "GitHub",
+		EndpointURL:    "https://my-private-github.com",
+		APIEndpointURL: "https://api.my-private-github.com",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "gravitational",
+				Team:         "admins",
+				Roles:        []string{teleport.PresetAccessRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("oss with public endpoint", func(t *testing.T) {
+		marshaled, err := MarshalGithubConnector(connectorWithPublicEndpoint)
+		require.NoError(t, err)
+
+		unmarshaled, err := UnmarshalGithubConnector(marshaled)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(connectorWithPublicEndpoint, unmarshaled))
+	})
+
+	t.Run("oss with private endpoint", func(t *testing.T) {
+		_, err := MarshalGithubConnector(connectorWithPrivateEndpoint)
 		require.ErrorIs(t, err, ErrRequiresEnterprise, "expected ErrRequiresEnterprise, got %T", err)
 	})
 
 	t.Run("enterprise", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
-		marshaled, err := MarshalGithubConnector(connector)
+		marshaled, err := MarshalGithubConnector(connectorWithPrivateEndpoint)
 		require.NoError(t, err)
 
 		unmarshaled, err := UnmarshalGithubConnector(marshaled)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(connector, unmarshaled))
+		require.Empty(t, cmp.Diff(connectorWithPrivateEndpoint, unmarshaled))
 	})
 }
 

@@ -1,13 +1,11 @@
 module github.com/gravitational/teleport/api
 
-go 1.23.7
-
-toolchain go1.24.1
+go 1.23.10
 
 require (
 	github.com/charlievieth/strcase v0.0.5
 	github.com/coreos/go-semver v0.3.1
-	github.com/go-piv/piv-go v1.11.0
+	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.7.0
@@ -29,7 +27,7 @@ require (
 	golang.org/x/net v0.39.0
 	golang.org/x/term v0.31.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250428153025-10db94c68c34
-	google.golang.org/grpc v1.72.0
+	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0
 )

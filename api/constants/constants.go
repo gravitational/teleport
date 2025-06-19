@@ -417,6 +417,9 @@ const (
 	// TraitGitHubOrgs is the name of the variable to specify the GitHub
 	// organizations for GitHub integration.
 	TraitGitHubOrgs = "github_orgs"
+	// TraitMCPTools is the name of the variable to specify the MCP tools for
+	// MCP servers.
+	TraitMCPTools = "mcp_tools"
 )
 
 const (
@@ -551,3 +554,8 @@ const (
 
 // MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
 const MaxPIVPINCacheTTL = time.Hour
+
+// AutoUpdateAgentReportPeriod is the period of the autoupdate agent reporting
+// routine running in every auth server. Any report older than this period should
+// be considered stale.
+const AutoUpdateAgentReportPeriod = time.Minute

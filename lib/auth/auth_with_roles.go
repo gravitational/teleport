@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
@@ -325,8 +326,8 @@ func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker
 		return true
 	}
 
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	evaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
+	modes := evaluator.CanJoin(moderation.SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
 	return len(modes) != 0
 }
 
@@ -700,41 +701,39 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
 // the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
 // use it for metrics purposes.
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (proto.UpstreamInventoryHello, error) {
-	// this value gets set further down
-	var hello proto.UpstreamInventoryHello
-
+func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
 	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
-		return hello, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
+		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
 	// wait for upstream hello
+	var hello *proto.UpstreamInventoryHello
 	select {
 	case msg := <-ics.Recv():
 		switch m := msg.(type) {
-		case proto.UpstreamInventoryHello:
+		case *proto.UpstreamInventoryHello:
 			hello = m
 		default:
-			return hello, trace.BadParameter("expected upstream hello, got: %T", m)
+			return nil, trace.BadParameter("expected upstream hello, got: %T", m)
 		}
 	case <-ics.Done():
-		return hello, trace.Wrap(ics.Error())
+		return nil, trace.Wrap(ics.Error())
 	case <-a.CloseContext().Done():
-		return hello, trace.Errorf("auth server shutdown")
+		return nil, trace.Errorf("auth server shutdown")
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if hello.ServerID != role.GetServerID() {
-		return hello, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.ServerID)
+	if hello.GetServerID() != role.GetServerID() {
+		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.GetServerID())
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
 	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
-	var filteredServices []types.SystemRole
-	for _, service := range hello.Services {
-		if !a.hasBuiltinRole(service) {
+	var filteredServices []string
+	for _, service := range hello.GetServices() {
+		if !a.hasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
 				"instance", role.GetServerID(),
@@ -749,14 +748,14 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
-func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
+func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
 	if err := a.action(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
-		return proto.InventoryStatusSummary{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if req.Connected {
 		if !a.hasBuiltinRole(types.RoleAdmin) {
-			return proto.InventoryStatusSummary{}, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
+			return nil, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
 		}
 	}
 	return a.authServer.GetInventoryStatus(ctx, req)
@@ -1291,7 +1290,9 @@ var (
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
-		return trace.BadParameter("unsupported kind %q requested", kind)
+		// Treat unknown kinds as an access denied error instead of a bad parameter
+		// to prevent rejecting the request if users have access to other kinds requested.
+		return trace.AccessDenied("unsupported kind %q requested", kind)
 	}
 	switch kind {
 	case types.KindNode:
@@ -1427,7 +1428,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceLister.requestableMap)
+	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources, resourceLister.requestableMap)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
@@ -1946,6 +1947,10 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	state := services.AccessState{MFAVerified: true}
 	switch rr := resource.(type) {
 	case types.AppServer:
+		if rr.GetSubKind() == types.KindIdentityCenterAccount {
+			return r.CheckAccess(rr.GetApp(), state, services.NewIdentityCenterAppMatcher(rr.GetApp()))
+		}
+
 		return r.CheckAccess(rr.GetApp(), state)
 	case types.KubeServer:
 		return r.CheckAccess(rr.GetCluster(), state)
@@ -1970,7 +1975,7 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 			return r.CheckAccess(rr, state)
 		}
 	case types.SAMLIdPServiceProvider:
-		return r.CheckAccessToSAMLIdPV2(rr,
+		return r.CheckAccessToSAMLIdP(rr,
 			nil, /* cluster auth preference will be checked during connection */
 			state,
 		)
@@ -2244,14 +2249,6 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetAuthServers()
-}
-
-// DeleteAllAuthServers deletes all auth servers
-func (a *ServerWithRoles) DeleteAllAuthServers() error {
-	if err := a.action(types.KindAuthServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllAuthServers()
 }
 
 // DeleteAuthServer deletes auth server by name
@@ -3444,20 +3441,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID = ws.GetName()
 	}
 
-	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
-		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		req.SSHPublicKey,
-		req.TLSPublicKey,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
-	)
-
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
@@ -3465,10 +3448,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		user:                             user,
 		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:                    req.Format,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsAttestationStatement,
+		sshPublicKey:                     req.SSHPublicKey,
+		tlsPublicKey:                     req.TLSPublicKey,
+		sshPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,
@@ -5570,23 +5553,6 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	return session, nil
 }
 
-// GetSAMLIdPSession gets a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	if err := a.action(types.KindWebSession, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	session, err := a.authServer.GetSAMLIdPSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if session.GetSubKind() != types.KindSAMLIdPSession {
-		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
-	}
-	return session, nil
-}
-
 // ListAppSessions gets a paginated list of application web sessions.
 func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	if err := a.action(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
@@ -5611,17 +5577,6 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
-}
-
-// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	if err := a.action(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	sessions, nextKey, err := a.authServer.ListSAMLIdPSessions(ctx, pageSize, pageToken, user)
-	return sessions, nextKey, trace.Wrap(err)
 }
 
 // CreateAppSession creates an application web session. Application web
@@ -5655,21 +5610,6 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
-// CreateSAMLIdPSession creates a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	// Check if this a proxy service.
-	if !a.hasBuiltinRole(types.RoleProxy) {
-		return nil, trace.AccessDenied("this request can be only executed by a proxy")
-	}
-
-	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return samlSession, nil
-}
-
 // DeleteAppSession removes an application web session.
 func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
@@ -5699,23 +5639,6 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 		}
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteSAMLIdPSession removes a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
-	samlSession, err := a.authServer.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest(req))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(samlSession.GetUser()); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.authServer.DeleteSAMLIdPSession(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -5755,34 +5678,6 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 	}
 
 	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
-	if err := a.action(types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAllSAMLIdPSessions(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
-	// First, check if the current user can delete the request user sessions.
-	if err := a.canDeleteWebSession(username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteUserSAMLIdPSessions(ctx, username); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5997,6 +5892,19 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 		return nil, "", trace.Wrap(err)
 	}
 
+	return outEvents, lastKey, nil
+}
+
+// SearchUnstructuredEvents allows searching for unstructured audit events with pagination support.
+func (a *ServerWithRoles) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) (outEvents []*auditlogpb.EventUnstructured, lastKey string, err error) {
+	if err := a.action(types.KindEvent, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	outEvents, lastKey, err = a.alog.SearchUnstructuredEvents(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	return outEvents, lastKey, nil
 }
 
@@ -6998,7 +6906,7 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Contex
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.context.Checker.CheckAccessToSAMLIdPV2(
+	return a.context.Checker.CheckAccessToSAMLIdP(
 		sp,
 		authPref,
 		// TODO(sshah): remove MFAVerified once the Web UI supports
@@ -7322,7 +7230,7 @@ func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, next
 		return filteredUserGroups, "", nil
 	}
 
-	return filteredUserGroups[:pageSize], backend.NextPaginationKey(filteredUserGroups[pageSize-1]), nil
+	return filteredUserGroups[:pageSize], filteredUserGroups[pageSize-1].GetName(), nil
 }
 
 // GetUserGroup returns the specified user group resources.
