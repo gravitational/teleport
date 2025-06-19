@@ -165,7 +165,8 @@ steps:
   displayName: 'Download and extract Teleport'
 - env:
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-  script: TELEPORT_ANONYMOUS_TELEMETRY=1 ./teleport/tbot start -c tbot.yaml
+    TELEPORT_ANONYMOUS_TELEMETRY: 1
+  script: ./teleport/tbot start -c tbot.yaml
 ```
 
 Note the inclusion of the `SYSTEM_ACCESSTOKEN` environment variable. This
