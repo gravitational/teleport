@@ -237,7 +237,7 @@ While the endpoint will support pagination it wont be used in this case - a page
 
 **Backwards compatibility**
 
-In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all tokens including those not associated with the bot being viewed. This is because the filter parameters will be ignored and the previous RPC will be used (`GetTokens`).
+In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all tokens including those not associated with the bot being viewed. This is because the filter parameters will be ignored and the previous RPC will be used (`GetTokens`). To mitigate this, the frontend will filter for only applicable items (those with a role of "Bot" and the bots name associated) and disregard the rest.
 
 ##### `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
 
@@ -250,6 +250,9 @@ Update roles, traits and config (`max_session_ttl`).
 **Approach**
 
 Existing endpoint with additional capabilities added. Currently only updating roles is supported. Support for updating traits and `max_session_ttl` are already supported by the underlying RPC and will be exposed by this endpoint. Not all items of data are saved to the same resource. As such, it's important to ensure the update happens atomically and rolled back on failure.
+
+**Backwards compatibility**
+In a scenario where an older version proxy is in place, the endpoint will return without an error, but only update roles, silently ignoring any changes to traits and `max_session_ttl`. To mitigate this, the frontend will check the resulting Bot object for the expected changes and show an alert if there is a mismatch.
 
 ##### `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`
 
@@ -265,7 +268,7 @@ Existing endpoint which will be extended to support filtering for in-force locks
 
 **Backwards compatibility**
 
-In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all locks including those not in-force and those not targeted at the bot being viewed. To mitigate this, and prevent showing a "locked" status, the frontend app will re-filter for applicable locks and disregard the rest.
+In a scenario where an older version proxy is in place, the endpoint will return without an error, but will return all locks including those not in-force and those not targeted at the bot being viewed. To mitigate this, and prevent showing a false "locked" status, the frontend app will re-filter for applicable locks and disregard the rest.
 
 ##### `PUT /v1/webapi/sites/:site/locks`
 
