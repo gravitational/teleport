@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -146,10 +147,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
 		clientMetrics,
-		loopIterationsCounter,
-		loopIterationsSuccessCounter,
-		loopIterationsFailureCounter,
-		loopIterationTime,
+		loop.IterationsCounter,
+		loop.IterationsSuccessCounter,
+		loop.IterationsFailureCounter,
+		loop.IterationTime,
 	); err != nil {
 		return trace.Wrap(err)
 	}

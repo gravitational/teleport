@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package loop_test
 
 import (
 	"context"
@@ -29,10 +29,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func Test_runOnInterval(t *testing.T) {
+func Test_Run(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,23 +42,23 @@ func Test_runOnInterval(t *testing.T) {
 	taskCh := make(chan struct{}, 3)
 	log := utils.NewSlogLoggerForTests()
 	clock := clockwork.NewFakeClock()
-	cfg := runOnIntervalConfig{
-		name:  "test",
-		clock: clock,
-		log:   log,
-		f: func(ctx context.Context) error {
+	cfg := loop.Config{
+		Name:  "test",
+		Clock: clock,
+		Log:   log,
+		Fn: func(ctx context.Context) error {
 			taskCh <- struct{}{}
 			return nil
 		},
-		retryLimit: 3,
-		interval:   time.Minute * 10,
+		RetryLimit: 3,
+		Interval:   time.Minute * 10,
 	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		assert.NoError(t, runOnInterval(ctx, cfg))
+		assert.NoError(t, loop.Run(ctx, cfg))
 	}()
 
 	// Wait for three iterations to have been completed.
@@ -66,12 +67,12 @@ func Test_runOnInterval(t *testing.T) {
 		clock.Advance(time.Minute * 11)
 	}
 
-	// Cancel the ctx and make sure runOnInterval returns
+	// Cancel the ctx and make sure Run returns
 	cancel()
 	wg.Wait()
 }
 
-func Test_runOnInterval_failureExit(t *testing.T) {
+func Test_Run_failureExit(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,24 +82,24 @@ func Test_runOnInterval_failureExit(t *testing.T) {
 
 	log := utils.NewSlogLoggerForTests()
 	testErr := fmt.Errorf("test error")
-	cfg := runOnIntervalConfig{
-		name:  "test",
-		clock: clockwork.NewRealClock(),
-		log:   log,
-		f: func(ctx context.Context) error {
+	cfg := loop.Config{
+		Name:  "test",
+		Clock: clockwork.NewRealClock(),
+		Log:   log,
+		Fn: func(ctx context.Context) error {
 			callCount.Add(1)
 			return testErr
 		},
-		retryLimit:           2,
-		interval:             time.Second,
-		exitOnRetryExhausted: true,
+		RetryLimit:           2,
+		Interval:             time.Second,
+		ExitOnRetryExhausted: true,
 	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		assert.ErrorIs(t, runOnInterval(ctx, cfg), testErr)
+		assert.ErrorIs(t, loop.Run(ctx, cfg), testErr)
 	}()
 
 	wg.Wait()
