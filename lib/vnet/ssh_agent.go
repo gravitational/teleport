@@ -36,7 +36,7 @@ var _ agent.ExtendedAgent = (*sshAgent)(nil)
 // [ssh.ClientConfig], and then the key forwarded via this agent will be used
 // to terminate the final SSH connection to the target node.
 //
-// It is not safe for concurrent use, addSessionKey must only be called before
+// It is not safe for concurrent use, setSessionKey must only be called before
 // the agent will actually be used.
 type sshAgent struct {
 	signer ssh.Signer
@@ -58,6 +58,8 @@ func (a *sshAgent) setSessionKey(signer ssh.Signer) error {
 	return nil
 }
 
+// List implements [agent.ExtendedAgent.List], it returns a single key if it
+// has been set by setSessionKey.
 func (a *sshAgent) List() ([]*agent.Key, error) {
 	if a.signer == nil {
 		return nil, nil
@@ -69,10 +71,24 @@ func (a *sshAgent) List() ([]*agent.Key, error) {
 	}}, nil
 }
 
+// List implements [agent.ExtendedAgent.Signers], it returns a single key if it
+// has been set by setSessionKey.
+func (a *sshAgent) Signers() ([]ssh.Signer, error) {
+	if a.signer == nil {
+		return nil, nil
+	}
+	return []ssh.Signer{a.signer}, nil
+}
+
+// SignWithFlags implements [agent.ExtendedAgent.Sign], it returns an SSH
+// signature with a.signer if it has been set and matches the requested key.
 func (a *sshAgent) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
 	return a.SignWithFlags(key, data, 0)
 }
 
+// SignWithFlags implements [agent.ExtendedAgent.SignWithFlags], it returns an
+// SSH signature with a.signer if it has been set and matches the requested
+// key.
 func (a *sshAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
 	if a.signer == nil {
 		return nil, trace.Errorf("VNet SSH agent has no signer")
@@ -104,33 +120,38 @@ func (a *sshAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.Sig
 	return sig, trace.Wrap(err, "signing with VNet SSH agent signer")
 }
 
-func (a *sshAgent) Signers() ([]ssh.Signer, error) {
-	if a.signer == nil {
-		return nil, nil
-	}
-	return []ssh.Signer{a.signer}, nil
-}
-
+// Add implements [agent.ExtendedAgent.Add]. It is irrelevant for this
+// implementation and always returns an error, it is not called.
 func (a *sshAgent) Add(key agent.AddedKey) error {
 	return trace.NotImplemented("sshAgent.Add is not implemented")
 }
 
+// Remove implements [agent.ExtendedAgent.Remove]. It is irrelevant for this
+// implementation and always returns an error, it is not called.
 func (a *sshAgent) Remove(key ssh.PublicKey) error {
 	return trace.NotImplemented("sshAgent.Remove is not implemented")
 }
 
+// RemoveAll implements [agent.ExtendedAgent.RemoveAll]. It is irrelevant for this
+// implementation and always returns an error, it is not called.
 func (a *sshAgent) RemoveAll() error {
 	return trace.NotImplemented("sshAgent.RemoveAll is not implemented")
 }
 
+// Lock implements [agent.ExtendedAgent.Lock]. It is irrelevant for this
+// implementation and always returns an error, it is not called.
 func (a *sshAgent) Lock(passphrase []byte) error {
 	return trace.NotImplemented("sshAgent.Lock is not implemented")
 }
 
+// Unlock implements [agent.ExtendedAgent.Unlock]. It is irrelevant for this
+// implementation and always returns an error, it is not called.
 func (a *sshAgent) Unlock(passphrase []byte) error {
 	return trace.NotImplemented("sshAgent.Unlock is not implemented")
 }
 
+// Extension implements [agent.ExtendedAgent.Extension]. It is irrelevant for
+// this implementation and always returns an error, it is not called.
 func (a *sshAgent) Extension(extensionType string, contents []byte) ([]byte, error) {
 	return nil, trace.NotImplemented("sshAgent.Extension is not implemented")
 }
