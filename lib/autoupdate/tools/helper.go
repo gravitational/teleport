@@ -72,15 +72,15 @@ func NewDefaultUpdater() (*Updater, error) {
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
+func CheckAndUpdateLocal(ctx context.Context, name string, reExecArgs []string) error {
 	var err error
-	if currentProfileName == "" {
+	if name == "" {
 		home := os.Getenv(types.HomeEnvVar)
 		if home != "" {
 			home = filepath.Clean(home)
 		}
 		profilePath := profile.FullProfilePath(home)
-		currentProfileName, err = profile.GetCurrentProfileName(profilePath)
+		name, err = profile.GetCurrentProfileName(profilePath)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -94,7 +94,8 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 		return trace.Wrap(err)
 	}
 
-	resp, err := updater.CheckLocal(currentProfileName)
+	slog.DebugContext(ctx, "Attempting to local update", "name", name)
+	resp, err := updater.CheckLocal(name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -116,7 +117,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) error {
+func CheckAndUpdateRemote(ctx context.Context, name string, insecure bool, reExecArgs []string) error {
 	updater, err := NewDefaultUpdater()
 	if errors.Is(err, ErrDisabled) {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
@@ -125,7 +126,8 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		return trace.Wrap(err)
 	}
 
-	resp, err := updater.CheckRemote(ctx, proxy, insecure)
+	slog.DebugContext(ctx, "Attempting to remote update", "name", name, "insecure", insecure)
+	resp, err := updater.CheckRemote(ctx, name, insecure)
 	if err != nil {
 		return trace.Wrap(err)
 	}
