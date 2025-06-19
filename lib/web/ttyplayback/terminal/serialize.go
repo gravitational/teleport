@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hinshun/vt10x"
+	"github.com/gravitational/teleport/lib/web/ttyplayback/vt10x"
 )
 
 type TerminalState struct {
@@ -82,15 +82,36 @@ const (
 )
 
 func Serialize(vt vt10x.Terminal) *SerializedTerminal {
-	cols, rows := vt.Size()
 	data := dumpTerminalWithANSI(vt)
+	cols, rows := vt.Size()
+	cursor := vt.Cursor()
 
 	return &SerializedTerminal{
-		Cols: cols,
-		Rows: rows,
-		Data: data,
+		Cols:    cols,
+		Rows:    rows,
+		Data:    data,
+		CursorX: cursor.X,
+		CursorY: cursor.Y,
 	}
 }
+
+func PrintTerminalState(term vt10x.Terminal) {
+	cols, rows := term.Size()
+
+	for y := 0; y < rows; y++ {
+		for x := 0; x < cols; x++ {
+			glyph := term.Cell(x, y)
+
+			if glyph.Char == 0 {
+				fmt.Print(" ")
+			} else {
+				fmt.Print(string(glyph.Char))
+			}
+		}
+		fmt.Println()
+	}
+}
+
 func dumpToAnsi(cols, rows, cursorX, cursorY int, cursorVisible bool, lines [][]vt10x.Glyph) string {
 	var output strings.Builder
 	lastFG := vt10x.Color(^uint32(0))

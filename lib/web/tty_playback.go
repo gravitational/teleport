@@ -20,10 +20,13 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -40,6 +43,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/ttyplayback"
 	"github.com/gravitational/teleport/lib/web/ttyplayback/terminal"
+	"github.com/gravitational/teleport/lib/web/ttyplayback/vt10x"
 )
 
 const (
@@ -100,6 +104,71 @@ func (h *Handler) sessionLengthHandle(
 	}
 }
 
+func (h *Handler) sessionEvents(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
+	sID := p.ByName("sid")
+	if sID == "" {
+		return nil, trace.BadParameter("missing session ID in request URL")
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	type Event struct {
+		Type string `json:"type"`
+		Time int64  `json:"time"`
+	}
+
+	var events []Event
+
+	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err)
+		case evt, ok := <-evts:
+			if !ok {
+				return events, nil
+			}
+
+			switch evt := evt.(type) {
+			case *apievents.SessionStart:
+				events = append(events, Event{
+					Type: "start",
+				})
+			case *apievents.SessionEnd:
+				events = append(events, Event{
+					Type: "end",
+					Time: evt.EndTime.Sub(evt.StartTime).Milliseconds(),
+				})
+			case *apievents.Resize:
+				events = append(events, Event{
+					Type: "resize",
+				})
+			case *apievents.SessionPrint:
+				events = append(events, Event{
+					Type: "print",
+					Time: evt.DelayMilliseconds,
+				})
+			}
+
+			if _, isEnd := evt.(*apievents.SessionEnd); isEnd {
+				return events, nil
+			}
+		}
+	}
+}
+
 func (h *Handler) sessionDetails(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -126,12 +195,34 @@ func (h *Handler) sessionDetails(
 		EndTime   int64                       `json:"end_time"`
 	}
 
-	type SessionEventsResponse struct {
-		Duration   int64       `json:"duration"`
-		Thumbnails []Thumbnail `json:"thumbnails"`
+	type SessionEvent struct {
+		Type      string `json:"type"`
+		User      string `json:"user,omitempty"`
+		StartTime int64  `json:"start_time"`
+		EndTime   int64  `json:"end_time"`
+		Cols      int    `json:"cols,omitempty"`
+		Rows      int    `json:"rows,omitempty"`
 	}
 
-	var sessionEvents []terminal.Event
+	type SessionEventsResponse struct {
+		Duration   int64          `json:"duration"`
+		Thumbnails []Thumbnail    `json:"thumbnails"`
+		Events     []SessionEvent `json:"events"`
+	}
+
+	var sessionStartTime time.Time
+	var userEvents []SessionEvent
+	activeUsers := make(map[string]int64)
+
+	const inactivityThreshold = 5000
+	var lastEventTime time.Time
+	var lastEventTimeMs int64
+
+	// Initialize VT10X terminal for real-time processing
+	vt := vt10x.New()
+	var thumbnails []Thumbnail
+	const intervalMs = 500 // 200 seconds
+	var nextThumbnailTime int64 = 0
 
 	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
 	for {
@@ -142,79 +233,131 @@ func (h *Handler) sessionDetails(
 			if !ok {
 				return nil, trace.NotFound("could not find end event for session %v", sID)
 			}
-			switch evt := evt.(type) {
-			case *apievents.SessionPrint:
-				sessionEvents = append(sessionEvents, terminal.Event{
-					Type: "print",
-					Data: string(evt.Data),
-					Time: evt.DelayMilliseconds,
-				})
-			case *apievents.SessionCommand:
-				fmt.Printf("Command event: %v\n", evt)
-			case *apievents.SessionJoin:
-				fmt.Printf("Join event: %v\n", evt)
-			case *apievents.SessionEnd:
-				sessionEvents = append(sessionEvents, terminal.Event{
-					Type: "end",
-					Data: evt.EndTime.Format(time.RFC3339),
-					Time: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
-				})
 
-				type FrameAtInterval struct {
-					frame terminal.Frame
-					start int64
-					end   int64
+			var currentEventTime time.Time
+			var currentEventTimeMs int64
+
+			switch evt := evt.(type) {
+			case *apievents.SessionStart:
+				sessionStartTime = evt.Time
+				lastEventTime = evt.Time
+				lastEventTimeMs = 0
+
+				// Initialize terminal size
+				parts := strings.Split(evt.TerminalSize, ":")
+				if len(parts) == 2 {
+					if width, err := strconv.Atoi(parts[0]); err == nil {
+						if height, err := strconv.Atoi(parts[1]); err == nil {
+							vt.Resize(width, height)
+						}
+					}
 				}
 
-				frameAtInterval := make([]FrameAtInterval, 0)
-				currentFrameIdx := 0
+			case *apievents.SessionPrint:
+				currentEventTime = evt.Time
+				currentEventTimeMs = int64(currentEventTime.Sub(sessionStartTime) / time.Millisecond)
 
-				intervalMs := 500
-				maxTime := sessionEvents[len(sessionEvents)-1].Time
-
-				iter := terminal.NewSliceIterator(sessionEvents)
-				framesIter := terminal.Frames(iter)
-
-				frames := framesIter.CollectAll()
-
-				for step := 0; step <= int(maxTime)/intervalMs; step++ {
-					targetTime := int64(step * intervalMs)
-
-					for currentFrameIdx < len(frames)-1 && frames[currentFrameIdx+1].Time <= targetTime {
-						currentFrameIdx++
-					}
-
-					frameAtInterval = append(frameAtInterval, FrameAtInterval{
-						frame: frames[currentFrameIdx],
-						start: targetTime,
-						end:   targetTime + int64(intervalMs) - 1,
+				if lastEventTime != (time.Time{}) && currentEventTime.Sub(lastEventTime).Milliseconds() > inactivityThreshold {
+					inactivityStart := lastEventTimeMs
+					inactivityEnd := currentEventTimeMs
+					userEvents = append(userEvents, SessionEvent{
+						Type:      "inactivity",
+						StartTime: inactivityStart,
+						EndTime:   inactivityEnd,
 					})
 				}
 
-				thumbnails := make([]Thumbnail, 0, len(frameAtInterval))
-				for _, frame := range frameAtInterval {
+				vt.Write(evt.Data)
+
+				if currentEventTimeMs >= nextThumbnailTime {
+					serialized := terminal.Serialize(vt)
+
 					thumbnails = append(thumbnails, Thumbnail{
-						Screen: terminal.SerializedTerminal{
-							Data:    frame.frame.Ansi,
-							Cols:    frame.frame.Cols,
-							Rows:    frame.frame.Rows,
-							CursorX: frame.frame.Cursor.X,
-							CursorY: frame.frame.Cursor.Y,
-						},
-						StartTime: frame.start,
-						EndTime:   frame.end,
+						Screen:    *serialized,
+						StartTime: currentEventTimeMs,
+						EndTime:   currentEventTimeMs + intervalMs - 1,
+					})
+
+					nextThumbnailTime = currentEventTimeMs + intervalMs
+				}
+
+				lastEventTime = currentEventTime
+				lastEventTimeMs = currentEventTimeMs
+
+			case *apievents.SessionCommand:
+				fmt.Printf("Command event: %v\n", evt)
+
+			case *apievents.SessionJoin:
+				activeUsers[evt.User] = int64(evt.Time.Sub(sessionStartTime) / time.Millisecond)
+
+			case *apievents.SessionLeave:
+				if startTime, ok := activeUsers[evt.User]; ok {
+					userEvents = append(userEvents, SessionEvent{
+						Type:      "join",
+						User:      evt.User,
+						StartTime: startTime,
+						EndTime:   int64(evt.Time.Sub(sessionStartTime) / time.Millisecond),
+					})
+					delete(activeUsers, evt.User)
+				}
+
+			case *apievents.SessionEnd:
+				currentEventTime = evt.EndTime
+				currentEventTimeMs = int64(currentEventTime.Sub(sessionStartTime) / time.Millisecond)
+
+				if lastEventTime != (time.Time{}) && currentEventTime.Sub(lastEventTime).Milliseconds() > inactivityThreshold {
+					inactivityStart := lastEventTimeMs
+					inactivityEnd := currentEventTimeMs
+					userEvents = append(userEvents, SessionEvent{
+						Type:      "inactivity",
+						StartTime: inactivityStart,
+						EndTime:   inactivityEnd,
+					})
+				}
+
+				endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
+
+				serialized := terminal.Serialize(vt)
+
+				thumbnails = append(thumbnails, Thumbnail{
+					Screen:    *serialized,
+					StartTime: endTime,
+					EndTime:   endTime,
+				})
+
+				for user, startTime := range activeUsers {
+					userEvents = append(userEvents, SessionEvent{
+						Type:      "join",
+						User:      user,
+						StartTime: startTime,
+						EndTime:   endTime,
 					})
 				}
 
 				return SessionEventsResponse{
 					Duration:   int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
 					Thumbnails: thumbnails,
+					Events:     userEvents,
 				}, nil
+
 			case *apievents.Resize:
-				sessionEvents = append(sessionEvents, terminal.Event{
-					Type: "resize",
-					Data: evt.TerminalSize,
-				})
+				parts := strings.Split(evt.TerminalSize, ":")
+
+				if len(parts) == 2 {
+					width, wErr := strconv.Atoi(parts[0])
+					height, hErr := strconv.Atoi(parts[1])
+
+					if cmp.Or(wErr, hErr) == nil {
+						userEvents = append(userEvents, SessionEvent{
+							Type:      "resize",
+							StartTime: int64(evt.Time.Sub(sessionStartTime) / time.Millisecond),
+							Cols:      width,
+							Rows:      height,
+						})
+
+						vt.Resize(width, height)
+					}
+				}
 			}
 		}
 	}
