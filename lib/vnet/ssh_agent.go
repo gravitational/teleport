@@ -47,8 +47,15 @@ func newSSHAgent() *sshAgent {
 }
 
 // setSessionKey must be called at most once, before the agent will be used.
-func (a *sshAgent) setSessionKey(signer ssh.Signer) {
+// It's not possible to initialize sshAgent with the SSH signer because the
+// agent must be passed to [proxy.Client.DialHost] before the session SSH
+// signer has been created.
+func (a *sshAgent) setSessionKey(signer ssh.Signer) error {
+	if a.signer != nil {
+		return trace.Errorf("sshAgent.setSessionKey must be called at most once (this is a bug)")
+	}
 	a.signer = signer
+	return nil
 }
 
 func (a *sshAgent) List() ([]*agent.Key, error) {

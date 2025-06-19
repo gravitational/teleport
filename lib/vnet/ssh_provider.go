@@ -216,7 +216,9 @@ func (p *sshProvider) sessionSSHConfig(
 	// enabled. Adding it to the agent here before returning an
 	// ssh.ClientConfig guarantees the key is added to the agent before the
 	// agent could be used.
-	agent.setSessionKey(certSigner)
+	if err := agent.setSessionKey(certSigner); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	hostKeyCallback, err := buildHostKeyCallback(resp.GetTrustedCas(), p.cfg.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
