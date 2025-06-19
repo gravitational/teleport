@@ -1464,7 +1464,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case ver.FullCommand():
 		err = onVersion(&cf)
 	case ssh.FullCommand():
-		err = onSSH(&cf)
+		err = onSSH(&cf, args...)
 	case resolve.FullCommand():
 		err = onResolve(&cf)
 		// If quiet was specified for this command and
@@ -1597,7 +1597,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
 	case proxySSH.FullCommand():
-		err = onProxyCommandSSH(&cf)
+		err = onProxyCommandSSH(&cf, args...)
 	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
@@ -3955,7 +3955,7 @@ func onResolve(cf *CLIConf) error {
 }
 
 // onSSH executes 'tsh ssh' command
-func onSSH(cf *CLIConf) error {
+func onSSH(cf *CLIConf, reExecArgs ...string) error {
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
 	// the version and exit.
 	if cf.ShowVersion {
@@ -3987,6 +3987,10 @@ func onSSH(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
+
+	if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Support calling `tsh ssh -- <command>` (with a double dash before the command)
 	if len(cf.RemoteCommand) > 0 && strings.TrimSpace(cf.RemoteCommand[0]) == "--" {

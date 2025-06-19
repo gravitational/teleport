@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,9 +52,12 @@ import (
 // onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
 // data through stdin and stdout, to be used as an OpenSSH and PuTTY proxy
 // command.
-func onProxyCommandSSH(cf *CLIConf) error {
+func onProxyCommandSSH(cf *CLIConf, reExecArgs ...string) error {
 	tc, err := makeClient(cf)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -63,12 +63,16 @@ func Dir() (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+		home = filepath.Join(home, ".tsh", "bin")
+	} else {
+		home = filepath.Join(home, "bin")
 	}
+
 	home, err := filepath.Abs(home)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return filepath.Join(home, ".tsh", "bin"), nil
+	return home, nil
 }
 
 // DefaultClientTools list of the client tools needs to be updated by default.

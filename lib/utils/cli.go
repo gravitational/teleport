@@ -659,11 +659,11 @@ func FormatAlert(alert types.ClusterAlert) string {
 // FilterArguments finds specific argument and filter out others.
 func FilterArguments(args []string, arg string) []string {
 	for i := 0; i < len(args); i++ {
-		if strings.HasPrefix(args[i], fmt.Sprint("--", arg)) {
-			if i+1 < len(args) && strings.HasPrefix(args[i], fmt.Sprint("--", arg, "=")) {
-				return args[i : i+1]
-			}
-			return args[i:i]
+		if strings.HasPrefix(args[i], fmt.Sprint("--", arg, "=")) {
+			return args[i : i+1]
+		}
+		if i+2 <= len(args) && strings.HasPrefix(args[i], fmt.Sprint("--", arg)) {
+			return args[i : i+2]
 		}
 	}
 	return nil
