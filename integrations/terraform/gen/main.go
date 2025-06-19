@@ -452,6 +452,34 @@ var (
 		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
 	}
 
+	accessListMember = payload{
+		Name:                   "Member",
+		TypeName:               "Member",
+		VarName:                "accessListMember",
+		GetMethod:              "AccessListClient().GetAccessListMember",
+		CreateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		UpsertMethodArity:      2,
+		UpdateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		DeleteMethod:           "AccessListClient().DeleteAccessListMember",
+		IDPrefix:               "accessListMember.Spec.AccessList",
+		ID:                     "accessListMember.Header.Metadata.Name",
+		Kind:                   "access_list_member",
+		HasStaticID:            false,
+		SchemaPackage:          "schemav1",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
+		ProtoPackage:           "accesslist",
+		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
+		TerraformResourceType:  "teleport_access_list_member",
+		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
+		ConvertToProtoFunc:     "ToMemberProto",
+		ConvertFromProtoFunc:   "FromMemberProto",
+		HasCheckAndSetDefaults: true,
+		// TODO(kopiczko) try to change the name and see if we have a completely new member created
+		// TODO(kopiczko) try to change the access_list and see if we have a completely new member created
+		// TODO(kopiczko) try to change the access_list and see if we have a completely new member created
+		PropagatedFields: []string{"Spec.AddedBy", "Spec.Joined", "Spec.MembershipKind", "Spec.Name", "Spec.AccessList"},
+	}
+
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -684,6 +712,8 @@ func genTFSchema() {
 	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(accessList, pluralResource)
 	generateDataSource(accessList, pluralDataSource)
+	generateResource(accessListMember, pluralResource)
+	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
