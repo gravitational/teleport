@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -2413,4 +2414,194 @@ func TestInsertAccessListCollection(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, allMembers3, 400)
 	})
+}
+
+func TestAccessListDeletePrevention_NestedLists(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	for _, tc := range []struct {
+		name         string
+		role         string
+		targetName   string
+		relatedNames []string
+	}{
+		{
+			name:         "cannot delete list that is a member of another list",
+			role:         "a member",
+			targetName:   "child-list",
+			relatedNames: []string{"parent-list"},
+		},
+		{
+			name:         "cannot delete list that is an owner of another list",
+			role:         "an owner",
+			targetName:   "owner-list",
+			relatedNames: []string{"target-list"},
+		},
+		{
+			name:         "handles formatting multiple owner relationships",
+			role:         "an owner",
+			targetName:   "owner-list",
+			relatedNames: []string{"owned-1", "owned-2", "owned-3"},
+		},
+		{
+			name:         "handles formatting multiple member relationships",
+			role:         "a member",
+			targetName:   "child-list",
+			relatedNames: []string{"parent-list-1", "parent-list-2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target, err := service.UpsertAccessList(ctx, newAccessList(t, tc.targetName, clock))
+			require.NoError(t, err)
+			relatedLists := make([]*accesslist.AccessList, 0, len(tc.relatedNames))
+			for _, name := range tc.relatedNames {
+				relatedList, err := service.UpsertAccessList(ctx, newAccessList(t, name, clock))
+				require.NoError(t, err)
+				relatedLists = append(relatedLists, relatedList)
+			}
+
+			// Setup relationships
+			switch tc.role {
+			case "a member":
+				for _, parent := range relatedLists {
+					member := newAccessListMember(t, parent.GetName(), target.GetName(), withMembershipKind(accesslist.MembershipKindList))
+					_, err := service.UpsertAccessListMember(ctx, member)
+					require.NoError(t, err)
+				}
+			case "an owner":
+				for _, owned := range relatedLists {
+					owned.Spec.Owners = append(owned.Spec.Owners, accesslist.Owner{
+						Name:           target.GetName(),
+						MembershipKind: accesslist.MembershipKindList,
+						Description:    "owner list as owner",
+					})
+					_, err := service.UpsertAccessList(ctx, owned)
+					require.NoError(t, err)
+				}
+			default:
+				require.FailNow(t, "unexpected role %s", tc.role)
+			}
+
+			err = service.DeleteAccessList(ctx, target.GetName())
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+
+			relatedTitles := make([]string, len(relatedLists))
+			for i, l := range relatedLists {
+				relatedTitles[i] = fmt.Sprintf("'%s'", l.Spec.Title)
+			}
+
+			// Err should contain related lists
+			expected := fmt.Sprintf(
+				"Cannot delete '%s', as it is %s of one or more other Access Lists: %s",
+				target.Spec.Title,
+				tc.role,
+				strings.Join(relatedTitles, ", "),
+			)
+			require.Contains(t, err.Error(), expected)
+
+			// Cleanup relationships
+			switch tc.role {
+			case "a member":
+				for _, parent := range relatedLists {
+					err := service.DeleteAccessListMember(ctx, parent.GetName(), target.GetName())
+					require.NoError(t, err)
+				}
+			case "an owner":
+				for _, owned := range relatedLists {
+					var newOwners []accesslist.Owner
+					for _, o := range owned.Spec.Owners {
+						if o.Name == target.GetName() {
+							continue
+						}
+						newOwners = append(newOwners, o)
+					}
+					owned.Spec.Owners = newOwners
+					_, err := service.UpsertAccessList(ctx, owned)
+					require.NoError(t, err)
+				}
+			}
+
+			// Deletion should succeed after cleanup
+			err = service.DeleteAccessList(ctx, target.GetName())
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestAccessListDeletePrevention_DeletedReferencedLists(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	ownerList := newAccessList(t, "owner-list", clock)
+	targetList := newAccessList(t, "target-list", clock)
+
+	_, err = service.UpsertAccessList(ctx, ownerList)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, targetList)
+	require.NoError(t, err)
+
+	targetList, err = service.GetAccessList(ctx, targetList.GetName())
+	require.NoError(t, err)
+
+	ownerAsOwner := accesslist.Owner{
+		Name:           ownerList.GetName(),
+		MembershipKind: accesslist.MembershipKindList,
+		Description:    "owner list as owner",
+	}
+	targetList.Spec.Owners = append(targetList.Spec.Owners, ownerAsOwner)
+
+	_, err = service.UpsertAccessList(ctx, targetList)
+	require.NoError(t, err)
+
+	ownerListUpdated, err := service.GetAccessList(ctx, ownerList.GetName())
+	require.NoError(t, err)
+	require.Contains(t, ownerListUpdated.Status.OwnerOf, targetList.GetName(),
+		"ownerList should be marked as owner of targetList")
+
+	err = service.DeleteAccessList(ctx, ownerList.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+	require.Contains(t, err.Error(), fmt.Sprintf(
+		"Cannot delete '%s', as it is an owner of one or more other Access Lists: '%s'",
+		ownerListUpdated.Spec.Title,
+		targetList.Spec.Title,
+	))
+
+	// Simulate stale reference: hard-delete targetList and its members.
+	err = service.service.DeleteResource(ctx, targetList.GetName())
+	require.NoError(t, err)
+	err = service.memberService.WithPrefix(targetList.GetName()).DeleteAllResources(ctx)
+	require.NoError(t, err)
+
+	_, err = service.GetAccessList(ctx, targetList.GetName())
+	require.True(t, trace.IsNotFound(err), "targetList should be deleted")
+
+	ownerListAfterBypass, err := service.GetAccessList(ctx, ownerList.GetName())
+	require.NoError(t, err)
+	require.Contains(t, ownerListAfterBypass.Status.OwnerOf, targetList.GetName(),
+		"ownerList.Status.OwnerOf should contain stale reference to deleted targetList")
+
+	err = service.DeleteAccessList(ctx, ownerList.GetName())
+	require.NoError(t, err, "should be able to delete ownerList when referenced list no longer exists")
+
+	_, err = service.GetAccessList(ctx, ownerList.GetName())
+	require.True(t, trace.IsNotFound(err), "ownerList should be deleted")
 }
