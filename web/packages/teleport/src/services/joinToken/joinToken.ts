@@ -21,7 +21,6 @@ import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
 import { WebauthnAssertionResponse } from '../auth';
-import { MfaAuthnResponse } from '../mfa';
 import makeJoinToken from './makeJoinToken';
 import { JoinRule, JoinToken, JoinTokenRequest } from './types';
 
