@@ -133,6 +133,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 var (
@@ -2024,52 +2025,75 @@ func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
 	return downgradedRole
 }
 
-func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
-	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
-		var out []types.KubernetesResource
-		for _, elem := range resources {
-			// If group is '*', simply remove it as the behavior in v7 would be the same.
-			if elem.APIGroup == types.Wildcard {
-				elem.APIGroup = ""
-			}
-			// If we have a wildcard kind, only keep it if the namespace is also a wildcard.
-			if elem.Kind == types.Wildcard && elem.Namespace == types.Wildcard && elem.APIGroup == "" {
-				out = append(out, elem)
-				continue
-			}
-			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
-			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
-				elem.APIGroup = ""
-				elem.Kind = v
-				out = append(out, elem)
-				continue
-			}
-
-			// If we reach this point, we are dealing with a resource we don't know about or a wildcard
-			// As the scope of permissions granted differs, deny everything.
-			role.Spec.Allow.KubernetesResources = nil
-			role.Spec.Deny.KubernetesLabels = types.Labels{
-				types.Wildcard: {types.Wildcard},
-			}
-			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-				},
-			}
-			return nil, false
+func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources []T) []T {
+	var out []T
+	for _, elem := range resources {
+		apiGroup, kind, namespace := elem.GetAPIGroup(), elem.GetKind(), elem.GetNamespace()
+		// If group is '*', simply remove it as the behavior in v7 would be the same.
+		if apiGroup == types.Wildcard {
+			elem.SetAPIGroup("")
+			apiGroup = ""
 		}
-		return out, true
-	}
+		// If we have a wildcard kind, only keep it if the namespace is also a wildcard.
+		if kind == types.Wildcard && namespace == types.Wildcard && apiGroup == "" {
+			out = append(out, elem)
+			continue
+		}
+		// If Kind is known in v7 and group is known, remove it.
+		if v, ok := defaultRBACResources[allowedResourcesKey{apiGroup, kind}]; ok {
+			elem.SetAPIGroup("")
+			elem.SetKind(v)
+			out = append(out, elem)
+			continue
+		}
 
-	var ok bool
-	role.Spec.Allow.KubernetesResources, ok = downgrade(role.Spec.Allow.KubernetesResources)
-	if !ok {
-		return role
+		// If we reach this point, we are dealing with a resource we don't know about or a wildcard
+		// As the scope of permissions granted differs, deny everything.
+		role.Spec.Allow.KubernetesResources = nil
+		role.Spec.Deny.KubernetesLabels = types.Labels{
+			types.Wildcard: {types.Wildcard},
+		}
+		role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
+			{
+				Kind:      types.Wildcard,
+				Name:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+			},
+		}
+		return nil
 	}
-	role.Spec.Deny.KubernetesResources, _ = downgrade(role.Spec.Deny.KubernetesResources)
+	return out
+}
+
+// maybeDowngradeRoleK8sAPIGroupToV7 downgrades the role to kubernetes resources to role v7 if the client
+// is below the minimum supported version.
+//
+// If there is an unsupported resource, clear them and inject deny all at the label level as well as setting the resource to be a wildcard deny.
+//
+// In the case of access requests, if there is a deny, also inject a wildcard deny in the request level.
+func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+	role.Spec.Allow.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Allow.KubernetesResources)))
+	role.Spec.Deny.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Deny.KubernetesResources)))
+
+	// NOTE: Make sure to handle access request deny before the allow.
+	if role.Spec.Deny.Request != nil && len(role.Spec.Deny.Request.KubernetesResources) > 0 {
+		role.Spec.Deny.Request.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Deny.Request.KubernetesResources)))
+		// If we cleared the Deny, inject a wildcard.
+		if len(role.Spec.Deny.Request.KubernetesResources) == 0 {
+			role.Spec.Deny.Request.KubernetesResources = []types.RequestKubernetesResource{{Kind: types.Wildcard}}
+		}
+	}
+	if role.Spec.Allow.Request != nil && len(role.Spec.Allow.Request.KubernetesResources) > 0 {
+		role.Spec.Allow.Request.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Allow.Request.KubernetesResources)))
+		// If we cleared out the Allow, inject a wildcard in Deny.
+		if len(role.Spec.Allow.Request.KubernetesResources) == 0 {
+			if role.Spec.Deny.Request == nil {
+				role.Spec.Deny.Request = &types.AccessRequestConditions{}
+			}
+			role.Spec.Deny.Request.KubernetesResources = append(role.Spec.Deny.Request.KubernetesResources, types.RequestKubernetesResource{Kind: types.Wildcard})
+		}
+	}
 
 	return role
 }
