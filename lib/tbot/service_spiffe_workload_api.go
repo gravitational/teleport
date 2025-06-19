@@ -55,7 +55,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
@@ -79,8 +79,8 @@ type SPIFFEWorkloadAPIService struct {
 	botCfg           *config.BotConfig
 	cfg              *config.SPIFFEWorkloadAPIService
 	log              *slog.Logger
-	resolver         reversetunnelclient.Resolver
 	trustBundleCache *workloadidentity.TrustBundleCache
+	clientBuilder    *client.Builder
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -107,9 +107,7 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	client, err := clientForFacade(
-		ctx, s.log, s.botCfg, facade, s.resolver,
-	)
+	client, err := s.clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return trace.Wrap(err)
 	}

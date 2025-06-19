@@ -28,11 +28,10 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,10 +46,11 @@ type ApplicationTunnelService struct {
 	cfg                *config.ApplicationTunnelService
 	proxyPingCache     *proxyPingCache
 	log                *slog.Logger
-	resolver           reversetunnelclient.Resolver
 	botClient          *apiclient.Client
 	getBotIdentity     getBotIdentityFn
 	botIdentityReadyCh <-chan struct{}
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -132,17 +132,6 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		}
 	}
 
-	// Determine the roles to use for the impersonated app access user. We fall
-	// back to all the roles the bot has if none are configured.
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
-		if err != nil {
-			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
-		}
-		s.log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", roles)
-	}
-
 	proxyPing, err := s.proxyPingCache.ping(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
@@ -153,7 +142,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	}
 
 	s.log.DebugContext(ctx, "Issuing initial certificate for local proxy.")
-	appCert, app, err := s.issueCert(ctx, roles)
+	appCert, app, err := s.issueCert(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
@@ -166,7 +155,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 
 			if err := lp.CheckCertExpiry(ctx); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
-				cert, _, err := s.issueCert(ctx, roles)
+				cert, _, err := s.issueCert(ctx)
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
 				}
@@ -201,7 +190,6 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 
 func (s *ApplicationTunnelService) issueCert(
 	ctx context.Context,
-	roles []string,
 ) (*tls.Certificate, types.Application, error) {
 	ctx, span := tracer.Start(ctx, "ApplicationTunnelService/issueCert")
 	defer span.End()
@@ -210,24 +198,17 @@ func (s *ApplicationTunnelService) issueCert(
 	// session ID may need to change. Once v17 hits, this will be automagically
 	// calculated by the auth server on cert generation, and we can fetch the
 	// routeToApp once.
-	impersonatedIdentity, err := generateIdentity(
-		ctx,
-		s.botClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
-	)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
+		Roles:           s.cfg.Roles,
+		TTL:             effectiveLifetime.TTL,
+		RenewalInterval: effectiveLifetime.RenewalInterval,
+		Logger:          s.log,
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	impersonatedClient, err := clientForFacade(
-		ctx,
-		s.log,
-		s.botCfg,
-		identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, impersonatedIdentity),
-		s.resolver,
-	)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, impersonatedIdentity)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -242,15 +223,13 @@ func (s *ApplicationTunnelService) issueCert(
 	}
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	routedIdent, err := generateIdentity(
-		ctx,
-		s.botClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		func(req *proto.UserCertsRequest) {
-			req.RouteToApp = route
-		})
+	routedIdent, err := s.identityGenerator.Generate(ctx, identity.GenerateParams{
+		Roles:           s.cfg.Roles,
+		TTL:             effectiveLifetime.TTL,
+		RenewalInterval: effectiveLifetime.RenewalInterval,
+		Options:         []identity.GenerateOption{identity.WithRouteToApp(route)},
+		Logger:          s.log,
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
