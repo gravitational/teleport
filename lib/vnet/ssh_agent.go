@@ -27,9 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
-var _ agent.ExtendedAgent = (*sshAgent)(nil)
-
-// sshAgent implements [agent.ExtendedAgent]. The sole purpose it to forward
+// sshAgent implements [agent.ExtendedAgent]. The sole purpose is to forward
 // the user's Teleport SSH key to the proxy in case the cluster is in proxy
 // recording mode. In this case there will be an SSH connection between VNet
 // and the root cluster proxy terminated with the SSH key in the
