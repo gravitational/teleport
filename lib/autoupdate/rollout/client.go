@@ -20,6 +20,7 @@ package rollout
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/client/proto"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -58,7 +59,10 @@ type Client interface {
 
 	// SampleAgentsFromAutoUpdateGroup samples agents belonging to a specific autoupdate group.
 	// This is used to pick canaries.
-	SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int) []*autoupdatepb.Canary
+	SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int, groups []string) ([]*autoupdatepb.Canary, error)
+
+	// LookupAgentInInventory looks up a specific HostID in the auth local inventory and returns its Hello message.
+	LookupAgentInInventory(ctx context.Context, hostID string) ([]*proto.UpstreamInventoryHello, error)
 }
 
 func getAllReports(ctx context.Context, clt Client) ([]*autoupdatepb.AutoUpdateAgentReport, error) {

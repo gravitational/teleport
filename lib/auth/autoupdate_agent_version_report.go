@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -218,87 +217,4 @@ func (a *Server) reportAgentVersions(ctx context.Context) {
 		a.logger.ErrorContext(ctx, "Failed to write agent version report", "error", err)
 	}
 	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
-}
-
-// SampleAgentsFromAutoUpdateGroup iterates over every handle in the inventory to
-// build a random sample of agents belonging to a given group.
-// The main use-case for this function is to pick canaries that can be updated.
-func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int) []*autoupdatev1pb.Canary {
-
-	filter := func(handle inventory.UpstreamHandle) bool {
-		ok, _ := filterHandler(handle, a.clock.Now())
-		if !ok {
-			return false
-		}
-
-		// No need to check for UpdaterInfo being nil, it would have been filtered
-		// out by filterHandler().
-		return handle.Hello().UpdaterInfo.UpdateGroup == groupName
-	}
-	sampler := newHandlerSampler(sampleSize, filter)
-
-	a.inventory.UniqueHandles(sampler.visit)
-
-	sampled := sampler.Sampled()
-	canaries := make([]*autoupdatev1pb.Canary, len(sampled))
-	for i, h := range sampled {
-		hello := h.Hello()
-		canaries[i] = &autoupdatev1pb.Canary{
-			UpdaterId: string(hello.UpdaterInfo.UpdateUUID),
-			HostId:    hello.ServerID,
-			Hostname:  hello.Hostname,
-			Success:   false,
-		}
-	}
-	return canaries
-}
-
-// handleSampler randomly samples handles from the inventory.
-// It implements Alan Waterman's Reservoir Sampling Algorithm R
-// (The Art of Computer Programming Volume 2).
-// See https://en.wikipedia.org/wiki/Reservoir_sampling for more details.
-type handleSampler struct {
-	sampleSize int
-	seenCount  int
-	filter     func(handle inventory.UpstreamHandle) bool
-	// TODO for reviewers:
-	// Do we feel confident about holding to the Handle even after we're done visiting?
-	// I think so but @espadolini had doubts.
-	// Alternatives are:
-	// - using generics and taking a func(inventory.UpstreamHandle) (K, bool)
-	// - making the sampler part of the inventory package
-	sample []inventory.UpstreamHandle
-}
-
-func newHandlerSampler(sampleSize int, filter func(handle inventory.UpstreamHandle) bool) *handleSampler {
-	return &handleSampler{
-		sampleSize: sampleSize,
-		seenCount:  sampleSize,
-		filter:     filter,
-		sample:     make([]inventory.UpstreamHandle, 0, sampleSize),
-	}
-}
-
-func (h *handleSampler) visit(handle inventory.UpstreamHandle) {
-	// filter out everything we don't want
-	if !h.filter(handle) {
-		return
-	}
-
-	// Fill the reservoir
-	if len(h.sample) < h.sampleSize {
-		h.sample = append(h.sample, handle)
-		h.seenCount++
-		return
-	}
-
-	// Reservoir is already filled, replace existing elements.
-	if j := rand.N(h.seenCount); j < h.sampleSize {
-		h.sample[j] = handle
-	}
-	h.seenCount++
-}
-
-func (h *handleSampler) Sampled() []inventory.UpstreamHandle {
-	return h.sample
 }

@@ -20,6 +20,9 @@ package rollout
 
 import (
 	"context"
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"log/slog"
 	"slices"
 	"time"
@@ -36,7 +39,8 @@ const (
 	updateReasonPreviousGroupsNotDone = "previous_groups_not_done"
 	updateReasonUpdateComplete        = "update_complete"
 	updateReasonUpdateInProgress      = "update_in_progress"
-	updateReasonCanariesNotBackYet    = "canaries_not_back_yet"
+	updateReasonCanariesAlive         = "canaries_are_alive"
+	updateReasonWaitingForCanaries    = "waiting_for_canaries"
 	haltOnErrorWindowDuration         = time.Hour
 )
 
@@ -129,9 +133,51 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 			default:
 				// All previous groups are DONE and time-related criteria are met.
 				// We can start.
-				// TODO: Check if we can use canaries
-				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
-				group.InitialCount = uint64(agentCount)
+
+				// We pass the list of groups to the sampler because it must compute the
+				groups := make([]string, len(status.Groups))
+				for j, g := range status.Groups {
+					groups[j] = g.GetName()
+				}
+				h.startGroup(ctx, group, now, agentCount, groups)
+			}
+			previousGroupsAreDone = false
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
+			// Check if we need to pick more canaries
+			if len(group.Canaries) < int(group.CanaryCount) {
+				previousLength := len(group.Canaries)
+				h.log.DebugContext(ctx, "Group is missing canaries, sampling some more", "group", group, "got", previousLength, "want", int(group.CanaryCount))
+
+				// We pass the list of groups to the sampler because it must compute the
+				groups := make([]string, len(status.Groups))
+				for j, g := range status.Groups {
+					groups[j] = g.GetName()
+				}
+				// We sample as many canaries as possible instead of just the missing ones
+				// Because we might sample an already sampled canary.
+				additionalCanaries, err := h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount), groups)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				injectCanaries(group, additionalCanaries)
+				h.log.DebugContext(ctx, "Additional canaries sampled", "group", group, "before", previousLength, "after", len(group.Canaries))
+			}
+
+			// Check if the canaries are back online and running the right version
+			targetVersion, err := version.EnsureSemver(spec.GetTargetVersion())
+			if err != nil {
+				return trace.Wrap(err, "failed to parse target version, rollout is malformed")
+			}
+			successfulCanaries := h.updateCanariesStatus(ctx, group, *targetVersion)
+
+			// If all canaries are OK, we can transition to the active state
+			if successfulCanaries == int(group.CanaryCount) {
+				h.log.DebugContext(ctx, "All canaries came back alive, transitioning to the active state", "group", group, "got", successfulCanaries, "want", int(group.CanaryCount))
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanariesAlive, now)
+			} else {
+				h.log.DebugContext(ctx, "Not all canaries came back yet, staying into canary state", "group", group, "got", successfulCanaries, "want", int(group.CanaryCount))
+				setGroupState(group, group.State, updateReasonWaitingForCanaries, now)
+
 			}
 			previousGroupsAreDone = false
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
@@ -159,25 +205,112 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 	return nil
 }
 
-const canaryCount = 5
+const (
+	canaryCount     = 5
+	canaryThreshold = 20
+)
 
-func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int) error {
+func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int, groups []string) {
 	group.InitialCount = uint64(agentCount)
 
 	// TODO: compute if we should use canaries (group is large enough + config enabled?)
-	useCanary := agentCount >= 10
+	useCanary := agentCount >= canaryThreshold
 	if !useCanary {
 		h.log.DebugContext(ctx, "Skipping canary rollout, transitioning directly to the active state", "group", group.Name)
 		setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
-		return nil
+		return
 	}
 
-	group.CanaryCount = canaryCount
-	h.log.DebugContext(ctx, "Picking canaries", "group", group.Name, "count", canaryCount)
-	group.Canaries = h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount))
+	// TODO: remove this part and call the canary logic instead
 
-	h.log.DebugContext(ctx, "Picked canaries", "group", group.Name, "count", len(group.Canaries))
+	group.CanaryCount = canaryCount
+	h.log.DebugContext(ctx, "Picking canaries", "group", group.Name, "want", canaryCount)
+	var err error
+	group.Canaries, err = h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount), groups)
+	if err != nil {
+		h.log.ErrorContext(ctx, "Failed to pick canaries", "group", group.Name, "want", canaryCount)
+		return
+	}
+
+	h.log.DebugContext(ctx, "Picked canaries", "group", group.Name, "want", canaryCount, "got", len(group.Canaries))
 	setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY, updateReasonCanStart, now)
+	return
+}
+
+func injectCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, additionalCanaries []*autoupdate.Canary) {
+	for _, canary := range additionalCanaries {
+		// We first check if the canary has already been sampled
+		alreadySampled := false
+		for _, existingCanary := range group.Canaries {
+			if existingCanary.UpdaterId == canary.UpdaterId {
+				alreadySampled = true
+			}
+		}
+
+		// If it was not, great, we have a new canary.
+		if !alreadySampled {
+			group.Canaries = append(group.Canaries, canary)
+		}
+
+		// Stop adding canaries once we have the right amount
+		if len(group.Canaries) == int(group.CanaryCount) {
+			return
+		}
+	}
+}
+
+func (h *haltOnErrorStrategy) updateCanariesStatus(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, targetVersion semver.Version) int {
+	h.log.DebugContext(ctx, "Checking canaries", "group", group.Name)
+	var successfulCanaries int
+	for _, canary := range group.Canaries {
+		// If the canary already came back healthy, nothing to do
+		if canary.Success {
+			successfulCanaries++
+			continue
+		}
+
+		canaryLogInfo := slog.Group("canary", "host_id", canary.HostId, "updater_id", canary.UpdaterId, "hostname", canary.Hostname)
+		log := h.log.With(canaryLogInfo).With("group", group.Name)
+
+		// Check if the canary is connected to our auth
+		hellos, err := h.clt.LookupAgentInInventory(ctx, canary.HostId)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				// Canary is not registered to our Auth Service.
+				// Note: One old canary instance might still be connected to the auth,
+				// be we are ignoring terminating instances.
+				h.log.DebugContext(ctx, "Node not connected", "group", group.Name, canaryLogInfo)
+			} else {
+				h.log.WarnContext(ctx, "Failed to lookup agent", "group", group.Name, canaryLogInfo)
+			}
+			continue
+		}
+
+		if canaryIsRunningTargetVersion(ctx, hellos, targetVersion, log) {
+			canary.Success = true
+			successfulCanaries++
+		}
+	}
+	return successfulCanaries
+}
+
+// canaryIsRunningTargetVersion returns true if at least one of the Hellos indicates
+// the canary is running the target version.
+func canaryIsRunningTargetVersion(ctx context.Context, hellos []*proto.UpstreamInventoryHello, targetVersion semver.Version, log *slog.Logger) bool {
+	for _, hello := range hellos {
+		canaryVersion, err := version.EnsureSemver(hello.Version)
+		if err != nil {
+			log.WarnContext(ctx, "Failed to parse canary version", "err", err, "current_version", hello.Version)
+			continue
+		}
+		if !targetVersion.Equal(*canaryVersion) {
+			log.DebugContext(ctx, "Canary is not running the target version", "current_version", canaryVersion, "expected_version", targetVersion)
+			continue
+		}
+		log.DebugContext(ctx, "Canary is running the target version, marking it healthy", "current_version", canaryVersion, "expected_version", targetVersion)
+		return true
+	}
+	return false
 }
 
 func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
