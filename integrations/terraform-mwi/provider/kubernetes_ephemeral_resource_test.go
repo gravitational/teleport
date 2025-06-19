@@ -18,6 +18,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -29,12 +30,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/constants"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -91,6 +97,11 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 		localK8SSNI,
 	))
 
+	fakeJoinSigner, err := fakejoin.NewKubernetesSigner(
+		clockwork.NewRealClock(),
+	)
+	require.NoError(t, err)
+
 	process := testenv.MakeTestServer(
 		t,
 		func(o *testenv.TestServersOpts) {
@@ -129,12 +140,30 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 	)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
+	// Create Join Token, Role and Bot
+	role, err := types.NewRole("kube-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubeGroups: []string{
+				"system:masters",
+			},
+			KubernetesLabels: map[string]apiutils.Strings{
+				"*": {"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	rootClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{})
+
+	// Start running test cases.
+
 	time.Sleep(10 * time.Second)
+	// TODO: Just for debugging - remove if necessary.
 	kubeServers, err := rootClient.GetKubernetesServers(ctx)
 	require.NoError(t, err)
 	require.Len(t, kubeServers, 1)
 
-	const config = `
+	config := fmt.Sprintf(`
 provider "teleportmwi" {
   proxy_server = "example.com:3080"
   join_method  = "gitlab"
@@ -143,16 +172,24 @@ provider "teleportmwi" {
 
 ephemeral "teleportmwi_kubernetes" "example" {
   selector = {
-    name = "barry"
+    name = "test-cluster"
   } 
 }
 
-provider "echo" {
-  data = ephemeral.teleportmwi_kubernetes.example.output.host
+provider "kubernetes" {
+  host                   = ephemeral.teleportmwi_kubernetes.example.output.host
+  tls_server_name        = ephemeral.teleportmwi_kubernetes.example.output.tls_server_name
+  client_certificate     = ephemeral.teleportmwi_kubernetes.example.output.client_certificate
+  client_key             = ephemeral.teleportmwi_kubernetes.example.output.client_key
+  cluster_ca_certificate = ephemeral.teleportmwi_kubernetes.example.output.cluster_ca_certificate
 }
 
-resource "echo" "test" {}
-`
+resource "kubernetes_namespace" "ns" {
+  metadata {
+    name = "tf-mwi-test"
+  }
+}
+`)
 	resource.Test(t, resource.TestCase{
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
 			// Ephemeral resources were introduced in Terraform 1.10.0.
@@ -162,6 +199,11 @@ resource "echo" "test" {}
 			testAccPreCheck(t)
 		},
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactoriesWithEcho,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"kubernetes": {
+				Source: "hashicorp/kubernetes",
+			},
+		},
 		Steps: []resource.TestStep{
 			{
 				Config: config,
