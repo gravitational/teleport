@@ -163,7 +163,7 @@ Shows a dialog where the user can add and/or remove assigned roles, add and/or r
 
 #### Delete bot
 
-Deletes the bot after confirmation. Shows a loading indicator during the call to the api. On success, navigates to the bots list (`/web/bots`). On error, shows a message within the confirmation dialog.
+Deletes the bot after confirmation. Suggests locking instead, as a lower severity action that can be undone. Shows a loading indicator during the call to the api. On success, navigates to the bots list (`/web/bots`). On error, shows a message within the confirmation dialog.
 
 ![](assets/0217-feature-delete-bot.png)
 
