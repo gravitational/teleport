@@ -280,13 +280,6 @@ func createStack() (*stack.Stack, *channel.Endpoint, error) {
 	if err := netStack.CreateNIC(nicID, linkEndpoint); err != nil {
 		return nil, nil, trace.Errorf("creating VNet NIC: %s", err)
 	}
-	// Put the NIC into promiscuous mode so that VNet can handle incoming IP packets
-	// on addresses that have not been explicitly assigned to any handler yet.
-	// This is so the DNS server can handle UDP requests to port 53 on any IP
-	// address.
-	if err := netStack.SetPromiscuousMode(nicID, true); err != nil {
-		return nil, nil, trace.Errorf("putting VNet NIC into promiscuous mode: %s", err)
-	}
 
 	return netStack, linkEndpoint, nil
 }
@@ -494,19 +487,8 @@ func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 	handler, ok := ns.getUDPHandler(id.LocalAddress)
 	if !ok {
-		// Serve DNS on every IP address on UDP port 53.
-		if id.LocalPort != 53 {
-			slog.DebugContext(ctx, "No handler for address.")
-			return
-		}
-		handler = ns.dnsServer
-		// assignUDPHandler adds id.LocalAddress to the gVisor NIC so that VNet
-		// can send packets back out to the host with this as the source
-		// address.
-		if err := ns.assignUDPHandler(id.LocalAddress, handler); err != nil && !trace.IsAlreadyExists(err) {
-			slog.ErrorContext(ctx, "Failed to assign DNS UDP handler.", "error", err)
-			return
-		}
+		slog.DebugContext(ctx, "No handler for address.")
+		return
 	}
 
 	var wq waiter.Queue
@@ -564,6 +546,13 @@ func (ns *networkStack) assignUDPHandler(addr tcpip.Address, handler udpHandler)
 	}
 	ns.state.udpHandlers[ipv4] = handler
 	return nil
+}
+
+// addDNSAddress adds a DNS handler at the given ip.
+func (ns *networkStack) addDNSAddress(ip net.IP) error {
+	slog.DebugContext(context.Background(), "Serving DNS on IPv4.", "dns_addr", ip.String())
+	return trace.Wrap(ns.assignUDPHandler(tcpip.AddrFromSlice(ip), ns.dnsServer),
+		"adding UDP handler at %s", ip.String())
 }
 
 // ResolveA implements [dns.Resolver.ResolveA].

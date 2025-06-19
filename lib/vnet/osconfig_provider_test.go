@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func TestOSConfigProvider(t *testing.T) {
 		desc                 string
 		tunName              string
 		ipv6Prefix           string
-		dnsAddr              string
+		dnsIPv6              string
 		dnsZones             []string
 		ipv4CIDRRanges       []string
 		getTargetOSConfigErr error
@@ -44,7 +45,7 @@ func TestOSConfigProvider(t *testing.T) {
 			desc:       "no cidr ranges",
 			tunName:    "testtun1",
 			ipv6Prefix: "fd01:2345:6789::",
-			dnsAddr:    "fd01:2345:6789::2",
+			dnsIPv6:    "fd01:2345:6789::2",
 			dnsZones:   []string{"test.example.com"},
 			expectTargetOSConfig: &osConfig{
 				tunName: "testtun1",
@@ -58,7 +59,7 @@ func TestOSConfigProvider(t *testing.T) {
 			desc:           "with cidr range",
 			tunName:        "testtun1",
 			ipv6Prefix:     "fd01:2345:6789::",
-			dnsAddr:        "fd01:2345:6789::2",
+			dnsIPv6:        "fd01:2345:6789::2",
 			dnsZones:       []string{"test.example.com"},
 			ipv4CIDRRanges: []string{"192.168.1.0/24"},
 			expectTargetOSConfig: &osConfig{
@@ -76,7 +77,7 @@ func TestOSConfigProvider(t *testing.T) {
 			desc:           "multiple cidr ranges",
 			tunName:        "testtun1",
 			ipv6Prefix:     "fd01:2345:6789::",
-			dnsAddr:        "fd01:2345:6789::2",
+			dnsIPv6:        "fd01:2345:6789::2",
 			dnsZones:       []string{"test.example.com"},
 			ipv4CIDRRanges: []string{"10.64.0.0/16", "192.168.1.0/24"},
 			expectTargetOSConfig: &osConfig{
@@ -98,7 +99,18 @@ func TestOSConfigProvider(t *testing.T) {
 				},
 				err: tc.getTargetOSConfigErr,
 			}
-			osConfigProvider, err := newOSConfigProvider(targetOSConfigGetter, tc.tunName, tc.ipv6Prefix, tc.dnsAddr)
+			// Keep track of new DNS addresses the osConfigProvider tried to add.
+			var addedDNSAddrs []string
+			osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+				clt:        targetOSConfigGetter,
+				tunName:    tc.tunName,
+				ipv6Prefix: tc.ipv6Prefix,
+				dnsIPv6:    tc.dnsIPv6,
+				addDNSAddress: func(ip net.IP) error {
+					addedDNSAddrs = append(addedDNSAddrs, ip.String())
+					return nil
+				},
+			})
 			require.NoError(t, err)
 
 			targetOSConfig, err := osConfigProvider.targetOSConfig(ctx)
@@ -107,6 +119,13 @@ func TestOSConfigProvider(t *testing.T) {
 				return
 			}
 			require.Equal(t, tc.expectTargetOSConfig, targetOSConfig)
+
+			// expectTargetOSConfig.dnsAddrs always starts with the IPv6 DNS
+			// addr, assert that any additional addrs were added to the network
+			// stack.
+			if len(tc.expectTargetOSConfig.dnsAddrs) > 1 {
+				require.ElementsMatch(t, tc.expectTargetOSConfig.dnsAddrs[1:], addedDNSAddrs)
+			}
 		})
 	}
 }

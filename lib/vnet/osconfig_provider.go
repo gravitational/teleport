@@ -28,32 +28,39 @@ import (
 // osConfigProvider fetches a target OS configuration based on cluster
 // configuration fetched via the client application process available over gRPC.
 type osConfigProvider struct {
-	clt      targetOSConfigGetter
-	tunName  string
+	cfg      osConfigProviderConfig
 	dnsAddrs []string
 	tunIPv6  string
 	tunIPv4  string
+}
+
+// osConfigProviderConfig holds configuration parameters for an osConfigProvider.
+type osConfigProviderConfig struct {
+	clt           targetOSConfigGetter
+	tunName       string
+	ipv6Prefix    string
+	dnsIPv6       string
+	addDNSAddress func(net.IP) error
 }
 
 type targetOSConfigGetter interface {
 	GetTargetOSConfiguration(context.Context) (*vnetv1.TargetOSConfiguration, error)
 }
 
-func newOSConfigProvider(clt targetOSConfigGetter, tunName, ipv6Prefix, dnsIPv6 string) (*osConfigProvider, error) {
-	tunIPv6, err := tunIPv6ForPrefix(ipv6Prefix)
+func newOSConfigProvider(cfg osConfigProviderConfig) (*osConfigProvider, error) {
+	tunIPv6, err := tunIPv6ForPrefix(cfg.ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &osConfigProvider{
-		clt:      clt,
-		tunName:  tunName,
-		dnsAddrs: []string{dnsIPv6},
+		cfg:      cfg,
+		dnsAddrs: []string{cfg.dnsIPv6},
 		tunIPv6:  tunIPv6,
 	}, nil
 }
 
 func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error) {
-	targetOSConfig, err := p.clt.GetTargetOSConfiguration(ctx)
+	targetOSConfig, err := p.cfg.clt.GetTargetOSConfiguration(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration from client application")
 	}
@@ -67,7 +74,7 @@ func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error
 		}
 	}
 	return &osConfig{
-		tunName:    p.tunName,
+		tunName:    p.cfg.tunName,
 		tunIPv6:    p.tunIPv6,
 		tunIPv4:    p.tunIPv4,
 		dnsAddrs:   p.dnsAddrs,
@@ -85,17 +92,20 @@ func (p *osConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
 	if err != nil {
 		return trace.Wrap(err, "setting TUN IPv4 address for range %s", cidrRange)
 	}
-	p.tunIPv4 = tunIPv4
-	p.dnsAddrs = append(p.dnsAddrs, dnsIPv4)
+	if err := p.cfg.addDNSAddress(dnsIPv4); err != nil {
+		return trace.Wrap(err, "adding IPv4 DNS server at %s", dnsIPv4.String())
+	}
+	p.tunIPv4 = tunIPv4.String()
+	p.dnsAddrs = append(p.dnsAddrs, dnsIPv4.String())
 	return nil
 }
 
 // ipsForCIDR returns the V4 IPs to assign to the interface and use for DNS in
 // cidrRange.
-func ipsForCIDR(cidrRange string) (string, string, error) {
+func ipsForCIDR(cidrRange string) (net.IP, net.IP, error) {
 	_, ipnet, err := net.ParseCIDR(cidrRange)
 	if err != nil {
-		return "", "", trace.Wrap(err, "parsing CIDR %q", cidrRange)
+		return nil, nil, trace.Wrap(err, "parsing CIDR %q", cidrRange)
 	}
 	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
 	// Add 1 to assign the TUN address, like 100.64.0.1
@@ -106,5 +116,5 @@ func ipsForCIDR(cidrRange string) (string, string, error) {
 	dnsAddress := append(net.IP{}, tunAddress...)
 	dnsAddress[len(dnsAddress)-1]++
 
-	return tunAddress.String(), dnsAddress.String(), nil
+	return tunAddress, dnsAddress, nil
 }
