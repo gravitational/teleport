@@ -286,17 +286,21 @@ A feature flag should be used to allow partial features to be build and merged w
 
 A rough breakdown of tasks with the goal of delivering implementation items in manageable chunks without requiring large PRs and time consuming reviews.
 
-1. Enable deeplinking to Join Token view/edit page
-2. Endpoint `GET /v1/webapi/sites/:site/machine-id/bot/:name/token`
-3. Endpoint `PUT /v1/webapi/sites/:site/machine-id/bot/:name`
-4. UI panel component
-5. Bot info panel
-6. Join tokens panel
-7. Roles and traits panels
+1. Page scaffold, feature flag and UI panel component
+2. Bot info panel
+3. Add filters to endpoint `GET /v1/webapi/tokens?role=Bot&bot=:name`
+4. Enable deeplinking to Join Token view/edit page
+5. Join tokens panel and MFA support
+6. Roles and traits panels
+7. Enable sorting for endpoint `GET /v1/webapi/sites/:site/machine-id/bot-instance?search=:bot-name`
 8. Active instances panel
-9. Delete bot operation
-10. Lock bot operation
-11. Edit operation (inc roles, traits and max session duration)
+9. Delete bot operation (RBAC aware)
+10. Add filters to endpoint `GET /v1/webapi/sites/:site/locks`
+11. Lock status
+12. Lock bot operation (RBAC aware)
+13. Extend updatable fields for endpoint `PUT /v1/webapi/sites/:site/machine-id/bot/:name`
+14. Edit operation (inc roles, traits and max session duration)
+15. Remove temporary feature flag
 
 ### Wishlist features
 
