@@ -28,7 +28,10 @@ import {
   useState,
 } from 'react';
 
-import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import {
+  BackgroundItemStatus,
+  GetServiceInfoResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -60,8 +63,8 @@ export type VnetContext = {
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
-  listDNSZones: () => Promise<[string[], Error]>;
-  listDNSZonesAttempt: Attempt<string[]>;
+  getServiceInfo: () => Promise<[GetServiceInfoResponse, Error]>;
+  serviceInfoAttempt: Attempt<GetServiceInfoResponse>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -234,9 +237,9 @@ export const VnetContextProvider: FC<
     ])
   );
 
-  const [listDNSZonesAttempt, listDNSZones] = useAsync(
+  const [serviceInfoAttempt, getServiceInfo] = useAsync(
     useCallback(
-      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
+      () => vnet.getServiceInfo({}).then(({ response }) => response),
       [vnet]
     )
   );
@@ -469,8 +472,8 @@ export const VnetContextProvider: FC<
         startAttempt,
         stop,
         stopAttempt,
-        listDNSZones,
-        listDNSZonesAttempt,
+        getServiceInfo,
+        serviceInfoAttempt,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,
