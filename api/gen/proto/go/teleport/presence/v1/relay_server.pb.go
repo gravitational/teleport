@@ -120,6 +120,10 @@ func (x *RelayServer) GetSpec() *RelayServer_Spec {
 // resource spec
 type RelayServer_Spec struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	RelayGroup    string                 `protobuf:"bytes,1,opt,name=relay_group,json=relayGroup,proto3" json:"relay_group,omitempty"`
+	Nonce         string                 `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	Terminating   bool                   `protobuf:"varint,3,opt,name=terminating,proto3" json:"terminating,omitempty"`
+	ProxyIds      []string               `protobuf:"bytes,4,rep,name=proxy_ids,json=proxyIds,proto3" json:"proxy_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -154,18 +158,51 @@ func (*RelayServer_Spec) Descriptor() ([]byte, []int) {
 	return file_teleport_presence_v1_relay_server_proto_rawDescGZIP(), []int{0, 0}
 }
 
+func (x *RelayServer_Spec) GetRelayGroup() string {
+	if x != nil {
+		return x.RelayGroup
+	}
+	return ""
+}
+
+func (x *RelayServer_Spec) GetNonce() string {
+	if x != nil {
+		return x.Nonce
+	}
+	return ""
+}
+
+func (x *RelayServer_Spec) GetTerminating() bool {
+	if x != nil {
+		return x.Terminating
+	}
+	return false
+}
+
+func (x *RelayServer_Spec) GetProxyIds() []string {
+	if x != nil {
+		return x.ProxyIds
+	}
+	return nil
+}
+
 var File_teleport_presence_v1_relay_server_proto protoreflect.FileDescriptor
 
 const file_teleport_presence_v1_relay_server_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/presence/v1/relay_server.proto\x12\x14teleport.presence.v1\x1a!teleport/header/v1/metadata.proto\"\xd4\x01\n" +
+	"'teleport/presence/v1/relay_server.proto\x12\x14teleport.presence.v1\x1a!teleport/header/v1/metadata.proto\"\xca\x02\n" +
 	"\vRelayServer\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12:\n" +
-	"\x04spec\x18\x05 \x01(\v2&.teleport.presence.v1.RelayServer.SpecR\x04spec\x1a\x06\n" +
-	"\x04SpecBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
+	"\x04spec\x18\x05 \x01(\v2&.teleport.presence.v1.RelayServer.SpecR\x04spec\x1a|\n" +
+	"\x04Spec\x12\x1f\n" +
+	"\vrelay_group\x18\x01 \x01(\tR\n" +
+	"relayGroup\x12\x14\n" +
+	"\x05nonce\x18\x02 \x01(\tR\x05nonce\x12 \n" +
+	"\vterminating\x18\x03 \x01(\bR\vterminating\x12\x1b\n" +
+	"\tproxy_ids\x18\x04 \x03(\tR\bproxyIdsBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
 
 var (
 	file_teleport_presence_v1_relay_server_proto_rawDescOnce sync.Once
