@@ -113,7 +113,7 @@ func (s *RootServer) RegisterDatabase(db *Database) {
 
 	uri := db.ResourceURI().String()
 	s.availableDatabases[uri] = db
-	s.AddResource(mcp.NewResource(uri, fmt.Sprintf("%s Datatabase", db.DB.GetName()), mcp.WithMIMEType(databaseResourceMIMEType)), s.GetDatabaseResource)
+	s.AddResource(mcp.NewResource(uri, fmt.Sprintf("%s Database", db.DB.GetName()), mcp.WithMIMEType(databaseResourceMIMEType)), s.GetDatabaseResource)
 }
 
 // ServeStdio starts serving the root MCP using STDIO transport.
