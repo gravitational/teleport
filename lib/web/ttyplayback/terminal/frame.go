@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hinshun/vt10x"
+	"github.com/gravitational/teleport/lib/web/ttyplayback/vt10x"
 )
 
 type Frame struct {

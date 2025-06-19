@@ -868,6 +868,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
 	h.GET("/webapi/sites/:site/sessioneventsws/:sid", h.WithClusterAuth(h.sessionEventsWs))
 	h.GET("/webapi/sites/:site/sessiondetails/:sid", h.WithClusterAuth(h.sessionDetails))
+	h.GET("/webapi/sites/:site/sessionevents/:sid", h.WithClusterAuth(h.sessionEvents))
 	h.GET("/webapi/sites/:site/sessionlength/:sid", h.WithClusterAuth(h.sessionLengthHandle))
 
 	// scp file transfer
