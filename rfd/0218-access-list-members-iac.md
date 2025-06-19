@@ -110,31 +110,18 @@ teleport_access_list_member.crane_operator: Creating...
 
 - `tctl` - can modify members of the *static* *access_list* resources with the existing `acl users`
   commands and `create -f` command.
-- web UI - for the first iteration it won't be able to modify members of the *static* *access_list*
-  resources, but we are open to implement that. This will however require a bit more work and
-  thought of how to create/modify *static* *access_list* resources themselves in the web UI.
-- `teleport-operator` - won't have support to reduce the scope but the the possibility is open too.
+- web UI - for the first iteration it won't be possible to modify members of the *static* *access_list*
+  resources, but we are open to implement that if the need arises. This will however require a bit more work and
+  thought of how to create/modify *static* *access_list* resources themselves in the web UI. As the
+  first step all the fields in the Access List view will be grayed out with the proper information
+  displayed (be it a tooltip pop-up or a message somewhere on the screen).
+- `teleport-operator` - won't have support to reduce the scope but the possibility is open too.
 
 ### Proto specification
 
 We want Terraform *teleport_access_list_member* resources to be created only for the *static*
 Access Lists. To achieve that on the server side, a new set of gRPCs for static members management
 will be exposed.
-
-Current list of gRPCs for access_list_member:
-
-- CountAccessListMembers
-- ListAccessListMembers
-- ListAllAccessListMembers
-- GetAccessListMember
-- GetAccessListOwners
-- UpsertAccessListMember
-- UpdateAccessListMember
-- DeleteAccessListMember
-- DeleteAllAccessListMembersForAccessList
-- DeleteAllAccessListMembers
-
-Two new gRPCs will be added:
 
 - GetStaticAccessListMember
 - UpsertStaticAccessListMember
@@ -166,13 +153,30 @@ message UpsertStaticAccessListMemberRequest {
 }
 ```
 
+### Security model
+
+There is no restriction on how static Access Lists members can modified on the RBAC level. All the
+"obstacles" to modify the static Access Lists and their members are the UI tweaks only, and their
+purpose is the user's guidance on how to properly utilize static Access Lists.
+
+In other words the existing gRPCs (e.g. `UpsertAccessListWithMembers`) can be still used to modify
+static Access Lists and their members but:
+
+- we don't allow static Access Lists creation/modifications in the web UI and it's blocked on the
+  proxy level
+- Terraform provider can create/modify any Access List, but is can only modify members of the
+  static Access Lists (enforced by using `*Static*` gRPCs)
+- `tctl` can modify any Access List (with `create -f` and `edit access_list/<name`) and its members
+  (with `acl users add/rm`) freely
+- Access List and its members validation is different depending on the subkind
+
 ### Backward compatibility
 
 **Breaking:** If a *static Access List* is created with owners field empty, then it is impossible
-*to downgrade the cluster to the previous version without breaking the cache. This can be recovered
-*only by deleting all static Access Lists **before the downgrade**. This is due to validation code
-*in the cache which checks if Access Lists have non-empty owners set. The alternative is to set the
-*owners, but it also has to happen before the downgrade.
+to downgrade the cluster to the previous version without breaking the cache. This can be recovered
+only by deleting all static Access Lists **before the downgrade**. This is due to validation code
+in the cache which checks if Access Lists have non-empty owners set. The alternative is to set the
+owners, but it also has to happen before the downgrade.
 
 This breaking change will be outlined in the changelog and Terraform *teleport_access_list_member*
 resource documentation.
