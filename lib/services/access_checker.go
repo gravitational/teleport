@@ -431,7 +431,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	isLoggingEnabled := rbacLogger.Enabled(ctx, logutils.TraceLevel)
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
-		if resourceID.ClusterName == a.localCluster && mapsToURCResource(resourceID, r) {
+		if resourceID.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
 			if isLoggingEnabled {
@@ -463,9 +463,9 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	return trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
 }
 
-// mapsToURCResource matches requested resource with its respective
+// matchesUCRResource matches requested resource with its respective
 // resource type stored in the unified resource cache.
-func mapsToURCResource(requestedR types.ResourceID, r AccessCheckable) bool {
+func matchesUCRResource(requestedR types.ResourceID, r AccessCheckable) bool {
 	if requestedR.Name != r.GetName() {
 		return false
 	}
@@ -480,7 +480,7 @@ func mapsToURCResource(requestedR types.ResourceID, r AccessCheckable) bool {
 	// Identity Center account is stored as KindApp kind and
 	// KindIdentityCenterAccount subKind in the unified resource cache.
 	if requestedR.Kind == types.KindIdentityCenterAccount {
-		return r.GetSubKind() == types.KindIdentityCenterAccount
+		return r.GetKind() == types.KindApp && r.GetSubKind() == types.KindIdentityCenterAccount
 	}
 
 	return requestedR.Kind == r.GetKind()

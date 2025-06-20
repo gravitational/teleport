@@ -988,7 +988,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		assertAccess require.ErrorAssertionFunc
 	}{
 		{
-			name: "requested resource matches",
+			name: "matches kind and subkind",
 			info: &AccessInfo{
 				AllowedResourceIDs: []types.ResourceID{
 					{
@@ -1008,7 +1008,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 			assertAccess: require.NoError,
 		},
 		{
-			name: "requested resource does not match",
+			name: "unmatched subkind",
 			info: &AccessInfo{
 				AllowedResourceIDs: []types.ResourceID{
 					{
@@ -1020,6 +1020,28 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 			},
 			resource: types.AppServerV3{
 				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+		{
+			name: "unmatched kind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindAppSession,
+				SubKind: types.KindIdentityCenterAccount,
 				Metadata: types.Metadata{
 					Name: "aws-dev",
 				},
