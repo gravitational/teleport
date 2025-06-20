@@ -22,17 +22,17 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
-	"github.com/hashicorp/terraform-plugin-testing/statecheck"
-	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -261,12 +261,17 @@ resource "kubernetes_namespace" "ns" {
 		Steps: []resource.TestStep{
 			{
 				Config: config,
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(
-						"echo.test",
-						tfjsonpath.New("data"),
-						knownvalue.StringExact("Hello, barry!"),
-					),
+				Check: func(state *terraform.State) error {
+					containsCreatedNamespace := slices.ContainsFunc(
+						kubeMock.ListNamespaces().Items,
+						func(ns corev1.Namespace) bool {
+							return ns.Name == "tf-mwi-test"
+						},
+					)
+					if !containsCreatedNamespace {
+						return fmt.Errorf("expected to find created namespace in TF state")
+					}
+					return nil
 				},
 			},
 		},
