@@ -56,6 +56,9 @@ const (
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
 	// updateLockTimeout is the duration commands will wait for update to complete before failing.
 	updateLockTimeout = 10 * time.Minute
+
+	// notUpToDateExitCode is returned by `teleport-update status --is-up-to-date` if Teleport is not up-to-date.
+	notUpToDateExitCode = 3
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -87,6 +90,8 @@ type cliConfig struct {
 	ForceUninstall bool
 	// Insecure skips TLS certificate verification.
 	Insecure bool
+	// StatusWithExitCode makes the status command return different exit codes depending on the update status.
+	StatusWithExitCode bool
 }
 
 func Run(args []string) int {
@@ -172,6 +177,9 @@ func Run(args []string) int {
 		Required().StringVar(&ccfg.Path)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
+	statusCmd.Flag("err-if-should-update-now",
+		fmt.Sprintf("Exits with code %d if the agent should update now. Exit code 0 means that the agent should not update now, even if it might not run the target version.", notUpToDateExitCode),
+	).BoolVar(&ccfg.StatusWithExitCode)
 
 	uninstallCmd := app.Command("uninstall", "Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.")
 	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
@@ -202,6 +210,8 @@ func Run(args []string) int {
 		autoupdate.SetRequiredUmask(ctx, plog)
 	}
 
+	var successExitCode int
+
 	switch command {
 	case enableCmd.FullCommand():
 		ccfg.Enabled = true
@@ -226,7 +236,7 @@ func Run(args []string) int {
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	case statusCmd.FullCommand():
-		err = cmdStatus(ctx, &ccfg)
+		successExitCode, err = cmdStatus(ctx, &ccfg)
 		if errors.Is(err, autoupdate.ErrNotInstalled) {
 			plog.ErrorContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
 			return 1
@@ -239,7 +249,7 @@ func Run(args []string) int {
 		plog.ErrorContext(ctx, "Command failed.", "error", err)
 		return 1
 	}
-	return 0
+	return successExitCode
 }
 
 func setupLogger(debug bool, format string) error {
@@ -465,18 +475,32 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-// cmdStatus displays auto-update status.
-func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
+// cmdStatus displays auto-update status. The command also returns the desired
+// error code (only valid if the error is nil).
+func cmdStatus(ctx context.Context, ccfg *cliConfig) (int, error) {
 	updater, err := statusConfig(ctx, ccfg)
 	if err != nil {
-		return trace.Wrap(err, "failed to initialize updater")
+		return 0, trace.Wrap(err, "failed to initialize updater")
 	}
 	status, err := updater.Status(ctx)
 	if err != nil {
-		return trace.Wrap(err, "failed to get status")
+		return 0, trace.Wrap(err, "failed to get status")
 	}
 	enc := yaml.NewEncoder(os.Stdout)
-	return trace.Wrap(enc.Encode(status))
+	if err := enc.Encode(status); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return statusExitCode(ccfg, status), nil
+}
+
+// statusExitCode returns the desired exit code for the status command.
+func statusExitCode(ccfg *cliConfig, status autoupdate.Status) int {
+	// Implement --is-up-to-date
+	if ccfg.StatusWithExitCode && status.InWindow && status.Active.String() != status.Target.String() {
+		return notUpToDateExitCode
+	}
+	return 0
 }
 
 // cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
