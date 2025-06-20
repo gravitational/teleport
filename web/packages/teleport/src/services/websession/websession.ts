@@ -36,14 +36,21 @@ let sesstionCheckerTimerId = null;
 
 const session = {
   logout(rememberLocation = false) {
-    api.delete(cfg.api.webSessionPath).then(response => {
-      this.clear();
-      if (response.samlSloUrl) {
-        window.open(response.samlSloUrl, '_self');
-      } else {
-        history.goToLogin({ rememberLocation });
-      }
-    });
+    let samlSloUrl = '';
+
+    api
+      .delete(cfg.api.webSessionPath)
+      .then(response => {
+        samlSloUrl = response.samlSloUrl;
+      })
+      .finally(() => {
+        this.clear();
+        if (samlSloUrl) {
+          window.open(samlSloUrl, '_self');
+        } else {
+          history.goToLogin({ rememberLocation });
+        }
+      });
   },
 
   logoutWithoutSlo({
