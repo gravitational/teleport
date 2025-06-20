@@ -58,6 +58,8 @@ type ProviderModel struct {
 	// JoinToken is the token used to join the cluster.
 	// Must be specified.
 	JoinToken types.String `tfsdk:"join_token"`
+	// Insecure indicates whether to skip TLS verification for the proxy server.
+	Insecure types.Bool `tfsdk:"insecure"`
 }
 
 func (p *Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -85,6 +87,10 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 			"join_token": schema.StringAttribute{
 				MarkdownDescription: "The name of the join token to use to authenticate to the Teleport cluster.",
 				Required:            true,
+			},
+			"insecure": schema.BoolAttribute{
+				MarkdownDescription: "When enabled, the certificates of the Proxy will not be verified. This is not recommended for production use.",
+				Optional:            true,
 			},
 		},
 	}
@@ -122,7 +128,8 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 				JoinMethod: apitypes.JoinMethod(data.JoinMethod.ValueString()),
 				TokenValue: data.JoinToken.ValueString(),
 			},
-			Oneshot: true,
+			Oneshot:  true,
+			Insecure: data.Insecure.ValueBool(),
 		}
 	}
 

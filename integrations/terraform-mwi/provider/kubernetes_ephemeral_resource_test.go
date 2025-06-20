@@ -197,9 +197,7 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rootClient.CreateToken(ctx, pt))
 
-	// Start running test cases.
-
-	// TODO: Set environment variable to use the bot token
+	// Setup file/environment variable to point Bot to the join token.
 	joinJWT, err := fakeJoinSigner.SignServiceAccountJWT(
 		"my-pod",
 		"default",
@@ -212,13 +210,12 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Setenv("KUBERNETES_TOKEN_PATH", joinJWTPath))
 
-	// TODO: Support insecure
-
 	config := fmt.Sprintf(`
 provider "teleportmwi" {
   proxy_server = "%s"
   join_method  = "kubernetes"
   join_token   = "test-bot"
+  insecure     = true
 }
 
 ephemeral "teleportmwi_kubernetes" "example" {
