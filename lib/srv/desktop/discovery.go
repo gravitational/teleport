@@ -150,14 +150,14 @@ func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	// Check whether we've ever successfully initialized our LDAP client.
-	s.mu.Lock()
-	if !s.ldapInitialized {
-		s.cfg.Logger.DebugContext(s.closeCtx, "LDAP not ready, skipping discovery and attempting to reconnect")
-		s.mu.Unlock()
-		s.initializeLDAP()
-		return nil
-	}
-	s.mu.Unlock()
+	// s.mu.Lock()
+	// if !s.ldapInitialized {
+	// 	s.cfg.Logger.DebugContext(s.closeCtx, "LDAP not ready, skipping discovery and attempting to reconnect")
+	// 	s.mu.Unlock()
+	// 	s.initializeLDAP()
+	// 	return nil
+	// }
+	// s.mu.Unlock()
 
 	result := make(map[string]types.WindowsDesktop)
 	for _, discoveryConfig := range s.cfg.Discovery {
@@ -168,18 +168,13 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		attrs = append(attrs, computerAttributes...)
 		attrs = append(attrs, discoveryConfig.LabelAttributes...)
 
-		entries, err := s.lc.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs)
-		if trace.IsConnectionProblem(err) {
-			// If the connection was broken, re-initialize the LDAP client so that it's
-			// ready for the next reconcile loop. Return the last known set of desktops
-			// in this case, so that the reconciler doesn't delete the desktops it already
-			// knows about.
-			s.cfg.Logger.InfoContext(s.closeCtx, "LDAP connection error when searching for desktops, reinitializing client")
-			if err := s.initializeLDAP(); err != nil {
-				s.cfg.Logger.ErrorContext(s.closeCtx, "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
-			}
-			return s.lastDiscoveryResults
-		} else if err != nil {
+		tc, err := s.requestTLSCertificate()
+		if err != nil {
+			s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
+			return nil
+		}
+		entries, err := s.lc.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs, s.cfg.LDAPConfig, tc)
+		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
 			return nil
 		}

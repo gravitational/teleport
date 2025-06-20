@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -61,7 +62,7 @@ type CertificateStoreConfig struct {
 }
 
 // Update publishes an empty certificate revocation list to LDAP.
-func (c *CertificateStoreClient) Update(ctx context.Context) error {
+func (c *CertificateStoreClient) Update(ctx context.Context, client *ldap.Conn) error {
 	caType := types.UserCA
 
 	crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
@@ -78,13 +79,13 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	//
 	// #1 and #2 are done manually as part of the set up process (see public docs).
 	// Below we do #3.
-	if err := c.updateCRL(ctx, crlDER, caType); err != nil {
+	if err := c.updateCRL(ctx, crlDER, caType, client); err != nil {
 		return trace.Wrap(err, "updating CRL over LDAP")
 	}
 	return nil
 }
 
-func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, caType types.CertAuthType) error {
+func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, caType types.CertAuthType, client *ldap.Conn) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -102,7 +103,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 	crlDN := crlDN(c.cfg.ClusterName, c.cfg.Domain, caType)
 
 	// Create the parent container.
-	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {
+	if err := c.cfg.LC.CreateContainer(containerDN, client); err != nil {
 		return trace.Wrap(err, "creating CRL container")
 	}
 
@@ -111,6 +112,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 		crlDN,
 		"cRLDistributionPoint",
 		map[string][]string{"certificateRevocationList": {string(crlDER)}},
+		client,
 	); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -119,6 +121,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 		if err := c.cfg.LC.Update(
 			crlDN,
 			map[string][]string{"certificateRevocationList": {string(crlDER)}},
+			client,
 		); err != nil {
 			return trace.Wrap(err)
 		}

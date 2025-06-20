@@ -66,15 +66,6 @@ const (
 	// when resolving Windows Desktop hostnames
 	dnsDialTimeout = 5 * time.Second
 
-	// ldapDialTimeout is the timeout for dialing the LDAP server
-	// when making an initial connection
-	ldapDialTimeout = 15 * time.Second
-
-	// ldapRequestTimeout is the timeout for making LDAP requests.
-	// It is larger than the dial timeout because LDAP queries in large
-	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 45 * time.Second
-
 	// windowsDesktopServiceCertTTL is the TTL for certificates issued to the
 	// Windows Desktop Service in order to authenticate with the LDAP server.
 	// It is set longer than the Windows certificates for users because it is
@@ -87,15 +78,6 @@ const (
 	// so the TTL is deliberately set to a small value to give enough time to establish
 	// a single session.
 	windowsUserCertTTL = 5 * time.Minute
-
-	// windowsDesktopServiceCertRetryInterval indicates how often to retry
-	// issuing an LDAP certificate if the operation fails.
-	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
-
-	// ldapTimeoutRetryInterval indicates how often to retry LDAP initialization
-	// if it times out. It is set lower than windowsDesktopServiceCertRetryInterval
-	// because LDAP timeouts may indicate a temporary issue.
-	ldapTimeoutRetryInterval = 10 * time.Second
 )
 
 // computerAttributes are the attributes we fetch when discovering
@@ -127,7 +109,6 @@ type WindowsService struct {
 	mu              sync.Mutex // mu protects the fields that follow
 	ldapConfigured  bool
 	ldapInitialized bool
-	ldapCertRenew   *time.Timer
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
@@ -381,23 +362,6 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		LC:          s.lc,
 	})
 
-	if s.cfg.LDAPConfig.Addr != "" {
-		s.ldapConfigured = true
-		// initialize LDAP - if this fails it will automatically schedule a retry.
-		// we don't want to return an error in this case, because failure to start
-		// the service brings down the entire Teleport process
-		if err := s.initializeLDAP(); err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "initializing LDAP client, will retry", "error", err)
-		}
-	}
-
-	ok := false
-	defer func() {
-		if !ok {
-			s.Close()
-		}
-	}()
-
 	if err := s.startServiceHeartbeat(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -420,58 +384,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		s.cfg.Logger.InfoContext(ctx, "desktop discovery via LDAP is disabled, set 'base_dn' to enable")
 	}
 
-	// if LDAP-based discovery is not enabled, but we have configured LDAP
-	// then it's important that we periodically try to use the LDAP connection
-	// to detect connection closure
-	if s.ldapConfigured && len(s.cfg.Discovery) == 0 {
-		s.startLDAPConnectionCheck(ctx)
-	}
-
-	ok = true
 	return s, nil
-}
-
-// startLDAPConnectionCheck starts a background process that
-// periodically reads from the LDAP connection in order to detect
-// connection closure, and reconnects if necessary.
-// This is useful when LDAP-based discovery is disabled, because without
-// discovery the connection goes idle and may be closed by the server.
-func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
-	s.cfg.Logger.DebugContext(ctx, "starting LDAP connection checker")
-	go func() {
-		t := s.cfg.Clock.NewTicker(5 * time.Minute)
-		defer t.Stop()
-
-		for {
-			select {
-			case <-t.Chan():
-				// First check if we have successfully initialized the LDAP client.
-				// If not, then do that now and return.
-				// (This mimics the check that is performed when LDAP discovery is enabled.)
-				s.mu.Lock()
-				if !s.ldapInitialized {
-					s.cfg.Logger.DebugContext(context.Background(), "LDAP not ready, attempting to reconnect")
-					s.mu.Unlock()
-					s.initializeLDAP()
-					return
-				}
-				s.mu.Unlock()
-
-				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
-				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
-				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + winpki.DomainDN(s.cfg.LDAPConfig.Domain)
-				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
-				if trace.IsConnectionProblem(err) {
-					s.cfg.Logger.DebugContext(ctx, "detected broken LDAP connection, will reconnect")
-					if err := s.initializeLDAP(); err != nil {
-						s.cfg.Logger.WarnContext(ctx, "failed to reconnect to LDAP", "error", err)
-					}
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 }
 
 func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
@@ -541,81 +454,22 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	return tc, nil
 }
 
-// initializeLDAP requests a TLS certificate from the auth server to be used for
-// authenticating with the LDAP server. If the certificate is obtained, and
-// authentication with the LDAP server succeeds, it schedules a renewal to take
-// place before the certificate expires. If we are unable to obtain a certificate
-// and authenticate with the LDAP server, then the operation will be automatically
-// retried.
-//
-// This method is safe for concurrent calls.
-func (s *WindowsService) initializeLDAP() error {
+// requestTLSCertificate requests a TLS certificate from the auth server to be used for
+// authenticating with the LDAP server.
+func (s *WindowsService) requestTLSCertificate() (*tls.Config, error) {
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
 		s.cfg.Logger.WarnContext(context.Background(),
 			"Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
 	}
 	if err != nil {
-		s.mu.Lock()
-		s.ldapInitialized = false
-		// in the case where we're not licensed for desktop access, we retry less frequently,
-		// since this is likely not an intermittent error that will resolve itself quickly
-		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval * 3)
-		s.mu.Unlock()
-		return trace.Wrap(err)
-	}
-
-	conn, err := ldap.DialURL(
-		"ldaps://"+s.cfg.Addr,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
-	if err != nil {
-		s.mu.Lock()
-		s.ldapInitialized = false
-
-		// failures due to timeouts might be transient, so retry more frequently
-		retryAfter := windowsDesktopServiceCertRetryInterval
-		if errors.Is(err, context.DeadlineExceeded) {
-			retryAfter = ldapTimeoutRetryInterval
+		if trace.IsConnectionProblem(err) {
+			s.cfg.Logger.WarnContext(context.Background(), "Failed to connect to LDAP server, will retry", "error", err)
 		}
-
-		s.scheduleNextLDAPCertRenewalLocked(retryAfter)
-		s.mu.Unlock()
-		return trace.Wrap(err, "dial")
+		return nil, trace.Wrap(err)
 	}
 
-	conn.SetTimeout(ldapRequestTimeout)
-	s.lc.SetClient(conn)
-
-	if err := s.ca.Update(s.closeCtx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.mu.Lock()
-	s.ldapInitialized = true
-	s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertTTL / 3)
-	s.mu.Unlock()
-
-	return nil
-}
-
-// scheduleNextLDAPCertRenewalLocked schedules a renewal of our LDAP credentials
-// after some amount of time has elapsed. If an existing renewal is already
-// scheduled, it is canceled and this new one takes its place.
-//
-// The lock on s.mu MUST be held.
-func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
-	s.cfg.Logger.InfoContext(context.Background(), "scheduled next LDAP cert renewal", "duration", after)
-	if s.ldapCertRenew != nil {
-		s.ldapCertRenew.Reset(after)
-	} else {
-		s.ldapCertRenew = time.AfterFunc(after, func() {
-			if err := s.initializeLDAP(); err != nil {
-				s.cfg.Logger.ErrorContext(context.Background(), "couldn't renew certificate for LDAP auth", "error", err)
-			}
-		})
-	}
+	return tc, nil
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
@@ -680,20 +534,6 @@ func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) e
 			s.cfg.Logger.ErrorContext(s.closeCtx, "static host heartbeat ended", "error", err)
 		}
 	}()
-	return nil
-}
-
-// Close instructs the server to stop accepting new connections and abort all
-// established ones. Close does not wait for the connections to be finished.
-func (s *WindowsService) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.ldapCertRenew != nil {
-		s.ldapCertRenew.Stop()
-	}
-	s.close()
-	s.lc.Close()
 	return nil
 }
 
@@ -1281,14 +1121,12 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 		domainDN := winpki.DomainDN(s.cfg.LDAPConfig.Domain)
 
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
-		// if LDAP-based desktop discovery is not enabled, there may not be enough
-		// traffic to keep the connection open. Attempt to open a new LDAP connection
-		// in this case.
-		if trace.IsConnectionProblem(err) {
-			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
+		tc, err := s.requestTLSCertificate()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid}, s.cfg.LDAPConfig, tc)
+
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

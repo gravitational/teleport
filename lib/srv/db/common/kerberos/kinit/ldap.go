@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -109,6 +110,10 @@ const (
 	// It is larger than the dial timeout because LDAP queries in large
 	// Active Directory environments may take longer to complete.
 	ldapRequestTimeout = 45 * time.Second
+	// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
+	// so in most cases the 1000 search page size will result in the optimal amount of requests made to
+	// LDAP server.
+	searchPageSize = 1000
 
 	// attrSAMAccountName is the SAM Account name of an LDAP object.
 	attrSAMAccountName = "sAMAccountName"
@@ -169,9 +174,7 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 		return "", trace.Wrap(err)
 	}
 
-	lc := winpki.NewLDAPClient(ldapConn)
-
-	entries, err := lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
+	entries, err := ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid}, ldapConn)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -234,4 +237,58 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 	}
 
 	return tc, nil
+}
+
+func ReadWithFilter(dn string, filter string, attrs []string, client ldap.Client) ([]*ldap.Entry, error) {
+	req := ldap.NewSearchRequest(
+		dn,
+		ldap.ScopeWholeSubtree,
+		ldap.DerefAlways,
+		0,     // no SizeLimit
+		0,     // no TimeLimit
+		false, // TypesOnly == false, we want attribute values
+		filter,
+		attrs,
+		nil, // no Controls
+	)
+
+	res, err := client.SearchWithPaging(req, searchPageSize)
+	if err != nil {
+		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
+	}
+
+	return res.Entries, nil
+}
+
+// convertLDAPError attempts to convert LDAP error codes to their
+// equivalent trace errors.
+func convertLDAPError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var ldapErr *ldap.Error
+	if errors.As(err, &ldapErr) {
+		switch ldapErr.ResultCode {
+		case ldap.ErrorNetwork:
+			// this one is especially important, because Teleport will
+			// try to re-establish the connection when a ConnectionProblem
+			// is detected
+			return trace.ConnectionProblem(err, "network error")
+		case ldap.LDAPResultOperationsError:
+			if strings.Contains(err.Error(), "successful bind must be completed") {
+				return trace.NewAggregate(trace.AccessDenied(
+					"the LDAP server did not accept Teleport's client certificate, "+
+						"has the Teleport CA been imported correctly?"), err)
+			}
+		case ldap.LDAPResultEntryAlreadyExists:
+			return trace.AlreadyExists("LDAP object already exists: %v", err)
+		case ldap.LDAPResultConstraintViolation:
+			return trace.BadParameter("object constraint violation: %v", err)
+		case ldap.LDAPResultInsufficientAccessRights:
+			return trace.AccessDenied("insufficient permissions: %v", err)
+		}
+	}
+
+	return err
 }
