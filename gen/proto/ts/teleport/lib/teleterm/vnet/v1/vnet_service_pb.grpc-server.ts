@@ -24,8 +24,8 @@ import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
-import { ListDNSZonesResponse } from "./vnet_service_pb";
-import { ListDNSZonesRequest } from "./vnet_service_pb";
+import { GetServiceInfoResponse } from "./vnet_service_pb";
+import { GetServiceInfoRequest } from "./vnet_service_pb";
 import { StopResponse } from "./vnet_service_pb";
 import { StopRequest } from "./vnet_service_pb";
 import { StartResponse } from "./vnet_service_pb";
@@ -50,19 +50,11 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     stop: grpc.handleUnaryCall<StopRequest, StopResponse>;
     /**
-     * ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-     * includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+     * GetServiceInfo returns info about the running VNet service.
      *
-     * This is fetched independently of what the Electron app thinks the current state of the cluster
-     * looks like, since the VNet admin process also fetches this data independently of the Electron
-     * app.
-     *
-     * Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-     * be fetched (due to e.g., a network error or an expired cert).
-     *
-     * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
+     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
      */
-    listDNSZones: grpc.handleUnaryCall<ListDNSZonesRequest, ListDNSZonesResponse>;
+    getServiceInfo: grpc.handleUnaryCall<GetServiceInfoRequest, GetServiceInfoResponse>;
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
      * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
@@ -110,15 +102,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         responseSerialize: value => Buffer.from(StopResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(StopRequest.toBinary(value))
     },
-    listDNSZones: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones",
-        originalName: "ListDNSZones",
+    getServiceInfo: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo",
+        originalName: "GetServiceInfo",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => ListDNSZonesResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ListDNSZonesRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ListDNSZonesResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ListDNSZonesRequest.toBinary(value))
+        responseDeserialize: bytes => GetServiceInfoResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetServiceInfoRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetServiceInfoResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetServiceInfoRequest.toBinary(value))
     },
     getBackgroundItemStatus: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus",

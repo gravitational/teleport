@@ -30,16 +30,8 @@ service VnetService {
   // Stop stops VNet.
   rpc Stop(StopRequest) returns (StopResponse);
 
-  // ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-  // includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-  //
-  // This is fetched independently of what the Electron app thinks the current state of the cluster
-  // looks like, since the VNet admin process also fetches this data independently of the Electron
-  // app.
-  //
-  // Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-  // be fetched (due to e.g., a network error or an expired cert).
-  rpc ListDNSZones(ListDNSZonesRequest) returns (ListDNSZonesResponse);
+  // GetServiceInfo returns info about the running VNet service.
+  rpc GetServiceInfo(GetServiceInfoRequest) returns (GetServiceInfoResponse);
 
   // GetBackgroundItemStatus returns the status of the background item responsible for launching
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
@@ -62,13 +54,19 @@ message StopRequest {}
 // Response for Stop.
 message StopResponse {}
 
-// Request for ListDNSZones.
-message ListDNSZonesRequest {}
+// Request for GetServiceInfo.
+message GetServiceInfoRequest {}
 
-// Response for ListDNSZones.
-message ListDNSZonesResponse {
-  // dns_zones is a deduplicated list of DNS zones.
-  repeated string dns_zones = 1;
+// GetServiceInfoResponse contains the status of the running VNet service.
+message GetServiceInfoResponse {
+  // app_dns_zones is a deduplicated list of all DNS zones valid as DNS
+  // suffixes for connections to TCP apps.
+  repeated string app_dns_zones = 1;
+  // clusters is a list of cluster names valid as DNS suffixes for SSH hosts.
+  repeated string clusters = 2;
+  // ssh_configured is true if the user's SSH config file includes VNet's
+  // generated SSH config necessary for SSH access.
+  bool ssh_configured = 3;
 }
 
 // Request for GetBackgroundItemStatus.
