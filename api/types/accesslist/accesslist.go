@@ -143,6 +143,11 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
+	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
+	// Access List, "scim" which represents an Access List created from SCIM group or "static"
+	// for Access Lists managed by IaC tools.
+	Type Type `json:"type" yaml:"type"`
+
 	// Title is a plaintext short description of the access list.
 	Title string `json:"title" yaml:"title"`
 
@@ -170,6 +175,27 @@ type Spec struct {
 
 	// OwnerGrants describes the access granted by ownership of this access list.
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
+}
+
+type Type string
+
+const (
+	Dynamic Type = "dynamic"
+	Static  Type = "static"
+	SCIM    Type = "scim"
+)
+
+func NewTypeFromString(s string) (Type, error) {
+	switch s {
+	case "", string(Dynamic):
+		return Dynamic, nil
+	case string(Static):
+		return Static, nil
+	case string(SCIM):
+		return SCIM, nil
+	default:
+		return "", trace.BadParameter("unknown access_list type %q", s)
+	}
 }
 
 // Owner is an owner of an access list.
@@ -294,6 +320,13 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetVersion(types.V1)
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if a.Spec.Type == "" {
+		a.Spec.Type = Dynamic
+	}
+	if _, err := NewTypeFromString(string(a.Spec.Type)); err != nil {
 		return trace.Wrap(err)
 	}
 
