@@ -128,11 +128,9 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 	}
 
 	var out []*machineidv1.BotInstance
-	nextToken := ""
 	for b := range rg.store.resources(botInstanceNameIndex, lastToken, "") {
 		if len(out) == pageSize {
-			nextToken = keyForNameIndex(b)
-			break
+			return out, keyForNameIndex(b), nil
 		}
 
 		if matchBotInstance(b, botName, search) {
@@ -140,7 +138,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		}
 	}
 
-	return out, nextToken, nil
+	return out, "", nil
 }
 
 func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
