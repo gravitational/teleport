@@ -184,7 +184,6 @@ require (
 	github.com/mailgun/mailgun-go/v4 v4.23.0
 	github.com/mark3labs/mcp-go v0.43.0
 	github.com/mattn/go-shellwords v1.0.12
-	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mdlayher/netlink v1.8.0
 	github.com/microsoft/go-mssqldb v1.9.3 // replaced
 	github.com/miekg/pkcs11 v1.1.1
@@ -282,6 +281,7 @@ require (
 	k8s.io/kubectl v0.34.1
 	k8s.io/metrics v0.34.1
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
+	modernc.org/sqlite v1.39.0
 	rsc.io/ordered v1.1.1
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/controller-tools v0.17.1
@@ -528,6 +528,7 @@ require (
 	github.com/muhlemmer/httpforwarded v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/nozzle/throttler v0.0.0-20180817012639-2ea982251481 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
@@ -546,6 +547,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
@@ -624,6 +626,9 @@ require (
 	gotest.tools/gotestsum v1.13.0 // indirect
 	k8s.io/component-helpers v0.34.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
+	modernc.org/libc v1.66.3 // indirect
+	modernc.org/mathutil v1.7.1 // indirect
+	modernc.org/memory v1.11.0 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
