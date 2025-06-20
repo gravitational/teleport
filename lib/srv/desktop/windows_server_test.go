@@ -58,7 +58,7 @@ func TestConfigWildcardBaseDN(t *testing.T) {
 				BaseDN: "*",
 			},
 		},
-		LDAPConfig: winpki.LDAPConfig{
+		LDAPConfig: servicecfg.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
