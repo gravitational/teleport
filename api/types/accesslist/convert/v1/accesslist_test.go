@@ -85,13 +85,35 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 }
 
 func TestRoundtrip(t *testing.T) {
+	t.Run("with custom subkind", func(t *testing.T) {
+		accessList := newAccessList(t, "access-list")
+		accessList.ResourceHeader.SetSubKind("access-list-subkind")
+
+		converted, err := FromProto(ToProto(accessList))
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(accessList, converted))
+	})
+
+	t.Run("with non-default type", func(t *testing.T) {
+		accessList := newAccessList(t, "access-list")
+		accessList.Spec.Type = accesslist.Static
+
+		converted, err := FromProto(ToProto(accessList))
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(accessList, converted))
+		require.Equal(t, accesslist.Static, converted.Spec.Type)
+	})
+}
+
+func Test_FromProto_withBadType(t *testing.T) {
 	accessList := newAccessList(t, "access-list")
-	accessList.ResourceHeader.SetSubKind("access-list-subkind")
+	accessList.Spec.Type = "test_bad_type"
 
-	converted, err := FromProto(ToProto(accessList))
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(accessList, converted))
+	_, err := FromProto(ToProto(accessList))
+	require.Error(t, err)
+	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.
