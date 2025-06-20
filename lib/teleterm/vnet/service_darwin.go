@@ -62,10 +62,20 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.Wrap(err)
 	}
 
+	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
+		ProfilePath: s.cfg.profilePath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
-		DiagChecks:          []diag.DiagCheck{routeConflictDiag},
+		DiagChecks: []diag.DiagCheck{
+			routeConflictDiag,
+			sshDiag,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,14 +87,14 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 }
 
 func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
-	targetOSConfig, err := s.vnetProcess.GetOSConfigProvider().GetTargetOSConfiguration(ctx)
+	unifiedClusterConfig, err := s.vnetProcess.GetUnifiedClusterConfigProvider().GetUnifiedClusterConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &diagv1.NetworkStack{
 		InterfaceName:  s.networkStackInfo.InterfaceName,
 		Ipv6Prefix:     s.networkStackInfo.Ipv6Prefix,
-		Ipv4CidrRanges: targetOSConfig.GetIpv4CidrRanges(),
-		DnsZones:       targetOSConfig.GetDnsZones(),
+		Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
+		DnsZones:       unifiedClusterConfig.AllDNSZones(),
 	}, nil
 }

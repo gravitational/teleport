@@ -80,6 +80,24 @@ func (m *MultiLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (e
 	return events, lastKey, err
 }
 
+// SearchUnstructuredEvents is a flexible way to find events in an unstructured format.
+//
+// Event types to filter can be specified and pagination is handled by an iterator key that allows
+// a query to be resumed.
+//
+// The only mandatory requirement is a date range (UTC).
+//
+// This function may never return more than 1 MiB of event data.
+func (m *MultiLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) (events []*auditlogpb.EventUnstructured, lastKey string, err error) {
+	for _, log := range m.loggers {
+		events, lastKey, err := log.SearchUnstructuredEvents(ctx, req)
+		if !trace.IsNotImplemented(err) {
+			return events, lastKey, err
+		}
+	}
+	return events, lastKey, err
+}
+
 func (m *MultiLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	var foundImplemented bool
 	var pos int

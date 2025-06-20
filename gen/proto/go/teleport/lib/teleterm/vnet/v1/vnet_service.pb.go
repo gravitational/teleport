@@ -248,27 +248,27 @@ func (*StopResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{3}
 }
 
-// Request for ListDNSZones.
-type ListDNSZonesRequest struct {
+// Request for GetServiceInfo.
+type GetServiceInfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListDNSZonesRequest) Reset() {
-	*x = ListDNSZonesRequest{}
+func (x *GetServiceInfoRequest) Reset() {
+	*x = GetServiceInfoRequest{}
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListDNSZonesRequest) String() string {
+func (x *GetServiceInfoRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListDNSZonesRequest) ProtoMessage() {}
+func (*GetServiceInfoRequest) ProtoMessage() {}
 
-func (x *ListDNSZonesRequest) ProtoReflect() protoreflect.Message {
+func (x *GetServiceInfoRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -280,34 +280,40 @@ func (x *ListDNSZonesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDNSZonesRequest.ProtoReflect.Descriptor instead.
-func (*ListDNSZonesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetServiceInfoRequest.ProtoReflect.Descriptor instead.
+func (*GetServiceInfoRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{4}
 }
 
-// Response for ListDNSZones.
-type ListDNSZonesResponse struct {
+// GetServiceInfoResponse contains the status of the running VNet service.
+type GetServiceInfoResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// dns_zones is a deduplicated list of DNS zones.
-	DnsZones      []string `protobuf:"bytes,1,rep,name=dns_zones,json=dnsZones,proto3" json:"dns_zones,omitempty"`
+	// app_dns_zones is a deduplicated list of all DNS zones valid as DNS
+	// suffixes for connections to TCP apps.
+	AppDnsZones []string `protobuf:"bytes,1,rep,name=app_dns_zones,json=appDnsZones,proto3" json:"app_dns_zones,omitempty"`
+	// clusters is a list of cluster names valid as DNS suffixes for SSH hosts.
+	Clusters []string `protobuf:"bytes,2,rep,name=clusters,proto3" json:"clusters,omitempty"`
+	// ssh_configured is true if the user's SSH config file includes VNet's
+	// generated SSH config necessary for SSH access.
+	SshConfigured bool `protobuf:"varint,3,opt,name=ssh_configured,json=sshConfigured,proto3" json:"ssh_configured,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListDNSZonesResponse) Reset() {
-	*x = ListDNSZonesResponse{}
+func (x *GetServiceInfoResponse) Reset() {
+	*x = GetServiceInfoResponse{}
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListDNSZonesResponse) String() string {
+func (x *GetServiceInfoResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListDNSZonesResponse) ProtoMessage() {}
+func (*GetServiceInfoResponse) ProtoMessage() {}
 
-func (x *ListDNSZonesResponse) ProtoReflect() protoreflect.Message {
+func (x *GetServiceInfoResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -319,16 +325,30 @@ func (x *ListDNSZonesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDNSZonesResponse.ProtoReflect.Descriptor instead.
-func (*ListDNSZonesResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetServiceInfoResponse.ProtoReflect.Descriptor instead.
+func (*GetServiceInfoResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ListDNSZonesResponse) GetDnsZones() []string {
+func (x *GetServiceInfoResponse) GetAppDnsZones() []string {
 	if x != nil {
-		return x.DnsZones
+		return x.AppDnsZones
 	}
 	return nil
+}
+
+func (x *GetServiceInfoResponse) GetClusters() []string {
+	if x != nil {
+		return x.Clusters
+	}
+	return nil
+}
+
+func (x *GetServiceInfoResponse) GetSshConfigured() bool {
+	if x != nil {
+		return x.SshConfigured
+	}
+	return false
 }
 
 // Request for GetBackgroundItemStatus.
@@ -503,10 +523,12 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\fStartRequest\"\x0f\n" +
 	"\rStartResponse\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse\"\x15\n" +
-	"\x13ListDNSZonesRequest\"3\n" +
-	"\x14ListDNSZonesResponse\x12\x1b\n" +
-	"\tdns_zones\x18\x01 \x03(\tR\bdnsZones\" \n" +
+	"\fStopResponse\"\x17\n" +
+	"\x15GetServiceInfoRequest\"\x7f\n" +
+	"\x16GetServiceInfoResponse\x12\"\n" +
+	"\rapp_dns_zones\x18\x01 \x03(\tR\vappDnsZones\x12\x1a\n" +
+	"\bclusters\x18\x02 \x03(\tR\bclusters\x12%\n" +
+	"\x0essh_configured\x18\x03 \x01(\bR\rsshConfigured\" \n" +
 	"\x1eGetBackgroundItemStatusRequest\"n\n" +
 	"\x1fGetBackgroundItemStatusResponse\x12K\n" +
 	"\x06status\x18\x01 \x01(\x0e23.teleport.lib.teleterm.vnet.v1.BackgroundItemStatusR\x06status\"\x17\n" +
@@ -519,11 +541,11 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\x1eBACKGROUND_ITEM_STATUS_ENABLED\x10\x02\x12,\n" +
 	"(BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL\x10\x03\x12$\n" +
 	" BACKGROUND_ITEM_STATUS_NOT_FOUND\x10\x04\x12(\n" +
-	"$BACKGROUND_ITEM_STATUS_NOT_SUPPORTED\x10\x052\xe5\x04\n" +
+	"$BACKGROUND_ITEM_STATUS_NOT_SUPPORTED\x10\x052\xeb\x04\n" +
 	"\vVnetService\x12b\n" +
 	"\x05Start\x12+.teleport.lib.teleterm.vnet.v1.StartRequest\x1a,.teleport.lib.teleterm.vnet.v1.StartResponse\x12_\n" +
-	"\x04Stop\x12*.teleport.lib.teleterm.vnet.v1.StopRequest\x1a+.teleport.lib.teleterm.vnet.v1.StopResponse\x12w\n" +
-	"\fListDNSZones\x122.teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest\x1a3.teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse\x12\x98\x01\n" +
+	"\x04Stop\x12*.teleport.lib.teleterm.vnet.v1.StopRequest\x1a+.teleport.lib.teleterm.vnet.v1.StopResponse\x12}\n" +
+	"\x0eGetServiceInfo\x124.teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest\x1a5.teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse\x12\x98\x01\n" +
 	"\x17GetBackgroundItemStatus\x12=.teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest\x1a>.teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse\x12}\n" +
 	"\x0eRunDiagnostics\x124.teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest\x1a5.teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponseBUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
 
@@ -547,8 +569,8 @@ var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_goTypes = []any{
 	(*StartResponse)(nil),                   // 2: teleport.lib.teleterm.vnet.v1.StartResponse
 	(*StopRequest)(nil),                     // 3: teleport.lib.teleterm.vnet.v1.StopRequest
 	(*StopResponse)(nil),                    // 4: teleport.lib.teleterm.vnet.v1.StopResponse
-	(*ListDNSZonesRequest)(nil),             // 5: teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
-	(*ListDNSZonesResponse)(nil),            // 6: teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+	(*GetServiceInfoRequest)(nil),           // 5: teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
+	(*GetServiceInfoResponse)(nil),          // 6: teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
 	(*GetBackgroundItemStatusRequest)(nil),  // 7: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
 	(*GetBackgroundItemStatusResponse)(nil), // 8: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
 	(*RunDiagnosticsRequest)(nil),           // 9: teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
@@ -560,12 +582,12 @@ var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_depIdxs = []int32{
 	11, // 1: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
 	1,  // 2: teleport.lib.teleterm.vnet.v1.VnetService.Start:input_type -> teleport.lib.teleterm.vnet.v1.StartRequest
 	3,  // 3: teleport.lib.teleterm.vnet.v1.VnetService.Stop:input_type -> teleport.lib.teleterm.vnet.v1.StopRequest
-	5,  // 4: teleport.lib.teleterm.vnet.v1.VnetService.ListDNSZones:input_type -> teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+	5,  // 4: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:input_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
 	7,  // 5: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:input_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
 	9,  // 6: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:input_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
 	2,  // 7: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
 	4,  // 8: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
-	6,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.ListDNSZones:output_type -> teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+	6,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
 	8,  // 10: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
 	10, // 11: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
 	7,  // [7:12] is the sub-list for method output_type

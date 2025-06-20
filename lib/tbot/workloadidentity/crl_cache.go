@@ -69,8 +69,9 @@ func (b *CRLSet) Stale() <-chan struct{} {
 // CRLCache streams CRLs from the revocations service and caches them. It
 // provides a mechanism to inform consumers when a new CRL is available.
 type CRLCache struct {
-	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
-	logger            *slog.Logger
+	revocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	logger             *slog.Logger
+	botIdentityReadyCh <-chan struct{}
 
 	mu     sync.Mutex
 	crlSet *CRLSet
@@ -80,8 +81,9 @@ type CRLCache struct {
 
 // CRLCacheConfig is the configuration for a CRLCache.
 type CRLCacheConfig struct {
-	RevocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
-	Logger            *slog.Logger
+	RevocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	Logger             *slog.Logger
+	BotIdentityReadyCh <-chan struct{}
 }
 
 // NewCRLCache creates a new CRLCache.
@@ -93,9 +95,10 @@ func NewCRLCache(cfg CRLCacheConfig) (*CRLCache, error) {
 		return nil, trace.BadParameter("missing Logger")
 	}
 	return &CRLCache{
-		revocationsClient: cfg.RevocationsClient,
-		logger:            cfg.Logger,
-		initialized:       make(chan struct{}),
+		revocationsClient:  cfg.RevocationsClient,
+		logger:             cfg.Logger,
+		botIdentityReadyCh: cfg.BotIdentityReadyCh,
+		initialized:        make(chan struct{}),
 	}, nil
 }
 
@@ -106,6 +109,19 @@ func (m *CRLCache) String() string {
 }
 
 func (m *CRLCache) Run(ctx context.Context) error {
+	if m.botIdentityReadyCh != nil {
+		select {
+		case <-m.botIdentityReadyCh:
+		default:
+			m.logger.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-m.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+
 	for {
 		m.logger.InfoContext(
 			ctx,

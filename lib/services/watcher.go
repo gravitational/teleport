@@ -556,7 +556,7 @@ type DynamicWindowsDesktopWatcherConfig struct {
 // NewDynamicWindowsDesktopWatcher returns a new instance of DynamicWindowsDesktopWatcher.
 func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesktopWatcherConfig) (*GenericWatcher[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop], error) {
 	if cfg.DynamicWindowsDesktopGetter == nil {
-		return nil, trace.BadParameter("KubernetesClusterGetter must be provided")
+		return nil, trace.BadParameter("DynamicWindowsDesktopGetter must be provided")
 	}
 
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]{

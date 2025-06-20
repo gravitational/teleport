@@ -258,6 +258,7 @@ func (s *KubeMockServer) setup() {
 	router.Handle("DELETE /api/{ver}/namespaces/{namespace}/secrets/{name}", s.withWriter(s.deleteSecret))
 
 	router.Handle("POST /apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
+	router.Handle("GET /apis/authorization.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
 
 	for k, crd := range s.crds {
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural, s.withWriter(s.listCRDs(crd)))

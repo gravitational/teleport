@@ -740,30 +740,46 @@ type legacyCheckpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSliceToUnstructured(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
+}
+
+func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]events.EventFields, string, error) {
 	rawEvents, lastKey, err := l.searchEventsRaw(ctx, fromUTC, toUTC, namespace, limit, order, startKey, filter, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	eventArr := make([]apievents.AuditEvent, 0, len(rawEvents))
+	eventArr := make([]events.EventFields, 0, len(rawEvents))
 	for _, rawEvent := range rawEvents {
-		event, err := events.FromEventFields(rawEvent.FieldsMap)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		eventArr = append(eventArr, event)
+		eventArr = append(eventArr, rawEvent.FieldsMap)
 	}
 
 	var toSort sort.Interface
 	switch order {
 	case types.EventOrderAscending:
-		toSort = byTimeAndIndex(eventArr)
+		toSort = events.ByTimeAndIndex(eventArr)
 	case types.EventOrderDescending:
-		toSort = sort.Reverse(byTimeAndIndex(eventArr))
+		toSort = sort.Reverse(events.ByTimeAndIndex(eventArr))
 	default:
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
@@ -778,27 +794,6 @@ func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.Expo
 
 func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
 	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
-}
-
-// ByTimeAndIndex sorts events by time
-// and if there are several session events with the same session by event index.
-type byTimeAndIndex []apievents.AuditEvent
-
-func (f byTimeAndIndex) Len() int {
-	return len(f)
-}
-
-func (f byTimeAndIndex) Less(i, j int) bool {
-	itime := f[i].GetTime()
-	jtime := f[j].GetTime()
-	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
-		return f[i].GetIndex() < f[j].GetIndex()
-	}
-	return itime.Before(jtime)
-}
-
-func (f byTimeAndIndex) Swap(i, j int) {
-	f[i], f[j] = f[j], f[i]
 }
 
 // eventFilterList constructs a string of the form
@@ -1072,7 +1067,15 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		filter.condExpr = expr
 		filter.condParams = params
 	}
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 type searchEventsFilter struct {

@@ -51,8 +51,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -83,7 +83,7 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleCache *workloadidentity.TrustBundleCache
 
 	// client holds the impersonated client for the service
-	client           *authclient.Client
+	client           *apiclient.Client
 	attestor         *workloadattest.Attestor
 	localTrustDomain spiffeid.TrustDomain
 }

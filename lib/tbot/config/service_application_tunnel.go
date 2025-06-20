@@ -59,7 +59,7 @@ func (s *ApplicationTunnelService) Type() string {
 	return ApplicationTunnelServiceType
 }
 
-func (s *ApplicationTunnelService) MarshalYAML() (interface{}, error) {
+func (s *ApplicationTunnelService) MarshalYAML() (any, error) {
 	type raw ApplicationTunnelService
 	return withTypeHeader((*raw)(s), ApplicationTunnelServiceType)
 }

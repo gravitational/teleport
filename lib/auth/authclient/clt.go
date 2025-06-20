@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -354,6 +355,24 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 		return nil, "", trace.Wrap(err)
 	}
 
+	return events, lastKey, nil
+}
+
+// SearchUnstructuredEvents allows searching for audit events with pagination support and returns unstructured events.
+func (c *Client) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	events, lastKey, err := c.APIClient.SearchUnstructuredEvents(
+		ctx,
+		req.From,
+		req.To,
+		apidefaults.Namespace,
+		req.EventTypes,
+		req.Limit,
+		req.Order,
+		req.StartKey,
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	return events, lastKey, nil
 }
 

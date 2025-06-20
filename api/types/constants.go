@@ -658,6 +658,9 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// KindRelayServer is the resource kind for a Relay service heartbeat.
+	KindRelayServer = "relay_server"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -1435,6 +1438,15 @@ var KubernetesResourcesKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+}
+
+// KubernetesResourceSelfSubjectAccessReview is a Kubernetes resource that
+// represents a self-subject access review. This gets injected in the allow section in the roles.
+var KubernetesResourceSelfSubjectAccessReview = KubernetesResource{
+	Kind:     "selfsubjectaccessreviews",
+	Name:     Wildcard,
+	Verbs:    []string{"create"},
+	APIGroup: "authorization.k8s.io",
 }
 
 // KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds

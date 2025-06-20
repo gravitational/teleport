@@ -473,7 +473,6 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	wg, _ := errgroup.WithContext(ctx)
 	wantNames := make([]string, 0, len(clusters))
 	for _, kc := range clusters {
-		kc := kc
 		wg.Go(func() error {
 			err := authSrv.CreateKubernetesCluster(ctx, kc)
 			return trace.Wrap(err)

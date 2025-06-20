@@ -5,7 +5,7 @@ go 1.23.10
 require (
 	github.com/charlievieth/strcase v0.0.5
 	github.com/coreos/go-semver v0.3.1
-	github.com/go-piv/piv-go v1.11.0
+	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.7.0

@@ -283,11 +283,10 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
-		clientApplication:     cfg.fakeClientApp,
-		fqdnResolver:          fqdnResolver,
-		localOSConfigProvider: nil, // OS configuration is not needed in tests.
-		homePath:              cfg.homePath,
-		clock:                 cfg.clock,
+		clientApplication: cfg.fakeClientApp,
+		fqdnResolver:      fqdnResolver,
+		homePath:          cfg.homePath,
+		clock:             cfg.clock,
 	})
 	require.NoError(t, err)
 

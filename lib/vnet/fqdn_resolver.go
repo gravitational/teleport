@@ -146,7 +146,7 @@ func (r *fqdnResolver) clusterClientForAppFQDN(ctx context.Context, profileName,
 			log.ErrorContext(ctx, "Failed to get VNet config, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
-		for _, zone := range clusterConfig.DNSZones {
+		for _, zone := range clusterConfig.appDNSZones() {
 			if isDescendantSubdomain(fqdn, zone) {
 				return clusterClient, nil
 			}

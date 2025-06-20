@@ -24,9 +24,9 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// remoteOSConfigProvider fetches a target OS configuration based on cluster
+// osConfigProvider fetches a target OS configuration based on cluster
 // configuration fetched via the client application process available over gRPC.
-type remoteOSConfigProvider struct {
+type osConfigProvider struct {
 	clt     targetOSConfigGetter
 	tunName string
 	dnsAddr string
@@ -38,12 +38,12 @@ type targetOSConfigGetter interface {
 	GetTargetOSConfiguration(context.Context) (*vnetv1.TargetOSConfiguration, error)
 }
 
-func newRemoteOSConfigProvider(clt targetOSConfigGetter, tunName, ipv6Prefix, dnsAddr string) (*remoteOSConfigProvider, error) {
+func newOSConfigProvider(clt targetOSConfigGetter, tunName, ipv6Prefix, dnsAddr string) (*osConfigProvider, error) {
 	tunIPv6, err := tunIPv6ForPrefix(ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &remoteOSConfigProvider{
+	return &osConfigProvider{
 		clt:     clt,
 		tunName: tunName,
 		dnsAddr: dnsAddr,
@@ -51,7 +51,7 @@ func newRemoteOSConfigProvider(clt targetOSConfigGetter, tunName, ipv6Prefix, dn
 	}, nil
 }
 
-func (p *remoteOSConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error) {
+func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error) {
 	targetOSConfig, err := p.clt.GetTargetOSConfiguration(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration from client application")
@@ -73,7 +73,7 @@ func (p *remoteOSConfigProvider) targetOSConfig(ctx context.Context) (*osConfig,
 	}, nil
 }
 
-func (p *remoteOSConfigProvider) setTunIPv4FromCIDR(cidrRange string) error {
+func (p *osConfigProvider) setTunIPv4FromCIDR(cidrRange string) error {
 	if p.tunIPv4 != "" {
 		return nil
 	}
