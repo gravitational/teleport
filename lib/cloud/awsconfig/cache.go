@@ -96,7 +96,7 @@ func (c *Cache) GetConfig(ctx context.Context, region string, optFns ...OptionsF
 	return cfg, nil
 }
 
-func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
+func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *Options) (aws.Config, error) {
 	if opts.baseCredentials != nil {
 		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
 	}
@@ -133,10 +133,10 @@ func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *options)
 	return cfg, trace.Wrap(err)
 }
 
-func (c *Cache) getConfigForRoleChain(ctx context.Context, cfg aws.Config, opts *options) (aws.Config, error) {
-	for i, r := range opts.assumeRoles {
+func (c *Cache) getConfigForRoleChain(ctx context.Context, cfg aws.Config, opts *Options) (aws.Config, error) {
+	for i, r := range opts.AssumeRoles {
 		// cache credentials by integration and assumed-role chain.
-		cacheKey, err := newCacheKey(opts.integration, opts.assumeRoles[:i+1]...)
+		cacheKey, err := newCacheKey(opts.integration, opts.AssumeRoles[:i+1]...)
 		if err != nil {
 			return aws.Config{}, trace.Wrap(err)
 		}

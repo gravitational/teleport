@@ -54,6 +54,22 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 	return &output, nil
 }
 
+func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) EC2ClientGetter {
+	return func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		var options awsconfig.Options
+		for _, opt := range opts {
+			opt(&options)
+		}
+		var roleARN string
+		if len(options.AssumeRoles) != 0 {
+			roleARN = options.AssumeRoles[len(options.AssumeRoles)-1].RoleARN
+		}
+		return &mockEC2Client{
+			output: m[roleARN],
+		}, nil
+	}
+}
+
 func instanceMatches(inst ec2types.Instance, filters []ec2types.Filter) bool {
 	allMatched := true
 	for _, filter := range filters {
@@ -123,7 +139,6 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 
 func TestEC2Watcher(t *testing.T) {
 	t.Parallel()
-	client := &mockEC2Client{}
 	matchers := []types.AWSMatcher{
 		{
 			Params: &types.InstallerParams{
@@ -151,8 +166,17 @@ func TestEC2Watcher(t *testing.T) {
 			Integration: "my-aws-integration",
 			SSM:         &types.AWSSSM{},
 		},
+		{
+			Params:  &types.InstallerParams{},
+			Types:   []string{"EC2"},
+			Regions: []string{"us-west-2"},
+			Tags:    map[string]utils.Strings{"env": {"dev"}},
+			SSM:     &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleARN: "alternate-role-arn",
+			},
+		},
 	}
-	ctx := context.Background()
 
 	present := ec2types.Instance{
 		InstanceId: aws.String("instance-present"),
@@ -185,6 +209,16 @@ func TestEC2Watcher(t *testing.T) {
 		Tags: []ec2types.Tag{{
 			Key:   aws.String("with-eice"),
 			Value: aws.String("please"),
+		}},
+		State: &ec2types.InstanceState{
+			Name: ec2types.InstanceStateNameRunning,
+		},
+	}
+	altAccountPresent := ec2types.Instance{
+		InstanceId: aws.String("alternate-instance"),
+		Tags: []ec2types.Tag{{
+			Key:   aws.String("env"),
+			Value: aws.String("dev"),
 		}},
 		State: &ec2types.InstanceState{
 			Name: ec2types.InstanceStateNameRunning,
@@ -223,41 +257,80 @@ func TestEC2Watcher(t *testing.T) {
 			},
 		}},
 	}
-	client.output = &output
+	altAccountOutput := ec2.DescribeInstancesOutput{
+		Reservations: []ec2types.Reservation{{
+			Instances: []ec2types.Instance{
+				altAccountPresent,
+				{
+					InstanceId: aws.String("alternate-absent"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("prod"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+		}},
+	}
+	getClient := makeMockClients(map[string]*ec2.DescribeInstancesOutput{
+		"":                   &output,
+		"alternate-role-arn": &altAccountOutput,
+	})
 
 	const noDiscoveryConfig = ""
 	fetchersFn := func() []Fetcher {
-		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
-			return client, nil
-		}, noDiscoveryConfig)
+		fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), matchers, getClient, noDiscoveryConfig)
 		require.NoError(t, err)
 
 		return fetchers
 	}
-	watcher, err := NewEC2Watcher(ctx, fetchersFn, make(<-chan []types.Server))
+	watcher, err := NewEC2Watcher(t.Context(), fetchersFn, make(<-chan []types.Server))
 	require.NoError(t, err)
 
 	go watcher.Run()
 
-	result := <-watcher.InstancesC
-	require.Equal(t, EC2Instances{
-		Region:     "us-west-2",
-		Instances:  []EC2Instance{toEC2Instance(present)},
-		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2)
-	result = <-watcher.InstancesC
-	require.Equal(t, EC2Instances{
-		Region:     "us-west-2",
-		Instances:  []EC2Instance{toEC2Instance(presentOther)},
-		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2)
-	result = <-watcher.InstancesC
-	require.Equal(t, EC2Instances{
-		Region:      "us-west-2",
-		Instances:   []EC2Instance{toEC2Instance(presentForEICE)},
-		Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-		Integration: "my-aws-integration",
-	}, *result.EC2)
+	expectedInstances := []EC2Instances{
+		{
+			Region:     "us-west-2",
+			Instances:  []EC2Instance{toEC2Instance(present)},
+			Parameters: map[string]string{"token": "", "scriptName": ""},
+		},
+		{
+			Region:     "us-west-2",
+			Instances:  []EC2Instance{toEC2Instance(presentOther)},
+			Parameters: map[string]string{"token": "", "scriptName": ""},
+		},
+		{
+			Region:      "us-west-2",
+			Instances:   []EC2Instance{toEC2Instance(presentForEICE)},
+			Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			Integration: "my-aws-integration",
+		},
+		{
+			Region:        "us-west-2",
+			Instances:     []EC2Instance{toEC2Instance(altAccountPresent)},
+			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			AssumeRoleARN: "alternate-role-arn",
+		},
+	}
+
+	for _, instances := range expectedInstances {
+		select {
+		case result := <-watcher.InstancesC:
+			require.NotNil(t, result.EC2)
+			require.Equal(t, instances, *result.EC2)
+		case <-t.Context().Done():
+			require.Fail(t, "context canceled")
+		}
+	}
+
+	select {
+	case inst := <-watcher.InstancesC:
+		require.Fail(t, "unexpected instance: %v", inst)
+	default:
+	}
 }
 
 func TestConvertEC2InstancesToServerInfos(t *testing.T) {

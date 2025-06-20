@@ -67,6 +67,10 @@ type EC2Instances struct {
 	// Integration is the integration used to fetch the Instance and should be used to access it.
 	// Might be empty for instances that didn't use an Integration.
 	Integration string
+	// AssumeRoleARN is the ARN of the role to assume while installing.
+	AssumeRoleARN string
+	// ExternalID is the external ID to use when assuming a role.
+	ExternalID string
 
 	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
@@ -198,10 +202,13 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			// TODO(gavin): support assume_role_arn for ec2.
-			ec2Client, err := getEC2Client(ctx, region,
+			opts := []awsconfig.OptionsFn{
 				awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
-			)
+			}
+			if ar := matcher.AssumeRole; ar != nil {
+				opts = append(opts, awsconfig.WithAssumeRole(ar.RoleARN, ar.ExternalID))
+			}
+			ec2Client, err := getEC2Client(ctx, region, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -242,6 +249,8 @@ type ec2InstanceFetcher struct {
 	Integration         string
 	DiscoveryConfigName string
 	EnrollMode          types.InstallParamEnrollMode
+	AssumeRoleARN       string
+	ExternalID          string
 
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with
@@ -326,7 +335,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		}
 	}
 
-	fetcherConfig := ec2InstanceFetcher{
+	fetcher := ec2InstanceFetcher{
 		EC2:                 cfg.EC2Client,
 		Filters:             tagFilters,
 		Region:              cfg.Region,
@@ -339,7 +348,11 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			instances: map[cachedInstanceKey]struct{}{},
 		},
 	}
-	return &fetcherConfig
+	if ar := cfg.Matcher.AssumeRole; ar != nil {
+		fetcher.AssumeRoleARN = ar.RoleARN
+		fetcher.ExternalID = ar.ExternalID
+	}
+	return &fetcher
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
@@ -441,6 +454,8 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					Parameters:          f.Parameters,
 					Rotation:            rotation,
 					Integration:         f.Integration,
+					AssumeRoleARN:       f.AssumeRoleARN,
+					ExternalID:          f.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					EnrollMode:          f.EnrollMode,
 				}
