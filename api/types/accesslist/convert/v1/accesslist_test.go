@@ -314,8 +314,6 @@ func TestConvAccessList(t *testing.T) {
 							},
 						},
 					},
-					OwnershipRequires:  &accesslistv1.AccessListRequires{},
-					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Grants: &accesslistv1.AccessListGrants{
 						Roles: []string{"role1"},
 					},
@@ -354,8 +352,6 @@ func TestConvAccessList(t *testing.T) {
 							},
 						},
 					},
-					OwnershipRequires:  &accesslistv1.AccessListRequires{},
-					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Grants: &accesslistv1.AccessListGrants{
 						Roles: []string{"role1"},
 					},
