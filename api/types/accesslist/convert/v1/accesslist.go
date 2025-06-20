@@ -259,8 +259,8 @@ func fromCurrentUserAssignmentsProto(assignments *accesslistv1.CurrentUserAssign
 		return nil
 	}
 	return &accesslist.CurrentUserAssignments{
-		OwnershipType:  assignments.OwnershipType,
-		MembershipType: assignments.MembershipType,
+		OwnershipType:  assignments.GetOwnershipType(),
+		MembershipType: assignments.GetMembershipType(),
 	}
 }
 func convertOwnersToProto(owners []accesslist.Owner) []*accesslistv1.AccessListOwner {
