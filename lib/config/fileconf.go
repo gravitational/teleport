@@ -2615,6 +2615,10 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// Automatically locate the LDAP server using DNS SRV records if Domain is set.
+	LocateServer bool `yaml:"locate_server,omitempty"`
+	// Optionally use LDAP site to locate servers from a specific logical site if locate_server is enabled.
+	Site string `yaml:"site,omitempty"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
