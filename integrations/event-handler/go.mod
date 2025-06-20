@@ -147,6 +147,7 @@ require (
 	github.com/go-piv/piv-go v1.11.0 // indirect
 	github.com/go-webauthn/webauthn v0.10.2 // indirect
 	github.com/go-webauthn/x v0.1.9 // indirect
+	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
