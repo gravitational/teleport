@@ -369,6 +369,8 @@ type fakeClientApp struct {
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
+
+	forwardedAgents *forwardedAgents
 }
 
 type fakeClientAppConfig struct {
@@ -392,13 +394,16 @@ func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfi
 	teleportUserCA, err := ssh.NewSignerFromSigner(teleportUserCAKey)
 	require.NoError(t, err)
 
+	forwardedAgents := &forwardedAgents{}
+
 	tlsCA := newSelfSignedCA(t)
 	dialOpts := mustStartFakeWebProxy(ctx, t, fakeWebProxyConfig{
-		tlsCA:  tlsCA,
-		hostCA: teleportHostCA,
-		userCA: teleportUserCA,
-		clock:  cfg.clock,
-		suite:  cfg.signatureAlgorithmSuite,
+		tlsCA:           tlsCA,
+		hostCA:          teleportHostCA,
+		userCA:          teleportUserCA,
+		clock:           cfg.clock,
+		suite:           cfg.signatureAlgorithmSuite,
+		forwardedAgents: forwardedAgents,
 	})
 
 	return &fakeClientApp{
@@ -408,6 +413,7 @@ func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfi
 		teleportHostCA:       teleportHostCA,
 		teleportUserCA:       teleportUserCA,
 		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
+		forwardedAgents:      forwardedAgents,
 	}
 }
 
@@ -572,6 +578,7 @@ func (p *fakeClientApp) dialSSHNode(
 	target dialTarget,
 	tlsConfig *tls.Config,
 	dialOpts *vnetv1.DialOptions,
+	agent *sshAgent,
 ) (net.Conn, error) {
 	targetCluster, ok := p.cfg.clusters[target.profile]
 	if !ok {
@@ -586,6 +593,12 @@ func (p *fakeClientApp) dialSSHNode(
 	if _, ok := targetCluster.nodes[target.hostname]; !ok {
 		return nil, trace.NotFound("no such host")
 	}
+	// In this test suite all SSH dials go to a single faked web proxy expecting
+	// the ALPN protocol alpncomm.ProtocolProxySSH for SSH dials. It doesn't
+	// run the real transport service that handles SSH agent forwarding over
+	// gRPC, but the test shares the forwarded agent with the fake proxy via
+	// the forwardedAgents collection.
+	p.forwardedAgents.add(agent)
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	return tls.Dial("tcp", dialOpts.GetWebProxyAddr(), tlsConfig)
 }
@@ -1597,11 +1610,12 @@ func newLeafCert(
 }
 
 type fakeWebProxyConfig struct {
-	tlsCA  tls.Certificate
-	hostCA ssh.Signer
-	userCA ssh.Signer
-	clock  clockwork.Clock
-	suite  types.SignatureAlgorithmSuite
+	tlsCA           tls.Certificate
+	hostCA          ssh.Signer
+	userCA          ssh.Signer
+	clock           clockwork.Clock
+	suite           types.SignatureAlgorithmSuite
+	forwardedAgents *forwardedAgents
 }
 
 func mustStartFakeWebProxy(
@@ -1664,6 +1678,13 @@ func mustStartFakeWebProxy(
 			PublicKeyCallback: func(conn ssh.ConnMetadata, pubKey ssh.PublicKey) (*ssh.Permissions, error) {
 				if conn.User() == "denyuser" {
 					return nil, trace.AccessDenied("access denied for denyuser")
+				}
+				// The test suite doesn't implement real "proxy recording mode"
+				// or SSH agent forwarding, but at least test here that the
+				// user key used to make this connection was forwarded so that
+				// the real SSH forwarding proxy would have access to it.
+				if !cfg.forwardedAgents.forwarded(pubKey) {
+					return nil, trace.Errorf("user SSH key was not forwarded")
 				}
 				return certChecker.Authenticate(conn, pubKey)
 			},
@@ -1749,4 +1770,36 @@ func mustStartFakeWebProxy(
 		Sni:                   proxyCN,
 	}
 	return dialOpts
+}
+
+// forwardedAgents is a crude way of tracking all the forwarded SSH agents and
+// checking if any of them forward a specific SSH key.
+type forwardedAgents struct {
+	mu     sync.Mutex
+	agents []*sshAgent
+}
+
+func (a *forwardedAgents) add(agent *sshAgent) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.agents = append(a.agents, agent)
+}
+
+func (a *forwardedAgents) forwarded(key ssh.PublicKey) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	blob := key.Marshal()
+	for _, agent := range a.agents {
+		agentKeys, err := agent.List()
+		if err != nil {
+			// sshAgent.List never returns an error.
+			continue
+		}
+		for _, agentKey := range agentKeys {
+			if slices.Equal(agentKey.Blob, blob) {
+				return true
+			}
+		}
+	}
+	return false
 }
