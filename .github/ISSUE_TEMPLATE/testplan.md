@@ -216,8 +216,8 @@ Test agent had been forwarded by running `ssh-add -L` and check that your telepo
   - [ ] `tsh ssh <node-remote-cluster> ls`
   - [ ] `tsh ssh <agentless-node> ls`
   - [ ] `tsh ssh <agentless-node-remote-cluster> ls`
-  - [ ] `tsh join <regular-node>`
-  - [ ] `tsh join <node-remote-cluster>`
+  - [ ] `tsh join <regular-node-session-id>`
+  - [ ] `tsh join <node-remote-cluster-session-id>`
 
 For `tsh play`, ensure the role you assume on the leaf cluster has `read` and `list` for the `session` resource. Example allow rule:
 ```yaml
@@ -231,8 +231,8 @@ spec:
       - list
 ```
 
-  - [ ] `tsh play <regular-node>`
-  - [ ] `tsh play <node-remote-cluster>`
+  - [ ] `tsh play <regular-node-session-id>`
+  - [ ] `tsh play <node-remote-cluster-session-id>`
   - [ ] `tsh play <agentless-node>`
   - [ ] `tsh play <agentless-node-remote-cluster>`
   - [ ] `tsh scp <regular-node>`
