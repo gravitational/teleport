@@ -12,6 +12,7 @@ require (
 	github.com/hashicorp/terraform-plugin-testing v1.13.1
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.10.0
+	k8s.io/api v0.33.1
 	k8s.io/client-go v0.33.1
 )
 
@@ -516,7 +517,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v3 v3.18.2 // indirect
-	k8s.io/api v0.33.1 // indirect
 	k8s.io/apiextensions-apiserver v0.33.1 // indirect
 	k8s.io/apimachinery v0.33.1 // indirect
 	k8s.io/apiserver v0.33.1 // indirect
