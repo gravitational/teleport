@@ -73,7 +73,10 @@ import (
 	_ "github.com/ghodss/yaml"
 	_ "github.com/go-jose/go-jose/v3"
 	_ "github.com/go-jose/go-jose/v3/json"
+
+	// TODO(Joerger): Remove once /e uses v2
 	_ "github.com/go-piv/piv-go/piv"
+	_ "github.com/go-piv/piv-go/v2/piv"
 	_ "github.com/gogo/protobuf/proto"
 	_ "github.com/golang-jwt/jwt/v5"
 	_ "github.com/google/go-attestation/attest"
