@@ -112,7 +112,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	// page size equal to total items
 	results, nextPageToken, err := p.cache.ListBotInstances(ctx, "", 0, "", "")
 	require.NoError(t, err)
-	require.Equal(t, "", nextPageToken)
+	require.Empty(t, nextPageToken)
 	require.Len(t, results, 5)
 	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-2", results[1].GetMetadata().GetName())
@@ -132,7 +132,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	// next page
 	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, nextPageToken, "")
 	require.NoError(t, err)
-	require.Equal(t, "", nextPageToken)
+	require.Empty(t, nextPageToken)
 	require.Len(t, results, 2)
 	require.Equal(t, "instance-4", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-5", results[1].GetMetadata().GetName())
