@@ -198,10 +198,7 @@ func setupKubernetesAccessBot(
 	joinJWTPath := filepath.Join(t.TempDir(), "join")
 	err = os.WriteFile(joinJWTPath, []byte(joinJWT), 0666)
 	require.NoError(t, err)
-	require.NoError(t, os.Setenv("KUBERNETES_TOKEN_PATH", joinJWTPath))
-	t.Cleanup(func() {
-		require.NoError(t, os.Unsetenv("KUBERNETES_TOKEN_PATH"))
-	})
+	t.Setenv("KUBERNETES_TOKEN_PATH", joinJWTPath)
 
 	return bot, pt
 }
