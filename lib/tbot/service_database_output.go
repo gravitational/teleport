@@ -101,12 +101,12 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	}
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Logger:          s.log,
-	})
+	identityOpts := []identity.GenerateOption{
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
@@ -130,14 +130,10 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	routedIdentity, err := s.identityGenerator.Generate(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		CurrentIdentity: id.Get(),
-		Logger:          s.log,
-		Options:         []identity.GenerateOption{identity.WithRouteToDatabase(route)},
-	})
+	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
+		identity.WithCurrentIdentityFacade(id),
+		identity.WithRouteToDatabase(route),
+	)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

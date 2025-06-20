@@ -115,13 +115,13 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	}
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Options:         []identity.GenerateOption{identity.WithReissuableRoleImpersonation(s.cfg.AllowReissue)},
-		Logger:          s.log,
-	})
+	identityOpts := []identity.GenerateOption{
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithReissuableRoleImpersonation(s.cfg.AllowReissue),
+		identity.WithLogger(s.log),
+	}
+	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
@@ -134,17 +134,10 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	defer impersonatedClient.Close()
 
 	if s.cfg.Cluster != "" {
-		id, err = s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-			Roles:           s.cfg.Roles,
-			TTL:             effectiveLifetime.TTL,
-			RenewalInterval: effectiveLifetime.RenewalInterval,
-			CurrentIdentity: id.Get(),
-			Logger:          s.log,
-			Options: []identity.GenerateOption{
-				identity.WithRouteToCluster(s.cfg.Cluster),
-				identity.WithReissuableRoleImpersonation(s.cfg.AllowReissue),
-			},
-		})
+		id, err = s.identityGenerator.GenerateFacade(ctx, append(identityOpts,
+			identity.WithCurrentIdentityFacade(id),
+			identity.WithRouteToCluster(s.cfg.Cluster),
+		)...)
 		if err != nil {
 			return trace.Wrap(err)
 		}

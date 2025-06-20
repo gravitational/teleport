@@ -105,12 +105,11 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	}
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Logger:          s.log,
-	})
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}

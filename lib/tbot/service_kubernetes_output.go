@@ -120,11 +120,13 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	id, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		Roles:  s.cfg.Roles,
-		TTL:    cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		Logger: s.log,
-	})
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	identityOpts := []identity.GenerateOption{
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
@@ -146,15 +148,10 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	// and will fail to generate certs if the cluster doesn't exist or is
 	// offline.
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	routedIdentity, err := s.identityGenerator.Generate(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		CurrentIdentity: id.Get(),
-		Options:         []identity.GenerateOption{identity.WithKubernetesCluster(kubeClusterName)},
-		Logger:          s.log,
-	})
+	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
+		identity.WithCurrentIdentityFacade(id),
+		identity.WithKubernetesCluster(kubeClusterName),
+	)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -85,11 +85,10 @@ func (s *ClientCredentialOutputService) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	id, err := s.identityGenerator.Generate(ctx, identity.GenerateParams{
-		TTL:             s.botCfg.CredentialLifetime.TTL,
-		RenewalInterval: s.botCfg.CredentialLifetime.RenewalInterval,
-		Logger:          s.log,
-	})
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.botCfg.CredentialLifetime.TTL, s.botCfg.CredentialLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
