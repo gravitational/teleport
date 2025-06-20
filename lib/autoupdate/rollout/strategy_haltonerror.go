@@ -222,7 +222,6 @@ func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.
 	}
 
 	// TODO: remove this part and call the canary logic instead
-
 	group.CanaryCount = canaryCount
 	h.log.DebugContext(ctx, "Picking canaries", "group", group.Name, "want", canaryCount)
 	var err error

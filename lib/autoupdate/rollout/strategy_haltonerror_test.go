@@ -843,10 +843,9 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 			canarySamples: []callAnswer[[]*autoupdate.Canary]{{}},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
 				{
-					Name:  group1Name,
-					State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
-					// TODO: do we count canaries as starting?
-					// StartTime:        timestamppb.New(clock.Now()),
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
+					StartTime:        timestamppb.New(clock.Now()),
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonCanStart,
 					ConfigDays:       canStartToday,
