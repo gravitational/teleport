@@ -194,10 +194,25 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	if !verbose {
 		// return the (shorter) discovered name in non-verbose mode.
-		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+		discoveredName, ok := GetDiscoveredResourceName(r)
 		if ok && discoveredName != "" {
 			return discoveredName
 		}
 	}
 	return r.GetName()
+}
+
+// GetDiscoveredResourceName returns the resource original name discovered in
+// the cloud by the Teleport Discovery Service.
+func GetDiscoveredResourceName(r types.ResourceWithLabels) (discoveredName string, ok bool) {
+	discoveredName, ok = r.GetAllLabels()[types.DiscoveredNameLabel]
+	return
+}
+
+// SetDiscoveredResourceName sets the original name discovered in the cloud by
+// the Teleport Discovery Service.
+func SetDiscoveredResourceName(r types.ResourceWithLabels, discoveredName string) {
+	labels := r.GetStaticLabels()
+	labels[types.DiscoveredNameLabel] = discoveredName
+	r.SetStaticLabels(labels)
 }

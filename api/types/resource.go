@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"iter"
 	"regexp"
 	"slices"
 	"sort"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 )
 
 var (
@@ -82,6 +84,12 @@ func IsSystemResource(r Resource) bool {
 // of resources or building maps, etc.
 func GetName[R Resource](r R) string {
 	return r.GetName()
+}
+
+// ResourceNames creates an iterator that loops through the provided slice of
+// resources and return their names.
+func ResourceNames[R Resource, S ~[]R](s S) iter.Seq[string] {
+	return iterutils.Map(GetName, slices.Values(s))
 }
 
 // ResourceDetails includes details about the resource
