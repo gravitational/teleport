@@ -16,8 +16,9 @@ package main
 
 import (
 	"context"
-	"log"
+	"flag"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,33 +30,103 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 )
 
+const twoWeeks = 14 * 24 * time.Hour
+
 func main() {
 	ctx := context.Background()
 
 	if err := do(ctx); err != nil {
-		log.Fatalf("failed to run: %v", err)
+		slog.ErrorContext(ctx, "failed to run", "error", err)
 	}
 }
 
-func buildRequest() (*SyncRequest, error) {
+func fromStringFlag(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func parseRequest() (*SyncRequest, error) {
+	flag.Usage = func() {
+		flag.CommandLine.Output().Write([]byte(`Usage of sync:
+Create an Access List which allows users from an Entra ID Group to access EKS Clusters in a given AWS Account.
+
+You can provide the Entra ID Group using one of:
+- the Teleport's Access List ID as seen in Teleport
+- the Entra Group Object ID as seen in Azure/Entra
+- the Entra Group Name
+
+Ensure you have valid Teleport credentials (eg, tsh login) before running this command.
+The following Teleport RBAC rules are required:
+    - resources:
+      - access_list
+      verbs:
+      - read
+      - list
+      - create
+      - update
+
+Full list of arguments:
+`))
+		flag.PrintDefaults()
+	}
+
+	awsAccountID := flag.String(
+		"aws-account-id",
+		os.Getenv("AWS_ACCOUNT_ID"),
+		"AWS Account ID to allow access to (required).",
+	)
+
+	teleportEntraGroupAccessListID := flag.String(
+		"group-by-teleport-id",
+		os.Getenv("GROUP_BY_TELEPORT_ID"),
+		"Teleport's ID for the Access List.",
+	)
+
+	microsoftEntraGroupObjectID := flag.String(
+		"group-by-entra-object-id",
+		os.Getenv("GROUP_BY_ENTRA_OBJECT_ID"),
+		"Microsoft Entra Group Object ID.",
+	)
+
+	microsoftEntraGroupName := flag.String(
+		"group-by-name",
+		os.Getenv("GROUP_BY_ENTRA_NAME"),
+		"Teleport Teleport Entra Group Access List ID as synced into Teleport",
+	)
+
+	flag.Parse()
+
+	if fromStringFlag(awsAccountID) == "" {
+		return nil, trace.BadParameter("aws-account-id is required")
+	}
+
+	if fromStringFlag(teleportEntraGroupAccessListID) == "" &&
+		fromStringFlag(microsoftEntraGroupObjectID) == "" &&
+		fromStringFlag(microsoftEntraGroupName) == "" {
+		return nil, trace.BadParameter("at least one of group-by-teleport-id, group-by-entra-object-id, or group-by-name is required")
+	}
+
 	// Here you would typically use a flag package to parse command line arguments
 	// For simplicity, we are returning a hardcoded request
 	return &SyncRequest{
 		RoleForEKSAccessWithTrait: "eks-access",
 
-		AWSAccountID: "123456789012",
+		AWSAccountID: fromStringFlag(awsAccountID),
 
-		EntraTeam: "de24889e-2cea-4ac5-b43a-5d86ce394816", // replace with your Entra Team ID
+		TeleportEntraGroupAccessListID: fromStringFlag(teleportEntraGroupAccessListID),
+		MicrosoftEntraGroupObjectID:    fromStringFlag(microsoftEntraGroupObjectID),
+		MicrosoftEntraGroupName:        fromStringFlag(microsoftEntraGroupName),
 
-		AccessListUniqueID:  "eks-access-123456789012",
-		AccessListTitle:     "EKS Access for 123456789012",
-		AccessListOwnerUser: "system",
+		AccessListUniqueID: "eks-access-" + fromStringFlag(awsAccountID),
+		AccessListTitle:    "EKS Access for account id " + fromStringFlag(awsAccountID),
 	}, nil
 }
 
 func do(ctx context.Context) error {
 	// Load request from flags or environment variables.
-	request, err := buildRequest()
+	request, err := parseRequest()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,29 +183,28 @@ func do(ctx context.Context) error {
 	slog.InfoContext(ctx, "Using Access List",
 		"access_list_name", accessList.GetName(),
 		"access_list_title", accessList.Spec.Title,
-		"account_id", request.AWSAccountID,
 	)
 
-	entraTeam, err := guessAccessListIDFromEntraTeamID(ctx, clt, request)
+	entraGroup, err := guessAccessListIDFromEntraGroupID(ctx, clt, request)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Entra Team ID found",
-		"teleport_access_list_name", entraTeam,
-		"entra_team_name", request.MicrosoftEntraTeamName,
-		"entra_team_object_id", request.MicrosoftEntraTeamObjectID,
+	slog.InfoContext(ctx, "Entra Group ID found",
+		"teleport_access_list_name", entraGroup,
+		"entra_group_name", request.MicrosoftEntraGroupName,
+		"entra_group_object_id", request.MicrosoftEntraGroupObjectID,
 	)
 
-	// Add a Entra Team as member to the Access List.
-	err = upsertEntraTeamMemberToAccessList(ctx, clt, accessList, entraTeam)
+	// Add a Entra Group as member to the Access List.
+	err = upsertEntraGroupMemberToAccessList(ctx, clt, accessList, entraGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Entra Team ID added as a group member",
+	slog.InfoContext(ctx, "Entra Group ID added as a group member",
 		"access_list", accessList.GetName(),
-		"member_group_name", entraTeam,
+		"member_group_name", entraGroup,
 	)
 
 	return nil
@@ -143,18 +213,16 @@ func do(ctx context.Context) error {
 type SyncRequest struct {
 	AWSAccountID string
 
-	// Microsoft Entra Team can be referenced by one of the following, ordered by preference and priority.
-	// 1. Teleport's Access List name that corresponds to the Entra Team as synced into Teleport.
-	TeleportEntraTeamAccessListID string
-	// 2. Microsoft Entra Team Object ID.
-	MicrosoftEntraTeamObjectID string
-	// 3. Microsoft Entra Team Display Name.
-	MicrosoftEntraTeamName string
+	// Microsoft Entra Group can be referenced by one of the following, ordered by preference and priority.
+	// 1. Teleport's Access List name that corresponds to the Entra Group as synced into Teleport.
+	TeleportEntraGroupAccessListID string
+	// 2. Microsoft Entra Group Object ID.
+	MicrosoftEntraGroupObjectID string
+	// 3. Microsoft Entra Group Display Name.
+	MicrosoftEntraGroupName string
 
 	AccessListUniqueID        string
 	AccessListTitle           string
-	AccessListNextAuditDate   time.Time
-	AccessListOwnerUser       string
 	RoleForEKSAccessWithTrait string
 }
 
@@ -223,11 +291,8 @@ func ensureAccessList(ctx context.Context, clt *client.Client, request *SyncRequ
 		return existingAccessList, trace.Wrap(err)
 	}
 
-	const twoWeeks = 14 * 24 * time.Hour
-	nextAuditDate := request.AccessListNextAuditDate
-	if nextAuditDate.IsZero() {
-		nextAuditDate = time.Now().Add(twoWeeks)
-	}
+	const listOwnerSystem = "system"
+
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: request.AccessListUniqueID,
@@ -235,9 +300,9 @@ func ensureAccessList(ctx context.Context, clt *client.Client, request *SyncRequ
 		accesslist.Spec{
 			Title:       request.AccessListTitle,
 			Description: "Access auto discovered EKS Clusters in aws:" + request.AWSAccountID,
-			Owners:      []accesslist.Owner{{Name: request.AccessListOwnerUser, MembershipKind: accesslist.MembershipKindUser}},
+			Owners:      []accesslist.Owner{{Name: listOwnerSystem, MembershipKind: accesslist.MembershipKindUser}},
 			Audit: accesslist.Audit{
-				NextAuditDate: nextAuditDate,
+				NextAuditDate: time.Now().Add(twoWeeks),
 			},
 			Grants: accesslist.Grants{
 				Roles: []string{request.RoleForEKSAccessWithTrait},
@@ -259,16 +324,16 @@ func ensureAccessList(ctx context.Context, clt *client.Client, request *SyncRequ
 	return createdAccessList, nil
 }
 
-func upsertEntraTeamMemberToAccessList(ctx context.Context, clt *client.Client, accessList *accesslist.AccessList, entraTeam string) error {
+func upsertEntraGroupMemberToAccessList(ctx context.Context, clt *client.Client, accessList *accesslist.AccessList, entraGroup string) error {
 	member, err := accesslist.NewAccessListMember(
 		header.Metadata{
-			Name: entraTeam,
+			Name: entraGroup,
 		},
 		accesslist.AccessListMemberSpec{
 			AccessList:     accessList.GetName(),
-			Name:           entraTeam,
+			Name:           entraGroup,
 			Joined:         time.Now().UTC(),
-			Expires:        time.Now().UTC().Add(14 * 24 * time.Hour), // Two weeks from now.
+			Expires:        time.Now().UTC().Add(twoWeeks),
 			MembershipKind: accesslist.MembershipKindList,
 			AddedBy:        "system",
 		},
@@ -281,13 +346,13 @@ func upsertEntraTeamMemberToAccessList(ctx context.Context, clt *client.Client, 
 	return trace.Wrap(err)
 }
 
-// guessAccessListIDFromEntraTeamID iterates through the Access Lists
-// and tries to find the one that matches the Entra Team ID.
-// This ID might be the Teleport's Access List name or the Microsoft Entra Team Object ID.
-// The function returns the Teleport's Access List name that corresponds to the Entra Team ID.
-func guessAccessListIDFromEntraTeamID(ctx context.Context, clt *client.Client, request *SyncRequest) (string, error) {
-	if request.TeleportEntraTeamAccessListID != "" {
-		return request.TeleportEntraTeamAccessListID, nil
+// guessAccessListIDFromEntraGroupID iterates through the Access Lists
+// and tries to find the one that matches the Entra Group ID.
+// This ID might be the Teleport's Access List name or the Microsoft Entra Group Object ID.
+// The function returns the Teleport's Access List name that corresponds to the Entra Group ID.
+func guessAccessListIDFromEntraGroupID(ctx context.Context, clt *client.Client, request *SyncRequest) (string, error) {
+	if request.TeleportEntraGroupAccessListID != "" {
+		return request.TeleportEntraGroupAccessListID, nil
 	}
 
 	nextToken := ""
@@ -307,15 +372,15 @@ func guessAccessListIDFromEntraTeamID(ctx context.Context, clt *client.Client, r
 			}
 
 			// Use Microsoft ObjectID if provided.
-			if request.MicrosoftEntraTeamObjectID != "" {
-				if accessListLabels[types.EntraUniqueIDLabel] != request.MicrosoftEntraTeamObjectID {
+			if request.MicrosoftEntraGroupObjectID != "" {
+				if accessListLabels[types.EntraUniqueIDLabel] != request.MicrosoftEntraGroupObjectID {
 					continue
 				}
 				return accessList.GetName(), nil
 			}
 
-			// Otherwise, use the Team Group's Display Name.
-			if request.MicrosoftEntraTeamName != "" && accessListLabels[types.EntraDisplayNameLabel] == request.MicrosoftEntraTeamName {
+			// Otherwise, use the Group's Display Name.
+			if request.MicrosoftEntraGroupName != "" && accessListLabels[types.EntraDisplayNameLabel] == request.MicrosoftEntraGroupName {
 				return accessList.GetName(), nil
 			}
 		}
@@ -325,5 +390,5 @@ func guessAccessListIDFromEntraTeamID(ctx context.Context, clt *client.Client, r
 		nextToken = respNextToken
 	}
 
-	return "", trace.NotFound("no Access List found for Entra Team ID: %s", request.MicrosoftEntraTeamObjectID)
+	return "", trace.NotFound("no Access List found for Entra Group ID: %s", request.MicrosoftEntraGroupObjectID)
 }
