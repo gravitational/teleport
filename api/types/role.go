@@ -464,7 +464,12 @@ func (r *RoleV6) SetKubeGroups(rct RoleConditionType, groups []string) {
 // access to.
 func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 	if rct == Allow {
-		return r.convertAllowKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.KubernetesResources)
+		out := r.convertAllowKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.KubernetesResources)
+		// We need to support `kubectl auth can-i` as we prompt the user to use this when they get an access denied error.
+		// Inject a selfsubjectaccessreviews resource to allow for it. It can still be explicitly denied by the role if
+		// set in the `deny` section.
+		out = append(out, KubernetesResourceSelfSubjectAccessReview)
+		return out
 	}
 	return r.convertKubernetesResourcesBetweenRoleVersions(r.Spec.Deny.KubernetesResources)
 }

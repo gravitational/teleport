@@ -537,6 +537,10 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			tt.assertAccess(t, err)
 			sortKubeResourceSlice(gotAllowed)
 			sortKubeResourceSlice(gotDenied)
+			// The selfsubjectaccessrewview gets injected everywhere.
+			tt.wantAllowed = append(tt.wantAllowed, types.KubernetesResourceSelfSubjectAccessReview)
+			sortKubeResourceSlice(tt.wantAllowed)
+
 			require.EqualValues(t, tt.wantAllowed, gotAllowed)
 			require.EqualValues(t, tt.wantDenied, gotDenied)
 		})
