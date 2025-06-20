@@ -111,7 +111,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 	{{- end}}
 {{- if .ConvertPackagePath}}
-	{{.VarName}}Resource, err := convert.FromProto({{.VarName}})
+	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
 		return
@@ -132,11 +132,17 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 {{- end}}
 
+	{{ if .IDPrefix -}}
+	idPrefix := {{.VarName}}Resource.{{ join (slice (split .IDPrefix ".") 1) "." }}
+	{{ end -}}
 	id := {{.VarName}}Resource.Metadata.Name
 
-	_, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	_, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if !trace.IsNotFound(err) {
 		if err == nil {
+			{{ if .IDPrefix -}}
+			id := formatID(idPrefix, id)
+			{{ end -}}
 			existErr := fmt.Sprintf("{{.Name}} exists in Teleport. Either remove it (tctl rm {{.Kind}}/%v)"+
 				" or import it to the existing state (terraform import {{.TerraformResourceType}}.%v %v)", id, id, id)
 
@@ -167,7 +173,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
-		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
 				resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(bErr), "{{.Kind}}"))
@@ -198,7 +204,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- end}}
 
 	{{- if .ConvertPackagePath}}
-	{{.VarName}} = convert.ToProto({{.VarName}}Resource)
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
 	{{else}}
 	{{.VarName}} = {{.VarName}}Resource
 	{{- end }}
@@ -227,6 +233,18 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 		return
 	}
 
+	{{ if .IDPrefix -}}
+	{{ $idPrefixPath := slice (split (toSnake .IDPrefix) ".") 1 -}}
+	{{ $root := index $idPrefixPath 0 -}}
+	{{ $atNames := slice $idPrefixPath 1 -}}
+	var idPrefix types.String
+	diags = req.State.GetAttribute(ctx, path.Root("{{ $root }}"){{ range $atNames }}.AtName("{{ . }}"){{ end }}, &idPrefix)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	{{ end -}}
 	var id types.String
 	{{- if .ConvertPackagePath}}
 	diags = req.State.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
@@ -238,7 +256,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 		return
 	}
 
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -251,7 +269,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	{{if .IsPlainStruct -}}
 	{{.VarName}} := {{.VarName}}I
 	{{else if .ConvertPackagePath -}}
-	{{.VarName}} := convert.ToProto({{.VarName}}I)
+	{{.VarName}} := convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}I)
 	{{ else }}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{end -}}
@@ -290,7 +308,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 
 {{- if .ConvertPackagePath}}
-	{{.VarName}}Resource, err := convert.FromProto({{.VarName}})
+	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
 		return
@@ -305,9 +323,13 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 	{{- end}}
+	{{ if .IDPrefix -}}
+	{{ $idPrefix := join (slice (split .IDPrefix ".") 1) "." -}}
+	idPrefix := {{.VarName}}Resource.{{$idPrefix}}
+	{{ end -}}
 	name := {{.VarName}}Resource.Metadata.Name
 
-	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
 		return
@@ -338,7 +360,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
-		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
 			return
@@ -382,18 +404,30 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 // Delete deletes Teleport {{.Name}}
 func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+	{{ if .IDPrefix -}}
+	{{ $idPrefixPath := slice (split (toSnake .IDPrefix) ".") 1 -}}
+	{{ $root := index $idPrefixPath 0 -}}
+	{{ $atNames := slice $idPrefixPath 1 -}}
+	var idPrefix types.String
+	diags := req.State.GetAttribute(ctx, path.Root("{{ $root }}"){{ range $atNames }}.AtName("{{ . }}"){{ end }}, &idPrefix)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	{{ end -}}
 	var id types.String
 	{{- if .ConvertPackagePath}}
-	diags := req.State.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
+	diags {{if not .IDPrefix}}:{{end}}= req.State.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
 	{{- else }}
-	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+	diags {{if not .IDPrefix}}:{{end}}= req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	{{- end}}
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	err := r.p.Client.{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}id.Value)
+	err := r.p.Client.{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting {{.TypeName}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -404,7 +438,16 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+	{{if .IDPrefix -}}
+	idPrefix, name, err := parseID(req.ID)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error parsing Member ID", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}idPrefix, name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{else -}}
 	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}req.ID{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{end -}}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -413,7 +456,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 	{{if .IsPlainStruct -}}
 	{{.VarName}}Resource := {{.VarName}}
 	{{else if .ConvertPackagePath -}}
-	{{.VarName}}Resource := convert.ToProto({{.VarName}})
+	{{.VarName}}Resource := convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}})
 	{{else}}
 	{{.VarName}}Resource := {{.VarName}}.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}
@@ -432,7 +475,9 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-{{- if or .IsPlainStruct .ConvertPackagePath}}
+{{- if .IDPrefix }}
+	id := req.ID
+{{- else if or .IsPlainStruct .ConvertPackagePath}}
 	id := {{.VarName}}.Metadata.Name
 {{- else }}
 	id := {{.VarName}}Resource.GetName()
