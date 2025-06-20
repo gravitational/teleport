@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -93,13 +95,20 @@ func convertAuditFromProto(audit *accesslistv1.AccessListAudit) accesslist.Audit
 		return accesslist.Audit{}
 	}
 	return accesslist.Audit{
-		NextAuditDate: audit.GetNextAuditDate().AsTime(),
+		NextAuditDate: convertTimeFromProto(audit.GetNextAuditDate()),
 		Recurrence: accesslist.Recurrence{
 			Frequency:  accesslist.ReviewFrequency(audit.GetRecurrence().GetFrequency()),
 			DayOfMonth: accesslist.ReviewDayOfMonth(audit.GetRecurrence().GetDayOfMonth()),
 		},
 		Notifications: convertNotificationsFromProto(audit.GetNotifications()),
 	}
+}
+
+func convertTimeFromProto(t *timestamppb.Timestamp) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return t.AsTime()
 }
 
 func convertNotificationsFromProto(notifications *accesslistv1.Notifications) accesslist.Notifications {

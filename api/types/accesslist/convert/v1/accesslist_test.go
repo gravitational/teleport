@@ -121,7 +121,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Audit = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("recurrence", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.MembershipRequires = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("ownership-requires", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.OwnershipRequires = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("grants", func(t *testing.T) {
