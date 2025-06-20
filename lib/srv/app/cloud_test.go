@@ -84,25 +84,16 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 			},
 			expectBool: true,
 		},
-		{
-			name:        "bad config",
-			credentials: nil,
-			expectError: trace.IsNotFound,
-		},
-		{
-			name: "failed to get credentials",
-			credentials: &mockCredentialsProvider{
-				retrieveError: trace.AccessDenied(""),
-			},
-			expectError: trace.IsAccessDenied,
-		},
 	}
 
 	for _, test := range tests {
 		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			isTemporary, err := isSessionUsingTemporaryCredentials(ctx, aws.Config{Credentials: test.credentials})
+			awsCredentials, err := test.credentials.Retrieve(ctx)
+			require.NoError(t, err)
+
+			isTemporary, err := isSessionUsingTemporaryCredentials(awsCredentials)
 
 			if test.expectError != nil {
 				require.True(t, test.expectError(err))
