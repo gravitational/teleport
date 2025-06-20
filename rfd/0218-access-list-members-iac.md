@@ -137,19 +137,21 @@ The API should be exactly the same as for the existing *non-Static* endpoints. E
 service AccessListService {
   ...
   // UpsertStaticAccessListMember creates or updates an access_list_member resource. It fails if
-  // the target access_list is not static (i.e. does't have static_access_list subkind).
-  rpc UpsertStaticAccessListMember(UpsertStaticAccessListMemberRequest) returns (Member);
+  // the target access_list is not static (i.e. does't have "static" subkind).
+  rpc UpsertStaticAccessListMember(UpsertStaticAccessListMemberRequest) returns (UpsertStaticAccessListMemberResponse);
   ...
 }
 
 // UpsertStaticAccessListMemberRequest is the request for upserting an access_list_member. It fails
-// if the access list is not static (i.e. does't have static_access_list subkind)
+// if the access_list is not static (i.e. does't have "static" subkind)
 message UpsertStaticAccessListMemberRequest {
-  reserved 1, 2, 3;
-  reserved "access_list", "name", "reason";
+  // member is the access_list_member to upsert.
+  Member member = 1;
+}
 
-  // member is the access list member to upsert.
-  Member member = 4;
+message UpsertStaticAccessListMemberResponse {
+  // member is the upserted access_list_member.
+  Member member = 1;
 }
 ```
 
