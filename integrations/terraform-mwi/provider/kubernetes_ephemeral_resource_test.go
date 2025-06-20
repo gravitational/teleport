@@ -159,6 +159,8 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	role, err = rootClient.CreateRole(ctx, role)
+	require.NoError(t, err)
 
 	bot, err := rootClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
 		Bot: &machineidv1.Bot{
@@ -202,13 +204,16 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 		"my-pod",
 		"default",
 		"bot",
-		"my-kubernetes-cluster",
+		"root",
 	)
 	require.NoError(t, err)
 	joinJWTPath := filepath.Join(t.TempDir(), "join")
 	err = os.WriteFile(joinJWTPath, []byte(joinJWT), 0666)
 	require.NoError(t, err)
 	require.NoError(t, os.Setenv("KUBERNETES_TOKEN_PATH", joinJWTPath))
+	t.Cleanup(func() {
+		require.NoError(t, os.Unsetenv("KUBERNETES_TOKEN_PATH"))
+	})
 
 	config := fmt.Sprintf(`
 provider "teleportmwi" {
