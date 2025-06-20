@@ -74,7 +74,6 @@ resource "teleport_access_list_member" "crane_operator" {
     }
   }
   spec = {
-    name = "crane-operator" 
     access_list = teleport_access_list.crane_operation.id
     membership_kind = 1 // 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
   }
