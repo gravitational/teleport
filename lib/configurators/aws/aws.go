@@ -308,10 +308,6 @@ type ConfiguratorConfig struct {
 	ssmClients map[string]ssmClient
 }
 
-type stsClient interface {
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-}
-
 type iamClient interface {
 	GetRole(ctx context.Context, params *iam.GetRoleInput, optFns ...func(*iam.Options)) (*iam.GetRoleOutput, error)
 }

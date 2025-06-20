@@ -31,7 +31,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -1867,17 +1866,6 @@ func (p *policiesMock) Upsert(context.Context, *awslib.Policy) (string, error) {
 
 func (p *policiesMock) Attach(context.Context, string, awslib.Identity) error {
 	return p.attachError
-}
-
-type stsMock struct {
-	ARN               string
-	callerIdentityErr error
-}
-
-func (m *stsMock) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Arn: aws.String(m.ARN),
-	}, m.callerIdentityErr
 }
 
 type ssmMock struct {
