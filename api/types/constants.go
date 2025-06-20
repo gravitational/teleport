@@ -547,6 +547,10 @@ const (
 	// KindAccessList is an AccessList resource
 	KindAccessList = "access_list"
 
+	// SubKindSCIM is a subkind of AccessList that is used to
+	// identify SCIM access lists.
+	SubKindSCIM = "scim"
+
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
 
