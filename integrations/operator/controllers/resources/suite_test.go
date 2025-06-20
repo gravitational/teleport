@@ -65,9 +65,9 @@ func teleportCreateDummyRole(ctx context.Context, roleName string, tClient *clie
 	return trace.Wrap(err)
 }
 
-func teleportResourceToMap[T types.Resource](resource T) (map[string]interface{}, error) {
+func teleportResourceToMap[T types.Resource](resource T) (map[string]any, error) {
 	resourceJSON, _ := json.Marshal(resource)
-	resourceMap := make(map[string]interface{})
+	resourceMap := make(map[string]any)
 	err := json.Unmarshal(resourceJSON, &resourceMap)
 	return resourceMap, trace.Wrap(err)
 }

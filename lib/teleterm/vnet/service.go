@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,9 +30,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -40,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "term:vnet")
@@ -90,6 +95,7 @@ type Config struct {
 	// reporting.
 	InstallationID string
 	Clock          clockwork.Clock
+	profilePath    string
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -108,6 +114,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.profilePath == "" {
+		c.profilePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 
 	return nil
@@ -211,13 +221,8 @@ func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResp
 	return &api.StopResponse{}, nil
 }
 
-// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-//
-// This is fetched exactly the same way the VNet process fetches the DNS zones
-// but may be slightly out of sync with the OS configuration if the admin
-// process hasn't configured a recent change yet.
-func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest) (*api.ListDNSZonesResponse, error) {
+// GetServiceInfo returns info about the running VNet service.
+func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoRequest) (*api.GetServiceInfoResponse, error) {
 	// Acquire the lock just to check the status of the service. We don't want the actual process of
 	// listing DNS zones to block the user from performing other operations.
 	s.mu.Lock()
@@ -232,8 +237,24 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &api.ListDNSZonesResponse{
-		DnsZones: unifiedClusterConfig.AppDNSZones(),
+
+	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
+		ProfilePath: s.cfg.profilePath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "building SSH diagnostic")
+	}
+	sshReport, err := sshDiag.Run(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "running SSH diagnostic")
+	}
+	sshConfigured := sshReport.Status == diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK &&
+		sshReport.GetSshConfigurationReport().UserOpensshConfigIncludesVnetSshConfig
+
+	return &api.GetServiceInfoResponse{
+		AppDnsZones:   unifiedClusterConfig.AppDNSZones(),
+		Clusters:      unifiedClusterConfig.ClusterNames,
+		SshConfigured: sshConfigured,
 	}, nil
 }
 
