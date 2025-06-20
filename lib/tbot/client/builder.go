@@ -22,7 +22,7 @@ import (
 	"context"
 	"log/slog"
 
-	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -53,7 +53,7 @@ type BuilderConfig struct {
 	Insecure bool
 
 	// Metrics will record gRPC client metrics.
-	Metrics *grpcprom.ClientMetrics
+	Metrics *prometheus.ClientMetrics
 }
 
 // Builder provides a convenient way to create a client for a given identity
