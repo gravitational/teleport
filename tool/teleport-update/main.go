@@ -58,12 +58,7 @@ const (
 	updateLockTimeout = 10 * time.Minute
 
 	// notUpToDateExitCode is returned by `teleport-update status --is-up-to-date` if Teleport is not up-to-date.
-	// We don't want to use the exit code 1 as this makes "failure" and "out-of-date" results undifferentiable.
-	// Bash reserves codes between 126 and 165: https://tldp.org/LDP/abs/html/exitcodes.html
-	// Systemd reserved code >= 200: https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Process%20Exit%20Codes
-	// Linux recommends codes 150-199 for application use.
-	// Hence, the first available recommended exit code is 166.
-	notUpToDateExitCode = 166
+	notUpToDateExitCode = 3
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -182,8 +177,8 @@ func Run(args []string) int {
 		Required().StringVar(&ccfg.Path)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
-	statusCmd.Flag("is-up-to-date",
-		fmt.Sprintf("Exits with code 0 if Teleport is up-to-date, and with code %d if 'teleport-update update' would attempt an update now.", notUpToDateExitCode),
+	statusCmd.Flag("err-if-should-update-now",
+		fmt.Sprintf("Exits with code %d if the agent should update now. Exit code 0 means that the agent should not update now, even if it might not run the target version.", notUpToDateExitCode),
 	).BoolVar(&ccfg.StatusWithExitCode)
 
 	uninstallCmd := app.Command("uninstall", "Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.")
