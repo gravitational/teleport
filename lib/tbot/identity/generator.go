@@ -44,7 +44,7 @@ type GeneratorConfig struct {
 	Client *apiclient.Client
 
 	// Logger to which errors and messages will be written. Can be overridden
-	// on a per-call basis by setting GenerateParams.Logger.
+	// on a per-call basis by passing WithLogger.
 	Logger *slog.Logger
 
 	// BotIdentity is a Facade containing the bot's internal identity.
@@ -98,84 +98,117 @@ type Generator struct {
 	fips, insecure bool
 }
 
-// GenerateOption allows you to set fields on the certificates request.
-type GenerateOption func(req *proto.UserCertsRequest)
+type generateOpts struct {
+	roles                []string
+	ttl, renewalInterval time.Duration
+	currentIdentity      *Identity
+	logger               *slog.Logger
+	requestModifiers     []func(*proto.UserCertsRequest)
+}
+
+// GenerateOption allows you to customize aspects of the generated identity.
+type GenerateOption func(*generateOpts)
+
+// WithRoles sets the roles the generated identity should include.
+//
+// Generally, if the user did not specify any roles, it's best to leave this
+// empty and rely on the default behavior (of fetching all the bot's available
+// roles). If WithCurrentIdentity is provided, we'll default to using the roles
+// in its TLS certificate to avoid re-fetching them.
+func WithRoles(roles []string) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.roles = roles
+	}
+}
+
+// WithLifetime sets the requested time-to-live of the certificate, along with
+// a hint of how frequently it will be renewed - the latter is used for logging
+// purposes only.
+func WithLifetime(ttl, renewalInterval time.Duration) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.ttl = ttl
+		opts.renewalInterval = renewalInterval
+	}
+}
+
+// WithCurrentIdentity sets the identity on which the generated identity will be
+// based. This largely just affects the default roles and cluster name.
+//
+// If you do not provide WithCurrentIdentity, the bot's internal identity will
+// be used. Note: you should *not* explicitly pass the bot's internal identity.
+func WithCurrentIdentity(identity *Identity) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.currentIdentity = identity
+	}
+}
+
+// WithCurrentIdentityFacade is a variant of WithCurrentIdentity which allows
+// you to pass a Facade for convenience.
+func WithCurrentIdentityFacade(facade *Facade) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.currentIdentity = facade.Get()
+	}
+}
+
+// WithLogger allows you to override the logger.
+func WithLogger(logger *slog.Logger) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.logger = logger
+	}
+}
 
 // WithKubernetesCluster sets the KubernetesCluster field on the certificates
 // request.
 func WithKubernetesCluster(name string) GenerateOption {
-	return func(req *proto.UserCertsRequest) {
-		req.KubernetesCluster = name
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
+			req.KubernetesCluster = name
+		})
 	}
 }
 
 // WithRouteToApp sets the RouteToApp field on the certificates request.
 func WithRouteToApp(route proto.RouteToApp) GenerateOption {
-	return func(req *proto.UserCertsRequest) {
-		req.RouteToApp = route
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
+			req.RouteToApp = route
+		})
 	}
 }
 
 // WithRouteToDatabase sets the RouteToDatabase field on the certificates
 // request.
 func WithRouteToDatabase(route proto.RouteToDatabase) GenerateOption {
-	return func(req *proto.UserCertsRequest) {
-		req.RouteToDatabase = route
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
+			req.RouteToDatabase = route
+		})
 	}
 }
 
 // WithReissuableRoleImpersonation sets the WithReissuableRoleImpersonation
 // field on the certificates request.
 func WithReissuableRoleImpersonation(allow bool) GenerateOption {
-	return func(req *proto.UserCertsRequest) {
-		req.ReissuableRoleImpersonation = allow
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
+			req.ReissuableRoleImpersonation = allow
+		})
 	}
 }
 
 // WithRouteToCluster sets the RouteToCluster field on the certificates request.
 func WithRouteToCluster(cluster string) GenerateOption {
-	return func(req *proto.UserCertsRequest) {
-		req.RouteToCluster = cluster
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
+			req.RouteToCluster = cluster
+		})
 	}
-}
-
-// GenerateParams are the parameters to Generator.Generate.
-type GenerateParams struct {
-	// Roles the generated identity should include.
-	//
-	// Generally, if the user did not specify any roles, it's best to leave
-	// this empty and rely on the default behavior (of fetching all the bot's
-	// available roles). If CurrentIdentity is set, we'll default to using the
-	// roles in its TLS certificate to avoid re-fetching them.
-	Roles []string
-
-	// TTL is the desired time to live of the certificate.
-	TTL time.Duration
-
-	// RenewalInterval is a hint of how frequently the certificate will be
-	// renewed. It's used for logging purposes only.
-	RenewalInterval time.Duration
-
-	// Options are used to set various fields on the certificates request
-	// see: WithRouteToCluster, etc.
-	Options []GenerateOption
-
-	// CurrentIdentity sets the identity on which the generated identity will be
-	// based. This largely just affects the default roles and cluster name.
-	//
-	// If you do not set CurrentIdentity, the bot's internal identity will be
-	// used. Note: you should *not* explicitly set CurrentIdentity to the bot's
-	// internal identity.
-	CurrentIdentity *Identity
-
-	// Logger to which errors and messages will be written.
-	Logger *slog.Logger
 }
 
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
-func (g *Generator) GenerateFacade(ctx context.Context, params GenerateParams) (*Facade, error) {
-	id, err := g.Generate(ctx, params)
+func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
+	id, err := g.Generate(ctx, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,35 +216,40 @@ func (g *Generator) GenerateFacade(ctx context.Context, params GenerateParams) (
 }
 
 // Generate a non-renewable identity with the given roles, TTL, etc.
-func (g *Generator) Generate(ctx context.Context, params GenerateParams) (*Identity, error) {
+func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Identity, error) {
 	ctx, span := tracer.Start(ctx, "Generator/Generate")
 	defer span.End()
 
-	log := cmp.Or(params.Logger, g.logger)
+	o := &generateOpts{}
+	for _, fn := range opts {
+		fn(o)
+	}
 
-	if len(params.Roles) == 0 {
-		if params.CurrentIdentity != nil {
+	log := cmp.Or(o.logger, g.logger)
+
+	if len(o.roles) == 0 {
+		if o.currentIdentity != nil {
 			// If the caller provided an impersonated identity, take its roles.
-			params.Roles = params.CurrentIdentity.TLSIdentity.Groups
+			o.roles = o.currentIdentity.TLSIdentity.Groups
 		} else {
 			// Otherwise, fetch the bot identity's default roles.
 			var err error
-			if params.Roles, err = g.botDefaultRoles(ctx); err != nil {
+			if o.roles, err = g.botDefaultRoles(ctx); err != nil {
 				return nil, trace.Wrap(err, "fetching default roles")
 			}
-			log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", params.Roles)
+			log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", o.roles)
 		}
 	}
 
-	if params.CurrentIdentity == nil {
-		params.CurrentIdentity = g.botIdentity.Get()
+	if o.currentIdentity == nil {
+		o.currentIdentity = g.botIdentity.Get()
 	}
 
 	req := proto.UserCertsRequest{
-		Username:       params.CurrentIdentity.X509Cert.Subject.CommonName,
-		Expires:        time.Now().Add(params.TTL),
-		RoleRequests:   params.Roles,
-		RouteToCluster: params.CurrentIdentity.ClusterName,
+		Username:       o.currentIdentity.X509Cert.Subject.CommonName,
+		Expires:        time.Now().Add(o.ttl),
+		RoleRequests:   o.roles,
+		RouteToCluster: o.currentIdentity.ClusterName,
 
 		// Make sure to specify this is an impersonated cert request. If unset,
 		// auth cannot differentiate renewable vs impersonated requests when
@@ -219,8 +257,8 @@ func (g *Generator) Generate(ctx context.Context, params GenerateParams) (*Ident
 		UseRoleRequests: true,
 	}
 
-	for _, opt := range params.Options {
-		opt(&req)
+	for _, fn := range o.requestModifiers {
+		fn(&req)
 	}
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
@@ -284,7 +322,7 @@ func (g *Generator) Generate(ctx context.Context, params GenerateParams) (*Ident
 	// but we also need the HostCA and can't directly set `includeHostCA` as
 	// part of the UserCertsRequest.
 	// Instead, copy the SSHCACerts from the primary identity.
-	certs.SSHCACerts = params.CurrentIdentity.SSHCACertBytes
+	certs.SSHCACerts = o.currentIdentity.SSHCACertBytes
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(key)
 	if err != nil {
@@ -303,8 +341,8 @@ func (g *Generator) Generate(ctx context.Context, params GenerateParams) (*Ident
 		ctx,
 		log,
 		newIdentity,
-		params.TTL,
-		params.RenewalInterval,
+		o.ttl,
+		o.renewalInterval,
 	)
 
 	return newIdentity, nil

@@ -240,12 +240,11 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 	defer span.End()
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Logger:          s.log,
-	})
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
@@ -272,13 +271,12 @@ func (s *DatabaseTunnelService) issueCert(
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	ident, err := s.identityGenerator.Generate(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Options:         []identity.GenerateOption{identity.WithRouteToDatabase(route)},
-		Logger:          s.log,
-	})
+	ident, err := s.identityGenerator.Generate(ctx,
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+		identity.WithRouteToDatabase(route),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

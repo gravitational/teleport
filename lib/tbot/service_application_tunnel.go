@@ -199,12 +199,12 @@ func (s *ApplicationTunnelService) issueCert(
 	// calculated by the auth server on cert generation, and we can fetch the
 	// routeToApp once.
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Logger:          s.log,
-	})
+	identityOpts := []identity.GenerateOption{
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -223,13 +223,7 @@ func (s *ApplicationTunnelService) issueCert(
 	}
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	routedIdent, err := s.identityGenerator.Generate(ctx, identity.GenerateParams{
-		Roles:           s.cfg.Roles,
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Options:         []identity.GenerateOption{identity.WithRouteToApp(route)},
-		Logger:          s.log,
-	})
+	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(route))...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
