@@ -46,7 +46,6 @@ type StoryProps = {
     | 'error'
     | 'processing'
     | 'processing-with-previous-results';
-  vnetDiag: boolean;
   runDiagnostics: 'success' | 'error' | 'processing';
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
@@ -60,7 +59,6 @@ const defaultArgs: StoryProps = {
   clusters: ['teleport.example.com'],
   sshConfigured: false,
   fetchStatus: 'success',
-  vnetDiag: true,
   runDiagnostics: 'success',
   diagReport: 'ok',
   isWorkspacePresent: true,
@@ -117,9 +115,7 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 function VnetSliderStep(props: StoryProps) {
-  const appContext = new MockAppContext({
-    platform: props.vnetDiag ? 'darwin' : 'win32',
-  });
+  const appContext = new MockAppContext();
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());
