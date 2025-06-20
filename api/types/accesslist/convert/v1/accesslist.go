@@ -230,8 +230,8 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 	return &accesslist.Status{
 		MemberCount:            copyPointer(protoStatus.MemberCount),
 		MemberListCount:        copyPointer(protoStatus.MemberListCount),
-		OwnerOf:                protoStatus.OwnerOf,
-		MemberOf:               protoStatus.MemberOf,
+		OwnerOf:                protoStatus.GetOwnerOf(),
+		MemberOf:               protoStatus.GetMemberOf(),
 		CurrentUserAssignments: fromCurrentUserAssignmentsProto(protoStatus.GetCurrentUserAssignments()),
 	}
 }
