@@ -19,12 +19,13 @@
 import React, {
   forwardRef,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type JSX,
 } from 'react';
 import type { TransitionStatus } from 'react-transition-group';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import {
   Alert,
@@ -42,6 +43,7 @@ import {
   P3,
   Subtitle2,
   Text,
+  Toggle,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
@@ -54,7 +56,10 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { mergeRefs } from 'shared/libs/mergeRefs';
-import type { AccessRequest } from 'shared/services/accessRequests';
+import type {
+  AccessRequest,
+  LongTermResourceGrouping,
+} from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
 import { AccessDurationRequest } from '../../AccessDuration';
@@ -142,6 +147,7 @@ export const RequestCheckoutWithSlider = forwardRef<
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
+  toggleResources,
   onClose,
   reset,
   appsGrantedByUserGroup = [],
@@ -175,7 +181,10 @@ export function RequestCheckout<T extends PendingListItem>({
   onStartTimeChange,
   fetchKubeNamespaces,
   updateNamespacesForKubeCluster,
+  longTerm,
+  setLongTerm,
 }: RequestCheckoutProps<T>) {
+  const theme = useTheme();
   const [reason, setReason] = useState('');
 
   function updateReason(reason: string) {
@@ -183,7 +192,12 @@ export function RequestCheckout<T extends PendingListItem>({
   }
 
   function handleOnSubmit(validator: Validator) {
-    if (!validator.validate()) {
+    if (
+      !validator.validate() ||
+      (isResourceRequest &&
+        dryRunResponse?.longTermResourceGrouping &&
+        !dryRunResponse.longTermResourceGrouping.canProceed)
+    ) {
       return;
     }
 
@@ -193,6 +207,7 @@ export function RequestCheckout<T extends PendingListItem>({
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
       requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
       start: startTime,
+      longTerm,
     });
   }
 
@@ -206,17 +221,56 @@ export function RequestCheckout<T extends PendingListItem>({
     isResourceRequest &&
     selectedResourceRequestRoles.length < 1;
 
-  const submitBtnDisabled =
-    pendingAccessRequests.length === 0 ||
-    createAttempt.status === 'processing' ||
-    isInvalidRoleSelection ||
-    (fetchResourceRequestRolesAttempt.status === 'failed' &&
-      hasUnsupporteKubeResourceKinds) ||
-    fetchResourceRequestRolesAttempt.status === 'processing';
+  const submitBtnDisabled = useMemo(() => {
+    if (
+      pendingAccessRequests.length === 0 ||
+      createAttempt.status === 'processing' ||
+      isInvalidRoleSelection
+    )
+      return true;
+    if (
+      fetchResourceRequestRolesAttempt.status === 'failed' &&
+      hasUnsupporteKubeResourceKinds
+    )
+      return true;
+    if (fetchResourceRequestRolesAttempt.status === 'processing') return true;
+    if (longTerm) {
+      return !dryRunResponse?.longTermResourceGrouping?.canProceed;
+    }
+    return false;
+  }, [
+    createAttempt,
+    fetchResourceRequestRolesAttempt,
+    hasUnsupporteKubeResourceKinds,
+    isInvalidRoleSelection,
+    longTerm,
+    dryRunResponse?.longTermResourceGrouping,
+    pendingAccessRequests,
+  ]);
 
   const cancelBtnDisabled =
     createAttempt.status === 'processing' ||
     fetchResourceRequestRolesAttempt.status === 'processing';
+
+  const [longTermDisabled, longTermDisabledReason] = useMemo(() => {
+    // If long-term is already enabled, don't block toggling it off
+    if (longTerm || dryRunResponse?.longTermResourceGrouping?.canProceed)
+      return [false, undefined];
+    if (!isResourceRequest)
+      return [
+        true,
+        'Long-term access is only supported for resource-based requests.',
+      ];
+    // If canProceed is false on initial dryRun, show validation msg and disable until req is re-run.
+    if (dryRunResponse?.longTermResourceGrouping?.canProceed === false) {
+      return [
+        true,
+        'Long-term access is unavailable. ' +
+          dryRunResponse.longTermResourceGrouping.validationMessage || '',
+      ];
+    }
+    return [false, undefined];
+  }, [isResourceRequest, longTerm, dryRunResponse?.longTermResourceGrouping]);
 
   const numPendingAccessRequests = pendingAccessRequests.filter(
     item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
@@ -279,6 +333,26 @@ export function RequestCheckout<T extends PendingListItem>({
     }
   }
 
+  function getStyle(item: T) {
+    if (
+      !isResourceRequest ||
+      !dryRunResponse?.longTermResourceGrouping ||
+      !longTerm ||
+      dryRunResponse.longTermResourceGrouping.canProceed
+    ) {
+      return;
+    }
+    const grouping =
+      dryRunResponse.longTermResourceGrouping.optimalGrouping || [];
+
+    if (!grouping.length || !grouping.some(i => i.name === item.name)) {
+      return {
+        background: theme.colors.interactive.tonal.danger[0],
+        borderTopColor: theme.colors.interactive.tonal.danger[2],
+      };
+    }
+  }
+
   return (
     <Validation>
       {({ validator }) => (
@@ -286,10 +360,9 @@ export function RequestCheckout<T extends PendingListItem>({
           {!isRequestKubeResourceError &&
             createAttempt.status !== 'failed' &&
             fetchResourceRequestRolesAttempt.status === 'failed' && (
-              <Alert
-                kind="danger"
-                children={fetchResourceRequestRolesAttempt.statusText}
-              />
+              <Alert kind="danger">
+                {fetchResourceRequestRolesAttempt.statusText}
+              </Alert>
             )}
           {hasUnsupporteKubeResourceKinds && (
             <Alert kind="danger">
@@ -363,7 +436,14 @@ export function RequestCheckout<T extends PendingListItem>({
                 <>
                   {Header?.() || DefaultHeader()}
                   {createAttempt.status === 'failed' && (
-                    <Alert kind="danger" children={createAttempt.statusText} />
+                    <Alert kind="danger">{createAttempt.statusText}</Alert>
+                  )}
+                  {!longTermDisabled && (
+                    <LongTermGroupingError
+                      grouping={dryRunResponse?.longTermResourceGrouping}
+                      toggleResources={toggleResources}
+                      pendingAccessRequests={pendingAccessRequests}
+                    />
                   )}
                   <StyledTable
                     data={pendingAccessRequests.filter(
@@ -371,6 +451,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     )}
                     row={{
                       customRow,
+                      getStyle,
                     }}
                     columns={[
                       {
@@ -425,17 +506,45 @@ export function RequestCheckout<T extends PendingListItem>({
                       fetchAttempt={fetchResourceRequestRolesAttempt}
                     />
                   )}
-                  <Box mt={6} mb={1}>
-                    <SelectReviewers
-                      reviewers={
-                        dryRunResponse?.reviewers.map(r => r.name) ?? []
-                      }
-                      selectedReviewers={selectedReviewers}
-                      setSelectedReviewers={setSelectedReviewers}
-                    />
-                  </Box>
-                  <Flex mt={6} flexDirection="column" gap={1}>
-                    {dryRunResponse && (
+                  {/* Selecting reviewers not available for long-term requests */}
+                  {(longTermDisabled || !longTerm) && (
+                    <Box mt={4}>
+                      <SelectReviewers
+                        reviewers={
+                          dryRunResponse?.reviewers.map(r => r.name) ?? []
+                        }
+                        selectedReviewers={selectedReviewers}
+                        setSelectedReviewers={setSelectedReviewers}
+                      />
+                    </Box>
+                  )}
+                  <Flex flexDirection="column" gap={2} mt={4}>
+                    <Text bold>Request type</Text>
+                    <HoverTooltip
+                      tipContent={longTermDisabledReason}
+                      placement="left"
+                    >
+                      <Toggle
+                        isToggled={longTerm}
+                        onToggle={() => setLongTerm(v => !v)}
+                        disabled={longTermDisabled}
+                        css={
+                          longTermDisabled && `cursor: not-allowed !important;`
+                        }
+                      >
+                        <Flex flexDirection="column" ml={3}>
+                          <Text>Long-term Access</Text>
+                          <Text color="text.slightlyMuted" fontSize={1}>
+                            You&#39;ll need to be added to an Access List
+                          </Text>
+                        </Flex>
+                      </Toggle>
+                    </HoverTooltip>
+                  </Flex>
+                  <Divider />
+                  <Flex flexDirection="column" gap={1}>
+                    {/* Start time / max duration are only valid for non-Long-Term requests */}
+                    {dryRunResponse && !longTerm && (
                       <Box mb={1}>
                         <AssumeStartTime
                           start={startTime}
@@ -455,7 +564,8 @@ export function RequestCheckout<T extends PendingListItem>({
                       requireReason={requireReason}
                       reasonPrompts={reasonPrompts}
                     />
-                    {dryRunResponse && maxDuration && (
+                    {/* These options are only valid for non-Long-Term requests */}
+                    {dryRunResponse && maxDuration && !longTerm && (
                       <AdditionalOptions
                         selectedMaxDurationTimestamp={maxDuration.value}
                         setPendingRequestTtl={setPendingRequestTtl}
@@ -464,8 +574,9 @@ export function RequestCheckout<T extends PendingListItem>({
                         pendingRequestTtlOptions={pendingRequestTtlOptions}
                       />
                     )}
+                    <Divider />
                     <Flex
-                      py={4}
+                      pb={4}
                       gap={2}
                       css={`
                         position: sticky;
@@ -508,6 +619,164 @@ export function RequestCheckout<T extends PendingListItem>({
     </Validation>
   );
 }
+
+const LongTermGroupingError = <T extends PendingListItem = PendingListItem>({
+  grouping,
+  toggleResources,
+  pendingAccessRequests,
+}: {
+  grouping: LongTermResourceGrouping;
+  toggleResources?: RequestCheckoutProps<T>['toggleResources'];
+  pendingAccessRequests: T[];
+}) => {
+  if (!grouping) return null;
+  if (grouping.validationMessage?.length) {
+    return (
+      <StyledAlert
+        kind="danger"
+        primaryAction={getActionForLongTermGroupingError(
+          grouping,
+          pendingAccessRequests,
+          toggleResources
+        )}
+      >
+        {getMessageForLongTermGroupingError(grouping, pendingAccessRequests)}
+      </StyledAlert>
+    );
+  }
+
+  return null;
+};
+
+// StyledAlert is a modified version of Alert to match designs for LongTerm
+// errors - more space is required so elements are stacked vertically instead
+// of horizontally in a Flex.
+const StyledAlert = styled(Alert)`
+  > div {
+    flex-wrap: wrap;
+    gap: ${props => props.theme.space[2]}px;
+  }
+  > div > div:nth-child(1) {
+    align-self: flex-start;
+
+    margin-top: ${props => props.theme.space[1]}px;
+    margin-right: 0;
+    flex-shrink: 0;
+    flex-grow: 0;
+  }
+  > div > div:nth-child(2) {
+    flex-shrink: 0;
+  }
+  > div > div:nth-child(3) {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+`;
+
+// findIncompatibleLongTermResources iterates through the
+// pendingRequests and returns a list of resources
+// that are incompatible with the optimalGrouping.
+const findIncompatibleLongTermResources = <
+  T extends PendingListItem = PendingListItem,
+>(
+  grouping: LongTermResourceGrouping,
+  pendingRequests: T[]
+) => {
+  return pendingRequests.filter(
+    item =>
+      item.kind !== 'namespace' &&
+      !grouping.optimalGrouping.some(i => i.name === item.name)
+  );
+};
+
+// getActionForLongTermGroupingError returns an action object
+// for the primaryAction of the StyledAlert, used to remove
+// incompatible resources if any are present.
+const getActionForLongTermGroupingError = <
+  T extends PendingListItem = PendingListItem,
+>(
+  grouping: LongTermResourceGrouping,
+  pendingRequests: T[],
+  toggleResources?: RequestCheckoutProps<T>['toggleResources']
+) => {
+  if (
+    grouping.optimalGrouping.length <
+    pendingRequests.filter(i => i.kind !== 'namespace').length
+  ) {
+    if (!grouping.optimalGrouping.length || !toggleResources) {
+      return undefined;
+    }
+
+    const incompatibleResources = findIncompatibleLongTermResources(
+      grouping,
+      pendingRequests
+    );
+    if (!incompatibleResources.length) {
+      return undefined;
+    }
+
+    return {
+      content: 'Remove Incompatible Resources',
+      onClick: () =>
+        toggleResources(
+          incompatibleResources.map(i => ({
+            resourceName: i.name,
+            resourceId: i.id,
+            kind: i.kind,
+          }))
+        ),
+    };
+  }
+};
+
+// getMessageForLongTermGroupingError returns a parsed/used-readable
+// message for the long-term grouping error.
+const getMessageForLongTermGroupingError = <
+  T extends PendingListItem = PendingListItem,
+>(
+  grouping: LongTermResourceGrouping,
+  pendingRequests: T[]
+) => {
+  const message =
+    grouping.validationMessage || 'Long-term access is unavailable.';
+
+  let subText = '';
+
+  if (Object.keys(grouping.groupedByAccessList).length > 1) {
+    const incompatibleResources = findIncompatibleLongTermResources(
+      grouping,
+      pendingRequests
+    );
+    subText = `Remove ${incompatibleResources
+      .map(i => i.name)
+      .join(
+        ', '
+      )} and request them separately, or switch to a short-term request.`;
+  }
+
+  if (!grouping.optimalGrouping.length) {
+    subText =
+      'No selected resources are available for long-term access. Please switch to a short-term request to continue.';
+  }
+
+  return (
+    <Flex flexDirection="column" gap={1}>
+      <Text>{message}</Text>
+      <Text typography="body2" bold={false}>
+        {subText}
+      </Text>
+    </Flex>
+  );
+};
+
+const Divider = styled.div`
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+  background-color: ${props => props.theme.colors.spotBackground[1]};
+  margin-top: ${props => props.theme.space[4]}px;
+  margin-bottom: ${props => props.theme.space[4]}px;
+`;
 
 function AppsGrantedAccess({ apps }: { apps: string[] }) {
   const [expanded, setExpanded] = useState(true);
@@ -748,7 +1017,7 @@ function TextBox({
 
   return (
     <LabelInput hasError={hasError}>
-      {labelText}
+      <Text mb={1}>{labelText}</Text>
       <Box
         as="textarea"
         height="80px"
@@ -764,6 +1033,7 @@ function TextBox({
         css={`
           outline: none;
           background: transparent;
+          font-size: ${props => props.theme.fontSizes[2]}px;
 
           &::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
@@ -921,6 +1191,14 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
   {
     onClose(): void;
     toggleResource: (resource: T) => void;
+    toggleResources: (
+      resources: {
+        kind: T['kind'];
+        resourceId: T['id'];
+        resourceName: T['name'];
+      }[],
+      action?: 'add' | 'remove'
+    ) => void;
     appsGrantedByUserGroup?: string[];
     userGroupFetchAttempt?: Attempt;
     reset: () => void;
@@ -950,6 +1228,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     dryRunResponse: AccessRequest;
     Header?: () => JSX.Element;
     startTime: Date;
+    longTerm: boolean;
+    setLongTerm: React.Dispatch<React.SetStateAction<boolean>>;
     onStartTimeChange(t?: Date): void;
     fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
     updateNamespacesForKubeCluster(

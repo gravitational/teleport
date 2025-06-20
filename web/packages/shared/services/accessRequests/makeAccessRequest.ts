@@ -22,6 +22,7 @@ import {
   AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  RequestKind,
 } from './accessRequests';
 
 // TODO(gzdunek): This function should live in the Web UI.
@@ -72,7 +73,18 @@ export function makeAccessRequest(json?): AccessRequest {
     assumeStartTimeDuration: getAssumeStartDurationText(json.assumeStartTime),
     reasonMode: json.reasonMode || 'optional',
     reasonPrompts: json.reasonPrompts || [],
+    requestKind: getRequestKind(json.requestKind),
+    longTermResourceGrouping: json.longTermResourceGrouping,
   };
+}
+
+function getRequestKind(jsonKind: unknown): RequestKind | undefined {
+  if (typeof jsonKind !== 'number') return RequestKind.UNDEFINED;
+  return jsonKind === RequestKind.LONG_TERM
+    ? RequestKind.LONG_TERM
+    : jsonKind === RequestKind.SHORT_TERM
+      ? RequestKind.SHORT_TERM
+      : RequestKind.UNDEFINED;
 }
 
 function makeReviews(jsonReviews): AccessRequestReview[] {

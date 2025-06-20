@@ -87,6 +87,8 @@ export function useSpecifiableFields() {
    */
   let maxDurationOptions: Option<number>[] = [];
 
+  const [longTerm, setLongTerm] = useState(false);
+
   if (dryRunResponse) {
     pendingRequestTtlOptions = getPendingRequestDurationOptions(
       dryRunResponse.created,
@@ -106,6 +108,7 @@ export function useSpecifiableFields() {
     setStartTime(null);
     setMaxDuration(null);
     setPendingRequestTtl(null);
+    setLongTerm(false);
   }
 
   function preselectPendingRequestTtlOption(
@@ -198,6 +201,8 @@ export function useSpecifiableFields() {
     pendingRequestTtlOptions,
     dryRunResponse,
     startTime,
+    longTerm,
+    setLongTerm,
     onStartTimeChange,
     onDryRunChange,
     reset,
