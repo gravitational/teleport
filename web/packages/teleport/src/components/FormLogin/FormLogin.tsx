@@ -49,10 +49,12 @@ import {
 } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
+import cfg from 'teleport/config';
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
+import FormIdentifierFirst from './FormIdentifierFirst';
 import SSOButtonList from './SsoButtons';
 
 const allAuthTypes: PrimaryAuthType[] = ['passwordless', 'sso', 'local'];
@@ -65,6 +67,10 @@ export default function LoginForm(props: Props) {
     authProviders = [],
     primaryAuthType,
   } = props;
+
+  const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
+    cfg?.auth?.identifierFirstLoginEnabled
+  );
 
   const ssoEnabled = authProviders?.length > 0;
 
@@ -107,6 +113,8 @@ export default function LoginForm(props: Props) {
           currFlow={'default'}
           otherAuthTypes={otherAuthTypes}
           {...props}
+          showIdentifierFirstLogin={showIdentifierFirstLogin}
+          setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           primaryAuthType={actualPrimaryType}
         />
       ) : (
@@ -125,11 +133,24 @@ const SsoList = ({
   onLoginWithSso,
   autoFocus = false,
   hasTransitionEnded,
+  setShowIdentifierFirstLogin,
 }: Props & { hasTransitionEnded?: boolean }) => {
   const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   const { isProcessing } = attempt;
+
+  if (cfg?.auth?.identifierFirstLoginEnabled) {
+    return (
+      <ButtonLink
+        onClick={() => setShowIdentifierFirstLogin(true)}
+        disabled={isProcessing}
+      >
+        Sign in using SSO
+      </ButtonLink>
+    );
+  }
+
   return (
     <SSOButtonList
       isDisabled={isProcessing}
@@ -342,12 +363,26 @@ const LoginOptions = ({
   next,
   refCallback,
   otherAuthTypes,
+  showIdentifierFirstLogin,
+  setShowIdentifierFirstLogin,
   ...otherProps
 }: { otherAuthTypes: PrimaryAuthType[] } & Props & StepComponentProps) => {
+  if (showIdentifierFirstLogin) {
+    return (
+      <Flex flexDirection="column" px={4} gap={3} ref={refCallback}>
+        <FormIdentifierFirst
+          onLoginWithSso={otherProps.onLoginWithSso}
+          onUseLocalLogin={() => setShowIdentifierFirstLogin(false)}
+        />
+      </Flex>
+    );
+  }
+
   return (
     <Flex flexDirection="column" px={4} gap={3} ref={refCallback}>
       <AuthMethod
         {...otherProps}
+        setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
         next={next}
         refCallback={refCallback}
         authType={otherProps.primaryAuthType}
@@ -359,6 +394,7 @@ const LoginOptions = ({
         <AuthMethod
           key={authType}
           {...otherProps}
+          setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           next={next}
           refCallback={refCallback}
           authType={authType}
@@ -469,6 +505,8 @@ export type Props = {
   onLoginWithWebauthn(creds?: UserCredentials): void;
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;
+  showIdentifierFirstLogin?: boolean;
+  setShowIdentifierFirstLogin?: (value: boolean) => void;
 };
 
 type AttemptState = ReturnType<typeof useAttempt>[0];
