@@ -71,6 +71,7 @@ export type IntegrationTemplate<
   details?: string;
   statusCode: IntegrationStatusCode;
   status?: SD;
+  credentials?: PluginCredentials;
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
@@ -229,6 +230,26 @@ export type PluginStatus<D = any> = {
    * contains provider-specific status information
    */
   details?: D;
+  /**
+   * credentials contains information about the plugin's credentials,
+   * if applicable, only on creation.
+   */
+  credentials?: PluginCredentials;
+};
+
+export type PluginCredentials = {
+  OAuthCredentials?: PluginOAuthCredentials;
+};
+
+type PluginOAuthCredentials = {
+  /**
+   * clientId is the OAuth client ID
+   */
+  clientId: string;
+  /**
+   * clientSecret is the OAuth client secret
+   */
+  clientSecret: string;
 };
 
 /**
