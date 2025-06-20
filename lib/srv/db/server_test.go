@@ -782,8 +782,7 @@ func waitForHealthStatus(t *testing.T, ctx context.Context, name string, serverG
 			assert.FailNowf(t, "failed to find db_server", "db_server=%s", name)
 			return
 		}
-		health := server.GetTargetHealth()
-		assert.Equal(t, string(want), health.Status)
+		assert.Equal(t, want, server.GetTargetHealthStatus())
 	}, timeout, time.Millisecond*250, "waiting for database %s to become healthy", name)
 }
 
