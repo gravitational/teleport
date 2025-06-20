@@ -248,9 +248,10 @@ func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoReque
 	}
 
 	return &api.GetServiceInfoResponse{
-		AppDnsZones:   unifiedClusterConfig.AppDNSZones(),
-		Clusters:      unifiedClusterConfig.ClusterNames,
-		SshConfigured: sshConfigured,
+		AppDnsZones:       unifiedClusterConfig.AppDNSZones(),
+		Clusters:          unifiedClusterConfig.ClusterNames,
+		SshConfigured:     sshConfigured,
+		VnetSshConfigPath: sshConfigChecker.VNetSSHConfigPath,
 	}, nil
 }
 
@@ -311,6 +312,13 @@ func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, er
 		Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
 		DnsZones:       unifiedClusterConfig.AllDNSZones(),
 	}, nil
+}
+
+// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+// connections to Teleport SSH servers through VNet.
+func (s *Service) AutoConfigureSSH(ctx context.Context, _ *api.AutoConfigureSSHRequest) (*api.AutoConfigureSSHResponse, error) {
+	err := vnet.AutoConfigureOpenSSH(ctx, s.cfg.profilePath)
+	return nil, trace.Wrap(err)
 }
 
 func (s *Service) stopLocked() error {

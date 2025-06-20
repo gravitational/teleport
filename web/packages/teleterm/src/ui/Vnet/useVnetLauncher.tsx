@@ -46,7 +46,14 @@ export const useVnetLauncher = (): {
   launchVnetWithoutFirstTimeCheck: (args?: VnetLauncherArgs) => Promise<void>;
 } => {
   const { notificationsService, workspacesService } = useAppContext();
-  const { start, status, startAttempt, hasEverStarted } = useVnetContext();
+  const {
+    start,
+    status,
+    startAttempt,
+    hasEverStarted,
+    getServiceInfo,
+    openSSHConfigurationModal,
+  } = useVnetContext();
   const { open } = useConnectionsContext();
 
   const launchVnet: () => Promise<boolean> = useCallback(async () => {
@@ -94,6 +101,35 @@ export const useVnetLauncher = (): {
     [workspacesService]
   );
 
+  const maybeShowSSHWarning = useCallback(
+    (host: string) => {
+      getServiceInfo().then(([serviceInfo, err]) => {
+        if (err) {
+          notificationsService.notifyError({
+            title: 'Failed to fetch VNet service info',
+            description: err.message,
+            isAutoRemovable: true,
+          });
+          return;
+        }
+        if (serviceInfo.sshConfigured) {
+          // SSH clients are correctly configured, no need to show a warning.
+          return;
+        }
+        notificationsService.notifyWarning({
+          title: 'SSH clients are not configured for VNet connections',
+          isAutoRemovable: true,
+          action: {
+            content: 'Resolve',
+            onClick: () =>
+              openSSHConfigurationModal(serviceInfo.vnetSshConfigPath, host),
+          },
+        });
+      });
+    },
+    [getServiceInfo, notificationsService, openSSHConfigurationModal]
+  );
+
   const launchVnetAndCopyAddr = useCallback(
     async (args?: VnetLauncherArgs) => {
       if (!(await launchVnet())) {
@@ -106,6 +142,9 @@ export const useVnetLauncher = (): {
       const { addrToCopy, isMultiPortApp, resourceUri } = args;
       const isApp = !!routing.parseAppUri(resourceUri)?.params?.appId;
       const isServer = !!routing.parseServerUri(resourceUri)?.params?.serverId;
+
+      if (isServer) maybeShowSSHWarning(addrToCopy);
+
       let msgParts = [];
       if (isApp) {
         msgParts.push(`Connect via VNet by using ${addrToCopy}`);
@@ -122,7 +161,7 @@ export const useVnetLauncher = (): {
       }
       notificationsService.notifyInfo(msgParts.join(' ') + '.');
     },
-    [launchVnet, notificationsService]
+    [launchVnet, notificationsService, maybeShowSSHWarning]
   );
 
   return useMemo(

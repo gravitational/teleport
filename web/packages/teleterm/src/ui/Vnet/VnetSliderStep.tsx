@@ -18,7 +18,7 @@
 
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
-import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
@@ -141,8 +141,11 @@ const ErrorText = (props: PropsWithChildren) => (
  * optimistically displays previously fetched results while fetching new list.
  */
 const VnetStatus = () => {
-  const { getServiceInfo, serviceInfoAttempt: eagerServiceInfoAttempt } =
-    useVnetContext();
+  const {
+    getServiceInfo,
+    serviceInfoAttempt: eagerServiceInfoAttempt,
+    openSSHConfigurationModal,
+  } = useVnetContext();
   const serviceInfoAttempt = useDelayedRepeatedAttempt(eagerServiceInfoAttempt);
   const serviceInfoRefreshRequestedRef = useRef(false);
 
@@ -205,7 +208,18 @@ const VnetStatus = () => {
   const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
     <Flex>
       <ConnectionStatusIndicator status={'warning'} inline mr={2} />
-      SSH clients are not configured to use VNet (see diag report).
+      <Text>
+        SSH clients are not configured to use VNet{' '}
+        <Link
+          href="#"
+          onClick={e => {
+            e.preventDefault();
+            return openSSHConfigurationModal(serviceInfo.vnetSshConfigPath);
+          }}
+        >
+          Resolve
+        </Link>
+      </Text>
     </Flex>
   );
 
