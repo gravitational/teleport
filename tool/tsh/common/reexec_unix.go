@@ -51,7 +51,7 @@ func replaceStdin() (*os.File, error) {
 	}
 	var dupErr error
 	if ctrlErr := rc.Control(func(fd uintptr) {
-		dupErr = syscall.Dup2(int(fd), syscall.Stdin)
+		dupErr = dup2(int(fd), syscall.Stdin)
 		// stdin is not O_CLOEXEC after dup2 but thankfully the three stdio
 		// file descriptors must be not O_CLOEXEC anyway, so we can avoid
 		// a linux-specific implementation or syscall.ForkLock shenanigans
@@ -60,7 +60,7 @@ func replaceStdin() (*os.File, error) {
 		return nil, trace.Wrap(ctrlErr)
 	}
 	if dupErr != nil {
-		// this is the error from Dup2
+		// this is the error from dup2
 		_ = devNull.Close()
 		return nil, trace.Wrap(err)
 	}
