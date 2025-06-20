@@ -106,6 +106,12 @@ export type VnetContext = {
    * Whether VNet has started successfully at least once.
    */
   hasEverStarted: boolean;
+  /**
+   * Opens a modal that handles SSH client configuration.
+   *
+   * Optionally pass a specific host that will be used for example text.
+   */
+  openSSHConfigurationModal: (vnetSSHConfigPath: string, host?: string) => void;
 };
 
 export type VnetStatus =
@@ -465,6 +471,23 @@ export const VnetContextProvider: FC<
     ]
   );
 
+  const autoConfigureSSH = useCallback(async (): Promise<void> => {
+    await vnet.autoConfigureSSH({});
+    // Refresh the service info because SSH is now configured.
+    getServiceInfo();
+  }, [vnet]);
+  const openSSHConfigurationModal = useCallback(
+    (vnetSSHConfigPath: string, host?: string) => {
+      appCtx.modalsService.openRegularDialog({
+        kind: 'configure-ssh-clients',
+        onConfirm: autoConfigureSSH,
+        vnetSSHConfigPath,
+        host,
+      });
+    },
+    [appCtx.modalsService, autoConfigureSSH]
+  );
+
   return (
     <VnetContext.Provider
       value={{
@@ -485,6 +508,7 @@ export const VnetContextProvider: FC<
         openReport: isWorkspaceSelected ? openReport : undefined,
         showDiagWarningIndicator,
         hasEverStarted,
+        openSSHConfigurationModal,
       }}
     >
       {children}

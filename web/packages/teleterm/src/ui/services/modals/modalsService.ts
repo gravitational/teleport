@@ -298,9 +298,17 @@ export interface DialogHardwareKeySlotOverwrite {
   onCancel(): void;
 }
 
+export interface DialogConfigureSSHClients {
+  kind: 'configure-ssh-clients';
+  onConfirm(): Promise<void>;
+  vnetSSHConfigPath: string;
+  host?: string;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
+  | DialogConfigureSSHClients
   | DialogDocumentsReopen
   | DialogUsageData
   | DialogUserJobRole
