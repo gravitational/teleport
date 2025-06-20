@@ -274,11 +274,25 @@ func (c *CurrentUserAssignments) IsOwner() bool {
 	return c.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
+// Option is a functional option for configuring an AccessList.
+type Option func(*AccessList)
+
+// WithSubKind sets the sub-kind of the access list. This is used to differentiate
+func WithSubKind(subKind string) Option {
+	return func(al *AccessList) {
+		al.SubKind = subKind
+	}
+}
+
 // NewAccessList will create a new access list.
-func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
+func NewAccessList(metadata header.Metadata, spec Spec, opts ...Option) (*AccessList, error) {
 	accessList := &AccessList{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
+	}
+
+	for _, opt := range opts {
+		opt(accessList)
 	}
 
 	if err := accessList.CheckAndSetDefaults(); err != nil {
@@ -301,7 +315,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
+	if len(a.Spec.Owners) == 0 && a.GetSubKind() == "" {
 		return trace.BadParameter("owners are missing")
 	}
 

@@ -17,8 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"time"
-
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -40,34 +38,13 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	if msg.Spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
-	if msg.Spec.Audit == nil {
-		return nil, trace.BadParameter("audit is missing")
-	}
-	if msg.Spec.MembershipRequires == nil {
-		return nil, trace.BadParameter("membershipRequires is missing")
-	}
-	if msg.Spec.OwnershipRequires == nil {
-		return nil, trace.BadParameter("ownershipRequires is missing")
-	}
+
 	if msg.Spec.Grants == nil {
 		return nil, trace.BadParameter("grants is missing")
 	}
 
-	var recurrence accesslist.Recurrence
-	if msg.Spec.Audit.Recurrence != nil {
-		recurrence.Frequency = accesslist.ReviewFrequency(msg.Spec.Audit.Recurrence.Frequency)
-		recurrence.DayOfMonth = accesslist.ReviewDayOfMonth(msg.Spec.Audit.Recurrence.DayOfMonth)
-	}
-
-	var notifications accesslist.Notifications
-	if msg.Spec.Audit.Notifications != nil {
-		if msg.Spec.Audit.Notifications.Start != nil {
-			notifications.Start = msg.Spec.Audit.Notifications.Start.AsDuration()
-		}
-	}
-
-	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
-	for i, owner := range msg.Spec.Owners {
+	owners := make([]accesslist.Owner, len(msg.GetSpec().GetOwners()))
+	for i, owner := range msg.GetSpec().GetOwners() {
 		owners[i] = FromOwnerProto(owner)
 		// Set IneligibleStatus to empty as default.
 		// Must provide as options to set it with the provided value.
@@ -75,48 +52,25 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	var ownerGrants accesslist.Grants
-	if msg.Spec.OwnerGrants != nil {
-		ownerGrants.Roles = msg.Spec.OwnerGrants.Roles
-		if msg.Spec.OwnerGrants.Traits != nil {
-			ownerGrants.Traits = traitv1.FromProto(msg.Spec.OwnerGrants.Traits)
-		}
-	}
-
-	// We map the zero protobuf time (nil) to the zero go time.
-	// NewAccessList will handle this properly and set a time in the future
-	// based on the recurrence rules.
-	var nextAuditDate time.Time
-	if msg.Spec.Audit.NextAuditDate != nil {
-		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
-	}
+	ownerGrants.Roles = msg.GetSpec().GetOwnerGrants().GetRoles()
+	ownerGrants.Traits = traitv1.FromProto(msg.GetSpec().GetOwnerGrants().GetTraits())
 
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
-		Title:       msg.Spec.Title,
-		Description: msg.Spec.Description,
-		Owners:      owners,
-		Audit: accesslist.Audit{
-			NextAuditDate: nextAuditDate,
-			Recurrence:    recurrence,
-			Notifications: notifications,
-		},
-		MembershipRequires: accesslist.Requires{
-			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
-		},
-		OwnershipRequires: accesslist.Requires{
-			Roles:  msg.Spec.OwnershipRequires.Roles,
-			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
-		},
+		Title:              msg.Spec.Title,
+		Description:        msg.Spec.Description,
+		Owners:             owners,
+		Audit:              convertAuditFromProto(msg.GetSpec().GetAudit()),
+		MembershipRequires: convertRequiresFromProto(msg.GetSpec().GetMembershipRequires()),
+		OwnershipRequires:  convertRequiresFromProto(msg.GetSpec().GetOwnershipRequires()),
 		Grants: accesslist.Grants{
-			Roles:  msg.Spec.Grants.Roles,
-			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
+			Roles:  msg.GetSpec().GetGrants().GetRoles(),
+			Traits: traitv1.FromProto(msg.GetSpec().GetGrants().GetTraits()),
 		},
 		OwnerGrants: ownerGrants,
-	})
+	}, accesslist.WithSubKind(msg.GetHeader().GetSubKind()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessList.SetSubKind(msg.GetHeader().GetSubKind())
 
 	if status := fromStatusProto(msg); status != nil {
 		accessList.Status = *status
@@ -127,6 +81,40 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	return accessList, nil
+}
+
+func convertAuditFromProto(audit *accesslistv1.AccessListAudit) accesslist.Audit {
+	if audit == nil {
+		return accesslist.Audit{}
+	}
+	return accesslist.Audit{
+		NextAuditDate: audit.GetNextAuditDate().AsTime(),
+		Recurrence: accesslist.Recurrence{
+			Frequency:  accesslist.ReviewFrequency(audit.GetRecurrence().GetFrequency()),
+			DayOfMonth: accesslist.ReviewDayOfMonth(audit.GetRecurrence().GetDayOfMonth()),
+		},
+		Notifications: convertNotificationsFromProto(audit.GetNotifications()),
+	}
+}
+
+func convertNotificationsFromProto(notifications *accesslistv1.Notifications) accesslist.Notifications {
+
+	if notifications.GetStart() == nil {
+		return accesslist.Notifications{}
+	}
+	return accesslist.Notifications{
+		Start: notifications.GetStart().AsDuration(),
+	}
+}
+
+func convertRequiresFromProto(requires *accesslistv1.AccessListRequires) accesslist.Requires {
+	if requires == nil {
+		return accesslist.Requires{}
+	}
+	return accesslist.Requires{
+		Roles:  requires.GetRoles(),
+		Traits: traitv1.FromProto(requires.GetTraits()),
+	}
 }
 
 // ToProto converts an internal access list into a v1 access list object.
@@ -219,16 +207,19 @@ func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
 
 // FromOwnerProto converts a v1 access list owner into an internal access list owner object.
 func FromOwnerProto(protoOwner *accesslistv1.AccessListOwner) accesslist.Owner {
+	if protoOwner == nil {
+		return accesslist.Owner{}
+	}
 	ineligibleStatus := ""
-	if protoOwner.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
-		ineligibleStatus = protoOwner.IneligibleStatus.String()
+	if protoOwner.GetIneligibleStatus() != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+		ineligibleStatus = protoOwner.GetIneligibleStatus().String()
 	}
 
 	return accesslist.Owner{
-		Name:             protoOwner.Name,
-		Description:      protoOwner.Description,
+		Name:             protoOwner.GetName(),
+		Description:      protoOwner.GetDescription(),
 		IneligibleStatus: ineligibleStatus,
-		MembershipKind:   protoOwner.MembershipKind.String(),
+		MembershipKind:   protoOwner.GetMembershipKind().String(),
 	}
 }
 
