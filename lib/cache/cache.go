@@ -265,7 +265,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
-		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -296,7 +295,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindGitServer},
-		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg

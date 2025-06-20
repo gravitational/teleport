@@ -2754,7 +2754,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
-	cfg.BotInstance = client
 
 	return accesspoint.NewCache(cfg)
 }

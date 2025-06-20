@@ -148,6 +148,7 @@ type testPack struct {
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
+	botInstanceService      *local.BotInstanceService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -426,6 +427,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -482,6 +488,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
+		BotInstanceService:      p.botInstanceService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))

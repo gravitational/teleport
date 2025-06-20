@@ -18,10 +18,8 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -34,36 +32,18 @@ import (
 type botInstanceIndex string
 
 const (
-	botInstanceNameIndex   botInstanceIndex = "name"
-	botInstanceRecentIndex botInstanceIndex = "recent"
+	botInstanceNameIndex botInstanceIndex = "name"
 )
 
-// TODO temporary, remove.
-func timer(name string) func() {
-	start := time.Now()
-	return func() {
-		fmt.Printf("%s took %v\n", name, time.Since(start))
-	}
+func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
+	return makeNameIndexKey(
+		botInstance.GetSpec().GetBotName(),
+		botInstance.GetMetadata().GetName(),
+	)
 }
 
-func calcKeyForNameIndex(botInstance *machineidv1.BotInstance) string {
-	return fmt.Sprintf("%s/%s", botInstance.GetSpec().BotName, botInstance.GetMetadata().Name)
-}
-
-func calcKeyForRecentIndex(botInstance *machineidv1.BotInstance) string {
-	// TODO Work out a value for instances that don't have a heartbeat
-	// recordedAt := "~" // Tilde for ascending sort
-	recordedAt := " " // Space for descending sort
-
-	if len(botInstance.GetStatus().GetLatestHeartbeats()) > 0 {
-		recordedAt = botInstance.GetStatus().GetLatestHeartbeats()[0].GetRecordedAt().AsTime().Format(time.RFC3339)
-	}
-
-	if botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt() != nil {
-		recordedAt = botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt().AsTime().Format(time.RFC3339)
-	}
-
-	return fmt.Sprintf("%s/%s", recordedAt, botInstance.GetMetadata().Name)
+func makeNameIndexKey(botName string, instanceID string) string {
+	return botName + "/" + instanceID
 }
 
 func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex], error) {
@@ -76,14 +56,9 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			proto.CloneOf[*machineidv1.BotInstance],
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name
-				botInstanceNameIndex: calcKeyForNameIndex,
-				// Index on the most recent heartbeat time
-				botInstanceRecentIndex: calcKeyForRecentIndex,
+				botInstanceNameIndex: keyForNameIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
-			fmt.Println("newBotInstanceCollection > fetcher")
-			defer timer("newBotInstanceCollection > fetcher > finished:")()
-
 			var resources []*machineidv1.BotInstance
 			var nextToken string
 			for {
@@ -102,16 +77,12 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			}
 			return resources, nil
 		},
-		// TODO: is this needed?
-		// headerTransform: func(hdr *types.ResourceHeader) *machineidv1.BotInstance {},
 		watch: w,
 	}, nil
 }
 
 // GetBotInstance returns the specified BotInstance resource.
 func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
-	fmt.Println("GetBotInstance")
-
 	ctx, span := c.Tracer.Start(ctx, "cache/GetBotInstance")
 	defer span.End()
 
@@ -122,13 +93,11 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		fmt.Println("GetBotInstance > Cache not ready")
 		out, err := c.Config.BotInstanceService.GetBotInstance(ctx, botName, instanceID)
 		return out, trace.Wrap(err)
 	}
 
-	// TODO find a way to avoid hardcoding the key format
-	key := fmt.Sprintf("%s/%s", botName, instanceID)
+	key := makeNameIndexKey(botName, instanceID)
 
 	out, err := rg.store.get(botInstanceNameIndex, key)
 	if err != nil {
@@ -140,8 +109,6 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 
 // ListBotInstances returns a page of BotInstance resources.
 func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error) {
-	fmt.Println("ListBotInstances")
-
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
 
@@ -152,7 +119,6 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		fmt.Println("ListBotInstances > Cache not ready")
 		out, next, err := c.Config.BotInstanceService.ListBotInstances(ctx, botName, pageSize, lastToken, search)
 		return out, next, trace.Wrap(err)
 	}
@@ -163,66 +129,47 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 
 	var out []*machineidv1.BotInstance
 	nextToken := ""
-	for b := range rg.store.cache.Descend(botInstanceRecentIndex, lastToken, "") {
+	for b := range rg.store.resources(botInstanceNameIndex, lastToken, "") {
 		if len(out) == pageSize {
-			nextToken = calcKeyForRecentIndex(b)
+			nextToken = keyForNameIndex(b)
 			break
 		}
 
-		if botName != "" && b.Spec.BotName != botName {
-			continue
+		if matchBotInstance(b, botName, search) {
+			out = append(out, proto.CloneOf(b))
 		}
-
-		if search != "" {
-			latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
-			heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-			if len(latestHeartbeats) > 0 {
-				heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-			}
-
-			values := []string{
-				b.Spec.BotName,
-				b.Spec.InstanceId,
-			}
-
-			if heartbeat != nil {
-				values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
-			}
-
-			match := slices.ContainsFunc(values, func(val string) bool {
-				return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-			})
-
-			if !match {
-				continue
-			}
-		}
-
-		out = append(out, proto.CloneOf(b))
 	}
 
 	return out, nextToken, nil
 }
 
-// TODO How does the cache know about mutations to the underlying data? Does it re-compute index?
+func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
+	// If updating this, ensure it's consistent with the upstream search logic in `lib/services/local/bot_instance.go`.
 
-// // CreateBotInstance adds a new BotInstance resource.
-// func (c *Cache) CreateBotInstance(ctx context.Context, botInstance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-// 	return nil, nil
-// }
+	if botName != "" && b.Spec.BotName != botName {
+		return false
+	}
 
-// // DeleteBotInstance hard deletes the specified BotInstance resource.
-// func (c *Cache) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
-// 	return nil
-// }
+	if search == "" {
+		return true
+	}
 
-// // PatchBotInstance fetches an existing bot instance by bot name and ID,
-// // then calls `updateFn` to apply any changes before persisting the
-// // resource.
-// func (c *Cache) PatchBotInstance(
-// 	ctx context.Context,
-// 	botName, instanceID string,
-// 	updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
-// ) (*machineidv1.BotInstance, error) {
-// 	return nil, nil
-// }
+	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
+	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+	if len(latestHeartbeats) > 0 {
+		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	}
+
+	values := []string{
+		b.Spec.BotName,
+		b.Spec.InstanceId,
+	}
+
+	if heartbeat != nil {
+		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+	})
+}
