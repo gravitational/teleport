@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -36,6 +37,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -139,6 +141,11 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 		testenv.WithProxyKube(t),
 	)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	time.Sleep(10 * time.Second)
+	// TODO: Just for debugging - remove if necessary.
+	kubeServers, err := rootClient.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, kubeServers, 1)
 
 	// Create Join Token, Role and Bot
 	role, err := types.NewRole("kube-access", types.RoleSpecV6{
@@ -153,21 +160,65 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rootClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{})
+	bot, err := rootClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+		Bot: &machineidv1.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "test-bot",
+			},
+			Spec: &machineidv1.BotSpec{
+				Roles: []string{role.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	marshalledJWKS, err := fakeJoinSigner.GetMarshaledJWKS()
+	require.NoError(t, err)
+	pt, err := types.NewProvisionTokenFromSpec(
+		"test-bot",
+		time.Time{},
+		types.ProvisionTokenSpecV2{
+			BotName:    bot.Metadata.Name,
+			Roles:      []types.SystemRole{types.RoleBot},
+			JoinMethod: types.JoinMethodKubernetes,
+			Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+				Type: types.KubernetesJoinTypeStaticJWKS,
+				StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+					JWKS: marshalledJWKS,
+				},
+				Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+					{
+						ServiceAccount: "default:bot",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, rootClient.CreateToken(ctx, pt))
 
 	// Start running test cases.
 
-	time.Sleep(10 * time.Second)
-	// TODO: Just for debugging - remove if necessary.
-	kubeServers, err := rootClient.GetKubernetesServers(ctx)
+	// TODO: Set environment variable to use the bot token
+	joinJWT, err := fakeJoinSigner.SignServiceAccountJWT(
+		"my-pod",
+		"default",
+		"bot",
+		"my-kubernetes-cluster",
+	)
 	require.NoError(t, err)
-	require.Len(t, kubeServers, 1)
+	joinJWTPath := filepath.Join(t.TempDir(), "join")
+	err = os.WriteFile(joinJWTPath, []byte(joinJWT), 0666)
+	require.NoError(t, err)
+	require.NoError(t, os.Setenv("KUBERNETES_TOKEN_PATH", joinJWTPath))
+
+	// TODO: Support insecure
 
 	config := fmt.Sprintf(`
 provider "teleportmwi" {
-  proxy_server = "example.com:3080"
-  join_method  = "gitlab"
-  join_token   = "example-token"
+  proxy_server = "%s"
+  join_method  = "kubernetes"
+  join_token   = "test-bot"
 }
 
 ephemeral "teleportmwi_kubernetes" "example" {
@@ -189,7 +240,8 @@ resource "kubernetes_namespace" "ns" {
     name = "tf-mwi-test"
   }
 }
-`)
+`, process.Config.Proxy.WebAddr.String())
+
 	resource.Test(t, resource.TestCase{
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
 			// Ephemeral resources were introduced in Terraform 1.10.0.
