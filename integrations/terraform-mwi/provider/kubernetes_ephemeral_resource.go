@@ -133,7 +133,6 @@ func (d *KubernetesEphemeralResource) Configure(
 	req ephemeral.ConfigureRequest,
 	resp *ephemeral.ConfigureResponse,
 ) {
-	// TODO: wrap in helper?
 	if req.ProviderData == nil {
 		return
 	}
@@ -149,7 +148,6 @@ func (d *KubernetesEphemeralResource) Configure(
 
 		return
 	}
-	// TODO: end wrap in helper?
 	d.pd = pd
 }
 

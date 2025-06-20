@@ -131,7 +131,6 @@ func (d *KubernetesDataSource) Configure(
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
 ) {
-	// TODO: wrap in helper?
 	if req.ProviderData == nil {
 		return
 	}
@@ -147,7 +146,6 @@ func (d *KubernetesDataSource) Configure(
 
 		return
 	}
-	// TODO: end wrap in helper?
 	d.pd = pd
 }
 
@@ -212,7 +210,7 @@ func (d *KubernetesDataSource) Read(
 	bot := tbot.New(botCfg, slog.Default())
 	if err := bot.Run(ctx); err != nil {
 		resp.Diagnostics.AddError(
-			"Error running tbot in resource",
+			"Error running tbot in data source",
 			"Failed to run tbot: "+err.Error(),
 		)
 		return
