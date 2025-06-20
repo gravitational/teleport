@@ -977,3 +977,65 @@ func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
+	const localCluster = "cluster"
+
+	tests := []struct {
+		info         *AccessInfo
+		name         string
+		resource     types.AppServerV3
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name: "requested resource matches",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindApp,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: require.NoError,
+		},
+		{
+			name: "requested resource does not match",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
+			tc.assertAccess(t, accessChecker.CheckAccess(
+				&tc.resource,
+				AccessState{MFARequired: MFARequiredNever},
+			))
+		})
+	}
+}
