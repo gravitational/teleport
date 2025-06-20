@@ -138,6 +138,7 @@ const cfg = {
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
+    identifierFirstLoginEnabled: false,
   },
 
   proxyCluster: 'localhost',
@@ -468,6 +469,8 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
     defaultConnectorPath: '/v1/webapi/authconnector/default',
+
+    authConnectorsPath: '/v1/webapi/authconnectors',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',

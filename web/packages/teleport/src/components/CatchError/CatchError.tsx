@@ -41,6 +41,13 @@ export class CatchError extends React.PureComponent<Props, State> {
 
   render() {
     if (this.state.error) {
+      console.log(
+        '-------------- Caught error in CatchError component -------'
+      );
+      console.error(this.state.error);
+      console.log(
+        '------------------------------------------------------------'
+      );
       if (this.props.fallbackFn) {
         return this.props.fallbackFn({
           error: this.state.error,
