@@ -197,11 +197,10 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	defer span.End()
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
-		TTL:             effectiveLifetime.TTL,
-		RenewalInterval: effectiveLifetime.RenewalInterval,
-		Logger:          s.log,
-	})
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}

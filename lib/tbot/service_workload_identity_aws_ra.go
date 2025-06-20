@@ -174,12 +174,12 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 	)
 	defer span.End()
 
-	id, err := s.identityGenerator.GenerateFacade(ctx, identity.GenerateParams{
+	id, err := s.identityGenerator.GenerateFacade(ctx,
 		// We only need this to issue the X509 SVID, so we don't need the full
 		// lifetime.
-		TTL:    time.Minute * 10,
-		Logger: s.log,
-	})
+		identity.WithLifetime(time.Minute*10, 0),
+		identity.WithLogger(s.log),
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
