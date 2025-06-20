@@ -139,6 +139,7 @@ type collections struct {
 	secReports                         *collection[*secreports.Report, securityReportIndex]
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
 	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
+	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -731,6 +732,14 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.relayServers = collect
 			out.byKind[resourceKind] = out.relayServers
+		case types.KindBotInstance:
+			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.botInstances = collect
+			out.byKind[resourceKind] = out.botInstances
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
