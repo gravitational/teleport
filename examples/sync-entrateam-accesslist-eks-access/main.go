@@ -115,24 +115,42 @@ func do(ctx context.Context) error {
 		"account_id", request.AWSAccountID,
 	)
 
-	// Add a member to the Access List.
-	err = upsertEntraTeamMemberToAccessList(ctx, clt, accessList, request.EntraTeam)
+	entraTeam, err := guessAccessListIDFromEntraTeamID(ctx, clt, request)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Entra Team ID added as a sub-list member",
-		"member_name", request.EntraTeam,
-		"access_list_name", accessList.GetName(),
-		"account_id", request.AWSAccountID,
+	slog.InfoContext(ctx, "Entra Team ID found",
+		"teleport_access_list_name", entraTeam,
+		"entra_team_name", request.MicrosoftEntraTeamName,
+		"entra_team_object_id", request.MicrosoftEntraTeamObjectID,
+	)
+
+	// Add a Entra Team as member to the Access List.
+	err = upsertEntraTeamMemberToAccessList(ctx, clt, accessList, entraTeam)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slog.InfoContext(ctx, "Entra Team ID added as a group member",
+		"access_list", accessList.GetName(),
+		"member_group_name", entraTeam,
 	)
 
 	return nil
 }
 
 type SyncRequest struct {
-	AWSAccountID              string
-	EntraTeam                 string
+	AWSAccountID string
+
+	// Microsoft Entra Team can be referenced by one of the following, ordered by preference and priority.
+	// 1. Teleport's Access List name that corresponds to the Entra Team as synced into Teleport.
+	TeleportEntraTeamAccessListID string
+	// 2. Microsoft Entra Team Object ID.
+	MicrosoftEntraTeamObjectID string
+	// 3. Microsoft Entra Team Display Name.
+	MicrosoftEntraTeamName string
+
 	AccessListUniqueID        string
 	AccessListTitle           string
 	AccessListNextAuditDate   time.Time
@@ -261,4 +279,51 @@ func upsertEntraTeamMemberToAccessList(ctx context.Context, clt *client.Client, 
 
 	_, err = clt.AccessListClient().UpsertAccessListMember(ctx, member)
 	return trace.Wrap(err)
+}
+
+// guessAccessListIDFromEntraTeamID iterates through the Access Lists
+// and tries to find the one that matches the Entra Team ID.
+// This ID might be the Teleport's Access List name or the Microsoft Entra Team Object ID.
+// The function returns the Teleport's Access List name that corresponds to the Entra Team ID.
+func guessAccessListIDFromEntraTeamID(ctx context.Context, clt *client.Client, request *SyncRequest) (string, error) {
+	if request.TeleportEntraTeamAccessListID != "" {
+		return request.TeleportEntraTeamAccessListID, nil
+	}
+
+	nextToken := ""
+	for {
+		// List all Access Lists.
+		existingAccessList, respNextToken, err := clt.AccessListClient().ListAccessLists(ctx, 0, nextToken)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		for _, accessList := range existingAccessList {
+			accessListLabels := accessList.GetAllLabels()
+
+			// Only consider Access Lists that are from Entra ID.
+			if accessListLabels[types.OriginLabel] != types.OriginEntraID {
+				continue
+			}
+
+			// Use Microsoft ObjectID if provided.
+			if request.MicrosoftEntraTeamObjectID != "" {
+				if accessListLabels[types.EntraUniqueIDLabel] != request.MicrosoftEntraTeamObjectID {
+					continue
+				}
+				return accessList.GetName(), nil
+			}
+
+			// Otherwise, use the Team Group's Display Name.
+			if request.MicrosoftEntraTeamName != "" && accessListLabels[types.EntraDisplayNameLabel] == request.MicrosoftEntraTeamName {
+				return accessList.GetName(), nil
+			}
+		}
+		if respNextToken == "" {
+			break
+		}
+		nextToken = respNextToken
+	}
+
+	return "", trace.NotFound("no Access List found for Entra Team ID: %s", request.MicrosoftEntraTeamObjectID)
 }
