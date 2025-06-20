@@ -85,7 +85,7 @@
     "@uiw/react-codemirror": "^4.23.12",
     "d3-scale": "^4.0.2",
     "d3-time-format": "^4.1.0",
-    "date-fns": "^2.28.0",
+    "date-fns": "^4.1.0",
     "highlight.js": "^11.11.1",
     "history": "^4.9.0",
     "immer": "^10.1.1",
