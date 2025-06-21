@@ -7641,6 +7641,10 @@ message PluginOktaStatusV1 {
   // AccessListSyncDetails are status details relating to synchronizing access
   // lists from Okta.
   PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 5;
+
+  // SystemLogExportDetails are the status defaults related to the System Logs
+  // exporter.
+  PluginOktaStatusSystemLogExporter system_log_export_details = 6;
 }
 
 // PluginOktaStatusDetailsSSO are details related to the
@@ -7770,6 +7774,34 @@ message PluginOktaStatusDetailsAccessListsSync {
 
   // NumGroupsSynced are the number of groups synchronized as access lists.
   int32 num_groups_synced = 8;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 9;
+}
+
+// PluginOktaStatusSystemLogExporter are details related to the
+// current status of the Okta integration w/r/t system logs sync.
+message PluginOktaStatusSystemLogExporter {
+  // Enabled is whether Okta System Log exporter is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
 
   // Error contains a textual description of the reason the last synchronization
   // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
