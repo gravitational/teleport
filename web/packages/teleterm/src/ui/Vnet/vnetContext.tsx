@@ -28,7 +28,10 @@ import {
   useState,
 } from 'react';
 
-import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import {
+  BackgroundItemStatus,
+  GetServiceInfoResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -51,17 +54,13 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet.
    */
   isSupported: boolean;
-  /**
-   * Describes whether the given OS can run VNet diagnostics.
-   */
-  isDiagSupported: boolean;
   status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
-  listDNSZones: () => Promise<[string[], Error]>;
-  listDNSZonesAttempt: Attempt<string[]>;
+  getServiceInfo: () => Promise<[GetServiceInfoResponse, Error]>;
+  serviceInfoAttempt: Attempt<GetServiceInfoResponse>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -146,7 +145,6 @@ export const VnetContextProvider: FC<
     [mainProcessClient]
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
-  const isDiagSupported = platform === 'darwin';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -234,9 +232,9 @@ export const VnetContextProvider: FC<
     ])
   );
 
-  const [listDNSZonesAttempt, listDNSZones] = useAsync(
+  const [serviceInfoAttempt, getServiceInfo] = useAsync(
     useCallback(
-      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
+      () => vnet.getServiceInfo({}).then(({ response }) => response),
       [vnet]
     )
   );
@@ -426,10 +424,6 @@ export const VnetContextProvider: FC<
 
   useEffect(
     function periodicallyRunDiagnostics() {
-      if (!isDiagSupported) {
-        return;
-      }
-
       if (status.value !== 'running') {
         return;
       }
@@ -451,7 +445,6 @@ export const VnetContextProvider: FC<
       };
     },
     [
-      isDiagSupported,
       diagnosticsIntervalMs,
       runDiagnosticsAndShowNotification,
       status.value,
@@ -463,14 +456,13 @@ export const VnetContextProvider: FC<
     <VnetContext.Provider
       value={{
         isSupported,
-        isDiagSupported,
         status,
         start,
         startAttempt,
         stop,
         stopAttempt,
-        listDNSZones,
-        listDNSZonesAttempt,
+        getServiceInfo,
+        serviceInfoAttempt,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,

@@ -60,24 +60,38 @@ export interface StopRequest {
 export interface StopResponse {
 }
 /**
- * Request for ListDNSZones.
+ * Request for GetServiceInfo.
  *
- * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
  */
-export interface ListDNSZonesRequest {
+export interface GetServiceInfoRequest {
 }
 /**
- * Response for ListDNSZones.
+ * GetServiceInfoResponse contains the status of the running VNet service.
  *
- * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
  */
-export interface ListDNSZonesResponse {
+export interface GetServiceInfoResponse {
     /**
-     * dns_zones is a deduplicated list of DNS zones.
+     * app_dns_zones is a deduplicated list of all DNS zones valid as DNS
+     * suffixes for connections to TCP apps.
      *
-     * @generated from protobuf field: repeated string dns_zones = 1;
+     * @generated from protobuf field: repeated string app_dns_zones = 1;
      */
-    dnsZones: string[];
+    appDnsZones: string[];
+    /**
+     * clusters is a list of cluster names valid as DNS suffixes for SSH hosts.
+     *
+     * @generated from protobuf field: repeated string clusters = 2;
+     */
+    clusters: string[];
+    /**
+     * ssh_configured is true if the user's SSH config file includes VNet's
+     * generated SSH config necessary for SSH access.
+     *
+     * @generated from protobuf field: bool ssh_configured = 3;
+     */
+    sshConfigured: boolean;
 }
 /**
  * Request for GetBackgroundItemStatus.
@@ -251,20 +265,20 @@ class StopResponse$Type extends MessageType<StopResponse> {
  */
 export const StopResponse = new StopResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ListDNSZonesRequest$Type extends MessageType<ListDNSZonesRequest> {
+class GetServiceInfoRequest$Type extends MessageType<GetServiceInfoRequest> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest", []);
+        super("teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest", []);
     }
-    create(value?: PartialMessage<ListDNSZonesRequest>): ListDNSZonesRequest {
+    create(value?: PartialMessage<GetServiceInfoRequest>): GetServiceInfoRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         if (value !== undefined)
-            reflectionMergePartial<ListDNSZonesRequest>(this, message, value);
+            reflectionMergePartial<GetServiceInfoRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDNSZonesRequest): ListDNSZonesRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServiceInfoRequest): GetServiceInfoRequest {
         return target ?? this.create();
     }
-    internalBinaryWrite(message: ListDNSZonesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: GetServiceInfoRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -272,30 +286,40 @@ class ListDNSZonesRequest$Type extends MessageType<ListDNSZonesRequest> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
  */
-export const ListDNSZonesRequest = new ListDNSZonesRequest$Type();
+export const GetServiceInfoRequest = new GetServiceInfoRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ListDNSZonesResponse$Type extends MessageType<ListDNSZonesResponse> {
+class GetServiceInfoResponse$Type extends MessageType<GetServiceInfoResponse> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse", [
-            { no: 1, name: "dns_zones", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        super("teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse", [
+            { no: 1, name: "app_dns_zones", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "clusters", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "ssh_configured", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
-    create(value?: PartialMessage<ListDNSZonesResponse>): ListDNSZonesResponse {
+    create(value?: PartialMessage<GetServiceInfoResponse>): GetServiceInfoResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.dnsZones = [];
+        message.appDnsZones = [];
+        message.clusters = [];
+        message.sshConfigured = false;
         if (value !== undefined)
-            reflectionMergePartial<ListDNSZonesResponse>(this, message, value);
+            reflectionMergePartial<GetServiceInfoResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDNSZonesResponse): ListDNSZonesResponse {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServiceInfoResponse): GetServiceInfoResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* repeated string dns_zones */ 1:
-                    message.dnsZones.push(reader.string());
+                case /* repeated string app_dns_zones */ 1:
+                    message.appDnsZones.push(reader.string());
+                    break;
+                case /* repeated string clusters */ 2:
+                    message.clusters.push(reader.string());
+                    break;
+                case /* bool ssh_configured */ 3:
+                    message.sshConfigured = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -308,10 +332,16 @@ class ListDNSZonesResponse$Type extends MessageType<ListDNSZonesResponse> {
         }
         return message;
     }
-    internalBinaryWrite(message: ListDNSZonesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated string dns_zones = 1; */
-        for (let i = 0; i < message.dnsZones.length; i++)
-            writer.tag(1, WireType.LengthDelimited).string(message.dnsZones[i]);
+    internalBinaryWrite(message: GetServiceInfoResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string app_dns_zones = 1; */
+        for (let i = 0; i < message.appDnsZones.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.appDnsZones[i]);
+        /* repeated string clusters = 2; */
+        for (let i = 0; i < message.clusters.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.clusters[i]);
+        /* bool ssh_configured = 3; */
+        if (message.sshConfigured !== false)
+            writer.tag(3, WireType.Varint).bool(message.sshConfigured);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -319,9 +349,9 @@ class ListDNSZonesResponse$Type extends MessageType<ListDNSZonesResponse> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
  */
-export const ListDNSZonesResponse = new ListDNSZonesResponse$Type();
+export const GetServiceInfoResponse = new GetServiceInfoResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetBackgroundItemStatusRequest$Type extends MessageType<GetBackgroundItemStatusRequest> {
     constructor() {
@@ -471,7 +501,7 @@ export const RunDiagnosticsResponse = new RunDiagnosticsResponse$Type();
 export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetService", [
     { name: "Start", options: {}, I: StartRequest, O: StartResponse },
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
-    { name: "ListDNSZones", options: {}, I: ListDNSZonesRequest, O: ListDNSZonesResponse },
+    { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse }
 ]);

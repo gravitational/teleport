@@ -496,6 +496,7 @@ type CheckReport struct {
 	// Types that are valid to be assigned to Report:
 	//
 	//	*CheckReport_RouteConflictReport
+	//	*CheckReport_SshConfigurationReport
 	Report        isCheckReport_Report `protobuf_oneof:"report"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -554,6 +555,15 @@ func (x *CheckReport) GetRouteConflictReport() *RouteConflictReport {
 	return nil
 }
 
+func (x *CheckReport) GetSshConfigurationReport() *SSHConfigurationReport {
+	if x != nil {
+		if x, ok := x.Report.(*CheckReport_SshConfigurationReport); ok {
+			return x.SshConfigurationReport
+		}
+	}
+	return nil
+}
+
 type isCheckReport_Report interface {
 	isCheckReport_Report()
 }
@@ -564,7 +574,14 @@ type CheckReport_RouteConflictReport struct {
 	RouteConflictReport *RouteConflictReport `protobuf:"bytes,2,opt,name=route_conflict_report,json=routeConflictReport,proto3,oneof"`
 }
 
+type CheckReport_SshConfigurationReport struct {
+	// ssh_configuration_report reports the status of the system's SSH configuration.
+	SshConfigurationReport *SSHConfigurationReport `protobuf:"bytes,3,opt,name=ssh_configuration_report,json=sshConfigurationReport,proto3,oneof"`
+}
+
 func (*CheckReport_RouteConflictReport) isCheckReport_Report() {}
+
+func (*CheckReport_SshConfigurationReport) isCheckReport_Report() {}
 
 // CommandAttempt describes the attempt at running a particular command associated with a diagnostic
 // check.
@@ -761,6 +778,93 @@ func (x *RouteConflict) GetInterfaceApp() string {
 	return ""
 }
 
+// SSHConfigurationReport describes the state of the system's SSH configuration.
+type SSHConfigurationReport struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// user_openssh_config_path is the full path to the user's default OpenSSH
+	// config file (~/.ssh/config).
+	UserOpensshConfigPath string `protobuf:"bytes,1,opt,name=user_openssh_config_path,json=userOpensshConfigPath,proto3" json:"user_openssh_config_path,omitempty"`
+	// vnet_ssh_config_path is the path to VNet's generated OpenSSH-compatible
+	// config file.
+	VnetSshConfigPath string `protobuf:"bytes,2,opt,name=vnet_ssh_config_path,json=vnetSshConfigPath,proto3" json:"vnet_ssh_config_path,omitempty"`
+	// user_openssh_config_includes_vnet_ssh_config is true if the default
+	// OpenSSH user configuration file includes VNet's SSH config file.
+	UserOpensshConfigIncludesVnetSshConfig bool `protobuf:"varint,3,opt,name=user_openssh_config_includes_vnet_ssh_config,json=userOpensshConfigIncludesVnetSshConfig,proto3" json:"user_openssh_config_includes_vnet_ssh_config,omitempty"`
+	// user_openssh_config_exists is true if a file exists at
+	// user_openssh_config_path (~/.ssh/config).
+	UserOpensshConfigExists bool `protobuf:"varint,4,opt,name=user_openssh_config_exists,json=userOpensshConfigExists,proto3" json:"user_openssh_config_exists,omitempty"`
+	// user_openssh_config_contents contains the contents of the file at
+	// user_openssh_config_path if it exists.
+	UserOpensshConfigContents string `protobuf:"bytes,5,opt,name=user_openssh_config_contents,json=userOpensshConfigContents,proto3" json:"user_openssh_config_contents,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *SSHConfigurationReport) Reset() {
+	*x = SSHConfigurationReport{}
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SSHConfigurationReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SSHConfigurationReport) ProtoMessage() {}
+
+func (x *SSHConfigurationReport) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SSHConfigurationReport.ProtoReflect.Descriptor instead.
+func (*SSHConfigurationReport) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SSHConfigurationReport) GetUserOpensshConfigPath() string {
+	if x != nil {
+		return x.UserOpensshConfigPath
+	}
+	return ""
+}
+
+func (x *SSHConfigurationReport) GetVnetSshConfigPath() string {
+	if x != nil {
+		return x.VnetSshConfigPath
+	}
+	return ""
+}
+
+func (x *SSHConfigurationReport) GetUserOpensshConfigIncludesVnetSshConfig() bool {
+	if x != nil {
+		return x.UserOpensshConfigIncludesVnetSshConfig
+	}
+	return false
+}
+
+func (x *SSHConfigurationReport) GetUserOpensshConfigExists() bool {
+	if x != nil {
+		return x.UserOpensshConfigExists
+	}
+	return false
+}
+
+func (x *SSHConfigurationReport) GetUserOpensshConfigContents() string {
+	if x != nil {
+		return x.UserOpensshConfigContents
+	}
+	return ""
+}
+
 var File_teleport_lib_vnet_diag_v1_diag_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
@@ -785,10 +889,11 @@ const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\x0e2-.teleport.lib.vnet.diag.v1.CheckAttemptStatusR\x06status\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12I\n" +
 	"\fcheck_report\x18\x03 \x01(\v2&.teleport.lib.vnet.diag.v1.CheckReportR\vcheckReport\x12E\n" +
-	"\bcommands\x18\x04 \x03(\v2).teleport.lib.vnet.diag.v1.CommandAttemptR\bcommands\"\xc3\x01\n" +
+	"\bcommands\x18\x04 \x03(\v2).teleport.lib.vnet.diag.v1.CommandAttemptR\bcommands\"\xb2\x02\n" +
 	"\vCheckReport\x12D\n" +
 	"\x06status\x18\x01 \x01(\x0e2,.teleport.lib.vnet.diag.v1.CheckReportStatusR\x06status\x12d\n" +
-	"\x15route_conflict_report\x18\x02 \x01(\v2..teleport.lib.vnet.diag.v1.RouteConflictReportH\x00R\x13routeConflictReportB\b\n" +
+	"\x15route_conflict_report\x18\x02 \x01(\v2..teleport.lib.vnet.diag.v1.RouteConflictReportH\x00R\x13routeConflictReport\x12m\n" +
+	"\x18ssh_configuration_report\x18\x03 \x01(\v21.teleport.lib.vnet.diag.v1.SSHConfigurationReportH\x00R\x16sshConfigurationReportB\b\n" +
 	"\x06report\"\xa1\x01\n" +
 	"\x0eCommandAttempt\x12G\n" +
 	"\x06status\x18\x01 \x01(\x0e2/.teleport.lib.vnet.diag.v1.CommandAttemptStatusR\x06status\x12\x14\n" +
@@ -801,7 +906,13 @@ const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
 	"\x04dest\x18\x01 \x01(\tR\x04dest\x12\x1b\n" +
 	"\tvnet_dest\x18\x02 \x01(\tR\bvnetDest\x12%\n" +
 	"\x0einterface_name\x18\x03 \x01(\tR\rinterfaceName\x12#\n" +
-	"\rinterface_app\x18\x04 \x01(\tR\finterfaceApp*w\n" +
+	"\rinterface_app\x18\x04 \x01(\tR\finterfaceApp\"\xde\x02\n" +
+	"\x16SSHConfigurationReport\x127\n" +
+	"\x18user_openssh_config_path\x18\x01 \x01(\tR\x15userOpensshConfigPath\x12/\n" +
+	"\x14vnet_ssh_config_path\x18\x02 \x01(\tR\x11vnetSshConfigPath\x12\\\n" +
+	",user_openssh_config_includes_vnet_ssh_config\x18\x03 \x01(\bR&userOpensshConfigIncludesVnetSshConfig\x12;\n" +
+	"\x1auser_openssh_config_exists\x18\x04 \x01(\bR\x17userOpensshConfigExists\x12?\n" +
+	"\x1cuser_openssh_config_contents\x18\x05 \x01(\tR\x19userOpensshConfigContents*w\n" +
 	"\x12CheckAttemptStatus\x12$\n" +
 	" CHECK_ATTEMPT_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CHECK_ATTEMPT_STATUS_OK\x10\x01\x12\x1e\n" +
@@ -828,23 +939,24 @@ func file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_lib_vnet_diag_v1_diag_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_lib_vnet_diag_v1_diag_proto_goTypes = []any{
-	(CheckAttemptStatus)(0),       // 0: teleport.lib.vnet.diag.v1.CheckAttemptStatus
-	(CheckReportStatus)(0),        // 1: teleport.lib.vnet.diag.v1.CheckReportStatus
-	(CommandAttemptStatus)(0),     // 2: teleport.lib.vnet.diag.v1.CommandAttemptStatus
-	(*Report)(nil),                // 3: teleport.lib.vnet.diag.v1.Report
-	(*NetworkStackAttempt)(nil),   // 4: teleport.lib.vnet.diag.v1.NetworkStackAttempt
-	(*NetworkStack)(nil),          // 5: teleport.lib.vnet.diag.v1.NetworkStack
-	(*CheckAttempt)(nil),          // 6: teleport.lib.vnet.diag.v1.CheckAttempt
-	(*CheckReport)(nil),           // 7: teleport.lib.vnet.diag.v1.CheckReport
-	(*CommandAttempt)(nil),        // 8: teleport.lib.vnet.diag.v1.CommandAttempt
-	(*RouteConflictReport)(nil),   // 9: teleport.lib.vnet.diag.v1.RouteConflictReport
-	(*RouteConflict)(nil),         // 10: teleport.lib.vnet.diag.v1.RouteConflict
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(CheckAttemptStatus)(0),        // 0: teleport.lib.vnet.diag.v1.CheckAttemptStatus
+	(CheckReportStatus)(0),         // 1: teleport.lib.vnet.diag.v1.CheckReportStatus
+	(CommandAttemptStatus)(0),      // 2: teleport.lib.vnet.diag.v1.CommandAttemptStatus
+	(*Report)(nil),                 // 3: teleport.lib.vnet.diag.v1.Report
+	(*NetworkStackAttempt)(nil),    // 4: teleport.lib.vnet.diag.v1.NetworkStackAttempt
+	(*NetworkStack)(nil),           // 5: teleport.lib.vnet.diag.v1.NetworkStack
+	(*CheckAttempt)(nil),           // 6: teleport.lib.vnet.diag.v1.CheckAttempt
+	(*CheckReport)(nil),            // 7: teleport.lib.vnet.diag.v1.CheckReport
+	(*CommandAttempt)(nil),         // 8: teleport.lib.vnet.diag.v1.CommandAttempt
+	(*RouteConflictReport)(nil),    // 9: teleport.lib.vnet.diag.v1.RouteConflictReport
+	(*RouteConflict)(nil),          // 10: teleport.lib.vnet.diag.v1.RouteConflict
+	(*SSHConfigurationReport)(nil), // 11: teleport.lib.vnet.diag.v1.SSHConfigurationReport
+	(*timestamppb.Timestamp)(nil),  // 12: google.protobuf.Timestamp
 }
 var file_teleport_lib_vnet_diag_v1_diag_proto_depIdxs = []int32{
-	11, // 0: teleport.lib.vnet.diag.v1.Report.created_at:type_name -> google.protobuf.Timestamp
+	12, // 0: teleport.lib.vnet.diag.v1.Report.created_at:type_name -> google.protobuf.Timestamp
 	4,  // 1: teleport.lib.vnet.diag.v1.Report.network_stack_attempt:type_name -> teleport.lib.vnet.diag.v1.NetworkStackAttempt
 	6,  // 2: teleport.lib.vnet.diag.v1.Report.checks:type_name -> teleport.lib.vnet.diag.v1.CheckAttempt
 	0,  // 3: teleport.lib.vnet.diag.v1.NetworkStackAttempt.status:type_name -> teleport.lib.vnet.diag.v1.CheckAttemptStatus
@@ -854,13 +966,14 @@ var file_teleport_lib_vnet_diag_v1_diag_proto_depIdxs = []int32{
 	8,  // 7: teleport.lib.vnet.diag.v1.CheckAttempt.commands:type_name -> teleport.lib.vnet.diag.v1.CommandAttempt
 	1,  // 8: teleport.lib.vnet.diag.v1.CheckReport.status:type_name -> teleport.lib.vnet.diag.v1.CheckReportStatus
 	9,  // 9: teleport.lib.vnet.diag.v1.CheckReport.route_conflict_report:type_name -> teleport.lib.vnet.diag.v1.RouteConflictReport
-	2,  // 10: teleport.lib.vnet.diag.v1.CommandAttempt.status:type_name -> teleport.lib.vnet.diag.v1.CommandAttemptStatus
-	10, // 11: teleport.lib.vnet.diag.v1.RouteConflictReport.route_conflicts:type_name -> teleport.lib.vnet.diag.v1.RouteConflict
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	11, // 10: teleport.lib.vnet.diag.v1.CheckReport.ssh_configuration_report:type_name -> teleport.lib.vnet.diag.v1.SSHConfigurationReport
+	2,  // 11: teleport.lib.vnet.diag.v1.CommandAttempt.status:type_name -> teleport.lib.vnet.diag.v1.CommandAttemptStatus
+	10, // 12: teleport.lib.vnet.diag.v1.RouteConflictReport.route_conflicts:type_name -> teleport.lib.vnet.diag.v1.RouteConflict
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_diag_v1_diag_proto_init() }
@@ -870,6 +983,7 @@ func file_teleport_lib_vnet_diag_v1_diag_proto_init() {
 	}
 	file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[4].OneofWrappers = []any{
 		(*CheckReport_RouteConflictReport)(nil),
+		(*CheckReport_SshConfigurationReport)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -877,7 +991,7 @@ func file_teleport_lib_vnet_diag_v1_diag_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc), len(file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

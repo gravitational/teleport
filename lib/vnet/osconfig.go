@@ -45,11 +45,11 @@ func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfi
 }
 
 type osConfigurator struct {
-	remoteOSConfigProvider *remoteOSConfigProvider
+	remoteOSConfigProvider *osConfigProvider
 	osConfigState          osConfigState
 }
 
-func newOSConfigurator(remoteOSConfigProvider *remoteOSConfigProvider) *osConfigurator {
+func newOSConfigurator(remoteOSConfigProvider *osConfigProvider) *osConfigurator {
 	return &osConfigurator{
 		remoteOSConfigProvider: remoteOSConfigProvider,
 	}
