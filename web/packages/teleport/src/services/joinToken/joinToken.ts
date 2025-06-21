@@ -36,8 +36,21 @@ class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinTokenV2(
     req: JoinTokenRequest,
-    signal: AbortSignal = null
+    signal: AbortSignal = null,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
+    /**
+     * Some token methods may require an additional API call that
+     * requires re-authn.
+     */
+    if (
+      !mfaResponse &&
+      cfg.isAdminActionMfaEnforced() &&
+      (req.method === 'azure' || req.method === 'iam')
+    ) {
+      throw new Error(`mfaResponse is required for token method ${req.method}`);
+    }
+
     return (
       api
         .post(
@@ -51,7 +64,8 @@ class JoinTokenService {
             ),
             suggested_labels: makeLabelMapOfStrArrs(req.suggestedLabels),
           },
-          signal
+          signal,
+          mfaResponse
         )
         .then(makeJoinToken)
         // TODO(kimlisa): DELETE IN 19.0
@@ -63,8 +77,20 @@ class JoinTokenService {
   // replaced by fetchJoinTokenV2 that accepts labels.
   fetchJoinToken(
     req: Omit<JoinTokenRequest, 'suggestedLabels'>,
-    signal: AbortSignal = null
+    signal: AbortSignal = null,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
+    /**
+     * Some token methods may require an additional API call that
+     * requires re-authn.
+     */
+    if (
+      !mfaResponse &&
+      cfg.isAdminActionMfaEnforced() &&
+      (req.method === 'azure' || req.method === 'iam')
+    ) {
+      throw new Error(`mfaResponse is required for token method ${req.method}`);
+    }
     return api
       .post(
         cfg.api.discoveryJoinToken.create,
@@ -76,7 +102,8 @@ class JoinTokenService {
             req.suggestedAgentMatcherLabels
           ),
         },
-        signal
+        signal,
+        mfaResponse
       )
       .then(makeJoinToken);
   }
