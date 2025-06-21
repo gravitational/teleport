@@ -46,7 +46,7 @@ func TestCircularBuffer_Data(t *testing.T) {
 	require.NoError(t, err)
 
 	expectData := func(expected []float64) {
-		for i := 0; i < 15; i++ {
+		for i := range 15 {
 			e := expected
 			if i <= len(expected) {
 				e = expected[len(expected)-i:]

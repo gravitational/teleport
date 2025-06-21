@@ -380,7 +380,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 			periodic := newUpgradeEnrollPeriodic()
 
 			for ver, count := range tt.enrolled {
-				for i := 0; i < count; i++ {
+				for range count {
 					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
 						Version:          ver,
 						ExternalUpgrader: "some-upgrader",
@@ -392,7 +392,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 			}
 
 			for ver, count := range tt.unenrolled {
-				for i := 0; i < count; i++ {
+				for range count {
 					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
 						Version:          ver,
 						ExternalUpgrader: "",
