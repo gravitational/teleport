@@ -57,7 +57,6 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		eG.SetLimit(5)
 		roleMu := sync.Mutex{}
 		for _, role := range result.Roles {
-			role := role
 			eG.Go(func() error {
 				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
 				if err != nil {
