@@ -46,8 +46,9 @@ Please select the deployment mode used to deploy your cluster.
 <Tabs>
 <TabItem label="Self-hosted cluster">
 
-When running a self-hosted cluster, edit each one of your Teleport Auth Server's configuration file,
-by default `/etc/teleport.yaml`, and merge the following YAML snippet:
+When running a self-hosted cluster, edit each one of your Teleport Auth Service
+instances' configuration files, by default `/etc/teleport.yaml`, and merge the
+following YAML snippet:
 
 ```yaml
 access_graph:
@@ -64,7 +65,7 @@ access_graph:
 
 ```
 
-Once completed, please restart your Teleport Auth Server with:
+Once completed, restart your Teleport Auth Service with:
 
 ```bash
 $ sudo systemctl restart teleport

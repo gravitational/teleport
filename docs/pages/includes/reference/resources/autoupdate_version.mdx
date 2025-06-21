@@ -1,0 +1,40 @@
+```yaml
+kind: autoupdate_version
+metadata:
+  # autoupdate_version is a singleton resource. There can be only one instance
+  # of this resource in the Teleport cluster, and it must be named `autoupdate-version`.
+  name: autoupdate-version
+spec:
+  agents:
+    # start_version is the version used to install new agents before their
+    # group's scheduled update time. Agents never update to the start_version
+    # automatically, but may be required to via "teleport-update update --now".
+    start_version: v17.2.0
+
+    # target_version is the version that agents update to during their group's
+    # scheduled update time. New agents also use this version after their group's
+    # scheduled update time.
+    target_version: v17.2.1
+
+    # schedule used to roll out updates.
+    # The regular schedule is defined in the autoupdate_config resource.
+    # The immediate schedule updates all agents to target_version immediately.
+    # Possible values: "regular" or "immediate"
+    # Default: "regular"
+    schedule: regular
+
+    # mode allows users to enable, disable, or suspend agent updates at the
+    # cluster level. Disable agent automatic updates only if self-managed
+    # updates are in place. This value may also be set in autoupdate_config.
+    # If set in both places, disabled overrides suspended, which overrides enabled.
+    # Possible values: "enabled", "disabled", "suspended"
+    # Default: "disabled" (unless specified in autoupdate_config)
+    mode: enabled
+
+  tools:
+    # target_version is the semver version of client tools the cluster will advertise.
+    # Client tools such as tsh and tctl will update to this version at login if the
+    # mode set in autoupdate_config is set to enabled.
+    # Default: cluster version
+    target_version: v17.2.1
+```
