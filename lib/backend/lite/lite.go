@@ -37,7 +37,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mattn/go-sqlite3"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -224,7 +225,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		setPermissions = true
 	}
 
-	db, err := sql.Open("sqlite3", cfg.ConnectionURI())
+	db, err := sql.Open("sqlite", cfg.ConnectionURI())
 	if err != nil {
 		return nil, trace.Wrap(err, "error opening URI: %v", connectionURI)
 	}
@@ -1093,33 +1094,33 @@ func isClosedError(err error) bool {
 }
 
 func isConstraintError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrConstraint
+	return e.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
 }
 
 func isLockedError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrBusy
+	return e.Code() == sqlite3.SQLITE_BUSY
 }
 
 func isInterrupt(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrInterrupt
+	return e.Code() == sqlite3.SQLITE_INTERRUPT
 }
 
 func isReadonlyError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrReadonly
+	return e.Code() == sqlite3.SQLITE_READONLY
 }
