@@ -92,6 +92,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -910,6 +911,10 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
+}
+
+func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
+	return summarizerv1.NewSummarizerServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.

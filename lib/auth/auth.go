@@ -837,6 +837,7 @@ type Services struct {
 	services.BackendInfoService
 	services.VnetConfigService
 	RecordingEncryptionManager
+	services.Summarizer
 }
 
 // GetWebSession returns existing web session described by req.

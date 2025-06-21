@@ -6,66 +6,75 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
 
-// InferenceModel resource describes a model and provider-specific parameters.
-message InferenceModel {
+// SummarizationInferenceModel resource specifies a session summarization
+// inference model configuration.
+message SummarizationInferenceModel {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
-  InferenceModelSpec spec = 5;
+  SummarizationInferenceModelSpec spec = 5;
 }
 
-// InferenceModelSpec defines the model and provider-specific parameters.
-message InferenceModelSpec {
+// SummarizationInferenceModelSpec specifies the inference provider and
+// provider-specific parameters.
+message SummarizationInferenceModelSpec {
   oneof provider {
-    BedrockProvider bedrock = 1;
-    OpenAIProvider openai = 2;
-    // Add more providers here in the future.
+    // OpenAi indicates that this model uses OpenAI as the inference provider
+    // and specifies OpenAI-specific parameters.
+    OpenAIProvider open_ai = 1;
   }
-  // Budget is post-MVP, optional for now.
-  Budget budget = 3;
 }
 
-// Bedrock provider-specific parameters.
-message BedrockProvider {
-  string bedrock_model_id = 1;
-}
-
-// OpenAI provider-specific parameters.
+// OpenAIProvider specifies OpenAI-specific parameters.
 message OpenAIProvider {
   string openai_model_id = 1;
   double temperature = 2;
+  // ApiKeySecretRef is a reference to an SummarizationInferenceSecret that
+  // contains the OpenAI API key.
   string api_key_secret_ref = 3;
+  // BaseUrl is the OpenAI API base URL. Optional, defaults to the public
+  // OpenAI API URL. May be used to point to a custom OpenAI-compatible API,
+  // such as LiteLLM. In such case, the `api_key_secret_ref` must point to a
+  // secret that contains the API key for that custom API.
   string base_url = 4;
 }
 
-// Budget for inference model usage (post-MVP).
-message Budget {
-  string time_period = 1; // e.g., "1mo", "1d"
-  int64 input_tokens = 2;
-  int64 output_tokens = 3;
+// SummarizationInferenceSecret resource stores session summarization inference
+// provider secrets, such as API keys. They need to be referenced by
+// appropriate provider configuration inside `SummarizationInferenceModelSpec`.
+message SummarizationInferenceSecret {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  SummarizationInferenceSecretSpec spec = 5;
 }
 
-// InferenceSecret resource stores provider secrets.
-message InferenceSecret {
-  teleport.header.v1.Metadata metadata = 1;
-  InferenceSecretSpec spec = 2;
-}
-
-// InferenceSecretSpec defines the secret value for the inference model.
-message InferenceSecretSpec {
+// SummarizationInferenceSecretSpec defines the secret value for the inference
+// model.
+message SummarizationInferenceSecretSpec {
   string value = 1;
 }
 
-// InferencePolicy resource binds sessions to summarizers.
-message InferencePolicy {
-  teleport.header.v1.Metadata metadata = 1;
-  InferencePolicySpec spec = 2;
+// SummarizationInferencePolicy resource maps sessions to summarization models.
+message SummarizationInferencePolicy {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  SummarizationInferencePolicySpec spec = 5;
 }
 
-// InferencePolicySpec defines the policy for session summarization.
-message InferencePolicySpec {
-  repeated string kinds = 1; // Session kinds, e.g., "ssh", "kube", "db"
-  string filter = 2; // Optional filter expression
-  string model = 3; // Name of the inference model to use
+// SummarizationInferencePolicySpec maps sessions to summarization models using
+// a filter.
+message SummarizationInferencePolicySpec {
+  // Model is the name of the `SummarizationInferenceModel` resource to be used
+  // for summarization.
+  string model = 1;
+  // Milter is an optional filter expression using Teleport Predicate Language
+  // to select sessions for summarization. If it's empty, all sessions will be
+  // summarized using this model.
+  string filter = 3;
+  // repeated string kinds = 1; // Session kinds, e.g., "ssh", "kube", "db"
 }

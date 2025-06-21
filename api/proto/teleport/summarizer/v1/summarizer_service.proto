@@ -1,0 +1,220 @@
+syntax = "proto3";
+
+package teleport.summarizer.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/summarizer/v1/summarizer.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
+
+// SummarizerService is the service for managing summarization inference
+// models, secrets, and policies. These objects configures the session
+// recording summarizer.
+service SummarizerService {
+  // CreateSummarizationInferenceModel creates a new
+  // SummarizationInferenceModel.
+  rpc CreateSummarizationInferenceModel(CreateSummarizationInferenceModelRequest) returns (SummarizationInferenceModel);
+  // GetSummarizationInferenceModel retrieves an existing
+  // SummarizationInferenceModel by name.
+  rpc GetSummarizationInferenceModel(GetSummarizationInferenceModelRequest) returns (SummarizationInferenceModel);
+  // UpdateSummarizationInferenceModel updates an existing
+  // SummarizationInferenceModel.
+  rpc UpdateSummarizationInferenceModel(UpdateSummarizationInferenceModelRequest) returns (SummarizationInferenceModel);
+  // DeleteSummarizationInferenceModel deletes an existing
+  // SummarizationInferenceModel by name.
+  rpc DeleteSummarizationInferenceModel(DeleteSummarizationInferenceModelRequest) returns (google.protobuf.Empty);
+  // ListSummarizationInferenceModels lists all SummarizationInferenceModels
+  // that match the request.
+  rpc ListSummarizationInferenceModels(ListSummarizationInferenceModelsRequest) returns (ListSummarizationInferenceModelsResponse);
+
+  // CreateSummarizationInferenceSecret creates a new
+  // SummarizationInferenceSecret.
+  rpc CreateSummarizationInferenceSecret(CreateSummarizationInferenceSecretRequest) returns (SummarizationInferenceSecret);
+  // GetSummarizationInferenceSecret retrieves an existing
+  // SummarizationInferenceSecret by name.
+  rpc GetSummarizationInferenceSecret(GetSummarizationInferenceSecretRequest) returns (SummarizationInferenceSecret);
+  // UpdateSummarizationInferenceSecret updates an existing
+  // SummarizationInferenceSecret.
+  rpc UpdateSummarizationInferenceSecret(UpdateSummarizationInferenceSecretRequest) returns (SummarizationInferenceSecret);
+  // DeleteSummarizationInferenceSecret deletes an existing
+  // SummarizationInferenceSecret by name.
+  rpc DeleteSummarizationInferenceSecret(DeleteSummarizationInferenceSecretRequest) returns (google.protobuf.Empty);
+  // ListSummarizationInferenceSecrets lists all SummarizationInferenceSecrets
+  // that match the request.
+  rpc ListSummarizationInferenceSecrets(ListSummarizationInferenceSecretsRequest) returns (ListSummarizationInferenceSecretsResponse);
+
+  // CreateSummarizationInferencePolicy creates a new
+  // SummarizationInferencePolicy.
+  rpc CreateSummarizationInferencePolicy(CreateSummarizationInferencePolicyRequest) returns (SummarizationInferencePolicy);
+  // GetSummarizationInferencePolicy retrieves an existing
+  // SummarizationInferencePolicy by name.
+  rpc GetSummarizationInferencePolicy(GetSummarizationInferencePolicyRequest) returns (SummarizationInferencePolicy);
+  // UpdateSummarizationInferencePolicy updates an existing
+  // SummarizationInferencePolicy.
+  rpc UpdateSummarizationInferencePolicy(UpdateSummarizationInferencePolicyRequest) returns (SummarizationInferencePolicy);
+  // DeleteSummarizationInferencePolicy deletes an existing
+  // SummarizationInferencePolicy by name.
+  rpc DeleteSummarizationInferencePolicy(DeleteSummarizationInferencePolicyRequest) returns (google.protobuf.Empty);
+  // ListSummarizationInferencePolicies lists all
+  // SummarizationInferencePolicies that match the request.
+  rpc ListSummarizationInferencePolicies(ListSummarizationInferencePoliciesRequest) returns (ListSummarizationInferencePoliciesResponse);
+}
+
+// Summarization inference models
+
+// CreateSummarizationInferenceModelRequest is the request for creating a
+// SummmarizationInferenceModel.
+message CreateSummarizationInferenceModelRequest {
+  // SummarizationInferenceModel is the SummarizationInferenceModel resource to
+  // create.
+  SummarizationInferenceModel model = 1;
+}
+
+// GetSummarizationInferenceModelRequest is the request for retrieving a
+// SummmarizationInferenceModel.
+message GetSummarizationInferenceModelRequest {
+  // Name is the resource name of the SummarizationInferenceModel to retrieve.
+  string name = 1;
+}
+
+// UpdateSummarizationInferenceModelRequest is the request for updating a
+// SummmarizationInferenceModel.
+message UpdateSummarizationInferenceModelRequest {
+  // Model is the SummarizationInferenceModel resource to update.
+  SummarizationInferenceModel model = 1;
+}
+
+// DeleteSummarizationInferenceModelRequest is the request for deleting a
+// SummmarizationInferenceModel.
+message DeleteSummarizationInferenceModelRequest {
+  // Name is the resource name of the SummarizationInferenceModel to delete.
+  string name = 1;
+}
+
+// ListSummarizationInferenceModelsRequest is the request for listing
+// SummmarizationInferenceModels.
+message ListSummarizationInferenceModelsRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListSummarizationInferenceModelsResponse is the response for listing
+// SummmarizationInferenceModels.
+message ListSummarizationInferenceModelsResponse {
+  // Models is the page of SummarizationInferenceModels that matched the
+  // request.
+  repeated SummarizationInferenceModel models = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
+// Summarization inference secrets
+
+// CreateSummarizationInferenceSecretRequest is the request for creating a
+// SummmarizationInferenceSecret.
+message CreateSummarizationInferenceSecretRequest {
+  // SummarizationInferenceSecret is the SummarizationInferenceSecret resource
+  // to create.
+  SummarizationInferenceSecret secret = 1;
+}
+
+// GetSummarizationInferenceSecretRequest is the request for retrieving a
+// SummmarizationInferenceSecret.
+message GetSummarizationInferenceSecretRequest {
+  // Name is the resource name of the SummarizationInferenceSecret to retrieve.
+  string name = 1;
+}
+
+// UpdateSummarizationInferenceSecretRequest is the request for updating a
+// SummmarizationInferenceSecret.
+message UpdateSummarizationInferenceSecretRequest {
+  // Secret is the SummarizationInferenceSecret resource to update.
+  SummarizationInferenceSecret secret = 1;
+}
+
+// DeleteSummarizationInferenceSecretRequest is the request for deleting a
+// SummmarizationInferenceSecret.
+message DeleteSummarizationInferenceSecretRequest {
+  // Name is the resource name of the SummarizationInferenceSecret to delete.
+  string name = 1;
+}
+
+// ListSummarizationInferenceSecretsRequest is the request for listing
+// SummmarizationInferenceSecrets.
+message ListSummarizationInferenceSecretsRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListSummarizationInferenceSecretsResponse is the response for listing
+// SummmarizationInferenceSecrets.
+message ListSummarizationInferenceSecretsResponse {
+  // Secrets is the page of SummarizationInferenceSecrets that matched the
+  // request.
+  repeated SummarizationInferenceSecret secrets = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
+// Summarization inference policies
+
+// CreateSummarizationInferencePolicyRequest is the request for creating a
+// SummmarizationInferencePolicy.
+message CreateSummarizationInferencePolicyRequest {
+  // SummarizationInferencePolicy is the SummarizationInferencePolicy resource
+  // to create.
+  SummarizationInferencePolicy policy = 1;
+}
+
+// GetSummarizationInferencePolicyRequest is the request for retrieving a
+// SummmarizationInferencePolicy.
+message GetSummarizationInferencePolicyRequest {
+  // Name is the resource name of the SummarizationInferencePolicy to retrieve.
+  string name = 1;
+}
+
+// UpdateSummarizationInferencePolicyRequest is the request for updating a
+// SummmarizationInferencePolicy.
+message UpdateSummarizationInferencePolicyRequest {
+  // Policy is the SummarizationInferencePolicy resource to update.
+  SummarizationInferencePolicy policy = 1;
+}
+
+// DeleteSummarizationInferencePolicyRequest is the request for deleting a
+// SummmarizationInferencePolicy.
+message DeleteSummarizationInferencePolicyRequest {
+  // Name is the resource name of the SummarizationInferencePolicy to delete.
+  string name = 1;
+}
+
+// ListSummarizationInferencePoliciesRequest is the request for listing
+// SummmarizationInferencePolicies.
+message ListSummarizationInferencePoliciesRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListSummarizationInferencePoliciesResponse is the response for listing
+// SummmarizationInferencePolicies.
+message ListSummarizationInferencePoliciesResponse {
+  // Policies is the page of SummarizationInferencePolicies that matched the
+  // request.
+  repeated SummarizationInferencePolicy policies = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
