@@ -71,6 +71,12 @@ func ParseResourceURI(uri string) (*ResourceURI, error) {
 
 // NewDatabaseResourceURI creates a new database resource URI.
 func NewDatabaseResourceURI(cluster, databaseName string) ResourceURI {
+	return NewDatabaseResourceURIWithConnectParams(cluster, databaseName, "", "")
+}
+
+// NewDatabaseResourceURI creates a new database resource URI with connect
+// params.
+func NewDatabaseResourceURIWithConnectParams(cluster, databaseName, dbUser, dbName string) ResourceURI {
 	pathWithHost, _ := databaseURITemplate.Build(urlpath.Match{
 		Params: map[string]string{
 			"cluster": cluster,
@@ -78,10 +84,19 @@ func NewDatabaseResourceURI(cluster, databaseName string) ResourceURI {
 		},
 	})
 
+	params := url.Values{}
+	if dbUser != "" {
+		params.Add(databaseUserQueryParamName, dbUser)
+	}
+	if dbName != "" {
+		params.Add(databaseNameQueryParamName, dbName)
+	}
+
 	return ResourceURI{
 		url: url.URL{
-			Scheme: resourceScheme,
-			Path:   strings.TrimPrefix(pathWithHost, "/"),
+			Scheme:   resourceScheme,
+			Path:     strings.TrimPrefix(pathWithHost, "/"),
+			RawQuery: params.Encode(),
 		},
 	}
 }
@@ -128,6 +143,22 @@ func (u ResourceURI) String() string {
 	c := u.url
 	c.RawQuery = ""
 	return c.String()
+}
+
+// StringWithParams returns the string representation of the resource URI
+// including the query params.
+func (u ResourceURI) StringWithParams() string {
+	return u.url.String()
+}
+
+// Equal returns true if both resources represent the same Teleport resource.
+func (u ResourceURI) Equal(b ResourceURI) bool {
+	switch {
+	case u.IsDatabase() && b.IsDatabase():
+		return u.GetClusterName() == b.GetClusterName() && u.GetDatabaseServiceName() == b.GetDatabaseServiceName()
+	default:
+		return false
+	}
 }
 
 // path returns the resource URI full path. We must include the hostname as the
