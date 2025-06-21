@@ -33,8 +33,7 @@ import (
 func TestCaching(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up a genmap with a long regen interval
 	var counter atomic.Uint64
@@ -50,7 +49,7 @@ func TestCaching(t *testing.T) {
 	// verify that many concurrent calls result in only a single call to
 	// the underlying generator.
 	var eg errgroup.Group
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		eg.Go(func() error {
 			n, err := gm.Get(ctx, "some-key")
 			if err != nil {
@@ -82,8 +81,7 @@ func TestCaching(t *testing.T) {
 func TestConcurrentTermination(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up a genmap with a short regen interval
 	var counter atomic.Uint64
@@ -135,8 +133,7 @@ func TestConcurrentTermination(t *testing.T) {
 func TestBackground(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up a genmap with a short regen interval
 	var counter atomic.Uint64
@@ -159,7 +156,7 @@ func TestBackground(t *testing.T) {
 
 	// verify that background regeneration occurs multiple times
 	timeout := time.After(time.Second * 30)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		select {
 		case <-gench:
 		case <-timeout:

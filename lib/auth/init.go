@@ -665,7 +665,6 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, caType := range types.CertAuthTypes {
-		caType := caType
 		g.Go(func() error {
 			tctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
 			defer span.End()
@@ -940,7 +939,7 @@ For more information:
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1023,7 +1022,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1063,7 +1062,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

@@ -143,7 +143,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -677,7 +677,6 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 			igName := cmp.Or(tc.IntegrationName, uuid.NewString())

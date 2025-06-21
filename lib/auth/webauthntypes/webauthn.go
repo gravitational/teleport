@@ -149,7 +149,7 @@ type PublicKeyCredentialCreationOptions struct {
 	RelyingParty           RelyingPartyEntity            `json:"rp"`
 	User                   UserEntity                    `json:"user"`
 	Parameters             []CredentialParameter         `json:"pubKeyCredParams,omitempty"`
-	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection,omitempty"`
+	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection"`
 	Timeout                int                           `json:"timeout,omitempty"`
 	CredentialExcludeList  []CredentialDescriptor        `json:"excludeCredentials,omitempty"`
 	Extensions             AuthenticationExtensions      `json:"extensions,omitempty"`
