@@ -19,14 +19,24 @@
 package mcp
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
 // SessionCtx contains basic information of an MCP session.
@@ -40,7 +50,10 @@ type SessionCtx struct {
 	// Identity is the user identity.
 	Identity tlsca.Identity
 
-	// sessionID is the session ID.
+	// sessionID is the Teleport session ID.
+	//
+	// Note that for stdio-based MCP server, a new session ID is generated per
+	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
 }
 
@@ -58,8 +71,172 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()
 	}
 	if c.sessionID == "" {
-		// Do not use web session ID from the app route.
 		c.sessionID = session.NewID()
 	}
 	return nil
+}
+
+func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.AuthCtx.Checker.GetAccessState(authPref)
+	state.MFAVerified = c.Identity.IsMFAVerified()
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
+	return state
+}
+
+type sessionHandlerConfig struct {
+	*SessionCtx
+	*sessionAuditor
+	accessPoint AccessPoint
+	logger      *slog.Logger
+	clock       clockwork.Clock
+	parentCtx   context.Context
+}
+
+func (c *sessionHandlerConfig) checkAndSetDefaults() error {
+	if c.SessionCtx == nil {
+		return trace.BadParameter("missing session")
+	}
+	if c.sessionAuditor == nil {
+		return trace.BadParameter("missing auditor")
+	}
+	if c.accessPoint == nil {
+		return trace.BadParameter("missing accessPoint")
+	}
+	if c.logger == nil {
+		c.logger = slog.Default()
+	}
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
+	}
+	if c.parentCtx == nil {
+		c.parentCtx = context.Background()
+	}
+	return nil
+}
+
+// sessionHandler provides common functions for handling an MCP session,
+// irrespective the transport type.
+type sessionHandler struct {
+	sessionHandlerConfig
+
+	idTracker   *mcputils.IDTracker
+	accessCache *utils.FnCache
+}
+
+func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Usually we won't have more than a couple in flight messages but let's do
+	// 50 just in case. Also, it's ok to lose the ID. The tracked ID is
+	// currently used for tools/list filtering. In worst case we couldn't apply
+	// this filtering, tools/call will still be blocked.
+	idTracker, err := mcputils.NewIDTracker(50)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Cache access check like tool name for a small period of time.
+	accessCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   time.Minute * 10,
+		Clock: cfg.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &sessionHandler{
+		sessionHandlerConfig: cfg,
+		idTracker:            idTracker,
+		accessCache:          accessCache,
+	}, nil
+}
+
+func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string) error {
+	authErr, err := utils.FnCacheGet(ctx, s.accessCache, toolName, func(ctx context.Context) (error, error) {
+		authPref, err := s.accessPoint.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matcher := &services.MCPToolMatcher{
+			Name: toolName,
+		}
+		authErr := s.AuthCtx.Checker.CheckAccess(s.App, s.getAccessState(authPref), matcher)
+		return trace.Wrap(authErr), nil
+	})
+	// Fails the check on either authErr or internal error.
+	return trace.NewAggregate(authErr, err)
+}
+
+func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+	s.emitNotificationEvent(ctx, notification)
+}
+
+type replyDirection bool
+
+const (
+	replyToClient replyDirection = true
+	replyToServer replyDirection = false
+)
+
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
+	s.idTracker.PushRequest(req)
+	switch req.Method {
+	case mcp.MethodToolsCall:
+		methodName, _ := req.Params.GetName()
+		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
+			s.emitRequestEvent(ctx, req, authErr)
+			return makeToolAccessDeniedResponse(req, authErr), replyToClient
+		}
+	}
+	s.emitRequestEvent(ctx, req, nil)
+	return req, replyToServer
+}
+
+func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+	method, _ := s.idTracker.PopByID(response.ID)
+	switch method {
+	case mcp.MethodToolsList:
+		return s.makeToolsCallResponse(ctx, response)
+	}
+	return response
+}
+
+func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+	// Nothing to do, likely an error response.
+	if resp.Result == nil {
+		return resp
+	}
+
+	var listResult mcp.ListToolsResult
+	if err := json.Unmarshal(resp.Result, &listResult); err != nil {
+		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
+	}
+
+	var allowed []mcp.Tool
+	for _, tool := range listResult.Tools {
+		if s.checkAccessToTool(ctx, tool.Name) == nil {
+			allowed = append(allowed, tool)
+		}
+	}
+
+	s.logger.DebugContext(ctx, "Received tools/list result", "received", len(listResult.Tools), "allowed", len(allowed))
+	listResult.Tools = allowed
+
+	return mcp.JSONRPCResponse{
+		JSONRPC: resp.JSONRPC,
+		ID:      resp.ID,
+		Result:  listResult,
+	}
+}
+
+func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {
+	return mcp.NewJSONRPCError(
+		msg.ID,
+		mcp.INVALID_PARAMS,
+		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
+		authErr,
+	)
 }
