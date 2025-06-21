@@ -31,15 +31,17 @@ import { CheckboxInput } from 'design/Checkbox';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-type MultiselectMenuProps<T> = {
-  options: {
-    value: T;
-    label: string | ReactNode;
-    disabled?: boolean;
-    disabledTooltip?: string;
-  }[];
-  selected: T[];
-  onChange: (selected: T[]) => void;
+type Option<T> = {
+  value: T;
+  label: string | ReactNode;
+  disabled?: boolean;
+  disabledTooltip?: string;
+};
+
+type MultiselectMenuProps<T extends readonly Option<any>[]> = {
+  options: T;
+  selected: Extract<T[number], Option<any>>['value'][];
+  onChange: (selected: Extract<T[number], Option<any>>['value'][]) => void;
   label: string | ReactNode;
   tooltip: string;
   /**
@@ -60,7 +62,7 @@ type MultiselectMenuProps<T> = {
   disabled?: boolean;
 };
 
-export const MultiselectMenu = <T extends string>({
+export const MultiselectMenu = <T extends readonly Option<any>[]>({
   onChange,
   options,
   selected,
@@ -71,8 +73,10 @@ export const MultiselectMenu = <T extends string>({
   showSelectControls = true,
   disabled = false,
 }: MultiselectMenuProps<T>) => {
+  type Value = Extract<T[number], Option<any>>['value'];
+
   // we have a separate state in the filter so we can select a few different things and then click "apply"
-  const [intSelected, setIntSelected] = useState<T[]>([]);
+  const [intSelected, setIntSelected] = useState<Value[]>([]);
   const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
   const handleOpen = (
     event: React.MouseEvent<HTMLButtonElement, MouseEvent>
@@ -91,7 +95,7 @@ export const MultiselectMenu = <T extends string>({
     handleClose();
   };
 
-  const handleSelect = (value: T) => {
+  const handleSelect = (value: Value) => {
     let newSelected = (buffered ? intSelected : selected).slice();
 
     if (newSelected.includes(value)) {

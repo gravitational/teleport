@@ -114,7 +114,7 @@ export default {
   },
   render: (args => {
     const [{ selected }, updateArgs] =
-      useArgs<Meta<typeof MultiselectMenu<OptionValue>>['args']>();
+      useArgs<Meta<typeof MultiselectMenu<typeof options>>['args']>();
     const onChange = (value: OptionValue[]) => {
       updateArgs({ selected: value });
       args.onChange?.(value);
@@ -124,10 +124,10 @@ export default {
         <MultiselectMenu {...args} selected={selected} onChange={onChange} />
       </Flex>
     );
-  }) satisfies StoryFn<typeof MultiselectMenu<OptionValue>>,
-} satisfies Meta<typeof MultiselectMenu<OptionValue>>;
+  }) satisfies StoryFn<typeof MultiselectMenu<typeof options>>,
+} satisfies Meta<typeof MultiselectMenu<typeof options>>;
 
-type Story = StoryObj<typeof MultiselectMenu<OptionValue>>;
+type Story = StoryObj<typeof MultiselectMenu<typeof options>>;
 
 const Default: Story = { args: { options } };
 
