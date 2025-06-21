@@ -238,18 +238,14 @@ func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoReque
 		return nil, trace.Wrap(err)
 	}
 
-	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
-		ProfilePath: s.cfg.profilePath,
-	})
+	sshConfigChecker, err := diag.NewSSHConfigChecker(s.cfg.profilePath)
 	if err != nil {
-		return nil, trace.Wrap(err, "building SSH diagnostic")
+		return nil, trace.Wrap(err, "building SSH config checker")
 	}
-	sshReport, err := sshDiag.Run(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "running SSH diagnostic")
+	_, sshConfigured, err := sshConfigChecker.OpenSSHConfigIncludesVNetSSHConfig()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err, "checking SSH configuration")
 	}
-	sshConfigured := sshReport.Status == diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK &&
-		sshReport.GetSshConfigurationReport().UserOpensshConfigIncludesVnetSshConfig
 
 	return &api.GetServiceInfoResponse{
 		AppDnsZones:   unifiedClusterConfig.AppDNSZones(),

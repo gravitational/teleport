@@ -50,27 +50,19 @@ type SSHConfig struct {
 // SSHDiag is a diagnostic check that inspects whether the default user OpenSSH
 // config file includes VNet's generated SSH config file.
 type SSHDiag struct {
-	cfg                   *SSHConfig
-	userHome              string
-	userOpenSSHConfigPath string
-	vnetSSHConfigPath     string
-	isWindows             bool
+	cfg              *SSHConfig
+	sshConfigChecker *SSHConfigChecker
 }
 
 // NewSSHDiag returns a new [SSHDiag].
 func NewSSHDiag(cfg *SSHConfig) (*SSHDiag, error) {
-	userHome, ok := profile.UserHomeDir()
-	if !ok {
-		return nil, trace.Errorf("unable to find user's home directory")
+	sshConfigChecker, err := NewSSHConfigChecker(cfg.ProfilePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	userOpenSSHConfigPath := filepath.Join(userHome, ".ssh", "config")
-	vnetSSHConfigPath := filepath.Join(cfg.ProfilePath, keypaths.VNetSSHConfig)
 	return &SSHDiag{
-		cfg:                   cfg,
-		userHome:              userHome,
-		userOpenSSHConfigPath: userOpenSSHConfigPath,
-		vnetSSHConfigPath:     vnetSSHConfigPath,
-		isWindows:             runtime.GOOS == "windows",
+		cfg:              cfg,
+		sshConfigChecker: sshConfigChecker,
 	}, nil
 }
 
@@ -103,50 +95,84 @@ func (d *SSHDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 }
 
 func (d *SSHDiag) run(ctx context.Context) (*diagv1.SSHConfigurationReport, error) {
-	_, err := os.Stat(d.userOpenSSHConfigPath)
-	userOpenSSHConfigExists := err == nil
-	if !userOpenSSHConfigExists {
-		return &diagv1.SSHConfigurationReport{
-			UserOpensshConfigPath: d.userOpenSSHConfigPath,
-			VnetSshConfigPath:     d.vnetSSHConfigPath,
-		}, nil
-	}
-
-	userOpenSSHConfigFile, err := os.Open(d.userOpenSSHConfigPath)
+	userOpenSSHConfigContents, included, err := d.sshConfigChecker.OpenSSHConfigIncludesVNetSSHConfig()
 	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", d.userOpenSSHConfigPath)
-	}
-	defer userOpenSSHConfigFile.Close()
-
-	userOpenSSHConfigContents, err := io.ReadAll(io.LimitReader(userOpenSSHConfigFile, maxOpenSSHConfigFileSize))
-	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading %s", d.userOpenSSHConfigPath)
-	}
-	if len(userOpenSSHConfigContents) == maxOpenSSHConfigFileSize {
-		return nil, trace.Errorf("%s is too large to (max size %s)",
-			d.userOpenSSHConfigPath, humanize.Bytes(maxOpenSSHConfigFileSize))
+		if trace.IsNotFound(err) {
+			return &diagv1.SSHConfigurationReport{
+				UserOpensshConfigPath: d.sshConfigChecker.UserOpenSSHConfigPath,
+				VnetSshConfigPath:     d.sshConfigChecker.VNetSSHConfigPath,
+			}, nil
+		}
+		return nil, trace.Wrap(err)
 	}
 	if !utf8.Valid(userOpenSSHConfigContents) {
-		return nil, trace.Errorf("%s is not valid UTF-8", d.userOpenSSHConfigPath)
-	}
-
-	included, err := d.openSSHConfigIncludesVNetSSHConfig(bytes.NewReader(userOpenSSHConfigContents))
-	if err != nil {
-		return nil, trace.Wrap(err, "checking if the default user OpenSSH config includes VNet's SSH configuration")
+		return nil, trace.Errorf("%s is not valid UTF-8", d.sshConfigChecker.UserOpenSSHConfigPath)
 	}
 	return &diagv1.SSHConfigurationReport{
-		UserOpensshConfigPath:                  d.userOpenSSHConfigPath,
-		VnetSshConfigPath:                      d.vnetSSHConfigPath,
+		UserOpensshConfigPath:                  d.sshConfigChecker.UserOpenSSHConfigPath,
+		VnetSshConfigPath:                      d.sshConfigChecker.VNetSSHConfigPath,
 		UserOpensshConfigIncludesVnetSshConfig: included,
 		UserOpensshConfigExists:                true,
 		UserOpensshConfigContents:              string(userOpenSSHConfigContents),
 	}, nil
 }
 
-func (d *SSHDiag) openSSHConfigIncludesVNetSSHConfig(r io.Reader) (bool, error) {
+// SSHConfigChecker checks the state of the user's SSH configuration.
+type SSHConfigChecker struct {
+	userHome              string
+	UserOpenSSHConfigPath string
+	VNetSSHConfigPath     string
+	isWindows             bool
+}
+
+// NewSSHConfigChecker returns a new SSHConfigChecker.
+func NewSSHConfigChecker(profilePath string) (*SSHConfigChecker, error) {
+	userHome, ok := profile.UserHomeDir()
+	if !ok {
+		return nil, trace.Errorf("unable to find user's home directory")
+	}
+	userOpenSSHConfigPath := filepath.Join(userHome, ".ssh", "config")
+	vnetSSHConfigPath := keypaths.VNetSSHConfigPath(profilePath)
+	return &SSHConfigChecker{
+		userHome:              userHome,
+		UserOpenSSHConfigPath: userOpenSSHConfigPath,
+		VNetSSHConfigPath:     vnetSSHConfigPath,
+		isWindows:             runtime.GOOS == "windows",
+	}, nil
+}
+
+// OpenSSHConfigIncludesVNetSSHConfig returns the current user OpenSSH
+// configuration file contents (~/.ssh/config) and a boolean indicating whether
+// it already includes VNet's generated OpenSSH-compatible configuration file.
+//
+// If ~/.ssh/config does not exist it returns a [trace.NotFoundError]
+func (c *SSHConfigChecker) OpenSSHConfigIncludesVNetSSHConfig() ([]byte, bool, error) {
+	userOpenSSHConfigFile, err := os.Open(c.UserOpenSSHConfigPath)
+	if err != nil {
+		return nil, false, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", c.UserOpenSSHConfigPath)
+	}
+	defer userOpenSSHConfigFile.Close()
+
+	userOpenSSHConfigContents, err := io.ReadAll(io.LimitReader(userOpenSSHConfigFile, maxOpenSSHConfigFileSize))
+	if err != nil {
+		return nil, false, trace.Wrap(trace.ConvertSystemError(err), "reading %s", c.UserOpenSSHConfigPath)
+	}
+	if len(userOpenSSHConfigContents) == maxOpenSSHConfigFileSize {
+		return nil, false, trace.Errorf("%s is too large to (max size %s)",
+			c.UserOpenSSHConfigPath, humanize.Bytes(maxOpenSSHConfigFileSize))
+	}
+
+	included, err := c.openSSHConfigIncludesVNetSSHConfig(bytes.NewReader(userOpenSSHConfigContents))
+	if err != nil {
+		return nil, false, trace.Wrap(err, "checking if the default user OpenSSH config includes VNet's SSH configuration")
+	}
+	return userOpenSSHConfigContents, included, nil
+}
+
+func (c *SSHConfigChecker) openSSHConfigIncludesVNetSSHConfig(r io.Reader) (bool, error) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		if d.openSSHConfigLineIncludesPath(scanner.Text(), d.vnetSSHConfigPath) {
+		if c.openSSHConfigLineIncludesPath(scanner.Text(), c.VNetSSHConfigPath) {
 			return true, nil
 		}
 	}
@@ -155,8 +181,8 @@ func (d *SSHDiag) openSSHConfigIncludesVNetSSHConfig(r io.Reader) (bool, error) 
 
 // openSSHConfigLineIncludesPath returns true if the given line of an OpenSSH
 // configuration file is an include statement for the given path.
-func (d *SSHDiag) openSSHConfigLineIncludesPath(line, wantPath string) bool {
-	wantPath = d.normalizePath(wantPath)
+func (c *SSHConfigChecker) openSSHConfigLineIncludesPath(line, wantPath string) bool {
+	wantPath = c.normalizePath(wantPath)
 	line = strings.TrimSpace(line)
 
 	// Only consider lines that begin with "include" (case-insensitive).
@@ -178,42 +204,41 @@ func (d *SSHDiag) openSSHConfigLineIncludesPath(line, wantPath string) bool {
 	// returns true. It does support ~ as an alias for the user's home
 	// directory.
 	var (
-		// b is a running buffer holding the current argument as parsed up to
+		// pathBuf is a running buffer holding the current argument as parsed up to
 		// the current point.
-		b strings.Builder
+		pathBuf strings.Builder
 		// quote holds the opening quote character if one has been found.
 		quote = byte(0)
 	)
 loop:
 	for i := 0; i < len(line); i++ {
-		c := line[i]
+		b := line[i]
 		switch {
-		case c == '\\' && i < len(line)-1 && canBeEscaped(line[i+1]):
+		case b == '\\' && i < len(line)-1 && canBeEscaped(line[i+1]):
 			// Skip the escape char and write the next char literally.
 			i++
-			b.WriteByte(line[i])
-		case quote == 0 && (c == '"' || c == '\''):
+			pathBuf.WriteByte(line[i])
+		case quote == 0 && (b == '"' || b == '\''):
 			// Start of quote
-			quote = c
-		case quote != 0 && c == quote:
+			quote = b
+		case quote != 0 && b == quote:
 			// End of quote
 			quote = 0
-		case b.Len() == 0 && c == '~':
+		case pathBuf.Len() == 0 && b == '~':
 			// Support ~ as an alias for the user's home directory.
-			b.WriteString(d.userHome)
-		case quote == 0 && c == '#':
+			pathBuf.WriteString(c.userHome)
+		case quote == 0 && b == '#':
 			// Found an unquoted comment in the middle of the line, ignore the rest.
 			break loop
-		case quote == 0 && isSpace(rune(c)):
+		case quote == 0 && isSpace(rune(b)):
 			// Reached the end of this argument, check if it matches wantPath.
-			if d.normalizePath(b.String()) == wantPath {
+			if c.normalizePath(pathBuf.String()) == wantPath {
 				return true
 			}
-			b.Reset()
+			pathBuf.Reset()
 		default:
-			// By default just append the current character to the current
-			// argument.
-			b.WriteByte(c)
+			// By default just append the current byte to the path.
+			pathBuf.WriteByte(b)
 		}
 	}
 	if quote != 0 {
@@ -221,11 +246,11 @@ loop:
 		return false
 	}
 	// Handle an argument that ends at the end of the line.
-	return d.normalizePath(b.String()) == wantPath
+	return c.normalizePath(pathBuf.String()) == wantPath
 }
 
-func (d *SSHDiag) normalizePath(path string) string {
-	if d.isWindows {
+func (c *SSHConfigChecker) normalizePath(path string) string {
+	if c.isWindows {
 		// Normalize all paths to use unix-style separators since OpenSSH
 		// supports / or \\ on Windows.
 		path = strings.ReplaceAll(path, `\`, `/`)
