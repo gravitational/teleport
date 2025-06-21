@@ -210,7 +210,7 @@ func (r *Resources) count() int {
 
 	elem := reflect.ValueOf(r).Elem()
 	sum := 0
-	for i := 0; i < elem.NumField(); i++ {
+	for i := range elem.NumField() {
 		field := elem.Field(i)
 		if field.IsValid() {
 			switch field.Kind() {

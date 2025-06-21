@@ -130,10 +130,7 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
-			versionEnd := 255
-			if len(alpn) < versionEnd {
-				versionEnd = len(alpn)
-			}
+			versionEnd := min(len(alpn), 255)
 
 			mysqlVersionBase64 := alpn[mysqlVerStart:versionEnd]
 			mysqlVersionBytes, err := base64.StdEncoding.DecodeString(mysqlVersionBase64)

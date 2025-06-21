@@ -236,7 +236,6 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(10)
 	for instanceID, instanceName := range validInstances {
-		instanceID := instanceID
 		instanceName := instanceName
 		g.Go(func() error {
 			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, &instanceID, instanceName))

@@ -97,7 +97,7 @@ func TestForwarder_getToken(t *testing.T) {
 					return &azcore.AccessToken{Token: "foobar"}, nil
 				},
 			},
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
@@ -110,7 +110,7 @@ func TestForwarder_getToken(t *testing.T) {
 					return nil, trace.BadParameter("bad param foo")
 				},
 			},
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -124,7 +124,7 @@ func TestForwarder_getToken(t *testing.T) {
 					return nil, trace.BadParameter("bad param foo")
 				},
 			},
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, context.Canceled)
 			},
 		},
