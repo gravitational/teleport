@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -38,10 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,7 +59,7 @@ type identityService struct {
 	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
-	resolver          reversetunnelclient.Resolver
+	clientBuilder     *client.Builder
 
 	mu              sync.Mutex
 	client          *apiclient.Client
@@ -80,6 +81,22 @@ func (s *identityService) GetClient() *apiclient.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
+}
+
+func (s *identityService) GetGenerator() (*identity.Generator, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return identity.NewGenerator(identity.GeneratorConfig{
+		Client:      s.client,
+		BotIdentity: s.facade,
+		FIPS:        s.cfg.FIPS,
+		Insecure:    s.cfg.Insecure,
+		Logger: s.log.With(
+			teleport.ComponentKey,
+			teleport.Component(componentTBot, "identity-generator"),
+		),
+	})
 }
 
 // Ready returns a channel that will be closed when the initial identity renewal
@@ -244,7 +261,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	} else {
 		if valid {
 			// If the identity is valid (not expired), try to renew it.
-			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.resolver, loadedIdent)
+			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, loadedIdent)
 		} else {
 			// If the identity has expired, try to join again from scratch.
 			newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil)
@@ -263,7 +280,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		// connection and exit immediately if the connection is unavailable.
 		if err != nil {
 			facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, loadedIdent)
-			client, clientErr := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
+			client, clientErr := s.clientBuilder.Build(ctx, facade)
 			if clientErr != nil {
 				return trace.Wrap(clientErr)
 			}
@@ -285,7 +302,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	}
 
 	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
-	c, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
+	c, err := s.clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -389,7 +406,7 @@ func (s *identityService) renew(
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
-	newIdentity, err := renewIdentity(ctx, s.log, s.cfg, s.resolver, currentIdentity)
+	newIdentity, err := renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, currentIdentity)
 	if err != nil {
 		return trace.Wrap(err, "renewing identity")
 	}
@@ -420,7 +437,7 @@ func renewIdentity(
 	ctx context.Context,
 	log *slog.Logger,
 	botCfg *config.BotConfig,
-	resolver reversetunnelclient.Resolver,
+	clientBuilder *client.Builder,
 	oldIdentity *identity.Identity,
 ) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "renewIdentity")
@@ -429,7 +446,7 @@ func renewIdentity(
 	// made with the most recent identity and that a connection associated with
 	// an old identity will not be used.
 	facade := identity.NewFacade(botCfg.FIPS, botCfg.Insecure, oldIdentity)
-	authClient, err := clientForFacade(ctx, log, botCfg, facade, resolver)
+	authClient, err := clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating auth client")
 	}
@@ -555,7 +572,7 @@ func botIdentityFromToken(
 		CAPins:             cfg.Onboarding.CAPins,
 		CAPath:             cfg.Onboarding.CAPath,
 		FIPS:               cfg.FIPS,
-		GetHostCredentials: client.HostCredentials,
+		GetHostCredentials: libclient.HostCredentials,
 		CipherSuites:       cfg.CipherSuites(),
 	}
 	if authClient != nil {
