@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/reexec"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -618,6 +619,20 @@ type CLIConf struct {
 	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
 	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
+
+	// ForkAfterAuthentication indicates that tsh should go into the background
+	// after authentication.
+	ForkAfterAuthentication bool
+	// forkSignalFd is the file descriptor for the child process to signal the
+	// parent when re-execing.
+	forkSignalFd uint64
+	// forkKillFd is the file descriptor for the child process to check the
+	// parent's state when re-execing.
+	forkKillFd uint64
+}
+
+func (c *CLIConf) isForkAuthChild() bool {
+	return isValidForkSignalFd(c.forkSignalFd) && isValidForkSignalFd(c.forkKillFd)
 }
 
 // Stdout returns the stdout writer.
@@ -812,6 +827,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
+	// This flag only applies to tsh ssh; it's defined here to make configuring
+	// the re-exec command easier.
+	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
+	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -891,6 +910,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -1377,6 +1397,33 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			)
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
+	}
+
+	// Handle fork after authentication.
+	if cf.ForkAfterAuthentication && !cf.isForkAuthChild() {
+		if len(cf.RemoteCommand) == 0 {
+			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+		}
+		forkParams := reexec.ForkAuthenticateParams{
+			GetArgs: func(signalFd, killFd uint64) []string {
+				return append([]string{
+					// fd flags go immediately after `tsh`.
+					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+					"--fork-kill-fd", strconv.FormatUint(killFd, 10),
+				}, args...)
+			},
+			Stdin:  cf.Stdin(),
+			Stdout: cf.Stdout(),
+			Stderr: cf.Stderr(),
+		}
+		if err := reexec.RunForkAuthenticate(cf.Context, forkParams); err != nil {
+			var execErr *exec.ExitError
+			if errors.As(trace.Unwrap(err), &execErr) {
+				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+			}
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	// Remove HTTPS:// in proxy parameter as https is automatically added
@@ -4004,6 +4051,29 @@ func onResolve(cf *CLIConf) error {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
+	// Handle fork after authentication.
+	var disownSignal *os.File
+	var forkAuthSuccessful atomic.Bool
+	if cf.isForkAuthChild() {
+		ctx, cancel := context.WithCancel(cf.Context)
+		cf.Context = ctx
+		// Prep files.
+		disownSignal = newSignalFile(cf.forkSignalFd)
+		defer disownSignal.Close()
+		killSignal := newSignalFile(cf.forkKillFd)
+		defer killSignal.Close()
+
+		// Watch kill signal to check when parent exits. If the read returns before
+		// the child finishes authentication, the parent has died and the child
+		// needs to die too.
+		go func() {
+			err := <-reexec.NotifyFileSignal(killSignal)
+			if err != nil && !forkAuthSuccessful.Load() {
+				cancel()
+			}
+		}()
+	}
+
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
 	// the version and exit.
 	if cf.ShowVersion {
@@ -4041,12 +4111,24 @@ func onSSH(cf *CLIConf) error {
 		cf.RemoteCommand = cf.RemoteCommand[1:]
 	}
 
-	tc.Stdin = os.Stdin
+	tc.Stdin = cf.Stdin()
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			if disownSignal != nil {
+				opts = append(opts, client.WithForkAfterAuthentication(func() error {
+					newStdin, err := replaceStdin()
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					tc.Stdin = newStdin
+					forkAuthSuccessful.Store(true)
+					return trace.Wrap(reexec.SignalAndClose(disownSignal))
+				}))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
