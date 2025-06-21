@@ -402,7 +402,8 @@ func TestHardwareKeyApp(t *testing.T) {
 	clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
-	resp := testDummyAppConn(t, fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	resp, err := testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "myapp", resp.Header.Get("Server"))
 	resp.Body.Close()
@@ -418,7 +419,8 @@ func TestHardwareKeyApp(t *testing.T) {
 
 	testModules.MockAttestationData = nil
 
-	resp = testDummyAppConn(t, fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	resp.Body.Close()
 
@@ -477,7 +479,8 @@ func TestHardwareKeyApp(t *testing.T) {
 	clientCert, err = keys.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
-	resp = testDummyAppConn(t, fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "myapp", resp.Header.Get("Server"))
 	resp.Body.Close()
