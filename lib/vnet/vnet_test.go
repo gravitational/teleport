@@ -1357,7 +1357,7 @@ func TestSSH(t *testing.T) {
 				// catch the error at the right step.
 				resolvedAddrs, err := p.lookupHost(ctx, tc.dialAddr)
 				require.NoError(t, err)
-				require.Greater(t, len(resolvedAddrs), 0)
+				require.NotEmpty(t, resolvedAddrs)
 
 				ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 				defer cancel()
