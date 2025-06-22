@@ -38,11 +38,18 @@ export const FormLocal = ({
   const [pass, setPass] = useState('');
   const [user, setUser] = useState(loggedInUserName || '');
 
+  // loginAttempt.status needs to be checked here so that auto focus is automatically managed when
+  // the form reverts from a processing state to an error state.
+  const isAutoFocusAllowed =
+    autoFocus && hasTransitionEnded && loginAttempt.status !== 'processing';
+  // useRefAutoFocus is used instead of just plain autoFocus because of some weird focus issues
+  // stemming from, most probably, using <StepSlider> within a modal. autoFocus generally works
+  // within modals. We've never documented why we use this hook so that knowledge is lost in time.
   const usernameInputRef = useRefAutoFocus<HTMLInputElement>({
-    shouldFocus: hasTransitionEnded && autoFocus && !loggedInUserName,
+    shouldFocus: isAutoFocusAllowed && !loggedInUserName,
   });
   const passwordInputRef = useRefAutoFocus<HTMLInputElement>({
-    shouldFocus: hasTransitionEnded && autoFocus && !!loggedInUserName,
+    shouldFocus: isAutoFocusAllowed && !!loggedInUserName,
   });
 
   function onLoginClick(

@@ -24,6 +24,10 @@ import { DependencyList, MutableRefObject, useEffect, useRef } from 'react';
  */
 export function useRefAutoFocus<T extends { focus(): void }>(options: {
   shouldFocus: boolean;
+  /**
+   * @deprecated Include items from refocusDeps into the calculation of shouldFocus instead.
+   * The list of useEffect deps should be statically known.
+   */
   refocusDeps?: DependencyList;
 }): MutableRefObject<T> {
   const ref = useRef<T>(undefined);
