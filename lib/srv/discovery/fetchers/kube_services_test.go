@@ -78,6 +78,14 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				{Port: 42, Name: "custom", Protocol: corev1.ProtocolTCP},
 				{Port: 43, Name: "custom-udp", Protocol: corev1.ProtocolUDP},
 			}),
+		newMockService("service6", "ns6", "", map[string]string{"test-label6": "testval6"}, map[string]string{
+			"teleport.dev/name": "prometheus-aks-prod-green",
+			"teleport.dev/port": "9093",
+		},
+			[]corev1.ServicePort{
+				{Port: 9093, Name: "http-web", Protocol: corev1.ProtocolTCP},
+				{Port: 8080, Name: "other-web", Protocol: corev1.ProtocolTCP},
+			}),
 	}
 
 	apps := map[string]*types.AppV3{
@@ -272,6 +280,13 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			matcherLabels:     types.Labels{"test-label2": []string{"testval2"}},
 			protoChecker:      &mockProtocolChecker{results: map[string]string{"service3.ns2.svc.cluster.local:42": "http"}},
 			expected:          types.Apps{apps["service2.app1"], apps["service3.app4"], apps["service3.app1"], apps["service3.app2"]},
+		},
+		{
+			desc:              "One service - specified port - no detectable protocol",
+			services:          []*corev1.Service{mockServices[5]},
+			matcherNamespaces: []string{"ns6"},
+			matcherLabels:     types.Labels{"test-label6": []string{"testval6"}},
+			expected:          types.Apps{},
 		},
 	}
 
