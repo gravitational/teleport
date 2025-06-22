@@ -31,7 +31,6 @@ import "accessgraph/v1alpha/netiq.proto";
 import "accessgraph/v1alpha/okta.proto";
 import "accessgraph/v1alpha/resources.proto";
 import "google/protobuf/empty.proto";
-import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/auditlog/v1/auditlog.proto";
 
@@ -623,9 +622,9 @@ message AWSCloudWatchStreamRequest {
   oneof action {
     // Proposed configuration if none exists in the Access Graph
     AWSCloudWatchConfig config = 1;
-    // CloudWatch log data, sent once Access Graph has returned the required
+    // CloudWatch event data, sent once Access Graph has returned the required
     // configuration
-    AWSCloudWatchLogs logs = 2;
+    AWSCloudWatchEvents events = 2;
   }
 }
 
@@ -653,14 +652,23 @@ message AWSCloudWatchConfig {
 
 // The CloudWatch logs, consisting of log data and the cursor for querying
 // and paging
-message AWSCloudWatchLogs {
-  // The log data in a protobuf struct form, to be structured and stored in the
-  // Access Graph
-  repeated google.protobuf.Struct logs = 1;
+message AWSCloudWatchEvents {
+  // The events as they arrive from the CloudWatch API
+  repeated AWSCloudWatchEvent events = 1;
   // The cursor, for querying and paging
   AWSCloudWatchCursor cursor = 2;
   // The AWS account ID for this batch of logs
   string account_id = 3;
+}
+
+// The AWS CloudWatch event as it arrives from the CloudWatch API
+message AWSCloudWatchEvent {
+  // The event timestamp
+  google.protobuf.Timestamp timestamp = 1;
+  // The event log stream
+  string log_stream = 2;
+  // The event message
+  string message = 3;
 }
 
 // The CloudWatch cursor, providing both a next token and a start time for
