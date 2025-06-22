@@ -189,6 +189,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
 		types.KindSigstorePolicy:                     rc.createSigstorePolicy,
 		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
+		types.KindSummarizationInferenceModel:        rc.createSummarizationInferenceModel,
+		// types.KindSummarizationInferenceSecret:       rc.createSummarizationInferenceSecret,
+		// types.KindSummarizationInferencePolicy:       rc.createSummarizationInferencePolicy,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -3705,6 +3708,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &healthCheckConfigCollection{
 			items: items,
 		}, nil
+	case types.KindSummarizationInferenceModel:
+		models, err := rc.getSummarizationInferenceModels(ctx, client)
+		return models, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

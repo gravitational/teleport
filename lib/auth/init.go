@@ -388,6 +388,8 @@ type InitConfig struct {
 
 	// VnetConfigService manages the VNet config resource.
 	VnetConfigService services.VnetConfigService
+
+	Summarizer services.Summarizer
 }
 
 // Init instantiates and configures an instance of AuthServer

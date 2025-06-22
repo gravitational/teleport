@@ -103,6 +103,8 @@ func NewSummarizerService(b backend.Backend) (services.Summarizer, error) {
 			Backend:       b,
 			ResourceKind:  types.KindSummarizationInferenceModel,
 			BackendPrefix: backend.NewKey(summarizationInferenceModelPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.SummarizationInferenceModel],
+			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.SummarizationInferenceModel],
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,6 +115,8 @@ func NewSummarizerService(b backend.Backend) (services.Summarizer, error) {
 			Backend:       b,
 			ResourceKind:  types.KindSummarizationInferenceSecret,
 			BackendPrefix: backend.NewKey(summarizationInferenceSecretPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.SummarizationInferenceSecret],
+			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.SummarizationInferenceSecret],
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,6 +127,8 @@ func NewSummarizerService(b backend.Backend) (services.Summarizer, error) {
 			Backend:       b,
 			ResourceKind:  types.KindSummarizationInferencePolicy,
 			BackendPrefix: backend.NewKey(summarizationInferencePolicyPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.SummarizationInferencePolicy],
+			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.SummarizationInferencePolicy],
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
