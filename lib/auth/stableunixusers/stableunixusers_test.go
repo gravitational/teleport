@@ -46,8 +46,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestStableUNIXUsers(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{Context: ctx})
 	require.NoError(t, err)

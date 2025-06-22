@@ -176,7 +176,7 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, username string, newValue uint64) error {
 	var err error
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		user, err := a.Services.GetUser(ctx, username, false)
 		if err != nil {
 			return trace.Wrap(err)
