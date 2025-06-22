@@ -56,7 +56,7 @@ func TestSQSPollEvents(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 
-	eventsC := make(chan payloadChannelMessage)
+	eventsC := make(chan cloudTrailLogs)
 	errC := make(chan error, 1)
 	wg := sync.WaitGroup{}
 	wg.Add(1)

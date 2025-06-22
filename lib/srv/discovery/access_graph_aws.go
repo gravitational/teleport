@@ -179,33 +179,36 @@ func (s *Server) getAllAWSSyncFetchers() []*aws_sync.Fetcher {
 	return allFetchers
 }
 
-func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWSSync {
-	var allFetchers []*types.AccessGraphAWSSync
+// Returns all AWS sync configuration specs with CloudTrail or CloudWatch logging enabled
+func (s *Server) getAWSSyncSpecsWithLogs() []*types.AccessGraphAWSSync {
+	var specs []*types.AccessGraphAWSSync
 
+	// Load syncers from dynamic discovery
 	s.dynamicDiscoveryConfigMu.RLock()
 	for _, discConfig := range s.dynamicDiscoveryConfig {
 		if discConfig.Spec.AccessGraph == nil || len(discConfig.Spec.AccessGraph.AWS) == 0 {
 			continue
 		}
 
-		for _, disc := range discConfig.Spec.AccessGraph.AWS {
-			if disc.CloudTrailLogs != nil {
-				allFetchers = append(allFetchers, disc)
+		for _, spec := range discConfig.Spec.AccessGraph.AWS {
+			if spec.CloudTrailLogs != nil || spec.CloudWatchLogs != nil {
+				specs = append(specs, spec)
 			}
 		}
 
 	}
 	s.dynamicDiscoveryConfigMu.RUnlock()
 
+	// Load syncers from config
 	if s.Config.Matchers.AccessGraph == nil {
-		return allFetchers
+		return specs
 	}
-	for _, disc := range s.Config.Matchers.AccessGraph.AWS {
-		if disc.CloudTrailLogs != nil {
-			allFetchers = append(allFetchers, disc)
+	for _, spec := range s.Config.Matchers.AccessGraph.AWS {
+		if spec.CloudTrailLogs != nil {
+			specs = append(specs, spec)
 		}
 	}
-	return allFetchers
+	return specs
 }
 
 func pushUpsertInBatches(
@@ -531,22 +534,20 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 		go func() {
 			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
-				allFetchers := s.getAllAWSSyncFetchersWithTrailEnabled()
-				// If there are no fetchers, we don't need to start the access graph sync.
-				// We will wait for the config to change and re-evaluate the fetchers
-				// before starting the sync.
-				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+				specs := s.getAWSSyncSpecsWithLogs()
+				// Don't start log polling if there's no config specs with cloudwatch/cloudtrail logging
+				if len(specs) == 0 {
+					s.Log.DebugContext(ctx, "No AWS sync config specs with cloudwatch/cloudtrail logging.")
 					select {
 					case <-ctx.Done():
 						return
 					case <-reloadCh:
-						// if the config changes, we need to re-evaluate the fetchers.
+						// Wait until config changes to re-evaluate the config specs
 					}
 					continue
 				}
-				// reset the currentTAGResources to force a full sync
-				if err := s.startCloudtrailPoller(ctx, reloadCh, allFetchers); errors.Is(err, errTAGFeatureNotEnabled) {
+				// Start the cloudtrail poller
+				if err := s.startAWSLogPollers(ctx, reloadCh, specs); errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
@@ -604,9 +605,9 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 	return fetchers, trace.NewAggregate(errs...)
 }
 
-func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan struct{}, matchers []*types.AccessGraphAWSSync) error {
+func (s *Server) startAWSLogPollers(ctx context.Context, reloadCh <-chan struct{}, specs []*types.AccessGraphAWSSync) error {
 	// aws discovery semaphore lock.
-	const semaphoreName = "access_graph_aws_cloudtrail_sync"
+	const semaphoreName = "access_graph_aws_log_poller_sync"
 
 	clusterFeatures := s.Config.ClusterFeatures()
 	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
@@ -614,6 +615,8 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
+	// Acquire the config lock for the log pollers
+	// TODO (mvbrock): split into separate function
 	const semaphoreExpiration = time.Minute
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to push AWS resources in parallel.
@@ -644,14 +647,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	// once the lease parent context is canceled, the lease will be released.
-	// this will stop the access graph sync.
+	// Once the lease parent context is canceled, the lease will be released, which will stop the access graph sync.
 	ctx, cancel := context.WithCancel(lease)
 	defer cancel()
-
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
@@ -659,8 +657,8 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		}
 	}()
 
+	// Create the access graph client
 	config := s.Config.AccessGraphConfig
-
 	accessGraphConn, err := newAccessGraphClient(
 		ctx,
 		s.GetClientCert,
@@ -670,16 +668,17 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Close the connection when the function returns.
 	defer accessGraphConn.Close()
 	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
 
-	stream, err := client.AWSCloudTrailStream(ctx)
+	// Initialize cloudtrail streaming
+	// TODO (mvbrock): Split into separate function
+	cloudTrailStream, err := client.AWSCloudTrailStream(ctx)
 	if err != nil {
-		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
+		s.Log.ErrorContext(ctx, "Failed to create access graph AWSCloudTrailStream", "error", err)
 		return trace.Wrap(err)
 	}
-	err = stream.Send(
+	err = cloudTrailStream.Send(
 		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
 			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
 				Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
@@ -687,22 +686,43 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		},
 	)
 	if err != nil {
-		err = consumeTillErr(stream)
+		err = consumeTillErr(cloudTrailStream)
 		s.Log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
 		return trace.Wrap(err)
 	}
-
-	if err := s.receiveTAGConfigFromStream(ctx, stream); err != nil {
-		return trace.Wrap(err, "failed to receive access graph config")
+	tagAWSConfig, err := cloudTrailStream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive config")
+	}
+	if tagAWSConfig.GetCloudTrailConfig() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail config")
+	}
+	tagAWSResume, err := cloudTrailStream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive resume state")
+	}
+	if tagAWSResume.GetResumeState() == nil {
+		return trace.BadParameter("access graph service did not return resume state")
 	}
 
-	if err := s.receiveTAGResumeFromStream(ctx, stream); err != nil {
-		return trace.Wrap(err, "failed to receive access graph resume")
+	// Initialize the cloudwatch streaming
+	// TODO (mvbrock): Split into separate function
+	cloudWatchStream, err := client.AWSCloudWatchStream(ctx)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to create access graph AWSCloudWatchStream", "error", err)
+		return trace.Wrap(err)
 	}
+	err = cloudWatchStream.Send(
+		&accessgraphv1alpha.AWSCloudWatchStreamRequest{
+			Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Config{
+				Config: &accessgraphv1alpha.AWSCloudWatchConfig{},
+			},
+		},
+	)
 
-	// Start a goroutine to watch the access graph service connection state.
-	// If the connection is closed, cancel the context to stop the event watcher
-	// before it tries to send any events to the access graph service.
+	// Cancel the context if the access graph connection is lost to prevent any further message processing
+	var wg sync.WaitGroup
+	defer wg.Wait()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -712,78 +732,85 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		}
 	}()
 
-	filePayload := make(chan payloadChannelMessage, 1)
-	type mapPayload struct {
+	// Channel for cloudtrail file contents and cloudwatch logs
+	cloudTrailCh := make(chan cloudTrailLogs, 1)
+	cloudWatchCh := make(chan cloudWatchEvents, 1)
+
+	// Create mapping and reconciliation for the specs
+	// TODO (mvbrock): Split into own function
+	type specMapEntry struct {
 		disc       *types.AccessGraphAWSSync
 		cancelFunc context.CancelFunc
 	}
-	stateMatchersMap := make(map[string]mapPayload)
-
-	spawnMatcher := func(ctx context.Context, matcher *types.AccessGraphAWSSync) {
+	stateSpecsMap := make(map[string]specMapEntry)
+	spawnPoller := func(ctx context.Context, spec *types.AccessGraphAWSSync) {
 		localCtx, cancel := context.WithCancel(ctx)
-		stateMatchersMap[matcher.Integration] = mapPayload{
-			disc:       matcher,
+		stateSpecsMap[spec.Integration] = specMapEntry{
+			disc:       spec,
 			cancelFunc: cancel,
 		}
-		go func(ctx context.Context, matcher *types.AccessGraphAWSSync) {
-			accountID, err := s.getAccountId(ctx, matcher)
+		go func(ctx context.Context, spec *types.AccessGraphAWSSync) {
+			accountID, err := s.getAccountId(ctx, spec)
 			if err != nil {
 				s.Log.ErrorContext(ctx, "Error getting account ID", "error", err)
 				return
 			}
-			err = s.pollEventsFromSQSFiles(ctx, accountID, matcher, filePayload)
-			if err != nil {
-				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
+			if spec.CloudTrailLogs != nil {
+				err = s.pollEventsFromSQSFiles(ctx, accountID, spec, cloudTrailCh)
+				if err != nil {
+					s.Log.ErrorContext(ctx, "Error polling for CloudTrail events from SQS", "error", err)
+				}
 			}
-		}(localCtx, matcher)
-	}
+			if spec.CloudWatchLogs != nil {
+				err = s.pollEventsFromCloudWatch(ctx, accountID, spec)
+				if err != nil {
+					s.Log.ErrorContext(ctx, "Error polling for CloudWatch events", "error", err)
+				}
+			}
+			if spec.CloudWatchLogs != nil {
 
-	for _, matcher := range matchers {
-		if matcher.CloudTrailLogs == nil {
-			continue
-		}
-		spawnMatcher(ctx, matcher)
+			}
+		}(localCtx, spec)
 	}
-
 	reconciler, err := services.NewGenericReconciler(services.GenericReconcilerConfig[string, *types.AccessGraphAWSSync]{
 		Matcher: func(matcher *types.AccessGraphAWSSync) bool {
 			return true
 		},
 		GetCurrentResources: func() map[string]*types.AccessGraphAWSSync {
-			matchersMap := make(map[string]*types.AccessGraphAWSSync)
-			for k, matcher := range stateMatchersMap {
-				matchersMap[k] = matcher.disc
+			specsMap := make(map[string]*types.AccessGraphAWSSync)
+			for k, matcher := range stateSpecsMap {
+				specsMap[k] = matcher.disc
 			}
-			return matchersMap
+			return specsMap
 		},
 		GetNewResources: func() map[string]*types.AccessGraphAWSSync {
-			matchersMap := make(map[string]*types.AccessGraphAWSSync)
-			for _, matcher := range s.getAllAWSSyncFetchersWithTrailEnabled() {
-				matchersMap[matcher.Integration] = matcher
+			specsMap := make(map[string]*types.AccessGraphAWSSync)
+			for _, matcher := range s.getAWSSyncSpecsWithLogs() {
+				specsMap[matcher.Integration] = matcher
 			}
-			return matchersMap
+			return specsMap
 		},
 		// Compare allows custom comparators without having to implement IsEqual.
 		// Defaults to `CompareResources[T]` if not specified.
 		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
 		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
-			spawnMatcher(ctx, disc)
+			spawnPoller(ctx, disc)
 			return nil
 		},
 		// OnUpdate is called when an existing resource is updated.
 		OnUpdate: func(ctx context.Context, new, old *types.AccessGraphAWSSync) error {
-			if p, ok := stateMatchersMap[old.Integration]; ok {
+			if p, ok := stateSpecsMap[old.Integration]; ok {
 				p.cancelFunc()
-				delete(stateMatchersMap, old.Integration)
+				delete(stateSpecsMap, old.Integration)
 			}
-			spawnMatcher(ctx, new)
+			spawnPoller(ctx, new)
 			return nil
 		},
 		// OnDelete is called when an existing resource is deleted.
 		OnDelete: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
-			if p, ok := stateMatchersMap[disc.Integration]; ok {
+			if p, ok := stateSpecsMap[disc.Integration]; ok {
 				p.cancelFunc()
-				delete(stateMatchersMap, disc.Integration)
+				delete(stateSpecsMap, disc.Integration)
 			}
 			return nil
 		},
@@ -793,6 +820,13 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		s.Log.ErrorContext(ctx, "Error creating reconciler", "error", err)
 		return trace.Wrap(err)
 	}
+
+	// Spawn pollers for the current specs
+	for _, spec := range specs {
+		spawnPoller(ctx, spec)
+	}
+
+	// Check for done context, configuration reload, and cloudtrail/cloudwatch poll results
 	for {
 		select {
 		case <-ctx.Done():
@@ -802,8 +836,8 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 				s.Log.ErrorContext(ctx, "Error reconciling access graph fetchers", "error", err)
 			}
 			continue
-		case file := <-filePayload:
-			err := stream.Send(
+		case file := <-cloudTrailCh:
+			err := cloudTrailStream.Send(
 				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
 					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_EventsFile{
 						EventsFile: &accessgraphv1alpha.AWSCloudTrailEventsFile{
@@ -814,8 +848,26 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 				},
 			)
 			if err != nil {
-				err = consumeTillErr(stream)
-				s.Log.ErrorContext(ctx, "Failed to send access graph service events", "error", err)
+				err = consumeTillErr(cloudTrailStream)
+				s.Log.ErrorContext(ctx, "Failed to send access graph service AWSCloudTrailStream logs",
+					"error", err)
+				return trace.Wrap(err)
+			}
+			continue
+		case events := <-cloudWatchCh:
+			err := cloudWatchStream.Send(&accessgraphv1alpha.AWSCloudWatchStreamRequest{
+				Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Events{
+					Events: &accessgraphv1alpha.AWSCloudWatchEvents{
+						Events:    events.events,
+						Cursor:    nil,
+						AccountId: events.accountID,
+					},
+				},
+			})
+			if err != nil {
+				err = consumeTillErr(cloudTrailStream)
+				s.Log.ErrorContext(ctx, "Failed to send access graph service AWSCloudWatchStream logs",
+					"error", err)
 				return trace.Wrap(err)
 			}
 			continue
@@ -892,12 +944,17 @@ func (s *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWS
 	return aws.ToString(req.Account), nil
 }
 
-type payloadChannelMessage struct {
+type cloudTrailLogs struct {
 	payload   []byte
 	accountID string
 }
 
-func (s *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- payloadChannelMessage) error {
+type cloudWatchEvents struct {
+	events    []*accessgraphv1alpha.AWSCloudWatchEvent
+	accountID string
+}
+
+func (s *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- cloudTrailLogs) error {
 	awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, matcher.CloudTrailLogs.Region, getOptions(matcher)...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -921,7 +978,7 @@ func (s *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 	sqsClient sqsClient,
 	s3Client s3Client,
 	matcher *types.AccessGraphAWSSyncCloudTrailLogs,
-	eventsC chan<- payloadChannelMessage,
+	eventsC chan<- cloudTrailLogs,
 ) error {
 	parallelDownloads := make(chan struct{}, 60)
 	errG, ctx := errgroup.WithContext(ctx)
@@ -946,7 +1003,7 @@ func (s *Server) processMessagesWorker(
 	matcher *types.AccessGraphAWSSyncCloudTrailLogs,
 	sqsClient sqsClient,
 	s3Client s3Client,
-	eventsC chan<- payloadChannelMessage,
+	eventsC chan<- cloudTrailLogs,
 	accountID string,
 	parallelDownloads chan struct{},
 ) func() error {
@@ -1004,7 +1061,7 @@ func (s *Server) processSingleMessage(
 	ctx context.Context,
 	msg sqstypes.Message,
 	s3Client s3Client,
-	eventsC chan<- payloadChannelMessage,
+	eventsC chan<- cloudTrailLogs,
 	accountID string,
 ) error {
 	var sqsEvent sqsFileEvent
@@ -1043,7 +1100,7 @@ func (s *Server) processSingleMessage(
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case eventsC <- payloadChannelMessage{
+		case eventsC <- cloudTrailLogs{
 			payload:   payload,
 			accountID: accountID,
 		}:
@@ -1082,4 +1139,8 @@ func downloadCloudTrailFile(ctx context.Context, client s3Client, bucket, key st
 	}
 
 	return body, nil
+}
+
+func (s *Server) pollEventsFromCloudWatch(ctx context.Context, accountID string, awsSync *types.AccessGraphAWSSync) error {
+	return nil
 }
