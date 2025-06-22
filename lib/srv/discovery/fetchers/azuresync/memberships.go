@@ -28,10 +28,10 @@ import (
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
-const parallelism = 10 //nolint:unused // invoked in a dependent PR
+const parallelism = 10
 
 // expandMemberships adds membership data to AzurePrincipal objects by querying the Graph API for group memberships
-func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // invoked in a dependent PR
+func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*accessgraphv1alpha.AzurePrincipal) ([]*accessgraphv1alpha.AzurePrincipal, error) {
 	// Map principals by ID
 	var principalsMap = make(map[string]*accessgraphv1alpha.AzurePrincipal)
 	for _, principal := range principals {
