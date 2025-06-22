@@ -1,0 +1,65 @@
+{{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) -}}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+metadata:
+  name: {{ .Release.Name }}
+{{- if .Values.extraLabels.podSecurityPolicy }}
+  labels:
+  {{- toYaml .Values.extraLabels.podSecurityPolicy | nindent 4 }}
+{{- end }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'runtime/default'
+spec:
+  privileged: false
+  fsGroup:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+  runAsUser:
+    rule: MustRunAsNonRoot
+  runAsGroup:
+    rule: MustRunAs
+    ranges:
+      - min: 1
+        max: 65535
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  allowPrivilegeEscalation: false
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  volumes:
+    - 'projected'
+    - 'secret'
+    - 'configMap'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-psp
+rules:
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+  resourceNames:
+  - {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-psp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-psp
+subjects:
+- kind: ServiceAccount
+  name: {{ template "teleport-tbot.serviceAccountName" . }}
+{{- end }}
