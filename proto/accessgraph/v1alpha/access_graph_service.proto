@@ -659,6 +659,8 @@ message AWSCloudWatchLogs {
   repeated google.protobuf.Struct logs = 1;
   // The cursor, for querying and paging
   AWSCloudWatchCursor cursor = 2;
+  // The AWS account ID for this batch of logs
+  string account_id = 3;
 }
 
 // The CloudWatch cursor, providing both a next token and a start time for

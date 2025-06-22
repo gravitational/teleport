@@ -8704,6 +8704,16 @@ message AccessGraphAWSSyncCloudTrailLogs {
   string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
 }
 
+// AccessGraphAWSSyncCloudWatchLogs defines settings for ingesting AWS CloudWatch logs
+// by polling the CloudWatch API.
+message AccessGraphAWSSyncCloudWatchLogs {
+  // The AWS region of the CloudWatch API.
+  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+
+  // AWS tag filters to only log specific resources
+  repeated string TagFilters = 2 [(gogoproto.jsontag) = "tag_filters,omitempty"];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -8714,6 +8724,8 @@ message AccessGraphAWSSync {
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
   // Configuration settings for collecting AWS CloudTrail logs via an SQS queue.
   AccessGraphAWSSyncCloudTrailLogs cloud_trail_logs = 5 [(gogoproto.jsontag) = "cloud_trail_logs,omitempty"];
+  // Configuration settings for collecting AWS CloudWatch logs via API polling.
+  AccessGraphAWSSyncCloudWatchLogs cloud_watch_logs = 6 [(gogoproto.jsontag) = "cloud_watch_logs,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

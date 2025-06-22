@@ -3071,7 +3071,9 @@ type AWSCloudWatchLogs struct {
 	// Access Graph
 	Logs []*structpb.Struct `protobuf:"bytes,1,rep,name=logs,proto3" json:"logs,omitempty"`
 	// The cursor, for querying and paging
-	Cursor        *AWSCloudWatchCursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Cursor *AWSCloudWatchCursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// The AWS account ID for this batch of logs
+	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3118,6 +3120,13 @@ func (x *AWSCloudWatchLogs) GetCursor() *AWSCloudWatchCursor {
 		return x.Cursor
 	}
 	return nil
+}
+
+func (x *AWSCloudWatchLogs) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
 }
 
 // The CloudWatch cursor, providing both a next token and a start time for
@@ -3941,10 +3950,12 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\x1b\n" +
 	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"\x82\x01\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"\xa1\x01\n" +
 	"\x11AWSCloudWatchLogs\x12+\n" +
 	"\x04logs\x18\x01 \x03(\v2\x17.google.protobuf.StructR\x04logs\x12@\n" +
-	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\"o\n" +
+	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"o\n" +
 	"\x13AWSCloudWatchCursor\x12\x1d\n" +
 	"\n" +
 	"next_token\x18\x01 \x01(\tR\tnextToken\x129\n" +
