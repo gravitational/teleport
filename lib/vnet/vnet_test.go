@@ -1157,8 +1157,7 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	clock := clockwork.NewRealClock()
 	homePath := t.TempDir()
 
@@ -1342,41 +1341,43 @@ func TestSSH(t *testing.T) {
 		t.Run(fmt.Sprintf("%s@%s:%d", tc.sshUser, tc.dialAddr, tc.dialPort), func(t *testing.T) {
 			t.Parallel()
 
-			lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-			defer cancel()
-			// The DNS lookup for *.<cluster-name> should resolve to an IP in
-			// the expected CIDR range for the cluster.
-			resolvedAddrs, err := p.lookupHost(lookupCtx, tc.dialAddr)
 			if tc.expectLookupToFail {
+				// In these cases the DNS lookup is expected to fail, just run the DNS lookup.
+				ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+				defer cancel()
+				_, err := p.lookupHost(ctx, tc.dialAddr)
 				require.Error(t, err)
 				return
 			}
-			require.NoError(t, err)
 
-			_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
-			require.NoError(t, err)
-
-			for _, resolvedAddr := range resolvedAddrs {
-				resolvedIP := net.ParseIP(resolvedAddr)
-				// The query may have resolved to a v4 or v6 address or both,
-				// either way the 4-byte suffix should be a valid IPv4 address
-				// in the expected CIDR range.
-				resolvedIPSuffix := resolvedIP[len(resolvedIP)-4:]
-				assert.True(t, expectNet.Contains(resolvedIPSuffix),
-					"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
-			}
-
-			// TCP dial the target address, it should fail if the node doesn't
-			// exist.
-			dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-			defer cancel()
-			conn, err := p.dialHost(dialCtx, tc.dialAddr, tc.dialPort)
 			if tc.expectDialToFail {
+				// In these cases the DNS lookup should succeed but then the
+				// TCP dial should fail, do each separately to make sure we
+				// catch the error at the right step.
+				resolvedAddrs, err := p.lookupHost(ctx, tc.dialAddr)
+				require.NoError(t, err)
+				require.NotEmpty(t, resolvedAddrs)
+
+				ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+				defer cancel()
+				_, err = p.dialHost(ctx, resolvedAddrs[0], tc.dialPort)
 				require.Error(t, err)
 				return
 			}
+
+			conn, err := p.dialHost(ctx, tc.dialAddr, tc.dialPort)
 			require.NoError(t, err)
 			defer conn.Close()
+
+			// The DNS query may have resolved to a v4 or v6 address, either
+			// way the 4-byte suffix should be a valid IPv4 address in the
+			// expected CIDR range.
+			resolvedIP := conn.RemoteAddr().(*net.TCPAddr).IP
+			resolvedIPSuffix := resolvedIP[len(resolvedIP)-4:]
+			_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
+			require.NoError(t, err)
+			assert.True(t, expectNet.Contains(resolvedIPSuffix),
+				"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
 
 			// Initiate an SSH connection to the target. At this point the
 			// handshake should complete successfully as long as the right keys
@@ -1413,6 +1414,7 @@ func TestSSH(t *testing.T) {
 
 	// Test that a fresh SSH host cert is used on each connection.
 	t.Run("ephemeral certs", func(t *testing.T) {
+		t.Parallel()
 		// Set up the SSH client config to capture the host certs it sees.
 		var checkedHostCerts []*ssh.Certificate
 		clientConfig := &ssh.ClientConfig{
