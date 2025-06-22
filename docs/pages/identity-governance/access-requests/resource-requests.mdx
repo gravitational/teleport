@@ -606,38 +606,29 @@ spec:
 
 #### Wildcard requests
 
-To request access to a namespace and all resources within it, you can use the
-following command:
+To request access to a namespace and all resources within it, and/or to all
+cluster-wide resources, you can use wildcards in the resource ID.
+
+For cluster-wide resources, the `kind` format as described above is
+`kube:cw:CLUSTER_WIDE_PLURAL_KIND[.API_GROUP]`.
+To request access to all cluster-wide resources you can request access to
+`kube:cw:*.*`. Where the first `*` represents the kind, and the second `*`
+represents the `api group`.
+
+For namespaced resources, the `kind` format is
+`kube:ns:NAMESPACED_PLURAL_KIND[.API_GROUP]`.
+To request access to all namespaced resources within a specific namespace, you
+can request access to `kube:ns:*.*`, where the first `*` represents the kind,
+and the second `*` represents the `api group`.
+
+For example, to request access to the `prod` namespace (cluster-wide) all
+resources within it (i.e., namespaced), you can run the following command:
 
 ```code
 $ tsh request create \
   --resource /teleport.example.com/kube:cw:namespaces/mycluster/prod \
   --resource '/teleport.example.com/kube:ns:*.*/mycluster/prod/*'
 ```
-
-<Admonition type="info">
-The first resource, `/teleport.example.com/kube:cw:namespaces/mycluster/prod`
-requests access to the namespace resource itself. It is only needed if you want
-to gain write access. Read-only access to namespace is automatically granted
-when you have access to any resource within it.
-
-The second resource, `/teleport.example.com/kube:ns:*.*/mycluster/prod/*`
-requests access to all resources within the namespace.
-
-- `teleport.example.com` is the Teleport cluster name.
-- `kube:ns:*.*`
-  - `kube:ns:` means we are requesting access to namespaced resources.
-  - The first `*` represent the kind, so we request access to all kinds
-  within the namespace.
-  - The second `*` represents the api group, so we request access to all
-  api groups.
-- `mycluster/prod/*`
-  - `mycluster` is the target Kubernetes cluster.
-  - `prod` is the namespace we are requesting access to. It could also
-  be `*` to request access to all namespaces.
-  - The final `*` represents the resource name, so we request access to all
-  resources.
-</Admonition>
 
 Similarly, to request access to everything within a cluster, you can use the
 following command:
@@ -646,6 +637,13 @@ following command:
 $ tsh request create \
   --resource '/teleport.example.com/kube:cw:*.*/mycluster/*' \
   --resource '/teleport.example.com/kube:ns:*.*/mycluster/*/*'
+```
+
+which is equivalent to:
+
+```code
+$ tsh request create \
+  --resource /teleport.example.com/kube_cluster/mycluster
 ```
 
 #### Search for Kubernetes resources
