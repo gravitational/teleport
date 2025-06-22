@@ -338,10 +338,7 @@ func (c *cloud) getFederationDuration(req *AWSSigninRequest, temporarySession bo
 		maxDuration = maxTemporarySessionDuration
 	}
 
-	duration := req.Identity.Expires.Sub(c.cfg.Clock.Now())
-	if duration > maxDuration {
-		duration = maxDuration
-	}
+	duration := min(req.Identity.Expires.Sub(c.cfg.Clock.Now()), maxDuration)
 
 	if duration < minimumSessionDuration {
 		return 0, trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", minimumSessionDuration, duration)

@@ -318,8 +318,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 // requests a reply whether processing the request was successful or not.
 func TestTerminalSizeRequest(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	t.Run("Invalid session", func(t *testing.T) {
 		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte("1234"))
@@ -388,8 +387,7 @@ func TestTerminalSizeRequest(t *testing.T) {
 //     conditions on this code path.
 func TestMultipleExecCommands(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
@@ -1187,7 +1185,7 @@ func TestMaxSessions(t *testing.T) {
 	require.NoError(t, err)
 	defer clientConn.Close()
 
-	for i := int64(0); i < maxSessions; i++ {
+	for range maxSessions {
 		se, err := clientConn.NewSession(ctx)
 		require.NoError(t, err)
 		defer se.Close()
@@ -1390,7 +1388,7 @@ func TestX11Forward(t *testing.T) {
 		errCh <- x11EchoRequest(serverDisplay2)
 	}()
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		select {
 		case err := <-errCh:
 			assert.NoError(t, err)
@@ -1907,14 +1905,14 @@ func TestProxyRoundRobin(t *testing.T) {
 	_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
 
 	// close first connection, and test it again
 	pool1.Stop()
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
 }
@@ -2349,7 +2347,6 @@ func TestGlobalRequestClusterDetails(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2792,8 +2789,7 @@ func TestX11ProxySupport(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -3150,7 +3146,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey interface{}
+	pkey any
 
 	// pub is a public user key
 	pub []byte
@@ -3443,8 +3439,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 func TestObtainFallbackUID(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	type testCase struct {
 		config     *types.StableUNIXUserConfig

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 )
@@ -254,19 +255,15 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				return
 			}
 
-			for _, b := range buf[:n] {
-				// This is the ASCII control code for CTRL+C.
-				if b == 0x03 {
-					g.mu.Lock()
-					if g.state == dataFlowOff && !g.isClosed() {
-						select {
-						case g.terminateNotifier <- struct{}{}:
-						default:
-						}
+			if slices.Contains(buf[:n], 0x03) {
+				g.mu.Lock()
+				if g.state == dataFlowOff && !g.isClosed() {
+					select {
+					case g.terminateNotifier <- struct{}{}:
+					default:
 					}
-					g.mu.Unlock()
-					break
 				}
+				g.mu.Unlock()
 			}
 
 			g.mu.Lock()
