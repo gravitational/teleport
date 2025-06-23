@@ -762,6 +762,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	if fc.Relay.Enabled {
+		if err := applyRelayConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -3097,5 +3103,28 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		ExitOnSync:  fc.Jamf.ExitOnSync,
 		Credentials: creds,
 	}
+	return nil
+}
+
+func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// TODO(espadolini): potential compatibility checks here like requiring
+	// config v3+ and proxy_server
+
+	// we're here because fc.Relay.Enabled is true
+	cfg.Relay.Enabled = true
+
+	if fc.Relay.RelayGroup == "" {
+		return trace.BadParameter("missing relay_service.relay_group")
+	}
+	cfg.Relay.RelayGroup = fc.Relay.RelayGroup
+
+	if len(fc.Relay.APIPublicHostnames) < 1 {
+		return trace.BadParameter("missing relay_service.api_public_hostnames")
+	}
+	if slices.Contains(fc.Relay.APIPublicHostnames, "") {
+		return trace.BadParameter("empty string in relay_service.api_public_hostnames")
+	}
+	cfg.Relay.APIPublicHostnames = slices.Clone(fc.Relay.APIPublicHostnames)
+
 	return nil
 }

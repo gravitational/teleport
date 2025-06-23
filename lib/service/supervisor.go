@@ -284,6 +284,7 @@ var metricsServicesRunningMap = map[string]string{
 	"ssh.node":             "ssh_service",
 	"auth.tls":             "auth_service",
 	"proxy.web":            "proxy_service",
+	"relay.run":            "relay_service",
 	"kube.init":            "kubernetes_service",
 	"apps.start":           "application_service",
 	"db.init":              "database_service",
