@@ -60,6 +60,12 @@ You can provide the Entra ID Group using one of:
 Ensure you have valid Teleport credentials (eg, tsh login) before running this command.
 The following Teleport RBAC rules are required:
     - resources:
+      - roles
+      verbs:
+      - read
+      - list
+      - create
+    - resources:
       - access_list
       verbs:
       - read
@@ -76,6 +82,12 @@ Full list of arguments:
 		"aws-account-id",
 		os.Getenv("AWS_ACCOUNT_ID"),
 		"AWS Account ID to allow access to (required).",
+	)
+
+	teleportAddress := flag.String(
+		"proxy",
+		os.Getenv("TELEPORT_PROXY"),
+		"Teleport Proxy's address, eg. tenant.teleport.sh:443 (required).",
 	)
 
 	teleportEntraGroupAccessListID := flag.String(
@@ -105,22 +117,24 @@ Full list of arguments:
 	if fromStringFlag(teleportEntraGroupAccessListID) == "" &&
 		fromStringFlag(microsoftEntraGroupObjectID) == "" &&
 		fromStringFlag(microsoftEntraGroupName) == "" {
-		return nil, trace.BadParameter("at least one of group-by-teleport-id, group-by-entra-object-id, or group-by-name is required")
+		return nil, trace.BadParameter("at least one of group-by-teleport-id, group-by-entra-object-id or group-by-name is required")
 	}
 
 	// Here you would typically use a flag package to parse command line arguments
 	// For simplicity, we are returning a hardcoded request
 	return &SyncRequest{
-		RoleForEKSAccessWithTrait: "eks-access",
 
 		AWSAccountID: fromStringFlag(awsAccountID),
+
+		TeleportAddress: fromStringFlag(teleportAddress),
 
 		TeleportEntraGroupAccessListID: fromStringFlag(teleportEntraGroupAccessListID),
 		MicrosoftEntraGroupObjectID:    fromStringFlag(microsoftEntraGroupObjectID),
 		MicrosoftEntraGroupName:        fromStringFlag(microsoftEntraGroupName),
 
-		AccessListUniqueID: "eks-access-" + fromStringFlag(awsAccountID),
-		AccessListTitle:    "EKS Access for account id " + fromStringFlag(awsAccountID),
+		RoleForEKSAccessWithTrait: "eks-access",
+		AccessListUniqueID:        "eks-access-" + fromStringFlag(awsAccountID),
+		AccessListTitle:           "EKS Access for account id " + fromStringFlag(awsAccountID),
 	}, nil
 }
 
@@ -132,7 +146,7 @@ func do(ctx context.Context) error {
 	}
 
 	// Set up Connection to Teleport
-	clt, err := loadTeleportClient(ctx)
+	clt, err := loadTeleportClient(ctx, request.TeleportAddress)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -163,17 +177,6 @@ func do(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Find the auto-discovered EKS Cluster for the specified AWS account ID.
-	kubeCluster, err := findAutoDiscoveredEKSCluster(ctx, clt, request.AWSAccountID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	slog.InfoContext(ctx, "Found Kubernetes cluster",
-		"account_id", request.AWSAccountID,
-		"cluster_name", kubeCluster.GetName(),
-	)
-
 	// Ensure the Access List exists or create it if it doesn't.
 	accessList, err := ensureAccessList(ctx, clt, request)
 	if err != nil {
@@ -185,7 +188,7 @@ func do(ctx context.Context) error {
 		"access_list_title", accessList.Spec.Title,
 	)
 
-	entraGroup, err := guessAccessListIDFromEntraGroupID(ctx, clt, request)
+	entraGroup, err := guessAccessListIDFromEntraIdentifiers(ctx, clt, request)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,7 +214,8 @@ func do(ctx context.Context) error {
 }
 
 type SyncRequest struct {
-	AWSAccountID string
+	AWSAccountID    string
+	TeleportAddress string
 
 	// Microsoft Entra Group can be referenced by one of the following, ordered by preference and priority.
 	// 1. Teleport's Access List name that corresponds to the Entra Group as synced into Teleport.
@@ -226,10 +230,10 @@ type SyncRequest struct {
 	RoleForEKSAccessWithTrait string
 }
 
-func loadTeleportClient(ctx context.Context) (*client.Client, error) {
+func loadTeleportClient(ctx context.Context, teleportAddress string) (*client.Client, error) {
 	clt, err := client.New(ctx, client.Config{
 		Addrs: []string{
-			"dinis17.cloud.gravitational.io:443",
+			teleportAddress,
 		},
 		Credentials: []client.Credentials{
 			client.LoadProfile("", ""),
@@ -262,27 +266,6 @@ func createRoleForEKSAccess(ctx context.Context, clt *client.Client, roleName st
 
 	_, err = clt.CreateRole(ctx, role)
 	return trace.Wrap(err)
-}
-
-func findAutoDiscoveredEKSCluster(ctx context.Context, clt *client.Client, awsAccountID string) (types.KubeCluster, error) {
-	allKubeClusters, err := clt.GetKubernetesClusters(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, cluster := range allKubeClusters {
-		// Auto discovered EKS Clusters have a specific label.
-		if val, _ := cluster.GetLabel("teleport.dev/discovery-type"); val != "eks" {
-			continue
-		}
-
-		// Check if the cluster is for the specified AWS account ID.
-		if cluster.GetAWSConfig().AccountID == awsAccountID {
-			return cluster, nil
-		}
-	}
-
-	return nil, trace.NotFound("no auto-discovered EKS Clusters found for AWS account ID: %s", awsAccountID)
 }
 
 func ensureAccessList(ctx context.Context, clt *client.Client, request *SyncRequest) (*accesslist.AccessList, error) {
@@ -346,11 +329,11 @@ func upsertEntraGroupMemberToAccessList(ctx context.Context, clt *client.Client,
 	return trace.Wrap(err)
 }
 
-// guessAccessListIDFromEntraGroupID iterates through the Access Lists
+// guessAccessListIDFromEntraIdentifiers iterates through the Access Lists
 // and tries to find the one that matches the Entra Group ID.
 // This ID might be the Teleport's Access List name or the Microsoft Entra Group Object ID.
 // The function returns the Teleport's Access List name that corresponds to the Entra Group ID.
-func guessAccessListIDFromEntraGroupID(ctx context.Context, clt *client.Client, request *SyncRequest) (string, error) {
+func guessAccessListIDFromEntraIdentifiers(ctx context.Context, clt *client.Client, request *SyncRequest) (string, error) {
 	if request.TeleportEntraGroupAccessListID != "" {
 		return request.TeleportEntraGroupAccessListID, nil
 	}
