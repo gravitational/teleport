@@ -120,6 +120,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentRelay is the component name for the relay service.
+	ComponentRelay = "relay"
+
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
 
