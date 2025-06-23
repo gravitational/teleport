@@ -4937,6 +4937,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServiceComponent:  teleport.ComponentWebProxy,
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
+				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
 			},
 		})
 		if err != nil {

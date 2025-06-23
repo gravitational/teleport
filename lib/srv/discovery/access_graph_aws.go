@@ -864,7 +864,7 @@ func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailSt
 
 func getOptions(matcher *types.AccessGraphAWSSync) []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
-		awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
 	}
 	if matcher.AssumeRole != nil {
 		opts = append(opts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
