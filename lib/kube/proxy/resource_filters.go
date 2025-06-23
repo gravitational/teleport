@@ -99,18 +99,22 @@ func containsWildcard(resources []types.KubernetesResource) bool {
 type resourceFilterer struct {
 	encoder runtime.Encoder
 	decoder runtime.Decoder
+
 	// contentType is the response "Content-Type" header.
 	contentType string
 	// responseCode is the response status code.
 	responseCode int
 	// negotiator is an instance of a client negotiator.
 	negotiator runtime.ClientNegotiator
+
 	// allowedResources is the list of kubernetes resources the user has access to.
 	allowedResources []types.KubernetesResource
 	// deniedResources is the list of kubernetes resources the user must not access.
 	deniedResources []types.KubernetesResource
+
 	// log is the logger.
 	log *slog.Logger
+
 	// kind is the type of the resource.
 	kind string
 	// group is the api group of the resource.
@@ -138,15 +142,14 @@ func (d *resourceFilterer) FilterBuffer(buf []byte, output io.Writer) error {
 		return trace.Wrap(err)
 	}
 
-	switch allowed, isList, err := d.FilterObj(obj); {
-	case err != nil:
+	if allowed, isList, err := d.FilterObj(obj); err != nil {
 		return trace.Wrap(err)
-	case isList:
-	case !allowed:
+	} else if !isList && !allowed {
 		// if the object is not a list and it's not allowed, then we should
 		// return an error.
 		return trace.AccessDenied("access denied")
 	}
+
 	// encode the filterer response back to the user.
 	return d.encode(obj, output)
 }
@@ -189,8 +192,9 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return false, false, trace.Wrap(err)
 		}
 		return len(o.Rows) > 0, true, nil
+
 	default:
-		if isListObj(o) {
+		if _, ok := obj.(metav1.ListInterface); ok {
 			output, err := getItemsUsingReflection(obj)
 			if err != nil {
 				return false, false, trace.Wrap(err, "failed to get items from list object")
@@ -213,11 +217,6 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// extensions could result in information disclosures.
 		return false, false, trace.BadParameter("unexpected type received; got %T", obj)
 	}
-}
-
-func isListObj(obj runtime.Object) bool {
-	_, ok := obj.(metav1.ListInterface)
-	return ok
 }
 
 // decode decodes the buffer into the appropriate type if the responseCode
@@ -438,9 +437,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 // that the user must not have access to.
 // The filtered list is re-assigned to `obj.Object["items"]`.
 func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured) (hasElems bool) {
-	const (
-		itemsKey = "items"
-	)
+	const itemsKey = "items"
 	if obj == nil || obj.Object == nil {
 		return false
 	}

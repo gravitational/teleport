@@ -84,10 +84,9 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 			)
 			return nil, trace.AccessDenied("%s", notFoundMessage)
 		}
-		// isWatch identifies if the request is long-lived watch stream based on
+		// Identify if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := isKubeWatchRequest(req, sess.authContext.metaResource.requestedResource)
-		if !isWatch {
+		if !isKubeWatchRequest(req, sess.authContext.metaResource.requestedResource) {
 			// List resources.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
 		} else {
@@ -116,8 +115,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	memBuffer := responsewriters.NewMemoryResponseWriter()
 	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
-	if !ok {
+	if _, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource); !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
 	verb := sess.metaResource.verb
