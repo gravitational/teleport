@@ -65,7 +65,7 @@ across distributed infrastructures.
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 |**User identity.** Authenticate users without passwords:||||
-| [Single Sign-On](./admin-guides/access-controls/sso/sso.mdx)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
+| [Single Sign-On](zero-trust-access/sso/sso.mdx)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
 | [Hardware Private Key Support](./admin-guides/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 |**Resource identity.** Assign a cryptographic identity to every Teleport Protected Resource:||||
@@ -90,9 +90,9 @@ across distributed infrastructures.
 | [Session Sharing & Moderation](./admin-guides/access-controls/guides/joining-sessions.mdx) | ✔ | ✔ | ✖ |
 |**Identity-based audit events:** ||||
 | [Structured Audit Logs](./reference/monitoring/audit.mdx) | ✔ | ✔ | ✔ |
-| [Export to SIEM](./admin-guides/management/export-audit-events/export-audit-events.mdx) | ✔ | ✔ | ✔ |
+| [Export to SIEM](zero-trust-access/export-audit-events/export-audit-events.mdx) | ✔ | ✔ | ✔ |
 |**Regulatory standards and frameworks:**||||
-| [FedRAMP Control](./admin-guides/access-controls/compliance-frameworks/fedramp.mdx) | ✖ | ✔ | ✖ |
+| [FedRAMP Control](zero-trust-access/compliance-frameworks/fedramp.mdx) | ✖ | ✔ | ✖ |
 | FIPS-compliant binaries for FedRAMP (Low, Moderate, High) | ✖ | ✔ | ✖ |
 | DORA, SOX, ISO, NIS2, PCI DSS, SOC 2, HIPAA, NIST  | ✔ | ✔ | Limited |
 
@@ -130,7 +130,7 @@ and non-human identities.
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | ✔ | ✔ | ✖ |
 | [Access Monitoring & Response](identity-governance/access-monitoring.mdx): Detect overly broad privileges and inspect sessions that are not using strong protection, such as multi-factor authentication or device trust. Alert on access violations and purge unused permissions with automated access rules. | ✔ | ✔ | ✖ |
 | [Okta integration](identity-governance/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
-| Microsoft Entra ID directory synchronization and SSO [integration](./admin-guides/access-controls/sso/azuread.mdx) | ✔ | ✔ | ✖ |
+| Microsoft Entra ID directory synchronization and SSO [integration](zero-trust-access/sso/azuread.mdx) | ✔ | ✔ | ✖ |
 
 ## Teleport Identity Security
 
