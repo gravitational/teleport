@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -60,23 +61,17 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 				botInstanceNameIndex: keyForNameIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
-			var resources []*machineidv1.BotInstance
-			var nextToken string
-			for {
-				var err error
-				var out []*machineidv1.BotInstance
-				out, nextToken, err = upstream.ListBotInstances(ctx, "", 0, nextToken, "")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, out...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			var out []*machineidv1.BotInstance
+			clientutils.IterateResources(ctx,
+				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
+					return upstream.ListBotInstances(ctx, "", limit, start, "")
+				},
+				func(hcc *machineidv1.BotInstance) error {
+					out = append(out, hcc)
+					return nil
+				},
+			)
+			return out, nil
 		},
 		watch: w,
 	}, nil
@@ -87,25 +82,17 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 	ctx, span := c.Tracer.Start(ctx, "cache/GetBotInstance")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.botInstances)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		out, err := c.Config.BotInstanceService.GetBotInstance(ctx, botName, instanceID)
-		return out, trace.Wrap(err)
+	getter := genericGetter[*machineidv1.BotInstance, botInstanceIndex]{
+		cache:      c,
+		collection: c.collections.botInstances,
+		index:      botInstanceNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
+			return c.Config.BotInstanceService.GetBotInstance(ctx, botName, instanceID)
+		},
 	}
 
-	key := makeNameIndexKey(botName, instanceID)
-
-	out, err := rg.store.get(botInstanceNameIndex, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return proto.CloneOf(out), nil
+	out, err := getter.get(ctx, makeNameIndexKey(botName, instanceID))
+	return out, trace.Wrap(err)
 }
 
 // ListBotInstances returns a page of BotInstance resources.
@@ -113,33 +100,26 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.botInstances)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
+		cache:           c,
+		collection:      c.collections.botInstances,
+		index:           botInstanceNameIndex,
+		defaultPageSize: defaults.DefaultChunkSize,
+		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
+			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search)
+		},
+		filter: func(b *machineidv1.BotInstance) bool {
+			return matchBotInstance(b, botName, search)
+		},
+		nextToken: func(b *machineidv1.BotInstance) string {
+			return keyForNameIndex(b)
+		},
 	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		out, next, err := c.Config.BotInstanceService.ListBotInstances(ctx, botName, pageSize, lastToken, search)
-		return out, next, trace.Wrap(err)
-	}
-
-	if pageSize <= 0 {
-		pageSize = defaults.DefaultChunkSize
-	}
-
-	var out []*machineidv1.BotInstance
-	for b := range rg.store.resources(botInstanceNameIndex, lastToken, "") {
-		if len(out) == pageSize {
-			return out, keyForNameIndex(b), nil
-		}
-
-		if matchBotInstance(b, botName, search) {
-			out = append(out, proto.CloneOf(b))
-		}
-	}
-
-	return out, "", nil
+	out, next, err := lister.list(ctx,
+		pageSize,
+		lastToken,
+	)
+	return out, next, trace.Wrap(err)
 }
 
 func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
