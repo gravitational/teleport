@@ -55,6 +55,7 @@ type Service struct {
 	assignmentCalculator       *calculator.AssignmentCalculator
 	assignmentProvisioner      *icprov.AssignmentProvisioner
 	emitter                    apievents.Emitter
+	rolesSyncMode              RolesSyncMode
 }
 
 // NewService creates a new Identity Center Service instance from the supplied
@@ -110,6 +111,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		principalEventCh:           principalEventCh,
 		assignmentProvisioner:      assignmentProvisioner,
 		emitter:                    config.Emitter,
+		rolesSyncMode:              config.RolesSyncMode,
 	}
 
 	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{

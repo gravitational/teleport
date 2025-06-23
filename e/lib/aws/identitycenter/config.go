@@ -84,6 +84,21 @@ func (cfg *ImportConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// RolesSyncMode values describe the possible ways an Identity Center service
+// should create and maintain Teleport roles for AWS Account Assignments.
+type RolesSyncMode int
+
+const (
+	// RolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	RolesSyncModeAll RolesSyncMode = 1
+
+	// RolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	RolesSyncModeNone RolesSyncMode = 2
+)
+
 // ServiceConfig provides configuration for an Identity Center service
 type ServiceConfig struct {
 	Provisioning ProvisioningConfig
@@ -129,6 +144,10 @@ type ServiceConfig struct {
 
 	// Emitter is an audit event emitter.
 	Emitter apievents.Emitter
+
+	// RolesSyncMode indicates how the integration will create and manage Teleport
+	// Roles representing possible Account Assignments
+	RolesSyncMode RolesSyncMode
 }
 
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
@@ -185,6 +204,12 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Emitter == nil {
 		return trace.BadParameter("missing event emitter")
+	}
+
+	switch cfg.RolesSyncMode {
+	case RolesSyncModeAll, RolesSyncModeNone:
+	default:
+		return trace.BadParameter("invalid role sync mode: %d", int(cfg.RolesSyncMode))
 	}
 
 	return nil

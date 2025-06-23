@@ -35,8 +35,16 @@ func runTestService(t *testing.T, ctx context.Context, fixture *ictest.Fixture) 
 	return svc, stopAndWait
 }
 
+type testServiceOption func(*ServiceConfig)
+
+func withRolesSyncMode(m RolesSyncMode) testServiceOption {
+	return func(cfg *ServiceConfig) {
+		cfg.RolesSyncMode = m
+	}
+}
+
 // newTestService creates a new test instance from the supplied fixture.
-func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
+func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServiceOption) *Service {
 	// Ideally, newTestService wold be defined in the `identitycenter/test` sub-
 	// package, but doing so would cause circular imports that it's probably not
 	// worth rearranging things to avoid.
@@ -76,6 +84,11 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		PluginStatusSink: fixture.PluginStatusSink,
 		UserPredicate:    identitycentercommon.UserPredicateFilter(nil),
 		Emitter:          fixture.Emitter,
+		RolesSyncMode:    RolesSyncModeAll,
+	}
+
+	for _, optionFn := range options {
+		optionFn(&cfg)
 	}
 
 	svc, err := NewService(cfg)

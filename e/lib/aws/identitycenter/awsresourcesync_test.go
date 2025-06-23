@@ -22,6 +22,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const (
+	acctOneID     = services.IdentityCenterAccountID("1111111111")
+	acctTwoID     = services.IdentityCenterAccountID("2222222222")
+	psReadOnlyARN = "arn:aws:sso:::permissionSet/ReadOnly"
+	psAdminARN    = "arn:aws:sso:::permissionSet/Admin"
+)
+
 // TestPreprocessing asserts that data fetched from AWS is pre-processed into
 // a Teleport-ready form as expected
 func TestPreprocessing(t *testing.T) {
@@ -30,13 +37,6 @@ func TestPreprocessing(t *testing.T) {
 
 	fixture := test.NewFixture(t)
 	icSvc := newTestService(t, fixture)
-
-	const (
-		acctOneID     = services.IdentityCenterAccountID("1111111111")
-		acctTwoID     = services.IdentityCenterAccountID("2222222222")
-		psReadOnlyARN = "arn:aws:sso:::permissionSet/ReadOnly"
-		psAdminARN    = "arn:aws:sso:::permissionSet/Admin"
-	)
 
 	awsPermissionSets := psResourceMap{
 		"permissionset_admin": test.PermissionSet{
@@ -152,6 +152,17 @@ func TestPreprocessing(t *testing.T) {
 		}
 	})
 
+	t.Run("AccountAssignmentRolesWithRoleSyncModeNone", func(t *testing.T) {
+		oldSyncMode := icSvc.rolesSyncMode
+		icSvc.rolesSyncMode = RolesSyncModeNone
+		t.Cleanup(func() { icSvc.rolesSyncMode = oldSyncMode })
+
+		processedData, err := icSvc.preProcessExternalData(ctx, &awsData)
+		require.NoError(t, err)
+		require.NotNil(t, processedData)
+		require.Empty(t, processedData.accountAssignmentRoles)
+	})
+
 	t.Run("AccountAssignments", func(t *testing.T) {
 		expectedAccountAssignments := accountAssignmentMap{
 			"1111111111--admin": test.AccountAssignment{
@@ -232,6 +243,47 @@ func TestEventEmittedOnSynchronize(t *testing.T) {
 		require.Equal(t, events.AWSICResourceSyncFailureCode, e.GetCode())
 		require.Equal(t, events.AWSICResourceSyncFailureEvent, e.GetType())
 	})
+}
+
+func TestAccountAssignmentRoleSyncMode(t *testing.T) {
+	testCases := []struct {
+		name              string
+		syncMode          RolesSyncMode
+		expectedRoleCount int
+	}{
+		{
+			name:              "ALL",
+			syncMode:          RolesSyncModeAll,
+			expectedRoleCount: 4,
+		},
+		{
+			name:              "NONE",
+			syncMode:          RolesSyncModeNone,
+			expectedRoleCount: 0,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			fixture := test.NewFixture(t)
+			icSvc := newTestService(t, fixture, withRolesSyncMode(testCase.syncMode))
+
+			// Input data for this test is the default data set for the mocked Identity
+			// Center SDK client provided by NewMockedAWSState().
+			require.NoError(t, icSvc.synchronize(ctx))
+			expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+				require.Equal(t, events.AWSICResourceSyncSuccessCode, e.GetCode())
+				require.Equal(t, events.AWSICResourceSyncSuccessEvent, e.GetType())
+			})
+
+			actualRoles, err := icSvc.loadAccountAssignmentRoles(ctx)
+			require.NoError(t, err)
+			require.Len(t, actualRoles, testCase.expectedRoleCount)
+		})
+	}
 }
 
 func expectResourceSyncEvent(t *testing.T, emitter *eventstest.ChannelEmitter, fn func(*apievents.AWSICResourceSync)) {

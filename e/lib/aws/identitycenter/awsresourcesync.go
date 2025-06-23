@@ -136,10 +136,12 @@ func (svc *Service) synchronize(ctx context.Context) error {
 	}
 	syncEvent.TotalAccountAssignments = int32(len(awsResources.accountAssignments))
 
-	_, err = svc.reconcileAccountAssignmentRoles(ctx, teleportResources.accountAssignmentRoles, awsResources.accountAssignmentRoles)
-	if err != nil {
-		syncEvent.UserMessage = "Periodic account assignment role reconciliation failed"
-		return trace.Wrap(err, "reconciling  account assignment roles")
+	if svc.rolesSyncMode == RolesSyncModeAll {
+		_, err = svc.reconcileAccountAssignmentRoles(ctx, teleportResources.accountAssignmentRoles, awsResources.accountAssignmentRoles)
+		if err != nil {
+			syncEvent.UserMessage = "Periodic account assignment role reconciliation failed"
+			return trace.Wrap(err, "reconciling  account assignment roles")
+		}
 	}
 
 	return nil
@@ -166,11 +168,13 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 	accountAssignments := make(accountAssignmentMap, assignmentCount)
 	for _, acct := range data.accounts {
 		for _, ps := range acct.Spec.PermissionSetInfo {
-			role, err := NewAccountAssignmentRole(acct, ps)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating account assignment role")
+			if svc.rolesSyncMode == RolesSyncModeAll {
+				role, err := NewAccountAssignmentRole(acct, ps)
+				if err != nil {
+					return nil, trace.Wrap(err, "creating account assignment role")
+				}
+				roles[mkRoleKey(getAccountID(acct), ps.Arn, acct.GetSpec().GetId())] = role
 			}
-			roles[mkRoleKey(getAccountID(acct), ps.Arn, acct.GetSpec().GetId())] = role
 
 			asmt := newAccountAssignment(acct, ps)
 			accountAssignments[getAccountAssignmentID(asmt)] = asmt

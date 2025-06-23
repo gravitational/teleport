@@ -92,6 +92,11 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err)
 		}
 
+		rolesSyncMode, err := selectRoleSyncMode(settings.RolesSyncMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		svc, err := identitycenter.NewService(identitycenter.ServiceConfig{
 			Provisioning: identitycenter.ProvisioningConfig{
 				SCIMClient:          scimClient,
@@ -120,6 +125,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			PluginsService:   deps.pluginsService,
 			UserPredicate:    identitycentercommon.UserPredicateFilter(settings.UserSyncFilters),
 			Emitter:          deps.parentProcess.GetAuthServer().GetEmitter(),
+			RolesSyncMode:    rolesSyncMode,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -141,6 +147,18 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 	}
 
 	return svc, nil
+}
+
+// selectRoleSyncMode validates the supplied mode string and translates it into
+// the appropriate RolesSyncMode value.
+func selectRoleSyncMode(m string) (identitycenter.RolesSyncMode, error) {
+	switch m {
+	case "", types.AWSICRolesSyncModeAll:
+		return identitycenter.RolesSyncModeAll, nil
+	case types.AWSICRolesSyncModeNone:
+		return identitycenter.RolesSyncModeNone, nil
+	}
+	return 0, trace.BadParameter("invalid role sync mode %q", m)
 }
 
 // makeAWSConfig generates an AWS client configuration for the integration to
