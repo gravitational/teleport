@@ -208,6 +208,31 @@ func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWS
 	return allFetchers
 }
 
+func (s *Server) getAWSSyncSpecsWithCloudwatch() []*types.AccessGraphAWSSync {
+	var specs []*types.AccessGraphAWSSync
+	s.dynamicDiscoveryConfigMu.RLock()
+	for _, discConfig := range s.dynamicDiscoveryConfig {
+		if discConfig.Spec.AccessGraph == nil || len(discConfig.Spec.AccessGraph.AWS) == 0 {
+			continue
+		}
+		for _, spec := range discConfig.Spec.AccessGraph.AWS {
+			if spec.CloudWatchLogs != nil {
+				specs = append(specs, spec)
+			}
+		}
+	}
+	s.dynamicDiscoveryConfigMu.RUnlock()
+	if s.Config.Matchers.AccessGraph == nil {
+		return specs
+	}
+	for _, spec := range s.Config.Matchers.AccessGraph.AWS {
+		if spec.CloudWatchLogs != nil {
+			specs = append(specs, spec)
+		}
+	}
+	return specs
+}
+
 func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
@@ -561,6 +586,35 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				}
 			}
 		}()
+		go func() {
+			reloadCh := s.newDiscoveryConfigChangedSub()
+			for {
+				specs := s.getAWSSyncSpecsWithCloudwatch()
+				if len(specs) == 0 {
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					select {
+					case <-ctx.Done():
+						return
+					case <-reloadCh:
+					}
+					continue
+				}
+				err = s.startCloudwatchPoller(ctx, reloadCh, specs)
+				if err != nil {
+					if errors.Is(err, errTAGFeatureNotEnabled) {
+						s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
+						break
+					}
+					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Minute):
+				case <-reloadCh:
+				}
+			}
+		}()
 
 	}
 	return nil
@@ -823,6 +877,227 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	}
 }
 
+func (s *Server) startCloudwatchPoller(ctx context.Context, reloadCh <-chan struct{}, specs []*types.AccessGraphAWSSync) error {
+	// Check that the access graph is enabled
+	clusterFeatures := s.Config.ClusterFeatures()
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
+		return trace.Wrap(errTAGFeatureNotEnabled)
+	}
+
+	// Acquire the service-level lock to prevent multiple discovery instances from simultaneous polling
+	const semaphoreName = "access_graph_aws_cloudtrail_sync"
+	const semaphoreExpiration = time.Minute
+	lease, err := services.AcquireSemaphoreLockWithRetry(
+		ctx,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
+			},
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.DefaultJitter,
+			},
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
+		}
+	}()
+
+	// Create the access graph client and stream
+	tagCli, err := newAccessGraphClient(
+		ctx,
+		s.GetClientCert,
+		s.Config.AccessGraphConfig,
+		grpc.WithDefaultServiceConfig(serviceConfig),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tagCli.Close()
+	client := accessgraphv1alpha.NewAccessGraphServiceClient(tagCli)
+	stream, err := client.AWSCloudWatchStream(ctx)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
+		return trace.Wrap(err)
+	}
+
+	// Initiate the config negotiation
+	err = stream.Send(
+		&accessgraphv1alpha.AWSCloudWatchStreamRequest{
+			Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Config{
+				Config: &accessgraphv1alpha.AWSCloudWatchConfig{},
+			},
+		},
+	)
+	if err != nil {
+		for {
+			_, err := stream.Recv()
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
+				return trace.Wrap(err)
+			}
+		}
+	}
+	config, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive config")
+	}
+	if config.GetConfig() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail config")
+	}
+	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", config.GetConfig())
+	cursor, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive resume state")
+	}
+	if cursor.GetCursor() == nil {
+		return trace.BadParameter("access graph service did not return resume state")
+	}
+	s.Log.InfoContext(ctx, "Access graph service resume state", "cursor", config.GetCursor())
+
+	// Wait for access graph client connection state changes in order to stop any further message processing
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		if !tagCli.WaitForStateChange(ctx, connectivity.Ready) {
+			s.Log.InfoContext(ctx, "Access graph service connection was closed")
+		}
+	}()
+
+	// Watch for configuration changes and spawn pollers accordingly
+	eventsCh := make(chan cloudWatchEvents, 1)
+	type poller struct {
+		spec       *types.AccessGraphAWSSync
+		cancelFunc context.CancelFunc
+	}
+	pollerMap := make(map[string]poller)
+	spawnPoller := func(ctx context.Context, spec *types.AccessGraphAWSSync) {
+		localCtx, cancel := context.WithCancel(ctx)
+		pollerMap[spec.Integration] = poller{
+			spec:       spec,
+			cancelFunc: cancel,
+		}
+		go func(ctx context.Context, spec *types.AccessGraphAWSSync) {
+			accountID, err := s.getAccountId(ctx, spec)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error getting account ID", "error", err)
+				return
+			}
+			err = s.pollEventsFromCloudWatch(ctx, accountID, spec, eventsCh)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
+			}
+		}(localCtx, spec)
+	}
+	// Spawn the initial set of pollers
+	for _, matcher := range specs {
+		spawnPoller(ctx, matcher)
+	}
+
+	// Create a reconciler for managing the pollers based on the sync specs
+	reconciler, err := services.NewGenericReconciler(services.GenericReconcilerConfig[string, *types.AccessGraphAWSSync]{
+		Matcher: func(matcher *types.AccessGraphAWSSync) bool {
+			return true
+		},
+		GetCurrentResources: func() map[string]*types.AccessGraphAWSSync {
+			matchersMap := make(map[string]*types.AccessGraphAWSSync)
+			for k, matcher := range pollerMap {
+				matchersMap[k] = matcher.spec
+			}
+			return matchersMap
+		},
+		GetNewResources: func() map[string]*types.AccessGraphAWSSync {
+			matchersMap := make(map[string]*types.AccessGraphAWSSync)
+			for _, matcher := range s.getAllAWSSyncFetchersWithTrailEnabled() {
+				matchersMap[matcher.Integration] = matcher
+			}
+			return matchersMap
+		},
+		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
+		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
+			spawnPoller(ctx, disc)
+			return nil
+		},
+		OnUpdate: func(ctx context.Context, new, old *types.AccessGraphAWSSync) error {
+			if p, ok := pollerMap[old.Integration]; ok {
+				p.cancelFunc()
+				delete(pollerMap, old.Integration)
+			}
+			spawnPoller(ctx, new)
+			return nil
+		},
+		OnDelete: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
+			if p, ok := pollerMap[disc.Integration]; ok {
+				p.cancelFunc()
+				delete(pollerMap, disc.Integration)
+			}
+			return nil
+		},
+		Logger: s.Log,
+	})
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Error creating reconciler", "error", err)
+		return trace.Wrap(err)
+	}
+
+	// Wait for the finished context, config reloads, and CloudWatch events
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-reloadCh:
+			if err := reconciler.Reconcile(ctx); err != nil {
+				s.Log.ErrorContext(ctx, "Error reconciling access graph fetchers", "error", err)
+			}
+			continue
+		case events := <-eventsCh:
+			err := stream.Send(
+				&accessgraphv1alpha.AWSCloudWatchStreamRequest{
+					Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Events{
+						Events: &accessgraphv1alpha.AWSCloudWatchEvents{
+							Events:    events.events,
+							AccountId: events.accountID,
+						},
+					},
+				},
+			)
+			if err != nil {
+				for {
+					_, err := stream.Recv()
+					if err != nil {
+						s.Log.ErrorContext(ctx, "Failed to send access graph AWSCloudWatch events", "error", err)
+						return trace.Wrap(err)
+					}
+				}
+			}
+			continue
+		}
+	}
+}
+
 // receiveTAGConfigFromStream receives the TAG config from the stream.
 func (s *Server) receiveTAGConfigFromStream(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
 	tagAWSConfig, err := stream.Recv()
@@ -894,6 +1169,11 @@ func (s *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWS
 
 type payloadChannelMessage struct {
 	payload   []byte
+	accountID string
+}
+
+type cloudWatchEvents struct {
+	events    []*accessgraphv1alpha.AWSCloudWatchEvent
 	accountID string
 }
 
@@ -1082,4 +1362,13 @@ func downloadCloudTrailFile(ctx context.Context, client s3Client, bucket, key st
 	}
 
 	return body, nil
+}
+
+func (s *Server) pollEventsFromCloudWatch(
+	ctx context.Context,
+	accountID string,
+	spec *types.AccessGraphAWSSync,
+	ch chan<- cloudWatchEvents,
+) error {
+	return nil
 }
