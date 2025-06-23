@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -48,17 +47,15 @@ import (
 
 const (
 	kubeClusterName = "test-cluster"
-	localK8SSNI     = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 	teleClusterName = "root"
 )
 
-func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
+func k8ClientConfig(serverAddr string) clientcmdapi.Config {
 	return clientcmdapi.Config{
 		Clusters: map[string]*clientcmdapi.Cluster{
 			kubeClusterName: {
 				Server:                serverAddr,
 				InsecureSkipTLSVerify: true,
-				TLSServerName:         sni,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
@@ -94,10 +91,7 @@ func setupKubernetesHarness(
 	*testingkubemock.KubeMockServer,
 ) {
 	kubeMock := startKubeAPIMock(t)
-	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(
-		kubeMock.URL,
-		localK8SSNI,
-	))
+	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeMock.URL))
 
 	return testenv.MakeTestServer(
 		t,
