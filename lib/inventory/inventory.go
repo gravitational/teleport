@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -708,6 +709,14 @@ type upstreamHandle struct {
 
 	// kubernetesServers track kubernetesServers server details.
 	kubernetesServers map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3]
+
+	// relayServer, if set, is the current relay heartbeat.
+	relayServer *presencev1.RelayServer
+
+	// relayServerErrorCount counts how many times in a row we have failed to
+	// keepalive the relay server heartbeat, or, if negative, signals that we
+	// have failed to upsert a new resource.
+	relayServerErrorCount int
 
 	// appKeepAliveDelay is a multi-delay that controls the cadence of app server keepalive
 	// operations. Note that this is not created automatically by newUpstreamHandle.
