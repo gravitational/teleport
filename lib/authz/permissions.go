@@ -1091,6 +1091,20 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 			role.String(),
 			roleSpecForProxyWithRecordAtProxy(clusterName),
 		)
+	case types.RoleRelay:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{
+						types.Wildcard,
+					},
+					Rules: []types.Rule{
+						// TODO(espadolini): define permissions for relay role
+					},
+				},
+			},
+		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(
 			role.String(),
