@@ -506,14 +506,14 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 	})
 }
 
-// CeremonyType is the type of sso ceremony.
+// CeremonyType is the type of SSO ceremony.
 type CeremonyType int
 
 const (
-	// CeremonyTypeLogin ceremonies are performed during standard sso login flows.
+	// CeremonyTypeLogin ceremonies are performed during standard SSO login flows.
 	CeremonyTypeLogin CeremonyType = iota
 	// CeremonyTypeMFA ceremonies are performed during MFA flows for SSO users if SSO MFA
-	// is enabled for their origin sso connector.
+	// is enabled for their origin SSO connector.
 	CeremonyTypeMFA
 	// CeremonyTypeTest ceremonies are performed by administrators with "tctl sso test".
 	CeremonyTypeTest
@@ -533,10 +533,11 @@ const (
 // - a hostname of "localhost", "127.0.0.1", or "::1"
 // - any port
 //
-// For non test ceremonies, If "allowed_https_hostnames" is non-empty, the redirect URL can instead have:
+// For non test ceremonies, If "allowed_https_hostnames" list is non-empty,
+// the redirect URL can instead have:
 // - a path of "/callback"
-// - "http" scheme
-// - a hostname of "localhost", "127.0.0.1", or "::1"
+// - "https" scheme
+// - a hostname that matches one in the "allowed_https_hostnames" list
 // - either empty or 443 port
 //
 // For non test ceremonies, If the "insecure_allowed_cidr_ranges" list is non-empty, URLs in both the
