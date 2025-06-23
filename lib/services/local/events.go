@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -419,12 +420,7 @@ func (p baseParser) prefixes() []backend.Key {
 }
 
 func (p baseParser) match(key backend.Key) bool {
-	for _, prefix := range p.matchPrefixes {
-		if key.HasPrefix(prefix) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(p.matchPrefixes, key.HasPrefix)
 }
 
 func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {

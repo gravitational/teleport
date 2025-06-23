@@ -194,10 +194,8 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindDatabaseObjectImportRule {
-		for _, allowedVerb := range f.allowedVerbs {
-			if allowedVerb == verb {
-				return nil
-			}
+		if slices.Contains(f.allowedVerbs, verb) {
+			return nil
 		}
 	}
 

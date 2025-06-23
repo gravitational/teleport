@@ -95,7 +95,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.AutomaticReview.Decision = "invalid-decision"
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, `accessMonitoringRule automatic_review decision "invalid-decision" is not supported`)
 			},
 		},
@@ -104,7 +104,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.DesiredState = "invalid-desired-state"
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, `accessMonitoringRule desired_state "invalid-desired-state" is not supported`)
 			},
 		},
@@ -113,7 +113,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Condition = "invalid-condition"
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "accessMonitoringRule condition is invalid")
 			},
 		},

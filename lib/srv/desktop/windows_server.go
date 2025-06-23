@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"strconv"
@@ -1195,9 +1196,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 	return func() (types.Resource, error) {
 		addr := host.Address.String()
 		labels := getHostLabels(addr)
-		for k, v := range host.Labels {
-			labels[k] = v
-		}
+		maps.Copy(labels, host.Labels)
 		name := host.Name
 		if name == "" {
 			var err error
