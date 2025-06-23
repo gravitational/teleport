@@ -4987,7 +4987,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
+	if (types.SystemRoles{req.Role}).IncludeAny(
+		types.RoleAuth,
+		types.RoleAdmin,
+		types.RoleProxy,
+		types.RoleRelay,
+		types.RoleKube,
+		types.RoleWindowsDesktop,
+	) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -5031,10 +5038,11 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			AppHeartbeats:                 true,
 			AppCleanup:                    true,
 			DatabaseHeartbeats:            true,
-			DatabaseHeartbeatGracefulStop: true,
 			DatabaseCleanup:               true,
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
+			RelayServerHeartbeatsCleanup:  true,
+			DatabaseHeartbeatGracefulStop: true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
