@@ -6,7 +6,7 @@ FROM ${BUILDBOX_CENTOS7_ASSETS} AS teleport-buildbox-centos7-assets
 
 ## BASE ###################################################################
 
-FROM --platform=$BUILDPLATFORM centos:7 AS base
+FROM --platform=$BUILDPLATFORM centos:7@sha256:be65f488b7764ad3638f236b7b515b3678369a5124c47b8d32916d6487418ea4 AS base
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.

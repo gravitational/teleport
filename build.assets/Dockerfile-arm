@@ -6,7 +6,7 @@
 # The binaries also run in the OCI containers we produce,
 # both "heavy" and distroless.
 #
-FROM docker.io/library/debian:11
+FROM docker.io/library/debian:11@sha256:0d3279ff38fb2024358b2f24fbb99122f9a9a40618bb526b614527e998bcda28
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
