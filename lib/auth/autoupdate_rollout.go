@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -54,8 +55,12 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 	canaries := make([]*autoupdatev1pb.Canary, len(sampled))
 	for i, h := range sampled {
 		hello := h.Hello()
+		updaterID, err := uuid.FromBytes(hello.UpdaterInfo.UpdateUUID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		canaries[i] = &autoupdatev1pb.Canary{
-			UpdaterId: string(hello.UpdaterInfo.UpdateUUID),
+			UpdaterId: updaterID.String(),
 			HostId:    hello.ServerID,
 			Hostname:  hello.Hostname,
 			Success:   false,

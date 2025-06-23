@@ -139,30 +139,14 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 				for j, g := range status.Groups {
 					groups[j] = g.GetName()
 				}
-				h.startGroup(ctx, group, now, agentCount, groups)
+				h.startGroup(ctx, group, now, agentCount, status)
 			}
 			previousGroupsAreDone = false
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
-			// Check if we need to pick more canaries
-			if len(group.Canaries) < int(group.CanaryCount) {
-				previousLength := len(group.Canaries)
-				h.log.DebugContext(ctx, "Group is missing canaries, sampling some more", "group", group, "got", previousLength, "want", int(group.CanaryCount))
-
-				// We pass the list of groups to the sampler because it must compute the
-				groups := make([]string, len(status.Groups))
-				for j, g := range status.Groups {
-					groups[j] = g.GetName()
-				}
-				// We sample as many canaries as possible instead of just the missing ones
-				// Because we might sample an already sampled canary.
-				additionalCanaries, err := h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount), groups)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				injectCanaries(group, additionalCanaries)
-				h.log.DebugContext(ctx, "Additional canaries sampled", "group", group, "before", previousLength, "after", len(group.Canaries))
+			// Sample the canaries if they were not sampled yet.
+			if err := h.sampleCanaries(ctx, group, status); err != nil {
+				return trace.Wrap(err, "failed to sample canaries")
 			}
-
 			// Check if the canaries are back online and running the right version
 			targetVersion, err := version.EnsureSemver(spec.GetTargetVersion())
 			if err != nil {
@@ -210,7 +194,7 @@ const (
 	canaryThreshold = 20
 )
 
-func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int, groups []string) {
+func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int, status *autoupdate.AutoUpdateAgentRolloutStatus) {
 	group.InitialCount = uint64(agentCount)
 
 	// TODO: compute if we should use canaries (group is large enough + config enabled?)
@@ -221,19 +205,41 @@ func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.
 		return
 	}
 
-	// TODO: remove this part and call the canary logic instead
-	group.CanaryCount = canaryCount
-	h.log.DebugContext(ctx, "Picking canaries", "group", group.Name, "want", canaryCount)
-	var err error
-	group.Canaries, err = h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount), groups)
-	if err != nil {
-		h.log.ErrorContext(ctx, "Failed to pick canaries", "group", group.Name, "want", canaryCount)
-		return
-	}
-
-	h.log.DebugContext(ctx, "Picked canaries", "group", group.Name, "want", canaryCount, "got", len(group.Canaries))
 	setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY, updateReasonCanStart, now)
+	// This is a small optimization, as we just transitioned into the canary state we can sample canaries.
+	// This will allow us to start updating without having to wait for the next reconciliation cycle.
+	if err := h.sampleCanaries(ctx, group, status); err != nil {
+		h.log.WarnContext(ctx, "Failed to sample canaries", "group", group.Name)
+	}
 	return
+}
+
+func (h *haltOnErrorStrategy) sampleCanaries(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
+	if group.CanaryCount == 0 {
+		group.CanaryCount = canaryCount
+	}
+	// Check if we need to pick more canaries
+	if len(group.Canaries) < int(group.CanaryCount) {
+		previousLength := len(group.Canaries)
+		h.log.DebugContext(ctx, "Group is missing canaries, sampling some more", "group", group, "got", previousLength, "want", int(group.CanaryCount))
+
+		// We pass the list of groups to the sampler because it must compute the
+		groups := make([]string, len(status.Groups))
+		for j, g := range status.Groups {
+			groups[j] = g.GetName()
+		}
+		// We sample as many canaries as possible instead of just the missing ones
+		// Because we might sample an already sampled canary.
+		additionalCanaries, err := h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount), groups)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		injectCanaries(group, additionalCanaries)
+		h.log.DebugContext(ctx, "Additional canaries sampled", "group", group, "before", previousLength, "after", len(group.Canaries))
+	} else {
+		h.log.DebugContext(ctx, "Canaries already sampled", "group", group.Name, "got", len(group.Canaries))
+	}
+	return nil
 }
 
 func injectCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, additionalCanaries []*autoupdate.Canary) {

@@ -872,7 +872,9 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:  34,
 					PresentCount:  34,
 					UpToDateCount: 10,
-					CanaryCount:   5,
+					// Checking that if CanaryCount is not set/null (e.g. we came from a manual transition)
+					// We still set it instead of jumping to the active state.
+					CanaryCount: 0,
 				},
 			},
 			reports:       canaryTestReports,
