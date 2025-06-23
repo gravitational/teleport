@@ -816,10 +816,8 @@ func (s *Server) stopUpstreamInventoryHeartbeat(ctx context.Context, db types.Da
 			return trace.Wrap(ctx.Err())
 		}
 	}
-	// the heartbeat may have been created using a fallback method or the
-	// upstream doesn't support graceful stop.
-	// if we don't remove this database server, it can linger for up to ~10m
-	// until its TTL expires.
+	// if upstream doesn't support graceful stop and we don't remove this
+	// database server, it can linger for up to ~10m until its TTL expires.
 	// TODO(gavin): DELETE IN 20.0.0
 	if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
 		return trace.Wrap(err)
