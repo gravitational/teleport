@@ -52,9 +52,10 @@ func replaceStdin() (*os.File, error) {
 	var dupErr error
 	if ctrlErr := rc.Control(func(fd uintptr) {
 		dupErr = dup2(int(fd), syscall.Stdin)
-		// stdin is not O_CLOEXEC after dup2 but thankfully the three stdio
-		// file descriptors must be not O_CLOEXEC anyway, so we can avoid
-		// a linux-specific implementation or syscall.ForkLock shenanigans
+		// dup2() is sufficient here as the three stdio file
+		// descriptors must not be O_CLOEXEC. Darwin does not have
+		// dup3(), so would need to resort to syscall.ForkLock
+		// shenanigans if we did need to set O_CLOEXEC.
 	}); ctrlErr != nil {
 		_ = devNull.Close()
 		return nil, trace.Wrap(ctrlErr)

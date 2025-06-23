@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build linux && arm64
+//go:build linux
 
 package common
 
 import "syscall"
 
-// dup2 implements syscall.Dup2(oldfd, newfd) on Linux ARM64, as that platform
-// does not have syscall.Dup2(). Instead syscall.Dup3() must be used.
-// syscall.Dup3() is not available on all unix platforms so it cannot be used
-// unconditionally.
+// dup2 implements syscall.Dup2(oldfd, newfd) in a way that works on all
+// current Linux platforms, and likely on any new platforms. New platforms
+// such as ARM64 do not implement syscall.Dup2() instead implementing
+// syscall.Dup3() which is largely a superset, with one special case.
 func dup2(oldfd, newfd int) error {
 	if oldfd == newfd {
 		// dup2 would do nothing in this case, but dup3 returns an error.
