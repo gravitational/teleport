@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -30,6 +31,7 @@ import (
 type AccessRequestExpressionEnv struct {
 	Roles              []string
 	SuggestedReviewers []string
+	RequestedResources []types.ResourceWithLabels
 	Annotations        map[string][]string
 	User               string
 	RequestReason      string
@@ -86,13 +88,30 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		"access_request.spec.expiry": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (time.Time, error) {
 			return env.Expiry, nil
 		}),
+		"access_request.spec.requested_resources": typical.DynamicVariable(func(env AccessRequestExpressionEnv) ([]types.ResourceWithLabels, error) {
+			return env.RequestedResources, nil
+		}),
 
 		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
 			return expression.DictFromStringSliceMap(env.UserTraits), nil
 		}),
 	}
+
+	hasLabelsKey := "has_labels"
+	hasLabelsFunc := typical.TernaryFunction[AccessRequestExpressionEnv](
+		func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
+			for _, resource := range resources {
+				if resource.GetAllLabels()[key] != val {
+					return false, nil
+				}
+			}
+			return true, nil
+		})
+
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
+	defParserSpec.Functions[hasLabelsKey] = hasLabelsFunc
+	defParserSpec.Methods[hasLabelsKey] = hasLabelsFunc
 
 	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {
