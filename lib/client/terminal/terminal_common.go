@@ -37,22 +37,22 @@ type ResizeEvent struct{}
 type StopEvent struct{}
 
 type signalEmitter struct {
-	subscribers      []chan interface{}
+	subscribers      []chan any
 	subscribersMutex sync.Mutex
 }
 
 // Subscribe creates a channel that will receive terminal events.
-func (e *signalEmitter) Subscribe() chan interface{} {
+func (e *signalEmitter) Subscribe() chan any {
 	e.subscribersMutex.Lock()
 	defer e.subscribersMutex.Unlock()
 
-	ch := make(chan interface{})
+	ch := make(chan any)
 	e.subscribers = append(e.subscribers, ch)
 
 	return ch
 }
 
-func (e *signalEmitter) writeEvent(event interface{}) {
+func (e *signalEmitter) writeEvent(event any) {
 	e.subscribersMutex.Lock()
 	defer e.subscribersMutex.Unlock()
 

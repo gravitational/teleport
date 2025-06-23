@@ -49,7 +49,7 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 			}
 
 			if !loadSecrets {
-				for i := 0; i < len(webSessions); i++ {
+				for i := range webSessions {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}
@@ -134,7 +134,7 @@ func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*
 				}
 
 				if !loadSecrets {
-					for i := 0; i < len(webSessions); i++ {
+					for i := range webSessions {
 						webSessions[i] = webSessions[i].WithoutSecrets()
 					}
 				}
@@ -263,7 +263,7 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 			}
 
 			if !loadSecrets {
-				for i := 0; i < len(webSessions); i++ {
+				for i := range webSessions {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}

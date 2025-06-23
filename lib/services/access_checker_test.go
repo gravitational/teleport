@@ -1028,7 +1028,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 					Name: "aws-dev",
 				},
 			},
-			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "not in allowed resource IDs")
 			},
 		},
@@ -1050,7 +1050,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 					Name: "aws-dev",
 				},
 			},
-			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "not in allowed resource IDs")
 			},
 		},
