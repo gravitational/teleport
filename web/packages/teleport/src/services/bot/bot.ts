@@ -131,11 +131,12 @@ export async function listBotInstances(
     pageToken: string;
     pageSize: number;
     searchTerm?: string;
+    sort?: string;
     botName?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, searchTerm, botName } = variables;
+  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
 
   const path = cfg.listBotInstancesUrl();
   const qs = new URLSearchParams();
@@ -144,6 +145,9 @@ export async function listBotInstances(
   qs.set('page_token', pageToken);
   if (searchTerm) {
     qs.set('search', searchTerm);
+  }
+  if (sort) {
+    qs.set('sort', sort);
   }
   if (botName) {
     qs.set('bot_name', botName);

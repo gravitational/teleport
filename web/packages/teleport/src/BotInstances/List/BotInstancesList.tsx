@@ -25,7 +25,7 @@ import styled from 'styled-components';
 import { Info } from 'design/Alert/Alert';
 import { Cell, LabelCell } from 'design/DataTable/Cells';
 import Table from 'design/DataTable/Table';
-import { FetchingConfig } from 'design/DataTable/types';
+import { FetchingConfig, SortType } from 'design/DataTable/types';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
@@ -46,18 +46,22 @@ export function BotInstancesList({
   searchTerm,
   onSearchChange,
   onItemSelected,
+  sortType,
+  onSortChanged,
 }: {
   data: BotInstanceSummary[];
   searchTerm: string;
   onSearchChange: (term: string) => void;
   onItemSelected: (item: BotInstanceSummary) => void;
+  sortType: SortType;
+  onSortChanged: (sortType: SortType) => void;
 } & Omit<FetchingConfig, 'onFetchMore'>) {
   const tableData = data.map(x => ({
     ...x,
     hostnameDisplay: x.host_name_latest ?? '-',
     instanceIdDisplay: x.instance_id.substring(0, 7),
     versionDisplay: x.version_latest ? `v${x.version_latest}` : '-',
-    activeAtDisplay: x.active_at_latest
+    active_at_latest: x.active_at_latest
       ? `${formatDistanceToNowStrict(parseISO(x.active_at_latest))} ago`
       : '-',
     activeAtLocal: x.active_at_latest
@@ -83,8 +87,8 @@ export function BotInstancesList({
         disableLoadingIndicator: true,
       }}
       serversideProps={{
-        sort: undefined,
-        setSort: () => undefined,
+        sort: sortType,
+        setSort: onSortChanged,
         serversideSearchPanel: (
           <SearchPanel
             updateSearch={onSearchChange}
@@ -100,7 +104,7 @@ export function BotInstancesList({
         {
           key: 'bot_name',
           headerText: 'Bot',
-          isSortable: false,
+          isSortable: true,
         },
         {
           key: 'instanceIdDisplay',
@@ -137,13 +141,13 @@ export function BotInstancesList({
           isSortable: false,
         },
         {
-          key: 'activeAtDisplay',
+          key: 'active_at_latest',
           headerText: 'Last heartbeat',
-          isSortable: false,
-          render: ({ activeAtDisplay, activeAtLocal }) => (
+          isSortable: true,
+          render: ({ active_at_latest, activeAtLocal }) => (
             <Cell>
               <HoverTooltip tipContent={activeAtLocal}>
-                <span>{activeAtDisplay}</span>
+                <span>{active_at_latest}</span>
               </HoverTooltip>
             </Cell>
           ),

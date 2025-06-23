@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -55,7 +56,7 @@ func TestBotInstanceCache(t *testing.T) {
 			return p.cache.GetBotInstance(ctx, "bot-1", key)
 		},
 		cacheList: func(ctx context.Context) ([]*machineidv1.BotInstance, error) {
-			results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "")
+			results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", "")
 			return results, err
 		},
 		create: func(ctx context.Context, resource *machineidv1.BotInstance) error {
@@ -63,7 +64,7 @@ func TestBotInstanceCache(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]*machineidv1.BotInstance, error) {
-			results, _, err := p.botInstanceService.ListBotInstances(ctx, "", 0, "", "")
+			results, _, err := p.botInstanceService.ListBotInstances(ctx, "", 0, "", "", "")
 			return results, err
 		},
 		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
@@ -111,7 +112,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 
 	// page size equal to total items
-	results, nextPageToken, err := p.cache.ListBotInstances(ctx, "", 0, "", "")
+	results, nextPageToken, err := p.cache.ListBotInstances(ctx, "", 0, "", "", "")
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, results, 5)
@@ -122,7 +123,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	require.Equal(t, "instance-5", results[4].GetMetadata().GetName())
 
 	// page size smaller than total items
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, "", "")
+	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, "bot-1/instance-4", nextPageToken)
 	require.Len(t, results, 3)
@@ -131,7 +132,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
 
 	// next page
-	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, nextPageToken, "")
+	results, nextPageToken, err = p.cache.ListBotInstances(ctx, "", 3, nextPageToken, "", "")
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, results, 2)
@@ -170,7 +171,7 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 		require.NoError(t, err)
 	}, 2*time.Second, 10*time.Millisecond)
 
-	results, _, err := p.cache.ListBotInstances(ctx, "bot-2", 0, "", "")
+	results, _, err := p.cache.ListBotInstances(ctx, "bot-2", 0, "", "", "")
 	require.NoError(t, err)
 	require.Len(t, results, 5)
 
@@ -216,7 +217,85 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 		require.NoError(t, err)
 	}, 2*time.Second, 10*time.Millisecond)
 
-	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "host-1")
+	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "host-1", "")
 	require.NoError(t, err)
 	require.Len(t, results, 5)
+}
+
+// TestBotInstanceCacheSorting tests that cache items are sorted.
+func TestBotInstanceCacheSorting(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	items := []struct {
+		botName           string
+		instanceId        string
+		recordedAtSeconds int64
+	}{
+		{"bot-1", "instance-1", 2},
+		{"bot-1", "instance-3", 1},
+		{"bot-2", "instance-2", 3},
+	}
+
+	for _, b := range items {
+		instance := &machineidv1.BotInstance{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    b.botName,
+				InstanceId: b.instanceId,
+			},
+			Status: &machineidv1.BotInstanceStatus{
+				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
+					{
+						RecordedAt: &timestamppb.Timestamp{
+							Seconds: b.recordedAtSeconds,
+						},
+					},
+				},
+			},
+		}
+
+		_, err := p.botInstanceService.CreateBotInstance(ctx, instance)
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := p.cache.GetBotInstance(ctx, "bot-1", "instance-3")
+		require.NoError(t, err)
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// sort descending by active_at_latest
+	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", "") // empty sort should default to `active_at_latest:desc`
+	require.NoError(t, err)
+	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
+
+	// sort ascending by active_at_latest
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "active_at_latest:asc")
+	require.NoError(t, err)
+	require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
+	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+	require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
+
+	// sort ascending by bot_name
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "bot_name:asc")
+	require.NoError(t, err)
+	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
+	require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+	require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
+
+	// sort descending by bot_name
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "bot_name:desc")
+	require.NoError(t, err)
+	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+	require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
+	require.Equal(t, "instance-1", results[2].GetMetadata().GetName())
 }

@@ -17,11 +17,12 @@
  */
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
+import { SortType } from 'design/DataTable/types';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Mark } from 'design/Mark/Mark';
 import {
@@ -42,20 +43,35 @@ import { BotInstanceSummary } from 'teleport/services/bot/types';
 
 import { BotInstancesList } from './List/BotInstancesList';
 
+function parseSortType(sort: string): SortType | undefined {
+  if (!sort) return undefined;
+  const [fieldName, dir] = sort.toLowerCase().split(':');
+  return {
+    fieldName,
+    dir: dir === 'desc' ? 'DESC' : 'ASC',
+  };
+}
+
+function formatSortType(sortType: SortType): string {
+  return `${sortType.fieldName}:${sortType.dir}`.toLowerCase();
+}
+
 export function BotInstances() {
   const history = useHistory();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
+  const sort = queryParams.get('sort') || 'active_at_latest:desc';
 
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
-    queryKey: ['bot_instances', 'list', searchTerm, pageToken],
+    queryKey: ['bot_instances', 'list', searchTerm, pageToken, sort],
     queryFn: () =>
       listBotInstances({
         pageSize: 20,
         pageToken,
         searchTerm,
+        sort,
       }),
     placeholderData: keepPreviousData,
     staleTime: 30_000, // Cached pages are valid for 30 seconds
@@ -78,16 +94,19 @@ export function BotInstances() {
     history.goBack();
   }, [history]);
 
-  const handleSearchChange = useCallback((term: string) => {
-    const search = new URLSearchParams(location.search);
-    search.set('search', term);
-    search.set('page', '');
+  const handleSearchChange = useCallback(
+    (term: string) => {
+      const search = new URLSearchParams(location.search);
+      search.set('search', term);
+      search.set('page', '');
 
-    history.push({
-      pathname: `${location.pathname}`,
-      search: search.toString(),
-    });
-  }, []);
+      history.push({
+        pathname: `${location.pathname}`,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
 
   const onItemSelected = useCallback(
     (item: BotInstanceSummary) => {
@@ -99,6 +118,24 @@ export function BotInstances() {
       );
     },
     [history]
+  );
+
+  const sortType = useMemo(() => parseSortType(sort), [sort]);
+
+  const handleSortChanged = useCallback(
+    (sortType: SortType) => {
+      const formattedSortType = formatSortType(sortType);
+
+      const search = new URLSearchParams(location.search);
+      search.set('sort', formattedSortType);
+      search.set('page', '');
+
+      history.push({
+        pathname: `${location.pathname}`,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
   );
 
   return (
@@ -127,6 +164,8 @@ export function BotInstances() {
           onSearchChange={handleSearchChange}
           searchTerm={searchTerm}
           onItemSelected={onItemSelected}
+          sortType={sortType}
+          onSortChanged={handleSortChanged}
         />
       ) : undefined}
     </FeatureBox>

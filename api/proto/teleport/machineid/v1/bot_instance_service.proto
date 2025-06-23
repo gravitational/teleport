@@ -45,6 +45,8 @@ message ListBotInstancesRequest {
   string page_token = 3;
   // A search term used to filter the results. If non-empty, it's used to match against supported fields.
   string filter_search_term = 4;
+  // The sort order to use for the results. If empty, the default sort order is used.
+  string sort = 5;
 }
 
 // Response for ListBotInstances.

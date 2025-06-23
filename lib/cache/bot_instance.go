@@ -20,6 +20,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -34,7 +35,8 @@ import (
 type botInstanceIndex string
 
 const (
-	botInstanceNameIndex botInstanceIndex = "name"
+	botInstanceNameIndex     botInstanceIndex = "name"
+	botInstanceActiveAtIndex botInstanceIndex = "active_at_latest"
 )
 
 func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
@@ -48,6 +50,20 @@ func makeNameIndexKey(botName string, instanceID string) string {
 	return botName + "/" + instanceID
 }
 
+func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
+	recordedAt := time.Time{}
+
+	if botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt() != nil {
+		recordedAt = botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt().AsTime()
+	}
+
+	if len(botInstance.GetStatus().GetLatestHeartbeats()) > 0 {
+		recordedAt = botInstance.GetStatus().GetLatestHeartbeats()[len(botInstance.GetStatus().GetLatestHeartbeats())-1].GetRecordedAt().AsTime()
+	}
+
+	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
+}
+
 func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter upstream (BotInstance)")
@@ -59,12 +75,14 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name
 				botInstanceNameIndex: keyForNameIndex,
+				// Index on a combination of most recent heartbeat time and instance name
+				botInstanceActiveAtIndex: keyForActiveAtIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			var out []*machineidv1.BotInstance
 			clientutils.IterateResources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-					return upstream.ListBotInstances(ctx, "", limit, start, "")
+					return upstream.ListBotInstances(ctx, "", limit, start, "", "")
 				},
 				func(hcc *machineidv1.BotInstance) error {
 					out = append(out, hcc)
@@ -96,23 +114,26 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 }
 
 // ListBotInstances returns a page of BotInstance resources.
-func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error) {
+func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort string) ([]*machineidv1.BotInstance, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
+
+	index, keyFn, isDesc := parseSort(sort)
 
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
 		cache:           c,
 		collection:      c.collections.botInstances,
-		index:           botInstanceNameIndex,
+		index:           index,
+		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search)
+			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort) // Upstream does not support sorting
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
 			return matchBotInstance(b, botName, search)
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
-			return keyForNameIndex(b)
+			return keyFn(b)
 		},
 	}
 	out, next, err := lister.list(ctx,
@@ -151,4 +172,26 @@ func matchBotInstance(b *machineidv1.BotInstance, botName string, search string)
 	return slices.ContainsFunc(values, func(val string) bool {
 		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
 	})
+}
+
+func parseSort(sort string) (botInstanceIndex, func(botInstance *machineidv1.BotInstance) string, bool) {
+	index := botInstanceActiveAtIndex
+	keyFn := keyForActiveAtIndex
+	isDesc := true
+
+	parts := strings.Split(strings.ToLower(sort), ":")
+	if len(parts) < 2 {
+		return index, keyFn, isDesc
+	}
+
+	field, dir := parts[0], parts[1]
+
+	switch {
+	case field == "bot_name":
+		return botInstanceNameIndex, keyForNameIndex, dir == "desc"
+	case field == "active_at_latest":
+		return botInstanceActiveAtIndex, keyForActiveAtIndex, dir == "desc"
+	default:
+		return index, keyFn, isDesc
+	}
 }
