@@ -69,7 +69,7 @@ export function AccessGraphLoading() {
         <Nodes />
       </Content>
 
-      <Text typography="h2">Launching Access Graph…</Text>
+      <Text typography="h2">Launching Identity Security…</Text>
     </Container>
   );
 }

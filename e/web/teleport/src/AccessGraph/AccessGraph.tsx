@@ -4,11 +4,13 @@
 
 import { Location } from 'history';
 import { ComponentType, lazy, Suspense, useCallback } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { useHistory, useLocation } from 'react-router';
 
 import { Flex } from 'design';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
+import { AccessGraphError } from 'e-teleport/AccessGraph/AccessGraphError';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 import cfg, { EnterpriseConfig } from 'e-teleport/config';
@@ -86,25 +88,27 @@ export function AccessGraph() {
   }
 
   return (
-    <Suspense fallback={<AccessGraphLoading />}>
-      <Flex
-        data-scrollbar="default"
-        width="100%"
-        height="100%"
-        overflowY="auto"
-        flexDirection="column"
-      >
-        <Graph
-          clusterId={clusterId}
-          awsOnboardingEnabled={true}
-          urlNavigationEnabled={true}
-          cfg={cfg}
-          backUrl={backUrl}
-          s3BucketOptional={true}
-          onRouteChange={onRouteChange}
-          theme={theme}
-        />
-      </Flex>
-    </Suspense>
+    <ErrorBoundary FallbackComponent={AccessGraphError}>
+      <Suspense fallback={<AccessGraphLoading />}>
+        <Flex
+          data-scrollbar="default"
+          width="100%"
+          height="100%"
+          overflowY="auto"
+          flexDirection="column"
+        >
+          <Graph
+            clusterId={clusterId}
+            awsOnboardingEnabled={true}
+            urlNavigationEnabled={true}
+            cfg={cfg}
+            backUrl={backUrl}
+            s3BucketOptional={true}
+            onRouteChange={onRouteChange}
+            theme={theme}
+          />
+        </Flex>
+      </Suspense>
+    </ErrorBoundary>
   );
 }

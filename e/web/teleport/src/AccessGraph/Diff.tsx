@@ -3,7 +3,9 @@
 // It will download the access graph library from the CDN and then render the component
 
 import { ComponentType, lazy, Suspense } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
+import { AccessGraphError } from 'e-teleport/AccessGraph/AccessGraphError';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 
@@ -66,8 +68,10 @@ const Diff = lazy(() =>
 
 export function AccessGraphDiff(props: AccessGraphDiffProps) {
   return (
-    <Suspense fallback={<AccessGraphLoading />}>
-      <Diff {...props} />
-    </Suspense>
+    <ErrorBoundary FallbackComponent={AccessGraphError}>
+      <Suspense fallback={<AccessGraphLoading />}>
+        <Diff {...props} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
