@@ -2872,6 +2872,7 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	return pwd, nil
 }
 
+// Relay is the relay_service section of the Teleport config file.
 type Relay struct {
 	// Enabled is set if the relay service is enabled, defaults to false.
 	Enabled bool `yaml:"enabled"`

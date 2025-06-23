@@ -16,6 +16,7 @@
 
 package servicecfg
 
+// RelayConfig contains the configuration for the Relay service.
 type RelayConfig struct {
 	Enabled bool
 
