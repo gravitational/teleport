@@ -191,7 +191,7 @@ func (s *execServer) getStdinPipe() (io.WriteCloser, error) {
 	return s.cmd.StdinPipe()
 }
 
-func (s *execServer) run(ctx context.Context) error {
+func (s *execServer) run(context.Context) error {
 	if err := s.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}

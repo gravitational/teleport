@@ -80,7 +80,7 @@ func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx Ses
 		mcp.WithDescription("this is simple hello test and it always return \"hello client\""),
 	)
 	if session.checkAccessToTool(ctx, helloTool.GetName()) == nil {
-		server.AddTool(helloTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		server.AddTool(helloTool, func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent("hello client")},
 			}, nil
@@ -92,7 +92,7 @@ func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx Ses
 		mcp.WithString("input", mcp.Required(), mcp.Description("input for echo")),
 	)
 	if session.checkAccessToTool(ctx, echoTool.GetName()) == nil {
-		server.AddTool(echoTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		server.AddTool(echoTool, func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			input, err := request.RequireString("input")
 			if err != nil {
 				return nil, trace.Wrap(err)

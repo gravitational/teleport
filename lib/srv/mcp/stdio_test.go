@@ -101,7 +101,7 @@ func Test_handleStdio(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		event := emitter.LastEvent()
 		_, ok := event.(*apievents.MCPSessionStart)
-		assert.True(t, ok)
+		assert.True(collect, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 	resp, err := initializeStdioClient(ctx, stdioClient)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func (s *mockStdioServerRunner) run(ctx context.Context) error {
 	server := mcpserver.NewMCPServer("test-server", "1.0.0")
 	server.AddTool(mcp.Tool{
 		Name: "hello-server",
-	}, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	}, func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{mcp.NewTextContent("hello client")},
 		}, nil
