@@ -19,7 +19,9 @@ DOCKER ?= docker
 
 # GRPCBOX_RUN has the necessary invocation to run a command inside the grpcbox.
 # Use this variable to run it from other Makefiles.
-GRPCBOX_RUN := $(DOCKER) run -it --rm -v "$$(pwd)/../:/workdir" -w /workdir $(GRPCBOX)
+UID := $$(id -u)
+GID := $$(id -g)
+GRPCBOX_RUN := $(DOCKER) run -it --rm -u $(UID):$(GID) -v "$$(pwd)/../:/workdir" -w /workdir $(GRPCBOX)
 
 # grpcbox builds a codegen-focused buildbox.
 # It's leaner, meaner, faster and not supposed to compile code.
@@ -27,6 +29,7 @@ GRPCBOX_RUN := $(DOCKER) run -it --rm -v "$$(pwd)/../:/workdir" -w /workdir $(GR
 grpcbox:
 	$(DOCKER) build \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
+		--build-arg UID=$(UID) --build-arg GID=$(GID) \
 		-f Dockerfile-grpcbox \
 		-t "$(GRPCBOX)" \
 		../
