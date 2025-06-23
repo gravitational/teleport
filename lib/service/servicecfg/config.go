@@ -95,6 +95,9 @@ type Config struct {
 	// connections to the cluster.
 	Proxy ProxyConfig
 
+	// Relay contains the configuration for the Relay service.
+	Relay RelayConfig
+
 	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
 
@@ -352,6 +355,7 @@ type RoleAndIdentityEvent struct {
 func DisableLongRunningServices(cfg *Config) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
+	cfg.Relay.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
@@ -793,6 +797,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Auth.Enabled,
 		cfg.SSH.Enabled,
 		cfg.Proxy.Enabled,
+		cfg.Relay.Enabled,
 		cfg.Kube.Enabled,
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
@@ -810,7 +815,8 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+	)
 }
 
 // SetLogLevel changes the loggers log level.
