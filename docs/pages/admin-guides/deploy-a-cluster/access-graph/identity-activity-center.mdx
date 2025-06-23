@@ -75,15 +75,15 @@ Teleport IaC script.
 
 ```bash
 cat > variables.auto.tfvars << EOF
-aws_region            = <Var name="eu-central-1"/>
-iac_sqs_queue_name        = <Var name="example-sqs-queue"/>
-iac_sqs_dlq_name          = <Var name="example-sqs-dlq"/>
-iac_kms_key_alias         = <Var name="example-kms-key"/>
-iac_long_term_bucket_name = <Var name="example-long-term-bucket"/>
-iac_transient_bucket_name = <Var name="example-transient-bucket"/>
-iac_database_name         = <Var name="example-db"/>
-iac_table_name            = <Var name="example-table"/>
-iac_workgroup             = <Var name="example-workgroup"/>
+aws_region                = "<Var name="eu-central-1"/>"
+iac_sqs_queue_name        = "<Var name="example-sqs-queue"/>"
+iac_sqs_dlq_name          = "<Var name="example-sqs-dlq"/>"
+iac_kms_key_alias         = "<Var name="example-kms-key"/>"
+iac_long_term_bucket_name = "<Var name="example-long-term-bucket"/>"
+iac_transient_bucket_name = "<Var name="example-transient-bucket"/>"
+iac_database_name         = "<Var name="example-db"/>"
+iac_table_name            = "<Var name="example-table"/>"
+iac_workgroup             = "<Var name="example-workgroup"/>"
 EOF
 ```
 
@@ -137,7 +137,7 @@ To enrich audit events with GeoIP details such as country, city, region, latitud
 and longitude based on IP addresses, we strongly recommend using the
 [MaxMind GeoIP City database](https://www.maxmind.com/en/geoip-databases).
 
-MaxMind provides both free and paid versions of its GeoIP City database. 
+MaxMind provides both free and paid versions of its GeoIP City database.
 The free version is less accurate and updated less frequently compared to
 the paid version. You can find instructions for downloading the free
 version or purchasing the paid version on the
