@@ -250,6 +250,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure samlidp gcp-workforce` command
 	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
 
+	// IntegrationConfAWSRATrustAnchorArguments contains the arguments of
+	// `teleport integration configure awsra-trust-anchor` command
+	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
+
 	// LogLevel is the new application's log level.
 	LogLevel string
 
@@ -406,6 +410,25 @@ type IntegrationConfAWSOIDCIdP struct {
 	// PolicyPreset is the name of a pre-defined policy statement which will be
 	// assigned to the AWS Role associate with the OIDC integration.
 	PolicyPreset string
+}
+
+// IntegrationConfAWSRATrustAnchor contains the arguments of
+// `teleport integration configure awsra-trust-anchor` command
+type IntegrationConfAWSRATrustAnchor struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// TrustAnchor is the AWS IAM Roles Anywhere Trust Anchor name to create.
+	TrustAnchor string
+	// TrustAnchorCertBase64 is trust anchor certificate, encoded in base64.
+	TrustAnchorCertBase64 string
+	// SyncProfile is the AWS IAM Roles Anywhere Profile name to create, that will be used to sync profiles as entry points for AWS Access.
+	SyncProfile string
+	// SyncRole is the AWS IAM Role name to create, that will be used to sync profiles as entry points for AWS Access.
+	SyncRole string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
