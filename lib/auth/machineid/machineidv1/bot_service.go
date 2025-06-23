@@ -69,8 +69,8 @@ func BotResourceName(botName string) string {
 	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }
 
-// BotCache is the subset of the cached resources that the Service queries.
-type BotCache interface {
+// Cache is the subset of the cached resources that the Service queries.
+type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// ListUsers lists users
@@ -111,7 +111,7 @@ type Backend interface {
 // the bots gRPC service.
 type BotServiceConfig struct {
 	Authorizer authz.Authorizer
-	Cache      BotCache
+	Cache      Cache
 	Backend    Backend
 	Logger     *slog.Logger
 	Emitter    apievents.Emitter
@@ -155,7 +155,7 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 type BotService struct {
 	pb.UnimplementedBotServiceServer
 
-	cache      BotCache
+	cache      Cache
 	backend    Backend
 	authorizer authz.Authorizer
 	logger     *slog.Logger
