@@ -195,6 +195,11 @@ const (
 	// identity has been registered with the Auth Server.
 	ProxyIdentityEvent = "ProxyIdentity"
 
+	// RelayIdentityEvent is generated after the Teleport agent has successfully
+	// joined a cluster or reused credentials to connect to the control plane as
+	// a relay service.
+	RelayIdentityEvent = "RelayIdentityEvent"
+
 	// SSHIdentityEvent is generated when node's identity has been registered
 	// with the Auth Server.
 	SSHIdentityEvent = "SSHIdentity"
@@ -243,6 +248,10 @@ const (
 	// ProxySSHReady is generated when the proxy has initialized a SSH server
 	// and is ready to start accepting connections.
 	ProxySSHReady = "ProxySSHReady"
+
+	// RelayReady is generated when a relay service is ready to accept
+	// connections.
+	RelayReady = "RelayReady"
 
 	// NodeSSHReady is generated when the Teleport node has initialized a SSH server
 	// and is ready to start accepting SSH connections.
@@ -1457,6 +1466,9 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	if cfg.Proxy.Enabled {
 		eventMapping.In = append(eventMapping.In, ProxySSHReady)
 	}
+	if cfg.Relay.Enabled {
+		eventMapping.In = append(eventMapping.In, RelayReady)
+	}
 	if cfg.Kube.Enabled {
 		eventMapping.In = append(eventMapping.In, KubernetesReady)
 	}
@@ -1513,6 +1525,13 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		serviceStarted = true
 	} else {
 		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentProxy), process.logger)
+	}
+
+	if cfg.Relay.Enabled {
+		process.initRelay()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentRelay), process.logger)
 	}
 
 	if cfg.Kube.Enabled {
@@ -4098,6 +4117,8 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 				}
 			}
 		}
+	case types.RoleRelay:
+		dnsNames = append(dnsNames, process.Config.Relay.APIPublicHostnames...)
 	case types.RoleAuth, types.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
 	case types.RoleNode:
@@ -6218,6 +6239,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config)
 
 	if cfg.Proxy.Enabled {
 		process.SetExpectedInstanceRole(types.RoleProxy, ProxyIdentityEvent)
+	}
+
+	if cfg.Relay.Enabled {
+		process.SetExpectedInstanceRole(types.RoleRelay, RelayIdentityEvent)
 	}
 
 	if cfg.Kube.Enabled {
