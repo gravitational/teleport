@@ -45,9 +45,6 @@ func (c *sessionAuditorConfig) checkAndSetDefaults() error {
 	if c.emitter == nil {
 		return trace.BadParameter("missing emitter")
 	}
-	if c.logger == nil {
-		c.logger = slog.Default()
-	}
 	if c.hostID == "" {
 		return trace.BadParameter("missing hostID")
 	}
@@ -56,6 +53,9 @@ func (c *sessionAuditorConfig) checkAndSetDefaults() error {
 	}
 	if c.preparer == nil {
 		return trace.BadParameter("missing preparer")
+	}
+	if c.logger == nil {
+		c.logger = slog.Default()
 	}
 	return nil
 }
