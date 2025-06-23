@@ -21,12 +21,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/gravitational/teleport/api/defaults"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 )
 
 type botInstanceIndex string
