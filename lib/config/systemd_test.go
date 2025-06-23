@@ -33,6 +33,7 @@ func TestWriteSystemdUnitFile(t *testing.T) {
 		PIDFile:                  "/custom/pid/dir/teleport.pid",
 		FileDescriptorLimit:      16384,
 		TeleportInstallationFile: "/custom/install/dir/teleport",
+		FIPS:                     true,
 	}
 
 	stdout := new(bytes.Buffer)
