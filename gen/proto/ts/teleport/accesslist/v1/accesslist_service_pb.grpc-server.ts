@@ -37,6 +37,8 @@ import { DeleteAllAccessListMembersRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListMembersForAccessListRequest } from "./accesslist_service_pb";
 import { DeleteAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpdateAccessListMemberRequest } from "./accesslist_service_pb";
+import { UpsertStaticAccessListMemberResponse } from "./accesslist_service_pb";
+import { UpsertStaticAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpsertAccessListMemberRequest } from "./accesslist_service_pb";
 import { GetAccessListOwnersResponse } from "./accesslist_service_pb";
 import { GetAccessListOwnersRequest } from "./accesslist_service_pb";
@@ -156,6 +158,13 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: UpsertAccessListMember(teleport.accesslist.v1.UpsertAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     upsertAccessListMember: grpc.handleUnaryCall<UpsertAccessListMemberRequest, Member>;
+    /**
+     * UpsertStaticAccessListMember creates or updates an access_list_member resource. It fails if
+     * the target access_list is not static (i.e. does't have static_access_list subkind).
+     *
+     * @generated from protobuf rpc: UpsertStaticAccessListMember(teleport.accesslist.v1.UpsertStaticAccessListMemberRequest) returns (teleport.accesslist.v1.UpsertStaticAccessListMemberResponse);
+     */
+    upsertStaticAccessListMember: grpc.handleUnaryCall<UpsertStaticAccessListMemberRequest, UpsertStaticAccessListMemberResponse>;
     /**
      * UpdateAccessListMember conditionally updates an access list member resource.
      *
@@ -388,6 +397,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => UpsertAccessListMemberRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Member.toBinary(value)),
         requestSerialize: value => Buffer.from(UpsertAccessListMemberRequest.toBinary(value))
+    },
+    upsertStaticAccessListMember: {
+        path: "/teleport.accesslist.v1.AccessListService/UpsertStaticAccessListMember",
+        originalName: "UpsertStaticAccessListMember",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => UpsertStaticAccessListMemberResponse.fromBinary(bytes),
+        requestDeserialize: bytes => UpsertStaticAccessListMemberRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(UpsertStaticAccessListMemberResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(UpsertStaticAccessListMemberRequest.toBinary(value))
     },
     updateAccessListMember: {
         path: "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember",

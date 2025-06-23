@@ -58,6 +58,9 @@ service AccessListService {
   rpc GetAccessListOwners(GetAccessListOwnersRequest) returns (GetAccessListOwnersResponse);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // UpsertStaticAccessListMember creates or updates an access_list_member resource. It fails if
+  // the target access_list is not static (i.e. does't have static_access_list subkind).
+  rpc UpsertStaticAccessListMember(UpsertStaticAccessListMemberRequest) returns (UpsertStaticAccessListMemberResponse);
   // UpdateAccessListMember conditionally updates an access list member resource.
   rpc UpdateAccessListMember(UpdateAccessListMemberRequest) returns (Member);
   // DeleteAccessListMember hard deletes the specified access list member
@@ -280,6 +283,20 @@ message UpsertAccessListMemberRequest {
 
   // member is the access list member to upsert.
   Member member = 4;
+}
+
+// UpsertStaticAccessListMemberRequest is the request for upserting an access_list_member to an
+// access_list of type static.
+message UpsertStaticAccessListMemberRequest {
+  // member is the access_list_member to upsert.
+  Member member = 1;
+}
+
+// UpsertStaticAccessListMemberResponse is the response of upserting an access_list_member to an
+// static_access of type static.
+message UpsertStaticAccessListMemberResponse {
+  // member is the upserted access_list_member.
+  Member member = 1;
 }
 
 // UpdateAccessListMemberRequest is the request for updating an access list

@@ -48,6 +48,7 @@ const (
 	AccessListService_GetAccessListMember_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListMember"
 	AccessListService_GetAccessListOwners_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListOwners"
 	AccessListService_UpsertAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember"
+	AccessListService_UpsertStaticAccessListMember_FullMethodName            = "/teleport.accesslist.v1.AccessListService/UpsertStaticAccessListMember"
 	AccessListService_UpdateAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember"
 	AccessListService_DeleteAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListMember"
 	AccessListService_DeleteAllAccessListMembersForAccessList_FullMethodName = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembersForAccessList"
@@ -100,6 +101,9 @@ type AccessListServiceClient interface {
 	GetAccessListOwners(ctx context.Context, in *GetAccessListOwnersRequest, opts ...grpc.CallOption) (*GetAccessListOwnersResponse, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(ctx context.Context, in *UpsertAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
+	// UpsertStaticAccessListMember creates or updates an access_list_member resource. It fails if
+	// the target access_list is not static (i.e. does't have static_access_list subkind).
+	UpsertStaticAccessListMember(ctx context.Context, in *UpsertStaticAccessListMemberRequest, opts ...grpc.CallOption) (*UpsertStaticAccessListMemberResponse, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
 	UpdateAccessListMember(ctx context.Context, in *UpdateAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
 	// DeleteAccessListMember hard deletes the specified access list member
@@ -282,6 +286,16 @@ func (c *accessListServiceClient) UpsertAccessListMember(ctx context.Context, in
 	return out, nil
 }
 
+func (c *accessListServiceClient) UpsertStaticAccessListMember(ctx context.Context, in *UpsertStaticAccessListMemberRequest, opts ...grpc.CallOption) (*UpsertStaticAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertStaticAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, AccessListService_UpsertStaticAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) UpdateAccessListMember(ctx context.Context, in *UpdateAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Member)
@@ -440,6 +454,9 @@ type AccessListServiceServer interface {
 	GetAccessListOwners(context.Context, *GetAccessListOwnersRequest) (*GetAccessListOwnersResponse, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error)
+	// UpsertStaticAccessListMember creates or updates an access_list_member resource. It fails if
+	// the target access_list is not static (i.e. does't have static_access_list subkind).
+	UpsertStaticAccessListMember(context.Context, *UpsertStaticAccessListMemberRequest) (*UpsertStaticAccessListMemberResponse, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
 	UpdateAccessListMember(context.Context, *UpdateAccessListMemberRequest) (*Member, error)
 	// DeleteAccessListMember hard deletes the specified access list member
@@ -523,6 +540,9 @@ func (UnimplementedAccessListServiceServer) GetAccessListOwners(context.Context,
 }
 func (UnimplementedAccessListServiceServer) UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessListMember not implemented")
+}
+func (UnimplementedAccessListServiceServer) UpsertStaticAccessListMember(context.Context, *UpsertStaticAccessListMemberRequest) (*UpsertStaticAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertStaticAccessListMember not implemented")
 }
 func (UnimplementedAccessListServiceServer) UpdateAccessListMember(context.Context, *UpdateAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessListMember not implemented")
@@ -833,6 +853,24 @@ func _AccessListService_UpsertAccessListMember_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_UpsertStaticAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertStaticAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).UpsertStaticAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_UpsertStaticAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).UpsertStaticAccessListMember(ctx, req.(*UpsertStaticAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_UpdateAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateAccessListMemberRequest)
 	if err := dec(in); err != nil {
@@ -1111,6 +1149,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertAccessListMember",
 			Handler:    _AccessListService_UpsertAccessListMember_Handler,
+		},
+		{
+			MethodName: "UpsertStaticAccessListMember",
+			Handler:    _AccessListService_UpsertStaticAccessListMember_Handler,
 		},
 		{
 			MethodName: "UpdateAccessListMember",
