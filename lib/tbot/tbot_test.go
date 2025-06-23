@@ -99,7 +99,7 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 }
 
 // makeBot creates a server-side bot and returns joining parameters.
-func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*config.OnboardingConfig, *machineidv1pb.Bot) {
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*bot.OnboardingConfig, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 
@@ -130,7 +130,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 	err = client.CreateToken(ctx, tok)
 	require.NoError(t, err)
 
-	return &config.OnboardingConfig{
+	return &bot.OnboardingConfig{
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
 	}, b
@@ -145,7 +145,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
-	onboarding *config.OnboardingConfig,
+	onboarding *bot.OnboardingConfig,
 	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {

@@ -120,7 +120,7 @@ func TestBotJoinAuth(t *testing.T) {
 	authAddr, err := teleportServer.Process.AuthAddr()
 	require.NoError(t, err)
 	botConfig := &BotConfig{
-		Onboarding: config.OnboardingConfig{
+		Onboarding: bot.OnboardingConfig{
 			TokenValue: tokenName,
 			JoinMethod: types.JoinMethodToken,
 		},

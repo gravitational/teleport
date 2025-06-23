@@ -32,6 +32,7 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -125,7 +126,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 			Storage: &config.StorageConfig{
 				Destination: &botInternalStore,
 			},
-			Onboarding: config.OnboardingConfig{
+			Onboarding: bot.OnboardingConfig{
 				JoinMethod: apitypes.JoinMethod(data.JoinMethod.ValueString()),
 				TokenValue: data.JoinToken.ValueString(),
 			},

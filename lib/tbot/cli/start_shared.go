@@ -128,14 +128,14 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 
 	joinMethodList := fmt.Sprintf(
 		"(%s)",
-		strings.Join(config.SupportedJoinMethods, ", "),
+		strings.Join(bot.SupportedJoinMethods, ", "),
 	)
 
 	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&args.Token)
 	cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&args.CAPins)
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
 	cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&args.RenewalInterval)
-	cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&args.JoinMethod, config.SupportedJoinMethods...)
+	cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&args.JoinMethod, bot.SupportedJoinMethods...)
 	cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&args.oneshotSetByUser).BoolVar(&args.Oneshot)
 	cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&args.DiagAddr)
 	cmd.Flag("storage", "A destination URI for tbot's internal storage, e.g. file:///foo/bar").StringVar(&args.Storage)
@@ -220,7 +220,7 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	// situation where different fields become set weirdly due to struct
 	// merging)
 	if s.Token != "" || s.JoinMethod != "" || len(s.CAPins) > 0 {
-		if !reflect.DeepEqual(cfg.Onboarding, config.OnboardingConfig{}) {
+		if !reflect.DeepEqual(cfg.Onboarding, bot.OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
 			l.WarnContext(
 				context.TODO(),
@@ -231,7 +231,7 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 			)
 		}
 
-		cfg.Onboarding = config.OnboardingConfig{
+		cfg.Onboarding = bot.OnboardingConfig{
 			CAPins:     s.CAPins,
 			JoinMethod: types.JoinMethod(s.JoinMethod),
 		}

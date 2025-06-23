@@ -358,14 +358,14 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 }
 
 type configV1 struct {
-	Onboarding      OnboardingConfig `yaml:"onboarding"`
-	Debug           bool             `yaml:"debug"`
-	AuthServer      string           `yaml:"auth_server"`
-	CertificateTTL  time.Duration    `yaml:"certificate_ttl"`
-	RenewalInterval time.Duration    `yaml:"renewal_interval"`
-	Oneshot         bool             `yaml:"oneshot"`
-	FIPS            bool             `yaml:"fips"`
-	DiagAddr        string           `yaml:"diag_addr"`
+	Onboarding      bot.OnboardingConfig `yaml:"onboarding"`
+	Debug           bool                 `yaml:"debug"`
+	AuthServer      string               `yaml:"auth_server"`
+	CertificateTTL  time.Duration        `yaml:"certificate_ttl"`
+	RenewalInterval time.Duration        `yaml:"renewal_interval"`
+	Oneshot         bool                 `yaml:"oneshot"`
+	FIPS            bool                 `yaml:"fips"`
+	DiagAddr        string               `yaml:"diag_addr"`
 
 	Destinations  []configV1Destination `yaml:"destinations"`
 	StorageConfig *storageConfigV1      `yaml:"storage"`

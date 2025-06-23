@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -515,14 +516,14 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 	}
 	botConfig := &embeddedtbot.BotConfig{
 		AuthServer: addr,
-		Onboarding: tbotconfig.OnboardingConfig{
+		Onboarding: bot.OnboardingConfig{
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
-			Terraform: tbotconfig.TerraformOnboardingConfig{
+			Terraform: bot.TerraformOnboardingConfig{
 				AudienceTag: audienceTag,
 			},
-			Gitlab: tbotconfig.GitlabOnboardingConfig{
+			Gitlab: bot.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},

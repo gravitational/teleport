@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -68,7 +69,7 @@ func TestHeartbeatService(t *testing.T) {
 		log: log,
 		botCfg: &config.BotConfig{
 			Oneshot: false,
-			Onboarding: config.OnboardingConfig{
+			Onboarding: bot.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
 		},

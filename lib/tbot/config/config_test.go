@@ -198,10 +198,10 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
-				Onboarding: OnboardingConfig{
+				Onboarding: bot.OnboardingConfig{
 					JoinMethod: "gitlab",
 					TokenValue: "my-gitlab-token",
-					Gitlab: GitlabOnboardingConfig{
+					Gitlab: bot.GitlabOnboardingConfig{
 						TokenEnvVarName: "MY_CUSTOM_ENV_VAR",
 					},
 				},
@@ -396,7 +396,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: true,
-		Onboarding: OnboardingConfig{
+		Onboarding: bot.OnboardingConfig{
 			CAPins: []string{"123"},
 		},
 	}
@@ -407,7 +407,7 @@ func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 func TestBotConfig_InsecureWithCAPath(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: true,
-		Onboarding: OnboardingConfig{
+		Onboarding: bot.OnboardingConfig{
 			CAPath: "/tmp/invalid-path/some.crt",
 		},
 	}
@@ -418,7 +418,7 @@ func TestBotConfig_InsecureWithCAPath(t *testing.T) {
 func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: false,
-		Onboarding: OnboardingConfig{
+		Onboarding: bot.OnboardingConfig{
 			CAPath: "/tmp/invalid-path/some.crt",
 			CAPins: []string{"123"},
 		},
@@ -538,7 +538,7 @@ func TestBotConfig_Base64(t *testing.T) {
 			expected: BotConfig{
 				Version:     V2,
 				ProxyServer: "example.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: bot.OnboardingConfig{
 					JoinMethod: "token",
 					TokenValue: "my-token",
 				},
@@ -556,7 +556,7 @@ func TestBotConfig_Base64(t *testing.T) {
 			expected: BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				Onboarding: OnboardingConfig{
+				Onboarding: bot.OnboardingConfig{
 					JoinMethod: "token",
 					TokenValue: "my-token",
 				},

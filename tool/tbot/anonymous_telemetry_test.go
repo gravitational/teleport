@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -63,7 +64,7 @@ func TestSendTelemetry(t *testing.T) {
 		}
 		cfg := &config.BotConfig{
 			Oneshot: true,
-			Onboarding: config.OnboardingConfig{
+			Onboarding: bot.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
 			Services: config.ServiceConfigs{

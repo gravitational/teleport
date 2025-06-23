@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -137,7 +138,7 @@ type LegacyCommand struct {
 func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *LegacyCommand {
 	joinMethodList := fmt.Sprintf(
 		"(%s)",
-		strings.Join(config.SupportedJoinMethods, ", "),
+		strings.Join(bot.SupportedJoinMethods, ", "),
 	)
 
 	c := &LegacyCommand{
@@ -152,7 +153,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode C
 	c.cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&c.CAPins)
 	c.cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&c.CertificateTTL)
 	c.cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&c.RenewalInterval)
-	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, config.SupportedJoinMethods...)
+	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, bot.SupportedJoinMethods...)
 	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&c.oneshotSetByUser).BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
 
@@ -239,7 +240,7 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 	// situation where different fields become set weirdly due to struct
 	// merging)
 	if c.Token != "" || c.JoinMethod != "" || len(c.CAPins) > 0 {
-		if !reflect.DeepEqual(cfg.Onboarding, config.OnboardingConfig{}) {
+		if !reflect.DeepEqual(cfg.Onboarding, bot.OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
 			log.WarnContext(
 				context.TODO(),
@@ -250,7 +251,7 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 			)
 		}
 
-		cfg.Onboarding = config.OnboardingConfig{
+		cfg.Onboarding = bot.OnboardingConfig{
 			CAPins:     c.CAPins,
 			JoinMethod: types.JoinMethod(c.JoinMethod),
 		}
