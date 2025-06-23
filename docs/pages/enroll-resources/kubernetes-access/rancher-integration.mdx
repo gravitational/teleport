@@ -1,0 +1,237 @@
+---
+title: "Secure and Simplify RedHat Rancher RBAC with Teleport"
+description: "Comprehensive guide to integrating Teleport with Rancher for centralized, secure access control and audit logging"
+---
+
+# Rancher RBAC Integration with Teleport
+
+Teleport provides seamless integration with Rancher to centralize and secure access to Rancher-managed Kubernetes clusters. This integration enables:
+
+- **Centralized Access Control**: Manage permissions across all Rancher clusters from Teleport
+- **Enhanced Security**: Enforce identity-based access with Teleport's RBAC
+- **Simplified Management**: Reduce complexity of managing multiple RBAC systems
+- **Comprehensive Auditing**: Maintain detailed logs of all access attempts
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- Access to a Rancher UI Cluster with admin privileges
+- Existing Kubernetes cluster(s) managed through Rancher
+- (Optional) Rancher authentication proxy integrated with external auth providers
+
+## Step 1: Enroll Rancher-managed Kubernetes Clusters
+
+Before configuring RBAC, you need to enroll your Rancher-managed Kubernetes clusters with Teleport. 
+Follow the official [Teleport Kubernetes Access documentation](/docs/kubernetes-access/getting-started/)
+for detailed enrollment instructions.
+
+## Step 2: Configure Rancher Cluster Access
+
+### 2.1 Map Rancher Groups to Teleport Roles
+
+1. **Identify Rancher group identifiers**:
+   ```bash
+   # List all rolebindings with their names and associated groups
+   kubectl get rolebindings -n <namespace> -o custom-columns='NAME:.metadata.name,ROLE:.roleRef.name,GROUPS:.subjects[?(@.kind=="Group")].name'
+   
+   # Example output:
+   # NAME                     ROLE            GROUPS
+   # crtb-w8l2g-cluster-member cluster-member github_team://7415717
+   ```
+
+2. **Create a Teleport role** (`kube-access.yaml`):
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: kube-access
+   spec:
+     allow:
+       kubernetes_groups: ["github_team://7415717"]
+       kubernetes_labels:
+         "*": "*"
+       kubernetes_resources:
+         - kind: "*"
+           namespace: "*"
+           name: "*"
+   ```
+
+3. **Apply the role**:
+   ```bash
+   tctl create -f kube-access.yaml
+   ```
+
+### 2.2 Assign Teleport Roles to Users
+
+1. **Edit user roles** in Teleport:
+   ```bash
+   tctl users update <username> --set-roles=kube-access
+   ```
+
+## Step 3: Access and Verify Permissions
+
+At this point, you have configured the Teleport Kubernetes Service to authenticate users to your Kubernetes cluster with the appropriate group memberships.
+
+1. **Verify your Teleport session**:
+   ```bash
+   tsh status
+   ```
+   Example output showing Kubernetes group membership:
+   ```bash
+   > Profile URL:        https://teleport.example.com:443
+     Logged in as:       user@example.com
+     Cluster:            teleport.example.com
+     Roles:              kube-access
+     Kubernetes:         enabled
+     Kubernetes groups:  github_team://7415717
+     Valid until:        2025-04-14 09:02:31 +0100 BST
+   ```
+
+2. **List available clusters**:
+   ```bash
+   tsh kube ls
+   ```
+   You should see your Rancher-managed cluster in the list:
+   ```bash
+   Kube Cluster Name   Labels                         Selected
+   ------------------  ------------------------------ --------
+   rancher-cluster     platform=rancher region=us-west
+   ```
+
+3. **Connect to a cluster**:
+   ```bash
+   tsh kube login rancher-cluster
+   ```
+
+4. **Verify permissions**:
+   ```bash
+   # View pods across all namespaces 
+   kubectl get pods --all-namespaces
+   
+   # Check specific permissions
+   kubectl auth can-i get pods
+   kubectl auth can-i create deployments
+   ```
+
+## Optional: Using Role Templates for Scalable Access
+
+For organizations with many users, creating individual roles isn't scalable. Teleport's role templates allow dynamic group assignments using variable interpolation.
+
+### Key Benefits:
+- Single template serves multiple users/groups
+- Dynamic group assignments via traits
+- Simplified RBAC management
+- Better scalability for large organizations
+
+### How It Works:
+Teleport receives user metadata (traits) during SSO login and populates template variables.
+
+
+
+Let's create a role template called sso-users that expects external attribute kubernetes_group to be set by the access_list. 
+
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: kube-access-template
+   spec:
+     allow:
+       kubernetes_groups: ['{{external.rancher_group}}']
+       kubernetes_labels:
+         "*": "*"
+       kubernetes_resources:
+         - kind: "*"
+           namespace: "*"
+           name: "*"
+   ```
+
+
+## Configuring Access Lists for Role Templates
+
+This example shows how to create an access list that automatically grants:
+- The `kube-access-template` role
+- The `github_team://7415717` Rancher group
+to any member of the "admin" group from your identity provider.
+
+### Example Access List Configuration
+```yaml
+version: v1
+kind: access_list
+metadata:
+  name: rancher-admin-access  # Descriptive name instead of UUID
+spec:
+  title: "Rancher Admin Access"
+  description: "Grants Rancher admin access to IDP admin group members"
+  
+  # Audit settings ensure regular review of access
+  audit:
+    recurrence:
+      frequency: 6months  # Semi-annual reviews
+      day_of_month: "1"   # First day of the month
+    notifications:
+      start: 336h  # 14 day reminder before audit
+    next_audit_date: "2025-09-01T00:00:00Z"
+
+  # Ownership configuration
+  owners:
+    - name: admin
+      membership_kind: MEMBERSHIP_KIND_USER
+  ownership_requires:
+    roles: null
+    traits: null
+  title: Rancher test
+  # Grants configuration
+  grants:
+    roles:
+      - kube-access-template  # The teleport role we created earlier
+    traits:
+      rancher_group:
+        - github_team://7415717  # The Rancher group to assign
+
+  # Membership requirements
+  membership_requires:
+    traits:
+      groups:
+        - admin  # Requires membership in IDP's admin group
+```
+
+
+### Applying the Access List
+
+1. Save the configuration to `access_list.yaml`
+2. Create the access list:
+   ```bash
+   tctl create -f access_list.yaml
+   ```
+
+When a user who is a member of the "admin" group in your IDP logs in via SSO:
+1. Teleport verifies their group membership
+2. The access list automatically grants them:
+   - The `kube-access-template` role
+   - The specified Rancher group trait
+3. The user receives certificates with these permissions
+4. Kubernetes logins are generated using the template role
+
+To verify the access works correctly, repeat [Step 3: Access and Verify Permissions](#step-3-access-and-verify-permissions).
+
+
+## Best Practices
+
+- **Least Privilege**: Assign minimal required permissions
+- **Regular Audits**: Review role bindings periodically
+- **Group-Based Access**: Manage permissions through groups rather than individual users
+- **Teleport Session Recording**: Enable for sensitive operations
+
+## Troubleshooting
+
+- **Permission denied errors**: Verify group mappings in both Rancher and Teleport
+- **Missing clusters**: Check Teleport agent logs on the Kubernetes nodes
+- **Authentication issues**: Validate token expiration and proxy connectivity
+
+## Next Steps
+
+- [Manage Kubernetes Access](manage-access.mdx)
+- [Teleport RBAC Reference](/docs/access-controls/guides/rbac/)
