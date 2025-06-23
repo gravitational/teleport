@@ -73,7 +73,7 @@ type CRLCache struct {
 	revocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
 	logger             *slog.Logger
 	botIdentityReadyCh <-chan struct{}
-	statusReporter    readyz.Reporter
+	statusReporter     readyz.Reporter
 
 	mu     sync.Mutex
 	crlSet *CRLSet
@@ -86,7 +86,7 @@ type CRLCacheConfig struct {
 	RevocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
 	Logger             *slog.Logger
 	BotIdentityReadyCh <-chan struct{}
-	StatusReporter    readyz.Reporter
+	StatusReporter     readyz.Reporter
 }
 
 // NewCRLCache creates a new CRLCache.
@@ -104,7 +104,7 @@ func NewCRLCache(cfg CRLCacheConfig) (*CRLCache, error) {
 		revocationsClient:  cfg.RevocationsClient,
 		logger:             cfg.Logger,
 		botIdentityReadyCh: cfg.BotIdentityReadyCh,
-		statusReporter:    cfg.StatusReporter,
+		statusReporter:     cfg.StatusReporter,
 		initialized:        make(chan struct{}),
 	}, nil
 }

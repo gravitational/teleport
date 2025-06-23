@@ -118,7 +118,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 	}
 
 	log := cfg.log.With("task", cfg.name)
-	
+
 	if cfg.identityReadyCh != nil {
 		select {
 		case <-cfg.identityReadyCh:
