@@ -149,16 +149,6 @@ func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
-	// Check whether we've ever successfully initialized our LDAP client.
-	// s.mu.Lock()
-	// if !s.ldapInitialized {
-	// 	s.cfg.Logger.DebugContext(s.closeCtx, "LDAP not ready, skipping discovery and attempting to reconnect")
-	// 	s.mu.Unlock()
-	// 	s.initializeLDAP()
-	// 	return nil
-	// }
-	// s.mu.Unlock()
-
 	result := make(map[string]types.WindowsDesktop)
 	for _, discoveryConfig := range s.cfg.Discovery {
 		filter := s.ldapSearchFilter(discoveryConfig.Filters)
@@ -168,7 +158,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		attrs = append(attrs, computerAttributes...)
 		attrs = append(attrs, discoveryConfig.LabelAttributes...)
 
-		tc, err := s.requestTLSCertificate()
+		tc, err := s.tlsConfigForLDAP()
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
 			return nil

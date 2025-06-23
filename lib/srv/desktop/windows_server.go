@@ -47,7 +47,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -454,22 +453,15 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 	return tc, nil
 }
 
-// requestTLSCertificate requests a TLS certificate from the auth server to be used for
-// authenticating with the LDAP server.
-func (s *WindowsService) requestTLSCertificate() (*tls.Config, error) {
-	tc, err := s.tlsConfigForLDAP()
-	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
-		s.cfg.Logger.WarnContext(context.Background(),
-			"Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
-	}
-	if err != nil {
-		if trace.IsConnectionProblem(err) {
-			s.cfg.Logger.WarnContext(context.Background(), "Failed to connect to LDAP server, will retry", "error", err)
-		}
-		return nil, trace.Wrap(err)
-	}
+// Close instructs the server to stop accepting new connections and abort all
+// established ones. Close does not wait for the connections to be finished.
+func (s *WindowsService) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return tc, nil
+	s.close()
+
+	return nil
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
@@ -1121,7 +1113,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 		domainDN := winpki.DomainDN(s.cfg.LDAPConfig.Domain)
 
-		tc, err := s.requestTLSCertificate()
+		tc, err := s.tlsConfigForLDAP()
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

@@ -243,7 +243,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	}
 	defer func() {
 		if retErr != nil {
-			warnOnErr(process.ExitContext(), nil, logger)
+			warnOnErr(process.ExitContext(), srv.Close(), logger)
 		}
 	}()
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
@@ -285,7 +285,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	// Cleanup, when process is exiting.
 	process.OnExit("windows_desktop.shutdown", func(payload interface{}) {
 		// Fast shutdown.
-		warnOnErr(process.ExitContext(), nil, logger)
+		warnOnErr(process.ExitContext(), srv.Close(), logger)
 		agentPool.Stop()
 		if payload != nil {
 			// Graceful shutdown.
