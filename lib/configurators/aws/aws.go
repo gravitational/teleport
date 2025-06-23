@@ -26,6 +26,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -295,17 +296,97 @@ type ConfiguratorConfig struct {
 	Flags configurators.BootstrapFlags
 	// ServiceConfig Teleport database service config.
 	ServiceConfig *servicecfg.Config
-	// Policies instance of the `Policies` that the actions use.
-	Policies awslib.Policies
-	// Identity is the current AWS credentials chain identity.
-	Identity awslib.Identity
 
-	// awsCfg is the configuration used for AWS service clients.
-	awsCfg *aws.Config
-	// iamClient is an AWS IAM client.
-	iamClient iamClient
+	awsConfigs *utils.FnCache
+	policies   *utils.FnCache
+	identities *utils.FnCache
+	iamClients *utils.FnCache
 	// ssmClients is a mapping of region -> AWS SSM client
-	ssmClients map[string]ssmClient
+	ssmClients *utils.FnCache
+}
+
+func cacheKey(assumeRole, externalID, region string) string {
+	return fmt.Sprintf("%s/%s/%s", assumeRole, externalID, region)
+}
+
+func (c *ConfiguratorConfig) GetAWSConfig(assumeRole, externalID string) (aws.Config, error) {
+	cfg, err := utils.FnCacheGet(
+		context.Background(),
+		c.awsConfigs,
+		cacheKey(assumeRole, externalID, ""),
+		func(ctx context.Context) (aws.Config, error) {
+			return awsconfig.GetConfig(
+				ctx,
+				getFallbackRegion(ctx, os.Stdout, nil),
+				awsconfig.WithAmbientCredentials(),
+				awsconfig.WithSTSClientProvider(func(cfg aws.Config) awsconfig.STSClient {
+					return getSTSClient(cfg)
+				}),
+				awsconfig.WithAssumeRole(c.Flags.AssumeRoleARN, c.Flags.ExternalID),
+			)
+		})
+	return cfg, trace.Wrap(err)
+}
+
+func (c *ConfiguratorConfig) GetIdentity(assumeRole, externalID string) (awslib.Identity, error) {
+	awsCfg, err := c.GetAWSConfig(assumeRole, externalID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := utils.FnCacheGet(
+		context.Background(),
+		c.identities,
+		cacheKey(assumeRole, externalID, ""),
+		func(ctx context.Context) (awslib.Identity, error) {
+			return awslib.GetIdentityWithClient(ctx, getSTSClient(awsCfg))
+		})
+	return identity, trace.Wrap(err)
+}
+
+func (c *ConfiguratorConfig) GetPolicies(assumeRole, externalID string) (awslib.Policies, error) {
+	awsCfg, err := c.GetAWSConfig(assumeRole, externalID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := c.GetIdentity(assumeRole, externalID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	iamClient := iamutils.NewFromConfig(awsCfg, func(o *iam.Options) {
+		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+	})
+	partition := identity.GetPartition()
+	accountID := identity.GetAccountID()
+	return awslib.NewPolicies(partition, accountID, iamClient), nil
+}
+
+func (c *ConfiguratorConfig) GetIAMClient(assumeRole, externalID string) (iamClient, error) {
+	awsCfg, err := c.GetAWSConfig(assumeRole, externalID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return iamutils.NewFromConfig(awsCfg, func(o *iam.Options) {
+		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+	}), nil
+}
+
+func (c *ConfiguratorConfig) GetSSMClient(region, assumeRole, externalID string) (ssmClient, error) {
+	awsCfg, err := c.GetAWSConfig(assumeRole, externalID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ssmClient, err := utils.FnCacheGet(
+		context.Background(),
+		c.ssmClients,
+		cacheKey(assumeRole, externalID, region),
+		func(ctx context.Context) (ssmClient, error) {
+			return ssm.NewFromConfig(awsCfg, func(o *ssm.Options) {
+				o.Region = region
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			}), nil
+		},
+	)
+	return ssmClient, trace.Wrap(err)
 }
 
 type iamClient interface {
@@ -359,78 +440,67 @@ func getSTSClient(cfg aws.Config) *sts.Client {
 
 // CheckAndSetDefaults checks and set configuration default values.
 func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
-	ctx := context.Background()
 	if c.ServiceConfig == nil {
 		return trace.BadParameter("config file is required")
 	}
 
-	// When running the command in manual mode, we want to have zero dependency
-	// with AWS configurations (like awscli or environment variables), so that
-	// the user can run this command and generate the instructions without any
-	// pre-requisite.
-	if !c.Flags.Manual {
-		var err error
-
-		if c.awsCfg == nil {
-			cfg, err := awsconfig.GetConfig(
-				ctx,
-				getFallbackRegion(ctx, os.Stdout, nil),
-				awsconfig.WithAmbientCredentials(),
-				awsconfig.WithSTSClientProvider(func(cfg aws.Config) awsconfig.STSClient {
-					return getSTSClient(cfg)
-				}),
-				awsconfig.WithAssumeRole(c.Flags.AssumeRoleARN, c.Flags.ExternalID),
-			)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			c.awsCfg = &cfg
-		}
-
-		if c.iamClient == nil {
-			c.iamClient = iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
-		}
-		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClient(ctx, getSTSClient(*c.awsCfg))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if c.ssmClients == nil {
-			c.ssmClients = make(map[string]ssmClient)
-			for _, matcher := range c.ServiceConfig.Discovery.AWSMatchers {
-				if !slices.Contains(matcher.Types, types.AWSMatcherEC2) {
-					continue
-				}
-				for _, region := range matcher.Regions {
-					if _, ok := c.ssmClients[region]; ok {
-						continue
-					}
-					withRegion := func(o *ssm.Options) {
-						o.Region = region
-					}
-					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion, func(o *ssm.Options) {
-						o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-					})
-				}
-			}
-
-		}
-
-		if c.Policies == nil {
-			partition := c.Identity.GetPartition()
-			accountID := c.Identity.GetAccountID()
-			iamClient := iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
-			c.Policies = awslib.NewPolicies(partition, accountID, iamClient)
-		}
+	var err error
+	cacheCfg := utils.FnCacheConfig{TTL: 9999 * time.Hour}
+	c.awsConfigs, err = utils.NewFnCache(cacheCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.policies, err = utils.NewFnCache(cacheCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.identities, err = utils.NewFnCache(cacheCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.iamClients, err = utils.NewFnCache(cacheCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.ssmClients, err = utils.NewFnCache(cacheCfg)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+func (c *ConfiguratorConfig) getAssumedRoles() []types.AssumeRole {
+	matchers := c.ServiceConfig.Discovery.AWSMatchers
+	assumedRoles := make([]types.AssumeRole, 0, len(matchers))
+	for _, matcher := range matchers {
+		ar := matcher.AssumeRole
+		if ar == nil {
+			ar = &types.AssumeRole{}
+		}
+		assumedRoles = append(assumedRoles, *ar)
+	}
+	return apiutils.DeduplicateAny(assumedRoles, func(ar1, ar2 types.AssumeRole) bool {
+		return ar1.RoleARN == ar2.RoleARN && ar1.ExternalID == ar2.ExternalID
+	})
+}
+
+func (c *ConfiguratorConfig) getMatchersForAssumedRole(target *types.AssumeRole) []types.AWSMatcher {
+	matchers := c.ServiceConfig.Discovery.AWSMatchers
+	outMatchers := make([]types.AWSMatcher, 0, len(matchers))
+	for _, matcher := range matchers {
+		ar := matcher.AssumeRole
+		switch {
+		case (target == nil) != (ar != nil):
+			continue
+		case target != nil && ar != nil:
+			if target.RoleARN != ar.RoleARN || target.ExternalID != ar.ExternalID {
+				continue
+			}
+		}
+		outMatchers = append(outMatchers, matcher)
+	}
+	return outMatchers
 }
 
 // NewAWSConfigurator creates an instance of awsConfigurator and builds its
@@ -616,6 +686,34 @@ func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction
 		return buildDiscoveryActions(config, targetCfg)
 	}
 	return buildCommonActions(config, targetCfg)
+}
+
+func policiesTargets(config ConfiguratorConfig, accountID string, partitionID string) ([]awslib.Identity, error) {
+	assumedRoles := config.getAssumedRoles()
+	targets := make([]awslib.Identity, 0, len(assumedRoles))
+	for _, ar := range assumedRoles {
+		identity, err := config.GetIdentity(ar.RoleARN, ar.ExternalID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		iamClient, err := config.GetIAMClient(ar.RoleARN, ar.ExternalID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ar.RoleARN != "" {
+			if config.Flags.AttachToUser != "" {
+				// TODO: if cli assume role is set and there are non-empty assume-role
+				// matchers, target only the matchers whose assume role equals cli assume role
+				fmt.Printf("")
+			}
+		}
+		target, err := policiesTarget(config.Flags, accountID, partitionID, identity, iamClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		targets = append(targets, target)
+	}
+	return targets, nil
 }
 
 // policiesTarget defines which target and its type the policies will be
