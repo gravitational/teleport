@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
 	github.com/hashicorp/terraform-plugin-go v0.27.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.1
-	github.com/jonboulle/clockwork v0.5.0
+	github.com/jonboulle/clockwork v0.4.0
 	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.33.1
 	k8s.io/client-go v0.33.1
@@ -397,8 +397,8 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/rubenv/sql-migrate v1.8.0 // indirect
-	github.com/russellhaering/gosaml2 v0.10.0 // indirect
-	github.com/russellhaering/goxmldsig v1.5.0 // indirect
+	github.com/russellhaering/gosaml2 v0.9.1 // indirect
+	github.com/russellhaering/goxmldsig v1.4.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
@@ -550,7 +550,7 @@ replace (
 	github.com/gravitational/trace => github.com/gravitational/trace v1.4.1
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
-	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2
+	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3
 	github.com/opencontainers/selinux => github.com/gravitational/selinux v1.13.0-teleport
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2

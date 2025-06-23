@@ -81,7 +81,7 @@ func (s *KubeMockServer) getNamespace(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	name := p.ByName("name")
+	name := p.ByName("namespace")
 	filter := func(ns corev1.Namespace) bool {
 		return ns.Name == name
 	}
@@ -160,7 +160,7 @@ func (s *KubeMockServer) deleteNamespace(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	name := p.ByName("name")
+	name := p.ByName("namespace")
 
 	deleteOpts, err := parseDeleteCollectionBody(req)
 	if err != nil {

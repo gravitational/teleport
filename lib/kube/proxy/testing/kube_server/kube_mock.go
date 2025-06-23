@@ -236,10 +236,10 @@ func (s *KubeMockServer) setup() {
 
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 
-	s.router.Handle("GET /api/{ver}/namespaces", s.withWriter(s.listNamespaces))
-	s.router.Handle("GET /api/{ver}/namespaces/{name}", s.withWriter(s.getNamespace))
-	s.router.Handle("DELETE /api/v1/namespaces/{name}", s.withWriter(s.deleteNamespace))
-	s.router.Handle("POST /api/{ver}/namespaces", s.withWriter(s.createNamespace))
+	s.router.GET("/api/:ver/namespaces", s.withWriter(s.listNamespaces))
+	s.router.GET("/api/:ver/namespaces/:namespace", s.withWriter(s.getNamespace))
+	s.router.DELETE("/api/:ver/namespaces/:namespace", s.withWriter(s.deleteNamespace))
+	s.router.POST("/api/:ver/namespaces", s.withWriter(s.createNamespace))
 
 	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
 	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
