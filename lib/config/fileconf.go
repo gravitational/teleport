@@ -66,6 +66,7 @@ type FileConfig struct {
 	Auth    Auth  `yaml:"auth_service,omitempty"`
 	SSH     SSH   `yaml:"ssh_service,omitempty"`
 	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Relay   Relay `yaml:"relay_service,omitempty"`
 	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
@@ -2928,6 +2929,20 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
+}
+
+// Relay is the relay_service section of the Teleport config file.
+type Relay struct {
+	// Enabled is set if the relay service is enabled, defaults to false.
+	Enabled bool `yaml:"enabled"`
+
+	// RelayGroup is the Relay group name, required if the relay service is
+	// enabled.
+	RelayGroup string `yaml:"relay_group"`
+
+	// APIPublicHostnames is the list of DNS names and IP addresses that the
+	// Relay service credentials should be authoritative for.
+	APIPublicHostnames []string `yaml:"api_public_hostnames"`
 }
 
 // SessionRecordingEncryptionConfig is the session_recording_config.encryption
