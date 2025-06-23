@@ -368,7 +368,7 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 // with the v2 sdk.
 func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
-		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: a.Config.Integration}),
 	}
 
 	if a.Config.AssumeRole != nil {
