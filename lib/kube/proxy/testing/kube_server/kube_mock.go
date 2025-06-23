@@ -39,6 +39,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	v1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -166,6 +167,7 @@ type KubeMockServer struct {
 	KubeExecRequests     KubeUpgradeRequests
 	KubePortforward      KubeUpgradeRequests
 	supportsTunneledSPDY bool
+	nsList               *corev1.NamespaceList
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -185,6 +187,7 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 			Minor:      "20",
 			GitVersion: "1.20.0",
 		},
+		nsList: defaultNamespaceList.DeepCopy(),
 	}
 
 	for _, o := range opts {
@@ -232,6 +235,11 @@ func (s *KubeMockServer) setup() {
 	s.router.DELETE("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.deleteSecret))
 
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
+
+	s.router.GET("/api/:ver/namespaces", s.withWriter(s.listNamespaces))
+	s.router.GET("/api/:ver/namespaces/:namespace", s.withWriter(s.getNamespace))
+	s.router.DELETE("/api/:ver/namespaces/:namespace", s.withWriter(s.deleteNamespace))
+	s.router.POST("/api/:ver/namespaces", s.withWriter(s.createNamespace))
 
 	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
 	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
