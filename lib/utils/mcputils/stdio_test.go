@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestStdioHelpers tests StdioMessageReader and StdioMessageWriter by
+// TestStdioHelpers tests MessageReader and StdioMessageWriter by
 // implementing a passthrough reverse proxy.
 //
 // The flow looks something like this:
@@ -71,9 +71,9 @@ func TestStdioHelpers(t *testing.T) {
 	clientMessageWriter := NewStdioMessageWriter(writeToClient)
 	serverMessageWriter := NewStdioMessageWriter(writeToServer)
 
-	clientMessageReader, err := NewStdioMessageReader(StdioMessageReaderConfig{
-		ParentContext:    context.Background(),
-		SourceReadCloser: readFromClient,
+	clientMessageReader, err := NewMessageReader(MessageReaderConfig{
+		ParentContext: context.Background(),
+		Transport:     NewStdioReader(readFromClient),
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readClientNotifications, 1)
 			return trace.Wrap(serverMessageWriter.WriteMessage(ctx, notification))
@@ -91,9 +91,9 @@ func TestStdioHelpers(t *testing.T) {
 		close(clientMessageReaderClosed)
 	}()
 
-	serverMessageReader, err := NewStdioMessageReader(StdioMessageReaderConfig{
-		ParentContext:    context.Background(),
-		SourceReadCloser: readFromServer,
+	serverMessageReader, err := NewMessageReader(MessageReaderConfig{
+		ParentContext: context.Background(),
+		Transport:     NewStdioReader(readFromServer),
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readServerNotifications, 1)
 			return trace.Wrap(clientMessageWriter.WriteMessage(ctx, notification))
