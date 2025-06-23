@@ -521,6 +521,8 @@ func userFriendlyState[T autoupdatev1pb.AutoUpdateAgentGroupState | autoupdatev1
 		return "Done"
 	case 4:
 		return "Rolledback"
+	case 5:
+		return "Canary"
 	default:
 		// If we don't know anything about this state, we display its integer
 		return fmt.Sprintf("Unknown state (%d)", state)
