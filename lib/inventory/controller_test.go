@@ -740,7 +740,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 	// set up to induce delete failure
 	auth.mu.Lock()
-	auth.failDeletes = 2
+	auth.failDeletes = 1
 	auth.mu.Unlock()
 
 	// stop a heartbeat
@@ -766,19 +766,8 @@ func TestDatabaseServerBasics(t *testing.T) {
 	require.Equal(t, dbCount-1, rc.count())
 
 	awaitEvents(t, events,
-		expect(dbDelErr),
-		deny(dbKeepAliveDel, dbDelOk, dbUpsertErr, dbKeepAliveErr, handlerClose),
-	)
-	require.Equal(t, dbCount-1, rc.count())
-
-	err = downstream.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
-		Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
-		Name: "db-1",
-	})
-	require.NoError(t, err)
-	awaitEvents(t, events,
-		expect(dbDelOk),
-		deny(dbKeepAliveDel, dbDelErr, dbUpsertErr, dbKeepAliveErr, handlerClose),
+		expect(dbStopErr),
+		deny(dbKeepAliveDel, dbDelOk, dbDelErr, dbUpsertErr, dbKeepAliveErr, handlerClose),
 	)
 	require.Equal(t, dbCount-1, rc.count())
 

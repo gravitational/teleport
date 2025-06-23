@@ -104,6 +104,8 @@ const (
 	dbDelOk  testEvent = "db-del-ok"
 	dbDelErr testEvent = "db-del-err"
 
+	dbStopErr testEvent = "db-stop-err"
+
 	kubeKeepAliveOk  testEvent = "kube-keep-alive-ok"
 	kubeKeepAliveErr testEvent = "kube-keep-alive-err"
 	kubeKeepAliveDel testEvent = "kube-keep-alive-del"
@@ -1466,15 +1468,22 @@ func (c *Controller) handleStopDatabaseServerHB(handle *upstreamHandle, name str
 	}
 	key := resourceKey{hostID: handle.Hello().ServerID, name: name}
 
-	if _, ok := handle.databaseServers[key]; ok {
-		c.testEvent(dbKeepAliveDel)
-		c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
-		if c.dbHBVariableDuration != nil {
-			c.dbHBVariableDuration.Dec()
-		}
-		delete(handle.databaseServers, key)
-		handle.dbKeepAliveDelay.Remove(key)
+	if _, ok := handle.databaseServers[key]; !ok {
+		c.testEvent(dbStopErr)
+		slog.DebugContext(c.closeContext, "Unexpected stop database heartbeat message on control stream",
+			"database_name", key.name,
+			"server_id", handle.Hello().ServerID,
+		)
+		return nil
 	}
+
+	c.testEvent(dbKeepAliveDel)
+	c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
+	if c.dbHBVariableDuration != nil {
+		c.dbHBVariableDuration.Dec()
+	}
+	delete(handle.databaseServers, key)
+	handle.dbKeepAliveDelay.Remove(key)
 
 	err := c.auth.DeleteDatabaseServer(c.closeContext, apidefaults.Namespace, key.hostID, key.name)
 	if err == nil {
