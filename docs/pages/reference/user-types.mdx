@@ -23,7 +23,7 @@ one-time passwords.
 
 Local user login can be disabled via `cluster_auth_preference` or `teleport.yaml`.
 Disabling local authentication is required for [FIPS/FedRAMP compliance
-](../admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+](../zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ### Special case: Bots
 
@@ -68,7 +68,7 @@ and automatically expire. The expiry is dynamically computed based on the IdP
 answer validity, the max session duration allowed by the user roles, and cannot
 exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
 
-See the [SSO setup guides](../admin-guides/access-controls/sso/sso.mdx) to learn how to setup an
+See the [SSO setup guides](../zero-trust-access/sso/sso.mdx) to learn how to setup an
 authentication connector and allow user to log in via an IdP.
 
 ### Synced users
