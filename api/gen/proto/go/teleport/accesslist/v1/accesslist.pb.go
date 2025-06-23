@@ -411,7 +411,11 @@ type AccessListSpec struct {
 	// title is a plaintext short description of the Access List.
 	Title string `protobuf:"bytes,8,opt,name=title,proto3" json:"title,omitempty"`
 	// owner_grants describes the access granted by owners to this Access List.
-	OwnerGrants   *AccessListGrants `protobuf:"bytes,11,opt,name=owner_grants,json=ownerGrants,proto3" json:"owner_grants,omitempty"`
+	OwnerGrants *AccessListGrants `protobuf:"bytes,11,opt,name=owner_grants,json=ownerGrants,proto3" json:"owner_grants,omitempty"`
+	// type can be currently an empty string which denotes a regular Access List, "scim" which
+	// represents an Access List created from SCIM group or "static" for Access Lists managed by IaC
+	// tools.
+	Type          string `protobuf:"bytes,12,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -500,6 +504,13 @@ func (x *AccessListSpec) GetOwnerGrants() *AccessListGrants {
 		return x.OwnerGrants
 	}
 	return nil
+}
+
+func (x *AccessListSpec) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
 }
 
 // AccessListOwner is an owner of an Access List.
@@ -1389,7 +1400,7 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"AccessList\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x12:\n" +
 	"\x04spec\x18\x02 \x01(\v2&.teleport.accesslist.v1.AccessListSpecR\x04spec\x12@\n" +
-	"\x06status\x18\x03 \x01(\v2(.teleport.accesslist.v1.AccessListStatusR\x06status\"\xc1\x04\n" +
+	"\x06status\x18\x03 \x01(\v2(.teleport.accesslist.v1.AccessListStatusR\x06status\"\xd5\x04\n" +
 	"\x0eAccessListSpec\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12?\n" +
 	"\x06owners\x18\x02 \x03(\v2'.teleport.accesslist.v1.AccessListOwnerR\x06owners\x12=\n" +
@@ -1398,7 +1409,8 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x12ownership_requires\x18\x05 \x01(\v2*.teleport.accesslist.v1.AccessListRequiresR\x11ownershipRequires\x12@\n" +
 	"\x06grants\x18\x06 \x01(\v2(.teleport.accesslist.v1.AccessListGrantsR\x06grants\x12\x14\n" +
 	"\x05title\x18\b \x01(\tR\x05title\x12K\n" +
-	"\fowner_grants\x18\v \x01(\v2(.teleport.accesslist.v1.AccessListGrantsR\vownerGrantsJ\x04\b\a\x10\bJ\x04\b\t\x10\n" +
+	"\fowner_grants\x18\v \x01(\v2(.teleport.accesslist.v1.AccessListGrantsR\vownerGrants\x12\x12\n" +
+	"\x04type\x18\f \x01(\tR\x04typeJ\x04\b\a\x10\bJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vR\amembersR\n" +
 	"membershipR\townership\"\xef\x01\n" +

@@ -118,6 +118,14 @@ export interface AccessListSpec {
      * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants owner_grants = 11;
      */
     ownerGrants?: AccessListGrants;
+    /**
+     * type can be currently an empty string which denotes a regular Access List, "scim" which
+     * represents an Access List created from SCIM group or "static" for Access Lists managed by IaC
+     * tools.
+     *
+     * @generated from protobuf field: string type = 12;
+     */
+    type: string;
 }
 /**
  * AccessListOwner is an owner of an Access List.
@@ -695,7 +703,8 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
             { no: 5, name: "ownership_requires", kind: "message", T: () => AccessListRequires },
             { no: 6, name: "grants", kind: "message", T: () => AccessListGrants },
             { no: 8, name: "title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "owner_grants", kind: "message", T: () => AccessListGrants }
+            { no: 11, name: "owner_grants", kind: "message", T: () => AccessListGrants },
+            { no: 12, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListSpec>): AccessListSpec {
@@ -703,6 +712,7 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
         message.description = "";
         message.owners = [];
         message.title = "";
+        message.type = "";
         if (value !== undefined)
             reflectionMergePartial<AccessListSpec>(this, message, value);
         return message;
@@ -735,6 +745,9 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
                     break;
                 case /* teleport.accesslist.v1.AccessListGrants owner_grants */ 11:
                     message.ownerGrants = AccessListGrants.internalBinaryRead(reader, reader.uint32(), options, message.ownerGrants);
+                    break;
+                case /* string type */ 12:
+                    message.type = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -772,6 +785,9 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
         /* teleport.accesslist.v1.AccessListGrants owner_grants = 11; */
         if (message.ownerGrants)
             AccessListGrants.internalBinaryWrite(message.ownerGrants, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* string type = 12; */
+        if (message.type !== "")
+            writer.tag(12, WireType.LengthDelimited).string(message.type);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

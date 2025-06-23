@@ -71,6 +71,11 @@ message AccessListSpec {
 
   // owner_grants describes the access granted by owners to this Access List.
   AccessListGrants owner_grants = 11;
+
+  // type can be currently an empty string which denotes a regular Access List, "scim" which
+  // represents an Access List created from SCIM group or "static" for Access Lists managed by IaC
+  // tools.
+  string type = 12;
 }
 
 // AccessListOwner is an owner of an Access List.
