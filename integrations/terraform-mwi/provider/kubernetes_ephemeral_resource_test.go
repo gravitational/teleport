@@ -40,15 +40,15 @@ func TestAccKubernetesEphemeralResource(t *testing.T) {
 
 	config := fmt.Sprintf(`
 provider "teleportmwi" {
-  proxy_server = "%s"
+  proxy_server = "%[1]s"
   join_method  = "kubernetes"
-  join_token   = "%s"
+  join_token   = "%[2]s"
   insecure     = true
 }
 
 ephemeral "teleportmwi_kubernetes" "example" {
   selector = {
-    name = "%s"
+    name = "%[3]s"
   } 
 }
 
