@@ -22,7 +22,7 @@ import {
   eventsWithoutExamples,
   removeUnknowns,
 } from './gen-event-reference';
-import { Event, Formatters } from './types';
+import { Event, Formatters, RawEvent } from './types';
 
 describe('eventsWithoutExamples', () => {
   interface testCase {
@@ -41,6 +41,9 @@ describe('eventsWithoutExamples', () => {
           code: 'ABC123',
           raw: {
             event: 'app.create',
+            code: 'ABC123',
+            time: new Date('2025-01-01'),
+            uid: '00000000-0000-0000-0000-000000000000',
           },
         },
       ],
@@ -48,6 +51,7 @@ describe('eventsWithoutExamples', () => {
         ABC456: {
           type: 'billing.create_card',
           desc: 'Card created',
+          format: (json: RawEvent): string => JSON.stringify(json),
         },
       },
       expected: [
@@ -56,6 +60,9 @@ describe('eventsWithoutExamples', () => {
           code: 'ABC456',
           raw: {
             event: 'billing.create_card',
+            code: 'ABC456',
+            time: new Date('2025-01-01'),
+            uid: '00000000-0000-0000-0000-000000000000',
           },
         },
       ],
@@ -142,6 +149,7 @@ Example:
     {
       description: 'Event with only the raw.event field',
       event: {
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
         codeDesc: 'Credit Card Deleted',
         code: 'TBL01I',
         raw: {
@@ -172,6 +180,7 @@ Event: \`billing.delete_card\`
               return `${eventName} Failure`;
           }
         },
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
         code: 'ABC123',
         raw: {
           event: 'port',
@@ -311,6 +320,10 @@ Example:
     const events = [
       {
         codeDesc: 'Event C',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        time: new Date('2025-01-01'),
+        user: 'root',
+        message: '123abc',
         code: 'GHI123',
         raw: {
           event: 'event.c',
@@ -319,6 +332,10 @@ Example:
       },
       {
         codeDesc: 'Event A',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        time: new Date('2025-01-01'),
+        user: 'root',
+        message: '123abc',
         code: 'ABC123',
         raw: {
           event: 'event.a',
@@ -327,6 +344,10 @@ Example:
       },
       {
         codeDesc: 'Event B',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        time: new Date('2025-01-01'),
+        user: 'root',
+        message: '123abc',
         code: 'DEF123',
         raw: {
           event: 'event.b',
@@ -499,11 +520,19 @@ Example:
       {
         codeDesc: 'Access Request Reviewed',
         code: 'T5002I',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: { event: 'access_request.review' },
       },
       {
         codeDesc: 'Stable UNIX user created',
         code: 'TSUU001I',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: { event: 'stable_unix_user.create' },
       },
     ];
@@ -542,6 +571,10 @@ Event: \`stable_unix_user.create\`
       {
         codeDesc: 'Event A',
         code: 'ABC123',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: {
           event: 'event.a',
         },
@@ -549,6 +582,10 @@ Event: \`stable_unix_user.create\`
       {
         codeDesc: 'Event A failed',
         code: 'ABC456',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: {
           event: 'event.a',
           code: 'ABC456',
@@ -558,6 +595,10 @@ Event: \`stable_unix_user.create\`
       {
         codeDesc: 'Event A starting',
         code: 'ABC789',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: {
           event: 'event.a',
         },
