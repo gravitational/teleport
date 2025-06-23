@@ -18,8 +18,6 @@
 
 package bpf
 
-import "C"
-
 import (
 	"context"
 
