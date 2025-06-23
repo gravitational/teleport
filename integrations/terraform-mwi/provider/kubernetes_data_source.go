@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -211,7 +212,7 @@ func (d *KubernetesDataSource) Read(
 	if err := bot.Run(ctx); err != nil {
 		resp.Diagnostics.AddError(
 			"Error running tbot in data source",
-			"Failed to run tbot: "+err.Error(),
+			"Failed to run tbot\n"+trace.DebugReport(err),
 		)
 		return
 	}

@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral/schema"
@@ -212,8 +213,8 @@ func (r *KubernetesEphemeralResource) Open(
 	bot := tbot.New(botCfg, slog.Default())
 	if err := bot.Run(ctx); err != nil {
 		resp.Diagnostics.AddError(
-			"Error running tbot in resource",
-			"Failed to run tbot: "+err.Error(),
+			"Error running tbot in ephemeral resource",
+			"Failed to run tbot\n"+trace.DebugReport(err),
 		)
 		return
 	}

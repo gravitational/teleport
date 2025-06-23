@@ -20,6 +20,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
@@ -147,7 +148,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 	if err := bot.Run(ctx); err != nil {
 		resp.Diagnostics.AddError(
 			"Error running tbot in provider",
-			"Failed to run tbot: "+err.Error(),
+			"Failed to run tbot\n"+trace.DebugReport(err),
 		)
 		return
 	}
