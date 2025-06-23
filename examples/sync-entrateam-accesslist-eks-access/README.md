@@ -26,11 +26,6 @@ The following Teleport RBAC rules are required:
       - list
       - create
     - resources:
-      - kube_server
-      verbs:
-      - read
-      - list
-    - resources:
       - access_list
       verbs:
       - read
@@ -45,7 +40,6 @@ Example:
 ```shell
 $ go run main.go -aws-account-id 123456789012 -group-by-name=MarcoNVTest
 2025/06/20 16:52:51 INFO Using existing Teleport Role. role_name=eks-access
-2025/06/20 16:52:52 INFO Found Kubernetes cluster account_id=123456789012 cluster_name=MarcoNV03-eks-eu-south-2-123456789012
 2025/06/20 16:52:52 INFO Using Access List access_list_name=eks-access-123456789012 access_list_title="EKS Access for 123456789012" account_id=123456789012
 2025/06/20 16:52:52 INFO Entra Group ID found teleport_access_list_name=3ab57a50-8c5c-5e15-9df1-82e3e443ad57 entra_group_name=MarcoNVTest entra_group_object_id=""
 2025/06/20 16:52:52 INFO Entra Group ID added as a group member access_list=eks-access-123456789012 member_group_name=3ab57a50-8c5c-5e15-9df1-82e3e443ad57
