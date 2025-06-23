@@ -215,7 +215,7 @@ func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			opts := []awsconfig.OptionsFn{
-				awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+				awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
 			}
 			ec2Client, err := getEC2Client(ctx, region, matcher.AssumeRole, opts...)
 			if err != nil {
