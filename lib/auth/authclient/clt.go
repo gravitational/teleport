@@ -821,35 +821,6 @@ func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// // CreateBotInstance not implemented: can only be called locally.
-// func (c *Client) CreateBotInstance(ctx context.Context, botInstance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-// 	return nil, trace.NotImplemented(notImplementedMessage)
-// }
-
-// // GetBotInstance not implemented: can only be called locally.
-// func (c *Client) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
-// 	return nil, trace.NotImplemented(notImplementedMessage)
-// }
-
-// // ListBotInstances not implemented: can only be called locally.
-// func (c *Client) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error) {
-// 	return nil, "", trace.NotImplemented(notImplementedMessage)
-// }
-
-// // DeleteBotInstance not implemented: can only be called locally.
-// func (c *Client) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
-// 	return trace.NotImplemented(notImplementedMessage)
-// }
-
-// // PatchBotInstance not implemented: can only be called locally.
-// func (c *Client) PatchBotInstance(
-// 	ctx context.Context,
-// 	botName, instanceID string,
-// 	updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
-// ) (*machineidv1.BotInstance, error) {
-// 	return nil, trace.NotImplemented(notImplementedMessage)
-// }
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
