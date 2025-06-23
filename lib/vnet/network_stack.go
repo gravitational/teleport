@@ -548,7 +548,7 @@ func (ns *networkStack) assignUDPHandler(addr tcpip.Address, handler udpHandler)
 	return nil
 }
 
-// addDNSAddress adds a DNS handler at the given ip.
+// addDNSAddress adds a DNS handler at the given IP.
 func (ns *networkStack) addDNSAddress(ip net.IP) error {
 	slog.DebugContext(context.Background(), "Serving DNS on IPv4.", "dns_addr", ip.String())
 	return trace.Wrap(ns.assignUDPHandler(tcpip.AddrFromSlice(ip), ns.dnsServer),

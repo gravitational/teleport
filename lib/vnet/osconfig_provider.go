@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"net"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -102,19 +103,19 @@ func (p *osConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
 
 // ipsForCIDR returns the V4 IPs to assign to the interface and use for DNS in
 // cidrRange.
-func ipsForCIDR(cidrRange string) (net.IP, net.IP, error) {
+func ipsForCIDR(cidrRange string) (tunIP net.IP, dnsIP net.IP, err error) {
 	_, ipnet, err := net.ParseCIDR(cidrRange)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "parsing CIDR %q", cidrRange)
 	}
 	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
 	// Add 1 to assign the TUN address, like 100.64.0.1
-	tunAddress := ipnet.IP
-	tunAddress[len(tunAddress)-1]++
+	tunIP = ipnet.IP
+	tunIP[len(tunIP)-1]++
 
 	// Add 1 again to assign the DNS address, like 100.64.0.2
-	dnsAddress := append(net.IP{}, tunAddress...)
-	dnsAddress[len(dnsAddress)-1]++
+	dnsIP = slices.Clone(tunIP)
+	dnsIP[len(dnsIP)-1]++
 
-	return tunAddress, dnsAddress, nil
+	return tunIP, dnsIP, nil
 }
