@@ -21,6 +21,8 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 func TestIdentityOutput_YAML(t *testing.T) {
@@ -34,7 +36,7 @@ func TestIdentityOutput_YAML(t *testing.T) {
 				Cluster:       "leaf.example.com",
 				SSHConfigMode: SSHConfigModeOff,
 				AllowReissue:  true,
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},

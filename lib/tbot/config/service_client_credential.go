@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
@@ -149,6 +150,6 @@ func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
 }
 
-func (o *UnstableClientCredentialOutput) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
+func (o *UnstableClientCredentialOutput) GetCredentialLifetime() bot.CredentialLifetime {
+	return bot.CredentialLifetime{}
 }

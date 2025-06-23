@@ -210,7 +210,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				Oneshot:    true,
 				AuthServer: "example.teleport.sh:443",
 				DiagAddr:   "127.0.0.1:1337",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,
 				},
@@ -229,7 +229,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationKubernetesSecret{
 							Name: "my-secret",
 						},
-						CredentialLifetime: CredentialLifetime{
+						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -264,7 +264,7 @@ func TestBotConfig_YAML(t *testing.T) {
 								},
 							},
 						},
-						CredentialLifetime: CredentialLifetime{
+						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -276,7 +276,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationDirectory{
 							Path: "/bot/output",
 						},
-						CredentialLifetime: CredentialLifetime{
+						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -285,7 +285,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
-						CredentialLifetime: CredentialLifetime{
+						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -297,7 +297,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
-						CredentialLifetime: CredentialLifetime{
+						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -307,7 +307,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
-						CredentialLifetime: CredentialLifetime{
+						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -329,7 +329,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			in: BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,
 				},
@@ -345,7 +345,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			in: BotConfig{
 				Version:     V2,
 				ProxyServer: "example.teleport.sh:443",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,
 				},
@@ -433,7 +433,7 @@ func TestBotConfig_ServicePartialCredentialLifetime(t *testing.T) {
 		AuthServer: "example.teleport.sh:443",
 		Services: []ServiceConfig{
 			&IdentityOutput{
-				CredentialLifetime: CredentialLifetime{TTL: 5 * time.Minute},
+				CredentialLifetime: bot.CredentialLifetime{TTL: 5 * time.Minute},
 				Destination:        &DestinationMemory{},
 			},
 		},
@@ -447,7 +447,7 @@ func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
 		AuthServer: "example.teleport.sh:443",
 		Services: []ServiceConfig{
 			&IdentityOutput{
-				CredentialLifetime: CredentialLifetime{TTL: 5 * time.Minute},
+				CredentialLifetime: bot.CredentialLifetime{TTL: 5 * time.Minute},
 				Destination:        &DestinationMemory{},
 			},
 		},
@@ -482,33 +482,33 @@ credential_ttl: 10m
 
 func TestCredentialLifetimeValidate(t *testing.T) {
 	testCases := map[string]struct {
-		cfg     CredentialLifetime
+		cfg     bot.CredentialLifetime
 		oneShot bool
 		error   string
 	}{
 		"partial config": {
-			cfg:   CredentialLifetime{TTL: 1 * time.Minute},
+			cfg:   bot.CredentialLifetime{TTL: 1 * time.Minute},
 			error: "credential_ttl and renewal_interval must both be specified if either is",
 		},
 		"negative TTL": {
-			cfg:   CredentialLifetime{TTL: -time.Minute, RenewalInterval: time.Minute},
+			cfg:   bot.CredentialLifetime{TTL: -time.Minute, RenewalInterval: time.Minute},
 			error: "credential_ttl must be positive",
 		},
 		"negative renewal interval": {
-			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
+			cfg:   bot.CredentialLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
 			error: "renewal_interval must be positive",
 		},
 		"TTL less than renewal interval": {
-			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
+			cfg:   bot.CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
 			error: "TTL is shorter than the renewal interval",
 		},
 		"TTL less than renewal interval (one-shot)": {
-			cfg:     CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
+			cfg:     bot.CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
 			oneShot: true,
 			error:   "",
 		},
 		"TTL too long": {
-			cfg:   CredentialLifetime{TTL: defaults.MaxRenewableCertTTL * 2, RenewalInterval: time.Minute},
+			cfg:   bot.CredentialLifetime{TTL: defaults.MaxRenewableCertTTL * 2, RenewalInterval: time.Minute},
 			error: "TTL exceeds the maximum TTL allowed",
 		},
 	}

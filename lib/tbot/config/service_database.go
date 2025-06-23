@@ -98,7 +98,7 @@ type DatabaseOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 func (o *DatabaseOutput) Init(ctx context.Context) error {
@@ -201,7 +201,7 @@ func (o *DatabaseOutput) Type() string {
 	return DatabaseOutputType
 }
 
-func (o *DatabaseOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *DatabaseOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
 

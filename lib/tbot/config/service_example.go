@@ -21,6 +21,8 @@ package config
 import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 const ExampleServiceType = "example"
@@ -57,6 +59,6 @@ func (s *ExampleService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (s *ExampleService) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
+func (s *ExampleService) GetCredentialLifetime() bot.CredentialLifetime {
+	return bot.CredentialLifetime{}
 }

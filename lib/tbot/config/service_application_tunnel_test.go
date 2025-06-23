@@ -21,6 +21,8 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
@@ -32,7 +34,7 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 			in: ApplicationTunnelService{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},

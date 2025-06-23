@@ -44,7 +44,7 @@ type WorkloadIdentityJWTService struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // Init initializes the destination.
@@ -109,8 +109,8 @@ func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
 	return o.Destination
 }
 
-func (o *WorkloadIdentityJWTService) GetCredentialLifetime() CredentialLifetime {
+func (o *WorkloadIdentityJWTService) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.skipMaxTTLValidation = true
+	lt.SkipMaxTTLValidation = true
 	return lt
 }

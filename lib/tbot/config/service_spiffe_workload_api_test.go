@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
@@ -81,7 +82,7 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 						},
 					},
 				},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},

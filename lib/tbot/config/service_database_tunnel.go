@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 const DatabaseTunnelServiceType = "database-tunnel"
@@ -48,7 +50,7 @@ type DatabaseTunnelService struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
@@ -90,6 +92,6 @@ func (s *DatabaseTunnelService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (s *DatabaseTunnelService) GetCredentialLifetime() CredentialLifetime {
+func (s *DatabaseTunnelService) GetCredentialLifetime() bot.CredentialLifetime {
 	return s.CredentialLifetime
 }

@@ -189,6 +189,6 @@ func (o *WorkloadIdentityAWSRAService) GetDestination() bot.Destination {
 	return o.Destination
 }
 
-func (o *WorkloadIdentityAWSRAService) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
+func (o *WorkloadIdentityAWSRAService) GetCredentialLifetime() bot.CredentialLifetime {
+	return bot.CredentialLifetime{}
 }

@@ -127,7 +127,7 @@ type SPIFFESVIDOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // Init initializes the destination.
@@ -200,6 +200,6 @@ func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *SPIFFESVIDOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *SPIFFESVIDOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

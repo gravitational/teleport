@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
@@ -38,7 +39,7 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 				EnableResumption:   ptr[bool](true),
 				ProxyTemplatesPath: "/etc/teleport/templates",
 				ProxyCommand:       []string{"rusty-boi"},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
