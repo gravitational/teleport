@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestEvaluateCondition(t *testing.T) {
@@ -138,6 +140,70 @@ func TestEvaluateCondition(t *testing.T) {
 				set().contains_all(access_request.spec.roles)`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{},
+			},
+			match: false,
+		},
+		{
+			description: "single resource has_labels",
+			condition: `
+				access_request.spec.requested_resources.has_labels("env", "test") &&
+				has_labels(access_request.spec.requested_resources, "env", "test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "multiple resources has_labels",
+			condition: `
+				access_request.spec.requested_resources.has_labels("env", "test") &&
+				has_labels(access_request.spec.requested_resources, "env", "test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{
+								"env": "test",
+								"os":  "mac",
+							},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{
+								"env": "test",
+								"os":  "linux",
+							},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "some resources !has_labels",
+			condition: `
+				access_request.spec.requested_resources.has_labels("env", "test") &&
+				has_labels(access_request.spec.requested_resources, "env", "test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "prod"},
+						},
+					},
+				},
 			},
 			match: false,
 		},
