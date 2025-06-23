@@ -99,38 +99,55 @@ func handlerHasPath(t *testing.T, h *web.Handler, method, path string) {
 
 func TestWithSAMLAuthHTTPRedirectBinding(t *testing.T) {
 	s := newWebSuite(t)
-	authnRequest := setupSAMLSP(t, s, saml.HTTPRedirectBinding)
-	authnMessage := makeAuthnMessage(t, authnRequest, http.MethodGet)
-
-	// HTTP-Redirect binding without session.
 	client := s.client(t)
 	client.HTTPClient().CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	endpoint := client.Endpoint("enterprise", "saml-idp", "sso")
-	resp, err := client.Get(s.ctx, endpoint, authnMessage)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusSeeOther, resp.Code())
-	redirectLocation := resp.Headers().Get("Location")
-	redirectURL := ssoRedirectURL(t, redirectLocation)
-	originalQuery, err := rebuildSAMLRequest(redirectURL.Query())
-	require.NoError(t, err)
-	require.Equal(t, originalQuery, authnMessage)
+	authenticatedClt := s.newAuthWebPack(t, "user").clt
+	setupSAMLSP(t, s)
+	t.Run("http-redirect binding without session", func(t *testing.T) {
+		authnMessage := makeAuthnMessage(t, s.webServer.URL, http.MethodGet, saml.HTTPRedirectBinding)
 
-	// HTTP-Redirect binding with session and redirectURL.
-	client = s.newAuthWebPack(t, "user").clt
-	respForValidSession, err := client.HTTPClient().Get(redirectURL.String())
-	require.NoError(t, err)
-	defer respForValidSession.Body.Close()
-	// We are just testing for a response StatusOK to ensure the
-	// original GET request safely survived the redirection.
-	require.Equal(t, http.StatusOK, respForValidSession.StatusCode)
+		resp, err := client.Get(s.ctx, endpoint, authnMessage)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusSeeOther, resp.Code())
+		redirectLocation := resp.Headers().Get("Location")
+		redirectURL := ssoRedirectURL(t, redirectLocation)
+		originalQuery, err := rebuildSAMLRequest(redirectURL.Query())
+		require.NoError(t, err)
+		require.Equal(t, originalQuery, authnMessage)
+
+		// Retry with a valid session to test redirected URL is correct.
+		respForValidSession, err := authenticatedClt.HTTPClient().Get(redirectURL.String())
+		require.NoError(t, err)
+		defer respForValidSession.Body.Close()
+		// We are just testing for a response StatusOK to ensure the
+		// original GET request safely survived the redirection.
+		require.Equal(t, http.StatusOK, respForValidSession.StatusCode)
+	})
+
+	t.Run("http-redirect binding with session", func(t *testing.T) {
+		authnMessage := makeAuthnMessage(t, s.webServer.URL, http.MethodGet, saml.HTTPRedirectBinding)
+
+		resp, err := authenticatedClt.Get(s.ctx, endpoint, authnMessage)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+	})
+
+	t.Run("http-post binding with session and request in URL", func(t *testing.T) {
+		authnMessage := makeAuthnMessage(t, s.webServer.URL, http.MethodGet, saml.HTTPPostBinding)
+
+		resp, err := authenticatedClt.Get(s.ctx, endpoint, authnMessage)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+	})
 }
 
 func TestWithSAMLAuthHTTPPOSTBinding(t *testing.T) {
 	s := newWebSuite(t)
-	authnRequest := setupSAMLSP(t, s, saml.HTTPRedirectBinding)
-	authnMessage := makeAuthnMessage(t, authnRequest, http.MethodPost)
+	setupSAMLSP(t, s)
+	authnMessage := makeAuthnMessage(t, s.webServer.URL, http.MethodPost, saml.HTTPPostBinding)
 
 	// HTTP-POST binding without session.
 	client := s.client(t)
@@ -207,7 +224,7 @@ func ssoRedirectURL(t *testing.T, location string) *url.URL {
 	return ssoRequestQuery
 }
 
-func setupSAMLSP(t *testing.T, s *webSuite, binding string) saml.AuthnRequest {
+func setupSAMLSP(t *testing.T, s *webSuite) {
 	sp1, err := types.NewSAMLIdPServiceProvider(
 		types.Metadata{
 			Name: "shortcut-name",
@@ -222,21 +239,21 @@ func setupSAMLSP(t *testing.T, s *webSuite, binding string) saml.AuthnRequest {
 
 	authClient := s.newAdminAuthClient(s.ctx, t)
 	require.NoError(t, authClient.CreateSAMLIdPServiceProvider(s.ctx, sp1))
+}
 
+func makeAuthnMessage(t *testing.T, host, httpMethod, binding string) url.Values {
 	clock := clockwork.NewRealClock()
-	return saml.AuthnRequest{
+	authnRequest := saml.AuthnRequest{
 		ID:           "auth-id",
 		Version:      "2.0",
 		IssueInstant: clock.Now(),
 		Issuer: &saml.Issuer{
 			Value: "https://sp1",
 		},
-		Destination:     fmt.Sprintf("%s/enterprise/saml-idp/sso", s.webServer.URL),
+		Destination:     fmt.Sprintf("%s/enterprise/saml-idp/sso", host),
 		ProtocolBinding: binding,
 	}
-}
 
-func makeAuthnMessage(t *testing.T, authnRequest saml.AuthnRequest, httpMethod string) url.Values {
 	var buf bytes.Buffer
 	require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
 

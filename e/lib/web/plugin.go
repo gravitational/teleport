@@ -536,6 +536,12 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 // that was available before redirection.
 func rebuildSAMLRequest(queryParams url.Values) (url.Values, error) {
 	encodedSAMLAuthRequest := queryParams.Get(samlidp.SAMLAuthRequest)
+	if encodedSAMLAuthRequest == "" {
+		// SAMLAuthRequest query will not be defined if the user has an active session in
+		// Teleport. In this case, we return the original query value to preserve
+		// the request encoding as it came to Teleport.
+		return queryParams, nil
+	}
 	samlAuthRequest, err := base64.URLEncoding.DecodeString(encodedSAMLAuthRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
