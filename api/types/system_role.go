@@ -39,6 +39,8 @@ const (
 	RoleProxy SystemRole = "Proxy"
 	// RoleAdmin is admin role
 	RoleAdmin SystemRole = "Admin"
+	// RoleRelay is the system role for a relay in the cluster.
+	RoleRelay SystemRole = "Relay"
 	// RoleProvisionToken is a role for nodes authenticated using provisioning tokens
 	RoleProvisionToken SystemRole = "ProvisionToken"
 	// RoleTrustedCluster is a role needed for tokens used to add trusted clusters.
@@ -90,6 +92,7 @@ var roleMappings = map[string]SystemRole{
 	"node":              RoleNode,
 	"proxy":             RoleProxy,
 	"admin":             RoleAdmin,
+	"relay":             RoleRelay,
 	"provisiontoken":    RoleProvisionToken,
 	"trusted_cluster":   RoleTrustedCluster,
 	"trustedcluster":    RoleTrustedCluster,
@@ -132,6 +135,7 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleAuth:              {},
 	RoleNode:              {},
 	RoleProxy:             {},
+	RoleRelay:             {},
 	RoleKube:              {},
 	RoleApp:               {},
 	RoleDatabase:          {},
