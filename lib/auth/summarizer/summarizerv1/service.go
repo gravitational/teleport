@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type SummarizerServiceConfig struct {
@@ -59,6 +60,44 @@ func (s *SummarizerService) GetSummarizationInferenceModel(
 
 	model, err := s.backend.GetSummarizationInferenceModel(ctx, req.Name)
 	return model, trace.Wrap(err)
+}
+
+func (s *SummarizerService) UpdateSummarizationInferenceModel(
+	ctx context.Context, req *pb.UpdateSummarizationInferenceModelRequest,
+) (*pb.SummarizationInferenceModel, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindSummarizationInferenceModel, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	model, err := s.backend.UpdateSummarizationInferenceModel(ctx, req.Model)
+	return model, trace.Wrap(err)
+}
+
+func (s *SummarizerService) DeleteSummarizationInferenceModel(
+	ctx context.Context, req *pb.DeleteSummarizationInferenceModelRequest,
+) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindSummarizationInferenceModel, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.backend.DeleteSummarizationInferenceModel(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 func (s *SummarizerService) ListSummarizationInferenceModels(

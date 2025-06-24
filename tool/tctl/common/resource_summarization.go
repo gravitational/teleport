@@ -33,6 +33,24 @@ func (rc *ResourceCommand) createSummarizationInferenceModel(
 	return nil
 }
 
+func (rc *ResourceCommand) updateSummarizationInferenceModel(
+	ctx context.Context, clt *authclient.Client, raw services.UnknownResource,
+) error {
+	model, err := services.UnmarshalProtoResource[*summarizerv1.SummarizationInferenceModel](
+		raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req := &summarizerv1.UpdateSummarizationInferenceModelRequest{
+		Model: model,
+	}
+	if _, err := clt.SummarizerServiceClient().UpdateSummarizationInferenceModel(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("summarization_inference_model %q has been updated\n", model.GetMetadata().GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) getSummarizationInferenceModels(
 	ctx context.Context, clt *authclient.Client,
 ) (ResourceCollection, error) {
@@ -64,6 +82,19 @@ func (rc *ResourceCommand) getSummarizationInferenceModels(
 		return nil, trace.Wrap(err)
 	}
 	return summarizerInferenceModelCollection(items), nil
+}
+
+func (rc *ResourceCommand) deleteSummarizationInferenceModel(
+	ctx context.Context, clt *authclient.Client,
+) error {
+	req := &summarizerv1.DeleteSummarizationInferenceModelRequest{
+		Name: rc.ref.Name,
+	}
+	if _, err := clt.SummarizerServiceClient().DeleteSummarizationInferenceModel(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("summarization_inference_model %q has been deleted\n", rc.ref.Name)
+	return nil
 }
 
 type summarizerInferenceModelCollection []*summarizerv1.SummarizationInferenceModel

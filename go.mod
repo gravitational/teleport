@@ -264,6 +264,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
+require github.com/openai/openai-go v1.6.0
+
 require (
 	cel.dev/expr v0.23.1 // indirect
 	cloud.google.com/go v0.121.1 // indirect
@@ -612,4 +614,5 @@ replace (
 // when evaluating versions; "go get -u ./..." succeeding is a good sign that
 // the problem has been resolved
 exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
+
 exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20240907200651-3ffb98b2c93a

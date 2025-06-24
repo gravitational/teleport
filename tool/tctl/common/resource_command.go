@@ -218,6 +218,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
 		types.KindSigstorePolicy:                     rc.updateSigstorePolicy,
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
+		types.KindSummarizationInferenceModel:        rc.updateSummarizationInferenceModel,
 	}
 	rc.config = config
 
@@ -2266,6 +2267,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
+	case types.KindSummarizationInferenceModel:
+		return trace.Wrap(rc.deleteSummarizationInferenceModel(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
