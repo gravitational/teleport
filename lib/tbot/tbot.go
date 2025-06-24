@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -173,10 +174,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	addr, addrKind := b.cfg.Address()
+	connCfg := b.cfg.ConnectionConfig()
 	var resolver reversetunnelclient.Resolver
 	if shouldUseProxyAddr() {
-		if addrKind != config.AddressKindProxy {
+		if connCfg.AddressKind != connection.AddressKindProxy {
 			return trace.BadParameter("TBOT_USE_PROXY_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
 		}
 		// If the user has indicated they want tbot to prefer using the proxy
@@ -185,14 +186,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// enabled, since otherwise we'd need them to manually configure an
 		// an entry for each kind of address.
 		resolver = reversetunnelclient.StaticResolver(
-			addr, types.ProxyListenerMode_Multiplex,
+			connCfg.Address, types.ProxyListenerMode_Multiplex,
 		)
 	} else {
 		resolver, err = reversetunnelclient.CachingResolver(
 			ctx,
 			reversetunnelclient.WebClientResolver(&webclient.Config{
 				Context:   ctx,
-				ProxyAddr: addr,
+				ProxyAddr: connCfg.Address,
 				Insecure:  b.cfg.Insecure,
 			}),
 			nil /* clock */)
@@ -201,20 +202,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	addr, kind := b.cfg.Address()
 	clientBuilder, err := client.NewBuilder(client.BuilderConfig{
-		Address: client.Address{
-			Addr: addr,
-			Kind: kind,
-		},
-		AuthServerAddressMode: b.cfg.AuthServerAddressMode,
-		Resolver:              resolver,
+		Connection: b.cfg.ConnectionConfig(),
+		Resolver:   resolver,
 		Logger: b.log.With(
 			teleport.ComponentKey,
 			teleport.Component(componentTBot, "client"),
 		),
-		Insecure: b.cfg.Insecure,
-		Metrics:  clientMetrics,
+		Metrics: clientMetrics,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -755,9 +750,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	_, addrKind := b.cfg.Address()
-	switch addrKind {
-	case config.AddressKindUnspecified:
+	connCfg := b.cfg.ConnectionConfig()
+	switch connCfg.AddressKind {
+	case connection.AddressKindUnspecified:
 		return nil, trace.BadParameter(
 			"either a proxy or auth address must be set using --proxy-server, --auth-server or configuration",
 		)
@@ -880,19 +875,20 @@ func (p *proxyPingCache) ping(ctx context.Context) (*proxyPingResponse, error) {
 	}
 
 	// Determine the Proxy address to use.
-	addr, addrKind := p.botCfg.Address()
-	switch addrKind {
-	case config.AddressKindAuth:
+	connCfg := p.botCfg.ConnectionConfig()
+	addr := connCfg.Address
+	switch connCfg.AddressKind {
+	case connection.AddressKindAuth:
 		// If the address is an auth address, ping auth to determine proxy addr.
 		authPong, err := p.authPingCache.ping(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		addr = authPong.ProxyPublicAddr
-	case config.AddressKindProxy:
+	case connection.AddressKindProxy:
 		// If the address is a proxy address, use it directly.
 	default:
-		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
+		return nil, trace.BadParameter("unsupported address kind: %v", connCfg.AddressKind)
 	}
 
 	p.log.DebugContext(ctx, "Pinging proxy.", "addr", addr)

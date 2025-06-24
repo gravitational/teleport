@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -158,7 +159,7 @@ func defaultBotConfig(
 
 	cfg := &config.BotConfig{
 		AuthServer:            authServer,
-		AuthServerAddressMode: config.WarnIfAuthServerIsProxy,
+		AuthServerAddressMode: connection.WarnIfAuthServerIsProxy,
 		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
 			Destination: &config.DestinationMemory{},

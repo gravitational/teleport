@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/loop"
@@ -580,22 +581,22 @@ func botIdentityFromToken(
 		params.AuthClient = authClient
 	}
 
-	addr, addrKind := cfg.Address()
-	switch addrKind {
-	case config.AddressKindAuth:
-		parsed, err := utils.ParseAddr(addr)
+	connCfg := cfg.ConnectionConfig()
+	switch connCfg.AddressKind {
+	case connection.AddressKindAuth:
+		parsed, err := utils.ParseAddr(connCfg.Address)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse addr")
 		}
 		params.AuthServers = []utils.NetAddr{*parsed}
-	case config.AddressKindProxy:
-		parsed, err := utils.ParseAddr(addr)
+	case connection.AddressKindProxy:
+		parsed, err := utils.ParseAddr(connCfg.Address)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse addr")
 		}
 		params.ProxyServer = *parsed
 	default:
-		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
+		return nil, trace.BadParameter("unsupported address kind: %v", connCfg.AddressKind)
 	}
 
 	// Only set during bound keypair joining, but used both before and after.

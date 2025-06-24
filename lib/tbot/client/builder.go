@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
 
 // NewBuilder creates a new Builder.
@@ -36,21 +36,15 @@ func NewBuilder(cfg BuilderConfig) (*Builder, error) {
 
 // BuilderConfig contains the configuration options for a Builder.
 type BuilderConfig struct {
-	// Address that will be dialed to create the client connection.
-	Address Address
-
-	// AuthServerAddressMode controls the behavior when a proxy address is
-	// given as an auth server address.
-	AuthServerAddressMode config.AuthServerAddressMode
+	// Connection contains the address etc. used to dial a connection to the
+	// auth server.
+	Connection connection.Config
 
 	// Resolver that will be used to find the address of a proxy server.
 	Resolver reversetunnelclient.Resolver
 
 	// Logger to which log messages will be written.
 	Logger *slog.Logger
-
-	// Insecure controls whether we will skip TLS host verification.
-	Insecure bool
 
 	// Metrics will record gRPC client metrics.
 	Metrics *prometheus.ClientMetrics
@@ -63,13 +57,10 @@ type Builder struct{ cfg BuilderConfig }
 // Build a client for the given identity.
 func (b *Builder) Build(ctx context.Context, id Identity) (*client.Client, error) {
 	return New(ctx, Config{
-		Identity: id,
-
-		Address:               b.cfg.Address,
-		AuthServerAddressMode: b.cfg.AuthServerAddressMode,
-		Resolver:              b.cfg.Resolver,
-		Logger:                b.cfg.Logger,
-		Insecure:              b.cfg.Insecure,
-		Metrics:               b.cfg.Metrics,
+		Identity:   id,
+		Connection: b.cfg.Connection,
+		Resolver:   b.cfg.Resolver,
+		Logger:     b.cfg.Logger,
+		Metrics:    b.cfg.Metrics,
 	})
 }
