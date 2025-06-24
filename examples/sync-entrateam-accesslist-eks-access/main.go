@@ -87,7 +87,7 @@ Full list of arguments:
 	teleportAddress := flag.String(
 		"proxy",
 		os.Getenv("TELEPORT_PROXY"),
-		"Teleport Proxy's address, eg. tenant.teleport.sh:443 (required).",
+		"Teleport Proxy's address, eg. example.teleport.sh:443 (required).",
 	)
 
 	teleportEntraGroupAccessListID := flag.String(
