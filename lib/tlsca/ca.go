@@ -587,7 +587,7 @@ var (
 
 	// JoinTokenOID is an extension OID that contains the name of the join token
 	// used when a bot joins.
-	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
+	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
 )
 
 // Device Trust OIDs.
