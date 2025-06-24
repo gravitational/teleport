@@ -174,6 +174,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.LocalProxyAddr != "" && cf.LocalProxyPort != "" {
+		return trace.BadParameter("either the address or port for the local proxy can be specified, not both")
+	}
 	addr := "localhost:0"
 	randomPort := true
 	if cf.LocalProxyAddr != "" {
