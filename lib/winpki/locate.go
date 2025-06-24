@@ -32,12 +32,11 @@ import (
 //
 // See https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/dc-locator?tabs=dns-based-discovery
 func LocateLDAPServer(ctx context.Context, domain string, site string, resolver *net.Resolver) ([]string, error) {
-	var finalDomain = domain
 	if site != "" {
-		finalDomain = site + "._sites." + domain
+		domain = site + "._sites." + domain
 	}
 
-	_, records, err := resolver.LookupSRV(ctx, "ldap", "tcp", finalDomain)
+	_, records, err := resolver.LookupSRV(ctx, "ldap", "tcp", domain)
 	if err != nil {
 		return nil, trace.Wrap(err, "looking up SRV records for %v", domain)
 	}
