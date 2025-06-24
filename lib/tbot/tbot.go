@@ -611,7 +611,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
-				log.DebugContext(ctx, "Service does not support oneshot mode, ignoring")
+				log.InfoContext(
+					ctx,
+					"Service does not support oneshot mode, it will not run",
+				)
 				continue
 			}
 			eg.Go(func() error {
