@@ -544,6 +544,9 @@ const (
 // "http" and "https" schema are allowed if the hostname is an IP address that is contained in a
 // specified CIDR range on any port.
 func ValidateClientRedirect(clientRedirect string, ceremonyType CeremonyType, settings *types.SSOClientRedirectSettings) error {
+	// Warning to developers and reviewers: this validation function is critical to sso security
+	// and any changes to it should be carefully considered from a vulnerability point of view.
+
 	if clientRedirect == "" {
 		// empty redirects are non-functional and harmless, so we allow them as
 		// they're used a lot in test code
@@ -572,10 +575,10 @@ func ValidateClientRedirect(clientRedirect string, ceremonyType CeremonyType, se
 			return trace.BadParameter("the web mfa redirect path, \"/web/sso_confirm\", cannot be used for non-MFA flows")
 		}
 		if u.IsAbs() {
-			return trace.BadParameter("invalid scheme in client redirect URL for SSO MFA")
+			return trace.BadParameter("invalid client redirect URL for SSO MFA")
 		}
 		if u.Hostname() != "" {
-			return trace.BadParameter("invalid host name in client redirect URL for SSO MFA")
+			return trace.BadParameter("invalid client redirect URL for SSO MFA")
 		}
 		return nil
 	}
