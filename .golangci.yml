@@ -115,6 +115,8 @@ linters:
               desc: integration test should not be imported outside of intergation tests
             - pkg: github.com/gravitational/teleport/lib/srv/db/cassandra/testing
               desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/utils/mcptest
+              desc: testing packages should not be imported outside of _test.go files
         logging:
           deny:
             - pkg: github.com/sirupsen/logrus
