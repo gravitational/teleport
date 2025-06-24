@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -176,15 +177,15 @@ func onProxyCommandDB(cf *CLIConf) error {
 	addr := "localhost:0"
 	randomPort := true
 	if cf.LocalProxyAddr != "" {
-		netAddr, err := utils.ParseAddr(cf.LocalProxyAddr)
+		host, port, err := net.SplitHostPort(cf.LocalProxyAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !cf.InsecureListenAnywhere && !netAddr.IsLoopback() {
+		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
 			return trace.BadParameter("only loopback addresses are allowed for listener without the insecure switch, got %q", cf.LocalProxyAddr)
 		}
+		randomPort = port == "0"
 		addr = cf.LocalProxyAddr
-		randomPort = strings.HasSuffix(addr, ":0")
 	} else if cf.LocalProxyPort != "" {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
