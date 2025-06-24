@@ -490,6 +490,9 @@ func TestValidateClientRedirect(t *testing.T) {
 			require.Error(t, sso.ValidateClientRedirect(badURL+"?channel_id=", sso.CeremonyTypeMFA, settings))
 		}
 
+		// channel_id query parameter must be set.
+		require.Error(t, sso.ValidateClientRedirect(sso.WebMFARedirect, sso.CeremonyTypeMFA, settings))
+
 		// Don't allow web mfa redirect for non-mfa ceremonies.
 		require.Error(t, sso.ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", sso.CeremonyTypeLogin, settings))
 		require.Error(t, sso.ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", sso.CeremonyTypeTest, settings))
