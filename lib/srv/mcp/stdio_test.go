@@ -84,7 +84,7 @@ func Test_handleStdio(t *testing.T) {
 	defer close(handlerDoneCh)
 	go func() {
 		// Use the demo server.
-		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeDemoServerRunner)
+		handlerErr := s.handleStdio(ctx, testCtx.SessionCtx, makeDemoServerRunner)
 		handlerDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
 	}()

@@ -77,7 +77,7 @@ func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, au
 // handleStdio handles a stdio connection.
 // makeMCPServer defaults to makeExecServerRunner to launch a command but can be
 // mocked for testing.
-func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeServerRunner makeStdioServerRunnerFunc) error {
+func (s *Server) handleStdio(ctx context.Context, sessionCtx *SessionCtx, makeServerRunner makeStdioServerRunnerFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -86,8 +86,8 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 		return trace.Wrap(err)
 	}
 
-	session.logger.DebugContext(s.cfg.ParentContext, "Started handling stdio session")
-	defer session.logger.DebugContext(s.cfg.ParentContext, "Completed handling stdio session")
+	session.logger.InfoContext(s.cfg.ParentContext, "Started handling stdio session")
+	defer session.logger.InfoContext(s.cfg.ParentContext, "Completed handling stdio session")
 
 	serverRunner, err := makeServerRunner(ctx, session)
 	if err != nil {

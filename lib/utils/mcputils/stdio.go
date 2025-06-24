@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport"
 )
 
@@ -112,5 +113,5 @@ func (r *StdioReader) ReadMessage(context.Context) (string, error) {
 
 // Type returns "stdio".
 func (r *StdioReader) Type() string {
-	return "stdio"
+	return types.MCPTransportStdio
 }

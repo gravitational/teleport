@@ -519,6 +519,9 @@ func (a *AppV3) checkMCP() error {
 	switch GetMCPServerTransportType(a.Spec.URI) {
 	case MCPTransportStdio:
 		return trace.Wrap(a.checkMCPStdio())
+	case MCPTransportSSE:
+		_, err := url.Parse(a.Spec.URI)
+		return trace.Wrap(err)
 	default:
 		return trace.BadParameter("unsupported MCP server %q with URI %q", a.GetName(), a.Spec.URI)
 	}
@@ -673,6 +676,9 @@ func GetMCPServerTransportType(uri string) string {
 	switch {
 	case strings.HasPrefix(uri, SchemaMCPStdio):
 		return MCPTransportStdio
+	case strings.HasPrefix(uri, SchemaMCPSSEHTTP),
+		strings.HasPrefix(uri, SchemaMCPSSEHTTPS):
+		return MCPTransportSSE
 	default:
 		return ""
 	}

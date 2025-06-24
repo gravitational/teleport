@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,6 +56,9 @@ type SessionCtx struct {
 	// Note that for stdio-based MCP server, a new session ID is generated per
 	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
+
+	// mcpSessionID is the MCP session ID tracked by remote MCP server.
+	mcpSessionID atomic.Pointer[string]
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {

@@ -177,9 +177,14 @@ func (r *MessageReader) startProcess(ctx context.Context) {
 
 func (r *MessageReader) processNextLine(ctx context.Context) error {
 	rawMessage, err := r.cfg.Transport.ReadMessage(ctx)
-	if err != nil {
-		// TODO(greedy52) handle ParseError from Transport.ReadMessage.
-		return trace.Wrap(err, "reading line")
+	switch {
+	case isReaderParseError(err):
+		rpcError := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.PARSE_ERROR, err.Error(), nil)
+		if err := r.cfg.OnParseError(ctx, &rpcError); err != nil {
+			return trace.Wrap(err, "handling reader parse error")
+		}
+	case err != nil:
+		return trace.Wrap(err, "reading next message")
 	}
 
 	r.cfg.Logger.Log(ctx, logutils.TraceLevel, "Trace read", "raw", rawMessage)
