@@ -5,7 +5,7 @@ package hardwarekey
 import (
 	"crypto/x509"
 
-	"github.com/go-piv/piv-go/piv"
+	"github.com/go-piv/piv-go/v2/piv"
 	"github.com/gravitational/trace"
 
 	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
