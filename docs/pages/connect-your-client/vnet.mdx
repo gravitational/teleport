@@ -167,9 +167,13 @@ Querying for both addresses should result in some output being emitted by `tsh v
 
 When [submitting an
 issue](https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug,vnet&template=bug_report.md),
-make sure to include debug logs from VNet as well as [debug logs from Teleport Connect](teleport-connect.mdx#submitting-an-issue).
+make sure to include a VNet diag report and debug logs from VNet and Teleport Connect.
 
-You can collect VNet and Teleport Connect logs using the instructions below:
+To save a diag report to a file, open Teleport Connect. From the Connections panel in the top left
+select VNet, then "Open Diag Report". In the new tab with the report that was opened click the "Save
+Report to File" icon.
+
+To collect VNet and Teleport Connect logs use the instructions below:
 
 <Tabs>
 <TabItem label="macOS">
