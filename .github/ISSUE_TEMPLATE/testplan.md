@@ -1224,16 +1224,15 @@ release/dev build. If you are building Teleport Connect in development mode, you
 config option `hardwareKeyAgent.enabled: true` and restart Connect. You can run a non-login `tsh`
 command to check if the agent is running.
 
-Before logging in to Teleport Connect:
+In `tsh`, without logging into Teleport Connect:
 
 - [ ] `tsh login` prompts for PIV PIN and touch without using the Hardware Key Agent
 - [ ] All other `tsh` commands prompt for PIN and touch via the Hardware Key Agent
   - [ ] Test a subset of the `tsh` commands from the test above
     - [ ] The command is displayed in the PIN and touch prompts
-- [ ] Connecting with OpenSSH `ssh` prompts for PIN and touch via the hardware key agent
 - [ ] The PIN is cached for the configured duration between basic `tsh` commands (set `pin_cache_ttl` to something longer that 15s if needed)
 
-After logging in to Teleport Connect:
+In Teleport Connect:
 
 - [ ] Login prompts for PIN and touch
 - [ ] Server Access
