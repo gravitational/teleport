@@ -263,6 +263,10 @@ type IdentityContext struct {
 	// this identity is associated with, if any.
 	BotInstanceID string
 
+	// JoinToken is the name of the join token used to join this bot identity,
+	// if any.
+	JoinToken string
+
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
