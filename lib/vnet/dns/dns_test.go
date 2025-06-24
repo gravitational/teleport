@@ -29,6 +29,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 var (
@@ -63,7 +64,7 @@ func TestServer(t *testing.T) {
 		conn, err := net.ListenUDP("udp", udpLocalhost)
 		require.NoError(t, err)
 
-		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 			Name: fmt.Sprintf("upstream nameserver %d", i),
 			Task: func(ctx context.Context) error {
 				err := upstreamServer.ListenAndServeUDP(ctx, conn)
@@ -113,7 +114,7 @@ func TestServer(t *testing.T) {
 	conn, err := net.ListenUDP("udp", udpLocalhost)
 	require.NoError(t, err)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "nameserver under test",
 		Task: func(ctx context.Context) error {
 			err := server.ListenAndServeUDP(ctx, conn)

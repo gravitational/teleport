@@ -136,8 +136,8 @@ type Credentials struct {
 	SecretAccessKey string `json:"SecretAccessKey"`
 	// SessionToken is the the AWS session token for temporary credentials.
 	SessionToken string `json:"SessionToken"`
-	// Expiration is ISO8601 timestamp string when the credentials expire.
-	Expiration string `json:"Expiration"`
+	// Expiration is the timestamp when the credentials expire.
+	Expiration time.Time `json:"Expiration"`
 	// SerialNumber is the serial number of the certificate which was created and exchanged to obtain AWS Credentials.
 	// When using these credentials, CloudTrail will log the certificate's Subject Common Name, if the profile accepts it.
 	// Otherwise, the serial number is logged.
@@ -223,12 +223,17 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 		return nil, trace.BadParameter("failed to create session %v", err)
 	}
 
+	parsedExpiration, err := time.Parse(time.RFC3339, createSessionResp.Expiration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to parse expiration time %q: %v", createSessionResp.Expiration, err)
+	}
+
 	return &Credentials{
 		Version:         createSessionResp.Version,
 		AccessKeyID:     createSessionResp.AccessKeyID,
 		SecretAccessKey: createSessionResp.SecretAccessKey,
 		SessionToken:    createSessionResp.SessionToken,
-		Expiration:      createSessionResp.Expiration,
+		Expiration:      parsedExpiration,
 		SerialNumber:    x509Cert.SerialNumber.String(),
 	}, nil
 }

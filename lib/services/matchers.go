@@ -52,7 +52,6 @@ type ResourceMatcherAWS struct {
 func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
 	out := make([]*types.DatabaseResourceMatcher, len(in))
 	for i, resMatcher := range in {
-		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
 			AWS: types.ResourceMatcherAWS{
@@ -133,12 +132,10 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 // resourceWithTargetHealth wraps a resource to provide target health info.
 type resourceWithTargetHealth struct {
 	types.ResourceWithLabels
-	health types.TargetHealth
+	health types.TargetHealthStatus
 }
 
-var _ types.TargetHealthGetter = (*resourceWithTargetHealth)(nil)
-
-func (r *resourceWithTargetHealth) GetTargetHealth() types.TargetHealth {
+func (r *resourceWithTargetHealth) GetTargetHealthStatus() types.TargetHealthStatus {
 	return r.health
 }
 
@@ -191,7 +188,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		specResource = &resourceWithTargetHealth{
 			ResourceWithLabels: server.GetDatabase(),
-			health:             server.GetTargetHealth(),
+			health:             server.GetTargetHealthStatus(),
 		}
 		key.name = specResource.GetName()
 	case types.KindAppServer, types.KindSAMLIdPServiceProvider:

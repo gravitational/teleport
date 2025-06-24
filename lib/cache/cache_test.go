@@ -53,6 +53,7 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -148,6 +149,7 @@ type testPack struct {
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
+	botInstanceService      *local.BotInstanceService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -191,8 +193,8 @@ func newPackForAuth(t *testing.T) *testPack {
 	return newTestPack(t, ForAuth)
 }
 
-func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
-	pack, err := newPack(t.TempDir(), setupConfig)
+func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *testPack {
+	pack, err := newPack(t.TempDir(), setupConfig, opts...)
 	require.NoError(t, err)
 	return pack
 }
@@ -426,6 +428,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -482,6 +489,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
+		BotInstanceService:      p.botInstanceService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -691,12 +699,12 @@ func TestCompletenessInit(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
+	for i := range caCount {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
-	for i := 0; i < inits; i++ {
+	for range inits {
 		var err error
 
 		p.cacheBackend, err = memory.New(
@@ -757,6 +765,7 @@ func TestCompletenessInit(t *testing.T) {
 			EventsC:                 p.eventsC,
 			GitServers:              p.gitServers,
 			HealthCheckConfig:       p.healthCheckConfig,
+			BotInstanceService:      p.botInstanceService,
 		}))
 		require.NoError(t, err)
 
@@ -791,7 +800,7 @@ func TestCompletenessReset(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
+	for i := range caCount {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
@@ -844,6 +853,7 @@ func TestCompletenessReset(t *testing.T) {
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -852,7 +862,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
-	for i := 0; i < resets; i++ {
+	for range resets {
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
@@ -876,7 +886,7 @@ func TestCompletenessReset(t *testing.T) {
 func TestInitStrategy(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < utils.GetIterations(); i++ {
+	for range utils.GetIterations() {
 		initStrategy(t)
 	}
 }
@@ -896,7 +906,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	ctx := context.Background()
 
 	count := 100000
-	for i := 0; i < count; i++ {
+	for i := range count {
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
@@ -1002,10 +1012,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
-	for i := 0; i < nodeCount; i++ {
+	for range nodeCount {
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1099,6 +1110,7 @@ func initStrategy(t *testing.T) {
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -1438,7 +1450,7 @@ func TestRelativeExpiry(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := int64(0); i < nodeCount; i++ {
+	for i := range nodeCount {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1447,7 +1459,7 @@ func TestRelativeExpiry(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for i := int64(0); i < nodeCount; i++ {
+	for range nodeCount {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1516,7 +1528,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1525,7 +1537,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for i := 0; i < nodeCount; i++ {
+	for range nodeCount {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1573,7 +1585,7 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 	})
 	t.Cleanup(p2.Close)
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		clock.Advance(time.Hour * 24)
 		drainEvents(p.eventsC)
 		unexpectedEvent(t, p.eventsC, RelativeExpiry)
@@ -1602,7 +1614,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
 	step := p.cache.Config.MaxRetryPeriod / 16.0
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		// wait for cache to reload
 		select {
 		case event := <-p.eventsC:
@@ -1858,6 +1870,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
 		scopedrole.KindScopedRole:                   types.Resource153ToLegacy(&accessv1.ScopedRole{}),
 		scopedrole.KindScopedRoleAssignment:         types.Resource153ToLegacy(&accessv1.ScopedRoleAssignment{}),
+		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
+		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 	}
 
 	for name, cfg := range cases {
@@ -1921,6 +1935,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2089,7 +2107,6 @@ func TestInvalidDatabases(t *testing.T) {
 			},
 		},
 	} {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			p := newTestPack(t, ForAuth)

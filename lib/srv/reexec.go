@@ -33,6 +33,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
+	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -335,28 +337,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
-	// Set SELinux context for the child process if SELinux support is
-	// enabled so the child process will be running with the correct SELinux
-	// user, role and domain.
-	if c.SetSELinuxContext {
-		seContext, err := selinux.UserContext(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
-		}
-
-		// SetExecLabel changes the SELinux exec context for the
-		// calling thread only, so we need to ensure that is the
-		// thread that will create the child. We don't ever unlock
-		// the thread as we're exiting after the child exits, and
-		// we want to avoid another goroutine getting denied due to
-		// running on this thread with a different (likely much more
-		// restrictive)SELinux context.
-		runtime.LockOSThread()
-		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
-		}
-	}
-
 	// Alert the parent process that the child process has completed any setup operations,
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
@@ -418,6 +398,28 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	if err := setNeutralOOMScore(); err != nil {
 		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
+	}
+
+	// Set SELinux context for the child process if SELinux support is
+	// enabled so the child process will be running with the correct SELinux
+	// user, role and domain.
+	if c.SetSELinuxContext {
+		seContext, err := selinux.UserContext(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+		}
+
+		// SetExecLabel changes the SELinux exec context for the
+		// calling thread only, so we need to ensure that is the
+		// thread that will create the child. We don't ever unlock
+		// the thread as we're exiting after the child exits, and
+		// we want to avoid another goroutine getting denied due to
+		// running on this thread with a different (likely much more
+		// restrictive)SELinux context.
+		runtime.LockOSThread()
+		if err := ocselinux.SetExecLabel(seContext); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
+		}
 	}
 
 	// Start the command.
@@ -538,13 +540,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return trace.Wrap(err)
 	}
 
-	found := false
-	for _, localUserGroup := range groups {
-		if localUserGroup == group.Gid {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(groups, group.Gid)
 
 	if !found {
 		// Check if the new user guid matches the TeleportDropGroup. If not
@@ -630,7 +626,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
-	cred, err := getCmdCredential(localUser)
+	cred, err := host.GetHostUserCredential(localUser)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -1139,7 +1135,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// to the grandchild.
 		if c.ExtraFilesLen > 0 {
 			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
-			for i := 0; i < c.ExtraFilesLen; i++ {
+			for i := range c.ExtraFilesLen {
 				fd := FirstExtraFile + uintptr(i)
 				f := os.NewFile(fd, strconv.Itoa(int(fd)))
 				if f == nil {
@@ -1180,24 +1176,8 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// workaround this, the credentials struct is only set if the credentials
 	// are different from the process itself. If the credentials are not, simply
 	// pick up the ambient credentials of the process.
-	credential, err := getCmdCredential(localUser)
-	if err != nil {
+	if err := host.MaybeSetCommandCredentialAsUser(context.Background(), &cmd, localUser, slog.Default()); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
-		cmd.SysProcAttr.Credential = credential
-		slog.DebugContext(context.Background(), "Creating process",
-			"uid", credential.Uid,
-			"gid", credential.Gid,
-			"groups", credential.Groups,
-		)
-	} else {
-		slog.DebugContext(context.Background(), "Creating process with ambient credentials",
-			"uid", credential.Uid,
-			"gid", credential.Gid,
-			"groups", credential.Groups,
-		)
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1378,7 +1358,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	credential, err := getCmdCredential(localUser)
+	credential, err := host.GetHostUserCredential(localUser)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1433,52 +1413,4 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	go cmd.Wait()
 
 	return nil
-}
-
-// getCmdCredentials parses the uid, gid, and groups of the
-// given user into a credential object for a command to use.
-func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if runtime.GOOS == "darwin" {
-		// on macOS we should rely on the list of groups managed by the system
-		// (the use of setgroups is "highly discouraged", as per the setgroups
-		// man page in macOS 13.5)
-		return &syscall.Credential{
-			Uid:         uint32(uid),
-			Gid:         uint32(gid),
-			NoSetGroups: true,
-		}, nil
-	}
-
-	// Lookup supplementary groups for the user.
-	userGroups, err := localUser.GroupIds()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	groups := make([]uint32, 0)
-	for _, sgid := range userGroups {
-		igid, err := strconv.ParseUint(sgid, 10, 32)
-		if err != nil {
-			slog.WarnContext(context.Background(), "Cannot interpret user group", "user_group", sgid)
-		} else {
-			groups = append(groups, uint32(igid))
-		}
-	}
-	if len(groups) == 0 {
-		groups = append(groups, uint32(gid))
-	}
-
-	return &syscall.Credential{
-		Uid:    uint32(uid),
-		Gid:    uint32(gid),
-		Groups: groups,
-	}, nil
 }

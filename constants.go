@@ -120,6 +120,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentRelay is the component name for the relay service.
+	ComponentRelay = "relay"
+
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
 
@@ -297,6 +300,9 @@ const (
 
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
+
+	// ComponentMCP represents the MCP server handler.
+	ComponentMCP = "mcp"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"

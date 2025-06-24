@@ -69,7 +69,7 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
 	var errContains = func(contains string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		return func(t require.TestingT, err error, msgAndArgs ...any) {
 			require.ErrorContains(t, err, contains, msgAndArgs...)
 		}
 	}

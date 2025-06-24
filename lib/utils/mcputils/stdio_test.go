@@ -56,13 +56,13 @@ func TestStdioHelpers(t *testing.T) {
 	// Pipes for hooking things up.
 	clientStdin, writeToClient := io.Pipe()
 	readFromClient, clientStdout := io.Pipe()
-	serverStdio, writeToServer := io.Pipe()
+	serverStdin, writeToServer := io.Pipe()
 	readFromServer, serverStdout := io.Pipe()
 	t.Cleanup(func() {
 		assert.NoError(t, trace.NewAggregate(
 			clientStdin.Close(), writeToClient.Close(),
 			readFromClient.Close(), clientStdout.Close(),
-			serverStdio.Close(), writeToServer.Close(),
+			serverStdin.Close(), writeToServer.Close(),
 			readFromServer.Close(), serverStdout.Close(),
 		))
 	})
@@ -121,7 +121,7 @@ func TestStdioHelpers(t *testing.T) {
 
 	stdioServer := mcpserver.NewStdioServer(makeTestMCPServer())
 	stdioServer.SetErrorLogger(log.New(io.Discard, "", log.LstdFlags))
-	go stdioServer.Listen(ctx, serverStdio, serverStdout)
+	go stdioServer.Listen(ctx, serverStdin, serverStdout)
 
 	// Test things out.
 	t.Run("client initialize", func(t *testing.T) {

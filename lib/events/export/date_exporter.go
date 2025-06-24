@@ -22,12 +22,12 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -69,8 +69,6 @@ type DateExporterConfig struct {
 	MaxBackoff time.Duration
 	// PollInterval optionally overrides the default poll interval used to fetch event chunks.
 	PollInterval time.Duration
-	// Clock is an optional parameter used to provide a clock for testing purposes.
-	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates configuration and sets default values for optional parameters.
@@ -97,7 +95,6 @@ func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
 		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
 		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
-	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 	return nil
 }
 
@@ -142,9 +139,7 @@ func (s *DateExporterState) Clone() DateExporterState {
 		Cursors:   make(map[string]string, len(s.Cursors)),
 	}
 	copy(cloned.Completed, s.Completed)
-	for chunk, cursor := range s.Cursors {
-		cloned.Cursors[chunk] = cursor
-	}
+	maps.Copy(cloned.Cursors, s.Cursors)
 	return cloned
 }
 
@@ -347,12 +342,12 @@ func (e *DateExporter) run(ctx context.Context) {
 // to halt.
 func (e *DateExporter) waitForInflightChunks() {
 	// acquire all semaphore tokens to block until all inflight chunks have been processed
-	for i := 0; i < e.cfg.Concurrency; i++ {
+	for range e.cfg.Concurrency {
 		e.sem <- struct{}{}
 	}
 
 	// release all semaphore tokens
-	for i := 0; i < e.cfg.Concurrency; i++ {
+	for range e.cfg.Concurrency {
 		<-e.sem
 	}
 }
@@ -529,7 +524,7 @@ func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stre
 		chunk:   chunk,
 		entry:   entry,
 	}
-	timer := e.cfg.Clock.NewTimer(e.cfg.BatchExport.MaxDelay)
+	timer := time.NewTimer(e.cfg.BatchExport.MaxDelay)
 	defer timer.Stop()
 loop:
 	for {
@@ -544,7 +539,7 @@ loop:
 				continue
 			}
 			unprocessedEvent = exportEvent
-		case <-timer.Chan():
+		case <-timer.C:
 			if batch.isEmpty() {
 				timer.Reset(e.cfg.BatchExport.MaxDelay)
 				continue

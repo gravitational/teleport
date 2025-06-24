@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -418,7 +417,7 @@ func TestReviewThresholds(t *testing.T) {
 				{ // adds second denial but request was already approved.
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
-					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+					errCheck: func(tt require.TestingT, err error, i ...any) {
 						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already approved"), i...)
 					},
 				},
@@ -440,7 +439,7 @@ func TestReviewThresholds(t *testing.T) {
 				{ // tries to approve but it was already denied
 					author:  g.user(t, "military"),
 					propose: approve,
-					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+					errCheck: func(tt require.TestingT, err error, i ...any) {
 						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already denied"), i...)
 					},
 				},
@@ -692,7 +691,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:          g.user(t, "military"),
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
-					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+					errCheck: func(tt require.TestingT, err error, i ...any) {
 						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
 					},
 				},
@@ -962,7 +961,8 @@ func TestPluginDataExpectations(t *testing.T) {
 			"missing": "key",
 		},
 	})
-	fixtures.AssertCompareFailed(t, err)
+
+	require.True(t, trace.IsCompareFailed(err))
 
 	// Expect a value to not exist when it does exist.
 	err = data.Update(types.PluginDataUpdateParams{
@@ -977,7 +977,7 @@ func TestPluginDataExpectations(t *testing.T) {
 			"spam":  "",
 		},
 	})
-	fixtures.AssertCompareFailed(t, err)
+	require.True(t, trace.IsCompareFailed(err))
 
 	// Expect the correct state, updating one key and removing another.
 	err = data.Update(types.PluginDataUpdateParams{
@@ -1703,7 +1703,7 @@ func TestGetRequestableRoles(t *testing.T) {
 		clusterName: clusterName,
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		node, err := types.NewServerWithLabels(
 			fmt.Sprintf("node-%d", i),
 			types.KindNode,
@@ -2554,7 +2554,7 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
 
 	var requestedResourceIDs []types.ResourceID
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		requestedResourceIDs = append(requestedResourceIDs, types.ResourceID{
 			ClusterName: "someCluster",
 			Kind:        "node",

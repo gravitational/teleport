@@ -45,10 +45,10 @@ func init() {
 // TeleportAutoupdateConfigV1 holds the kubernetes custom resources for teleport's autoupdate_config v1 resource.
 type TeleportAutoupdateConfigV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   *TeleportAutoupdateConfigV1Spec `json:"spec,omitempty"`
-	Status resources.Status                `json:"status,omitempty"`
+	Status resources.Status                `json:"status"`
 }
 
 // TeleportAutoupdateConfigV1Spec defines the desired state of TeleportAutoupdateConfigV1
@@ -59,7 +59,7 @@ type TeleportAutoupdateConfigV1Spec autoupdatev1pb.AutoUpdateConfigSpec
 // TeleportAutoupdateConfigV1List contains a list of TeleportAutoupdateConfigV1
 type TeleportAutoupdateConfigV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportAutoupdateConfigV1 `json:"items"`
 }
 

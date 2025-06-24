@@ -62,7 +62,7 @@ func Test_formatYAML(t *testing.T) {
 	tests := []struct {
 		name        string
 		description string
-		object      interface{}
+		object      any
 		want        string
 	}{
 		{
@@ -112,7 +112,7 @@ func Test_formatJSON(t *testing.T) {
 	tests := []struct {
 		name        string
 		description string
-		object      interface{}
+		object      any
 		want        string
 	}{
 		{

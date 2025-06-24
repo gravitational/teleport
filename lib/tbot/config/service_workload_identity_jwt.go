@@ -84,7 +84,7 @@ func (o *WorkloadIdentityJWTService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityJWTService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityJWTService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityJWTService
 	return withTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
 }

@@ -142,18 +142,16 @@ export function BotInstancesList({
           isSortable: false,
           render: ({ activeAtDisplay, activeAtLocal }) => (
             <Cell>
-              <Flex>
-                <HoverTooltip tipContent={activeAtLocal}>
-                  {activeAtDisplay}
-                </HoverTooltip>
-              </Flex>
+              <HoverTooltip tipContent={activeAtLocal}>
+                <span>{activeAtDisplay}</span>
+              </HoverTooltip>
             </Cell>
           ),
         },
       ]}
       emptyText="No active instances found"
       emptyButton={
-        <Info alignItems="flex-start" mt={5}>
+        <Info mt={5}>
           Bot instances are ephemeral, and disappear once all issued credentials
           have expired.
         </Info>

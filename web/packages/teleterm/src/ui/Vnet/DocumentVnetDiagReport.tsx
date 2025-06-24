@@ -21,7 +21,7 @@ import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
 import { AlertProps } from 'design/Alert/Alert';
-import Table, { TextCell } from 'design/DataTable';
+import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import {
   Copy,
@@ -35,10 +35,14 @@ import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
-import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import {
+  reportOneOfIsRouteConflictReport,
+  reportOneOfIsSSHConfigurationReport,
+} from 'teleterm/helpers';
 import { getReportFilename, reportToText } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
@@ -297,6 +301,10 @@ const reportOneofDisplayDetails: Record<
     errorTitle: 'inspect network routes',
     Component: CheckReportRouteConflict,
   },
+  sshConfigurationReport: {
+    errorTitle: 'inspect SSH configuration',
+    Component: CheckReportSSHConfiguration,
+  },
 };
 
 /**
@@ -363,6 +371,91 @@ function CheckReportRouteConflict({
         ]}
         row={{ getStyle: () => ({ fontFamily: 'monospace' }) }}
       />
+    </>
+  );
+}
+
+function CheckReportSSHConfiguration({
+  checkReport: { report },
+}: {
+  checkReport: diag.CheckReport;
+}) {
+  if (!reportOneOfIsSSHConfigurationReport(report)) {
+    return null;
+  }
+  const {
+    userOpensshConfigPath,
+    vnetSshConfigPath,
+    userOpensshConfigIncludesVnetSshConfig,
+    userOpensshConfigExists,
+    userOpensshConfigContents,
+  } = report.sshConfigurationReport;
+  const pathsTable = (
+    <Table
+      emptyText=""
+      data={[
+        {
+          desc: 'User OpenSSH config file',
+          path: userOpensshConfigPath,
+        },
+        {
+          desc: 'VNet SSH config file',
+          path: vnetSshConfigPath,
+        },
+      ]}
+      columns={[
+        { key: 'desc', headerText: 'File description' },
+        {
+          key: 'path',
+          headerText: 'Path',
+          render: row => (
+            <Cell>
+              <code>{row.path}</code>
+            </Cell>
+          ),
+        },
+      ]}
+    />
+  );
+  if (userOpensshConfigIncludesVnetSshConfig) {
+    return (
+      <>
+        <Stack>
+          <P1>
+            <Success /> VNet SSH is configured correctly.
+          </P1>
+          <P2>
+            The user's default SSH configuration file correctly includes VNet's
+            generated configuration file.
+          </P2>
+        </Stack>
+        {pathsTable}
+      </>
+    );
+  }
+  return (
+    <>
+      <Stack>
+        <P1>
+          <Warning /> VNet SSH is not configured.
+        </P1>
+        <P2 m={0}>
+          The user's default SSH configuration file does not include VNet's
+          generated SSH configuration file. SSH clients will not be able to make
+          connections to VNet SSH addresses by default. Add the following line
+          to <code>{userOpensshConfigPath}</code> to configure
+          OpenSSH-compatible clients for VNet:
+        </P2>
+        <TextSelectCopy text={`Include "${vnetSshConfigPath}"`} bash={false} />
+      </Stack>
+      {userOpensshConfigExists ? (
+        <details>
+          <Summary>
+            Current contents of <code>{userOpensshConfigPath}</code>
+          </Summary>
+          <Pre>{userOpensshConfigContents}</Pre>
+        </details>
+      ) : null}
     </>
   );
 }

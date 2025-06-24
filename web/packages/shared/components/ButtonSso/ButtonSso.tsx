@@ -27,7 +27,7 @@ const ButtonSso = forwardRef<HTMLButtonElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
 
   return (
-    <ButtonSecondary gap={3} size="extra-large" block {...rest} setRef={ref}>
+    <ButtonSecondary gap={3} size="extra-large" block {...rest} ref={ref}>
       <SSOIcon type={ssoType} />
       {title}
     </ButtonSecondary>

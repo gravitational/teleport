@@ -77,7 +77,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
+	c.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
@@ -275,11 +275,11 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
 	if isReexec {
-		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]interface{}{
+		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]any{
 			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
-	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]interface{}{
+	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]any{
 		"addr":           localProxy.GetAddr(),
 		"format":         c.format,
 		"randomPort":     c.port == "",

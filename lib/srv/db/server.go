@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,7 +39,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -168,7 +168,7 @@ type Config struct {
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
 	// DatabaseObjects manages database object importers.
@@ -271,6 +271,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing ConnectionMonitor")
 	}
+	if c.ConnectedProxyGetter == nil {
+		return trace.BadParameter("missing ConnectedProxyGetter")
+	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
 			AWSConfigProvider: c.AWSConfigProvider,
@@ -295,9 +298,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	if c.CloudUsers == nil {
@@ -372,7 +372,7 @@ type Server struct {
 	// closeFunc is the cancel function of the close context.
 	closeFunc context.CancelFunc
 	// middleware extracts identity from client certificates.
-	middleware *auth.Middleware
+	middleware *authz.Middleware
 	// dynamicLabels contains dynamic labels for databases.
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds heartbeats for database servers.
@@ -432,12 +432,7 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 // watchers, aka legacy database discovery done by the db service.
 // The lock must be held when calling this function.
 func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
-	for i := range m.cloud {
-		if m.cloud[i] == database {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.cloud, database)
 }
 
 // isDiscoveryResource_Locked returns whether a database was discovered by the
@@ -451,12 +446,7 @@ func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database)
 // object.
 // The lock must be held when calling this function.
 func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
-	for i := range m.resources {
-		if m.resources[i] == database {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.resources, database)
 }
 
 // getLocked returns a slice containing all of the monitored databases.
@@ -495,7 +485,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			static: config.Databases,
 		},
 		reconcileCh: make(chan struct{}),
-		middleware: &auth.Middleware{
+		middleware: &authz.Middleware{
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
@@ -1025,7 +1015,6 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.proxiedDatabases {
-		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {

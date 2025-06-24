@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -200,7 +199,7 @@ type Server struct {
 	lockWatcher *services.LockWatcher
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
-	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	connectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 
 	// createHostUser configures whether a host should allow host user
 	// creation
@@ -673,7 +672,7 @@ func SetAllowFileCopying(allow bool) ServerOption {
 }
 
 // SetConnectedProxyGetter sets the ConnectedProxyGetter.
-func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+func SetConnectedProxyGetter(getter reversetunnelclient.ConnectedProxyGetter) ServerOption {
 	return func(s *Server) error {
 		s.connectedProxyGetter = getter
 		return nil
@@ -806,7 +805,7 @@ func New(
 	}
 
 	if s.connectedProxyGetter == nil {
-		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+		return nil, trace.BadParameter("setup valid ConnectedProxyGetter parameter using SetConnectedProxyGetter")
 	}
 
 	if s.tracerProvider == nil {
@@ -1076,9 +1075,7 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 // getAllLabels return a combination of static and dynamic labels.
 func (s *Server) getAllLabels() map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.getStaticLabels() {
-		lmap[key] = value
-	}
+	maps.Copy(lmap, s.getStaticLabels())
 	for key, cmd := range s.getDynamicLabels() {
 		lmap[key] = cmd.Result
 	}

@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -53,14 +52,15 @@ type KubernetesV2OutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.KubernetesV2Output
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.KubernetesV2Output
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	proxyPingCache     *proxyPingCache
+	reloadBroadcaster  *channelBroadcaster
+	resolver           reversetunnelclient.Resolver
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
@@ -79,13 +79,14 @@ func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		service:         s.String(),
+		name:            "output-renewal",
+		f:               s.generate,
+		interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		retryLimit:      renewalRetryLimit,
+		log:             s.log,
+		reloadCh:        reloadCh,
+		identityReadyCh: s.botIdentityReadyCh,
 	}))
 }
 

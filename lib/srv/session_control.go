@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/decision"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -288,7 +287,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	ctx, err = s.EnforceConnectionLimits(
 		ctx,
-		auth.ConnectionIdentity{
+		ConnectionIdentity{
 			Username:       identity.TeleportUser,
 			MaxConnections: maxConnections,
 			LocalAddr:      localAddr,
@@ -300,10 +299,25 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	return ctx, trace.Wrap(err)
 }
 
+// ConnectionIdentity contains the identifying properties of a
+// client connection required to enforce connection limits.
+type ConnectionIdentity struct {
+	// Username is the name of the user
+	Username string
+	// MaxConnections the upper limit to number of open connections for a user
+	MaxConnections int64
+	// LocalAddr is the local address for the connection
+	LocalAddr string
+	// RemoteAddr is the remote address for the connection
+	RemoteAddr string
+	// UserMetadata contains metadata for a user
+	UserMetadata apievents.UserMetadata
+}
+
 // EnforceConnectionLimits retrieves a semaphore lock to ensure that connection limits
 // for the identity are enforced. If the lock is closed for any reason prior to the connection
 // being terminated any of the provided closers will be closed.
-func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity auth.ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
+func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
 	maxConnections := identity.MaxConnections
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing

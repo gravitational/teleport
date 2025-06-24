@@ -21,6 +21,7 @@ package reconcilers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 
 	"github.com/gravitational/trace"
@@ -173,9 +174,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 	kubeLabels := obj.GetLabels()
 	teleportLabels := make(map[string]string, len(kubeLabels)+1) // +1 because we'll add the origin label
-	for k, v := range kubeLabels {
-		teleportLabels[k] = v
-	}
+	maps.Copy(teleportLabels, kubeLabels)
 	teleportLabels[types.OriginLabel] = types.OriginKubernetes
 	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
 	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)

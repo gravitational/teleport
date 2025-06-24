@@ -36,7 +36,7 @@ func (s *ExampleService) Type() string {
 	return ExampleServiceType
 }
 
-func (s *ExampleService) MarshalYAML() (interface{}, error) {
+func (s *ExampleService) MarshalYAML() (any, error) {
 	type raw ExampleService
 	return withTypeHeader((*raw)(s), ExampleServiceType)
 }

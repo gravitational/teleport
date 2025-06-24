@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -392,7 +392,7 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 	// Check if active connections count is not growing over time when new
 	// clients connect to the mongo server.
 	clientCount := 8
-	for i := 0; i < clientCount; i++ {
+	for range clientCount {
 		// Note that connection count per client fluctuates between 6 and 9.
 		// Use InDelta to avoid flaky test.
 		require.InDelta(t, initialConnectionCount, connectMongoClient(t), 3)
