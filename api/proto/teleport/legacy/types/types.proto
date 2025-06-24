@@ -8707,11 +8707,8 @@ message AccessGraphAWSSyncCloudTrailLogs {
 // AccessGraphAWSSyncCloudWatchLogs defines settings for ingesting AWS CloudWatch logs
 // by polling the CloudWatch API.
 message AccessGraphAWSSyncCloudWatchLogs {
-  // The AWS region of the CloudWatch API.
-  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
-
   // AWS tag filters to only log specific resources
-  repeated string TagFilters = 2 [(gogoproto.jsontag) = "tag_filters,omitempty"];
+  repeated string TagFilters = 1 [(gogoproto.jsontag) = "tag_filters,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
