@@ -24,11 +24,13 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
@@ -886,7 +888,7 @@ func (s *Server) startCloudwatchPoller(ctx context.Context, reloadCh <-chan stru
 	}
 
 	// Acquire the service-level lock to prevent multiple discovery instances from simultaneous polling
-	const semaphoreName = "access_graph_aws_cloudtrail_sync"
+	const semaphoreName = "access_graph_aws_cloudwatch_sync"
 	const semaphoreExpiration = time.Minute
 	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
@@ -1008,7 +1010,7 @@ func (s *Server) startCloudwatchPoller(ctx context.Context, reloadCh <-chan stru
 			}
 			err = s.pollEventsFromCloudWatch(ctx, accountID, spec, eventsCh)
 			if err != nil {
-				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
+				s.Log.ErrorContext(ctx, "Error polling events from CloudWatch", "error", err)
 			}
 		}(localCtx, spec)
 	}
@@ -1370,5 +1372,50 @@ func (s *Server) pollEventsFromCloudWatch(
 	spec *types.AccessGraphAWSSync,
 	ch chan<- cloudWatchEvents,
 ) error {
+	s.Log.Info("Polling for CloudWatch events")
+	for _, region := range spec.Regions {
+		awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cli := cloudwatchlogs.NewFromConfig(awsCfg)
+		startTime := time.Now().Unix()
+		logGroupName := "/aws/eks/mbrock-test/cluster"
+		go func() {
+			var resumeToken *string
+			for {
+				params := &cloudwatchlogs.FilterLogEventsInput{
+					LogGroupName:        aws.String(logGroupName),
+					LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
+					StartTime:           aws.Int64(startTime),
+					NextToken:           resumeToken,
+				}
+				out, err := cli.FilterLogEvents(ctx, params)
+				if err != nil {
+					s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
+						"error", err, "region", region)
+					return
+				}
+				var events []*accessgraphv1alpha.AWSCloudWatchEvent
+				for _, cwEvent := range out.Events {
+					event := &accessgraphv1alpha.AWSCloudWatchEvent{
+						LogStream: *cwEvent.LogStreamName,
+						Message:   *cwEvent.Message,
+						Timestamp: timestamppb.New(time.UnixMilli(*cwEvent.Timestamp)),
+					}
+					events = append(events, event)
+				}
+				ch <- cloudWatchEvents{
+					events:    events,
+					accountID: accountID,
+				}
+				select {
+				case <-ctx.Done():
+					s.Log.ErrorContext(ctx, "Context done for CloudWatch poller", "region", region)
+					return
+				}
+			}
+		}()
+	}
 	return nil
 }
