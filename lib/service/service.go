@@ -31,6 +31,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -191,6 +192,11 @@ const (
 	// identity has been registered with the Auth Server.
 	ProxyIdentityEvent = "ProxyIdentity"
 
+	// RelayIdentityEvent is generated after the Teleport agent has successfully
+	// joined a cluster or reused credentials to connect to the control plane as
+	// a relay service.
+	RelayIdentityEvent = "RelayIdentityEvent"
+
 	// SSHIdentityEvent is generated when node's identity has been registered
 	// with the Auth Server.
 	SSHIdentityEvent = "SSHIdentity"
@@ -239,6 +245,10 @@ const (
 	// ProxySSHReady is generated when the proxy has initialized a SSH server
 	// and is ready to start accepting connections.
 	ProxySSHReady = "ProxySSHReady"
+
+	// RelayReady is generated when a relay service is ready to accept
+	// connections.
+	RelayReady = "RelayReady"
 
 	// NodeSSHReady is generated when the Teleport node has initialized a SSH server
 	// and is ready to start accepting SSH connections.
@@ -752,10 +762,9 @@ func (process *TeleportProcess) getInstanceRoles() []types.SystemRole {
 func (process *TeleportProcess) getInstanceRoleEventMapping() map[types.SystemRole]string {
 	process.Lock()
 	defer process.Unlock()
+
 	out := make(map[types.SystemRole]string, len(process.instanceRoles))
-	for role, event := range process.instanceRoles {
-		out[role] = event
-	}
+	maps.Copy(out, process.instanceRoles)
 	return out
 }
 
@@ -1424,6 +1433,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.Proxy.Enabled {
 		eventMapping.In = append(eventMapping.In, ProxySSHReady)
 	}
+	if cfg.Relay.Enabled {
+		eventMapping.In = append(eventMapping.In, RelayReady)
+	}
 	if cfg.Kube.Enabled {
 		eventMapping.In = append(eventMapping.In, KubernetesReady)
 	}
@@ -1480,6 +1492,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		serviceStarted = true
 	} else {
 		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentProxy), process.logger)
+	}
+
+	if cfg.Relay.Enabled {
+		process.initRelay()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentRelay), process.logger)
 	}
 
 	if cfg.Kube.Enabled {
@@ -1626,7 +1645,7 @@ func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
 	}
 
 	process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-	process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
+	process.OnExit("upgradewindow.export.stop", func(_ any) {
 		exporter.Close()
 	})
 
@@ -2209,7 +2228,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Provisioner:             cfg.Provisioner,
 			Identity:                cfg.Identity,
 			Access:                  cfg.Access,
-			UsageReporter:           cfg.UsageReporter,
 			StaticTokens:            cfg.Auth.StaticTokens,
 			Roles:                   cfg.Auth.Roles,
 			AuthPreference:          cfg.Auth.Preference,
@@ -2474,7 +2492,7 @@ func (process *TeleportProcess) initAuthService() error {
 	process.RegisterFunc("auth.heartbeat.broadcast", func() error {
 		// External integrations rely on this event:
 		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
-		process.OnExit("auth.broadcast", func(payload interface{}) {
+		process.OnExit("auth.broadcast", func(payload any) {
 			connector.Close()
 		})
 		return nil
@@ -2649,7 +2667,7 @@ func payloadContext(payload any) context.Context {
 // OnExit allows individual services to register a callback function which will be
 // called when Teleport Process is asked to exit. Usually services terminate themselves
 // when the callback is called
-func (process *TeleportProcess) OnExit(serviceName string, callback func(interface{})) {
+func (process *TeleportProcess) OnExit(serviceName string, callback func(any)) {
 	process.RegisterFunc(serviceName, func() error {
 		event, _ := process.WaitForEvent(context.TODO(), TeleportExitEvent)
 		callback(event.Payload)
@@ -2706,6 +2724,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig
+	cfg.BotInstance = services.BotInstance
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3475,7 +3494,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		return nil
 	})
 
-	process.OnExit("fileuploader.shutdown", func(payload interface{}) {
+	process.OnExit("fileuploader.shutdown", func(payload any) {
 		logger.InfoContext(process.ExitContext(), "File uploader is shutting down.")
 		fileUploader.Close()
 		logger.InfoContext(process.ExitContext(), "File uploader has shut down.")
@@ -3507,7 +3526,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		return nil
 	})
 
-	process.OnExit("fileuploadcompleter.shutdown", func(payload interface{}) {
+	process.OnExit("fileuploadcompleter.shutdown", func(payload any) {
 		logger.InfoContext(process.ExitContext(), "File upload completer is shutting down.", "error", err)
 		uploadCompleter.Close()
 		logger.InfoContext(process.ExitContext(), "File upload completer has shut down.")
@@ -3523,7 +3542,7 @@ type promHTTPLogAdapter struct {
 }
 
 // Println implements the promhttp.Logger interface.
-func (l promHTTPLogAdapter) Println(v ...interface{}) {
+func (l promHTTPLogAdapter) Println(v ...any) {
 	if !l.Handler().Enabled(l.ctx, slog.LevelError) {
 		return
 	}
@@ -3610,7 +3629,7 @@ func (process *TeleportProcess) initMetricsService() error {
 		return nil
 	})
 
-	process.OnExit("metrics.shutdown", func(payload interface{}) {
+	process.OnExit("metrics.shutdown", func(payload any) {
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)
@@ -3721,7 +3740,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		return nil
 	})
 
-	process.OnExit("diagnostic.shutdown", func(payload interface{}) {
+	process.OnExit("diagnostic.shutdown", func(payload any) {
 		warnOnErr(process.ExitContext(), muxListener.Close(), logger)
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
@@ -3800,7 +3819,7 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 	})
 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), logger)
 
-	process.OnExit("debug.shutdown", func(payload interface{}) {
+	process.OnExit("debug.shutdown", func(payload any) {
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			warnOnErr(process.ExitContext(), server.Close(), logger)
@@ -3837,7 +3856,7 @@ func (process *TeleportProcess) initTracingService() error {
 	}
 	process.TracingProvider = provider
 
-	process.OnExit("tracing.shutdown", func(payload interface{}) {
+	process.OnExit("tracing.shutdown", func(payload any) {
 		if payload == nil {
 			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -3904,6 +3923,8 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 				}
 			}
 		}
+	case types.RoleRelay:
+		dnsNames = append(dnsNames, process.Config.Relay.APIPublicHostnames...)
 	case types.RoleAuth, types.RoleAdmin:
 		addrs = process.Config.Auth.PublicAddrs
 	case types.RoleNode:
@@ -4545,7 +4566,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	defer func() {
 		// execute this when process is asked to exit:
-		process.OnExit("proxy.shutdown", func(payload interface{}) {
+		process.OnExit("proxy.shutdown", func(payload any) {
 			// Close the listeners at the beginning of shutdown, because we are not
 			// really guaranteed to be capable to serve new requests if we're
 			// halfway through a shutdown, and double closing a listener is fine.
@@ -4920,6 +4941,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServiceComponent:  teleport.ComponentWebProxy,
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
+				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
 			},
 		})
 		if err != nil {
@@ -5846,7 +5868,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload interface{}) {
+	process.OnExit("closer", func(payload any) {
 		generator.Close()
 	})
 
@@ -6009,6 +6031,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config)
 
 	if cfg.Proxy.Enabled {
 		process.SetExpectedInstanceRole(types.RoleProxy, ProxyIdentityEvent)
+	}
+
+	if cfg.Relay.Enabled {
+		process.SetExpectedInstanceRole(types.RoleRelay, RelayIdentityEvent)
 	}
 
 	if cfg.Kube.Enabled {
@@ -6328,7 +6354,7 @@ func (process *TeleportProcess) initApps() {
 		shouldSkipCleanup = true
 
 		// Execute this when process is asked to exit.
-		process.OnExit("apps.stop", func(payload interface{}) {
+		process.OnExit("apps.stop", func(payload any) {
 			if payload == nil {
 				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
 				warnOnErr(process.ExitContext(), appServer.Close(), logger)
@@ -6549,7 +6575,7 @@ func (process *TeleportProcess) initDebugApp() {
 		server := httptest.NewServer(http.HandlerFunc(dumperHandler))
 		process.BroadcastEvent(Event{Name: DebugAppReady, Payload: server})
 
-		process.OnExit("debug.app.shutdown", func(payload interface{}) {
+		process.OnExit("debug.app.shutdown", func(payload any) {
 			server.Close()
 			process.logger.InfoContext(process.ExitContext(), "Exited.")
 		})

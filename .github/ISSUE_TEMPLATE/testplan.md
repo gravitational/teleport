@@ -180,67 +180,114 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] Interact with a cluster using `tsh`
 
-   These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
+  These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
+  Recording can be disabled by adding `session_recording: off` to `auth_service` in your config. A regular node refers to
+  a [Teleport SSH service](https://goteleport.com/docs/enroll-resources/server-access/getting-started/). An agentless node is an [OpenSSH server](https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless) that has been enrolled into Teleport. A remote cluster is a leaf cluster that is connected to a root cluster via a [trusted cluster setup](https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/). Here's a recommended setup for testing:
 
-  - [ ] tsh ssh \<regular-node\>
-  - [ ] tsh ssh \<node-remote-cluster\>
-  - [ ] tsh ssh \<agentless-node\>
-  - [ ] tsh ssh \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh -A \<regular-node\>
-  - [ ] tsh ssh -A \<node-remote-cluster\>
-  - [ ] tsh ssh -A \<agentless-node\>
-  - [ ] tsh ssh -A \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh \<regular-node\> ls
-  - [ ] tsh ssh \<node-remote-cluster\> ls
-  - [ ] tsh ssh \<agentless-node\> ls
-  - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
-  - [ ] tsh join \<regular-node\>
-  - [ ] tsh join \<node-remote-cluster\>
-  - [ ] tsh play \<regular-node\>
-  - [ ] tsh play \<node-remote-cluster\>
-  - [ ] tsh play \<agentless-node\>
-  - [ ] tsh play \<agentless-node-remote-cluster\>
-  - [ ] tsh scp \<regular-node\>
-  - [ ] tsh scp \<node-remote-cluster\>
-  - [ ] tsh scp \<agentless-node\>
-  - [ ] tsh scp \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh -L \<regular-node\>
-  - [ ] tsh ssh -L \<node-remote-cluster\>
-  - [ ] tsh ssh -L \<agentless-node\>
-  - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh -R \<regular-node\>
-  - [ ] tsh ssh -R \<node-remote-cluster\>
-  - [ ] tsh ssh -R \<agentless-node\>
-  - [ ] tsh ssh -R \<agentless-node-remote-cluster\>
-  - [ ] tsh ls
-  - [ ] tsh clusters
+```
+                                         ┌───────────────┐
+                                         │               │
+                                       ┌►│ Regular Node  │
+┌───────────────┐    ┌───────────────┐ │ │               │
+│               │    │               │ │ └───────────────┘
+│ Root Cluster  ├───►│ Leaf Cluster  ├─┤                  
+│               │    │               │ │ ┌───────────────┐
+└───────────────┘    └───────────────┘ │ │               │
+                                       └►│ OpenSSH Node  │
+                                         │               │
+                                         └───────────────┘
+```
+
+When you want to test a non-remote-cluster, use the Leaf Cluster as your proxy target.
+
+  - [ ] `tsh ssh <regular-node>`
+  - [ ] `tsh ssh <node-remote-cluster>`
+  - [ ] `tsh ssh <agentless-node>`
+  - [ ] `tsh ssh <agentless-node-remote-cluster>`
+  
+Test agent had been forwarded by running `ssh-add -L` and check that your teleport keys are listed. Each cluster requires the `permit-agent-forwarding` flag and the role you're assuming in the leaf cluster needs `Agent Forwarding` enabled. Example connection command:
+`tsh ssh -A --proxy $PROXY --cluster $REMOTE_CLUSTER $USER@$NODE_NAME`
+
+  - [ ] `tsh ssh -A <regular-node>`
+  - [ ] `tsh ssh -A <node-remote-cluster>`
+  - [ ] `tsh ssh -A <agentless-node>`
+  - [ ] `tsh ssh -A <agentless-node-remote-cluster>`
+  - [ ] `tsh ssh <regular-node> ls`
+  - [ ] `tsh ssh <node-remote-cluster> ls`
+  - [ ] `tsh ssh <agentless-node> ls`
+  - [ ] `tsh ssh <agentless-node-remote-cluster> ls`
+  - [ ] `tsh join <regular-node-session-id>`
+  - [ ] `tsh join <node-remote-cluster-session-id>`
+
+For `tsh play`, ensure the role you assume on the leaf cluster has `read` and `list` for the `session` resource. Example allow rule:
+```yaml
+spec:
+  allow:
+    rules:
+    - resources:
+      - session
+      verbs:
+      - read
+      - list
+```
+
+  - [ ] `tsh play <regular-node-session-id>`
+  - [ ] `tsh play <node-remote-cluster-session-id>`
+  - [ ] `tsh play <agentless-node>`
+  - [ ] `tsh play <agentless-node-remote-cluster>`
+  - [ ] `tsh scp <regular-node>`
+  - [ ] `tsh scp <node-remote-cluster>`
+  - [ ] `tsh scp <agentless-node>`
+  - [ ] `tsh scp <agentless-node-remote-cluster>`
+
+This forwards the local port to the remote node, test this with a web server running on the remote node, e.g. `python3 -m http.server 8000` on the remote node, setup a tunnel to the node with `tsh ssh -L 9000:localhost:8000 <remote-node>`, then `curl http://localhost:9000` from your local machine.
+
+  - [ ] `tsh ssh -L <regular-node>`
+  - [ ] `tsh ssh -L <node-remote-cluster>`
+  - [ ] `tsh ssh -L <agentless-node>`
+  - [ ] `tsh ssh -L <agentless-node-remote-cluster>`
+
+`-R` forwards the remote port to the local machine, test this with a web server running on your local machine, e.g. `python3 -m http.server 8000`, setup a tunnel to the node with `tsh ssh -R 9000:localhost:8000 <remote-node>`, then `curl http://localhost:9000` from the remote node.
+
+  - [ ] `tsh ssh -R <regular-node>`
+  - [ ] `tsh ssh -R <node-remote-cluster>`
+  - [ ] `tsh ssh -R <agentless-node>`
+  - [ ] `tsh ssh -R <agentless-node-remote-cluster>`
+  - [ ] `tsh ls`
+  - [ ] `tsh clusters`
 
 - [ ] Interact with a cluster using `ssh`
-   Make sure to test both recording and regular proxy modes.
-  - [ ] ssh \<regular-node\>
-  - [ ] ssh \<node-remote-cluster\>
-  - [ ] ssh \<agentless-node\>
-  - [ ] ssh \<agentless-node-remote-cluster\>
-  - [ ] ssh -A \<regular-node\>
-  - [ ] ssh -A \<node-remote-cluster\>
-  - [ ] ssh -A \<agentless-node\>
-  - [ ] ssh -A \<agentless-node-remote-cluster\>
-  - [ ] ssh \<regular-node\> ls
-  - [ ] ssh \<node-remote-cluster\> ls
-  - [ ] ssh \<agentless-node\> ls
-  - [ ] ssh \<agentless-node-remote-cluster\> ls
-  - [ ] scp \<regular-node\>
-  - [ ] scp \<node-remote-cluster\>
-  - [ ] scp \<agentless-node\>
-  - [ ] scp \<agentless-node-remote-cluster\>
-  - [ ] ssh -L \<regular-node\>
-  - [ ] ssh -L \<node-remote-cluster\>
-  - [ ] ssh -L \<agentless-node\>
-  - [ ] ssh -L \<agentless-node-remote-cluster\>
-  - [ ] ssh -R \<regular-node\>
-  - [ ] ssh -R \<node-remote-cluster\>
-  - [ ] ssh -R \<agentless-node\>
-  - [ ] ssh -R \<agentless-node-remote-cluster\>
+
+  Make sure to test both recording and regular proxy modes. Generate an [SSH config](https://goteleport.com/docs/reference/cli/tsh/#tsh-config), one per cluster. An SSH command will look something like this:
+  
+  `ssh -p 22 -F /path/to/generated/ssh_config <user>@<node-name>.<cluster-that-the-node-is-in>`
+
+  To test connecting to a remote cluster, use the root cluster's `ssh_config` and the name of the remote cluster for `<cluster-that-the-node-is-in>`.
+
+  - [ ] `ssh <regular-node>`
+  - [ ] `ssh <node-remote-cluster>`
+  - [ ] `ssh <agentless-node>`
+  - [ ] `ssh <agentless-node-remote-cluster>`
+  - [ ] `ssh -A <regular-node>`
+  - [ ] `ssh -A <node-remote-cluster>`
+  - [ ] `ssh -A <agentless-node>`
+  - [ ] `ssh -A <agentless-node-remote-cluster>`
+  - [ ] `ssh <regular-node> ls`
+  - [ ] `ssh <node-remote-cluster> ls`
+  - [ ] `ssh <agentless-node> ls`
+  - [ ] `ssh <agentless-node-remote-cluster> ls`
+  - [ ] `scp <regular-node>`
+  - [ ] `scp <node-remote-cluster>`
+  - [ ] `scp <agentless-node>`
+  - [ ] `scp <agentless-node-remote-cluster>`
+  - [ ] `ssh -L <regular-node>`
+  - [ ] `ssh -L <node-remote-cluster>`
+  - [ ] `ssh -L <agentless-node>`
+  - [ ] `ssh -L <agentless-node-remote-cluster>`
+  - [ ] `ssh -R <regular-node>`
+  - [ ] `ssh -R <node-remote-cluster>`
+  - [ ] `ssh -R <agentless-node>`
+  - [ ] `ssh -R <agentless-node-remote-cluster>`
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -1811,6 +1858,8 @@ manualy testing.
   - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
       corresponding Windows desktops
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
+  - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
+  - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
 - Keyboard Layout
   - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
   - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine

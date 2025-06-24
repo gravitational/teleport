@@ -144,6 +144,6 @@ func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.
 }
 
 // Mounted at /workload-identity/jwt-jwks.json
-func (h *Handler) getSPIFFEJWKS(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *Handler) getSPIFFEJWKS(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	return h.jwks(r.Context(), types.SPIFFECA, false)
 }

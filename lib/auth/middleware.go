@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -54,14 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-)
-
-const (
-	// teleportImpersonateUserHeader is a header that specifies teleport user identity
-	// that the proxy is impersonating.
-	teleportImpersonateUserHeader = "Teleport-Impersonate-User"
-	// teleportImpersonateIPHeader is a header that specifies the real user IP address.
-	teleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
 // AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
@@ -273,7 +264,7 @@ func (t *TLSServer) Close() error {
 		errC <- nil
 	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errors = append(errors, <-errC)
 	}
 	errors = append(errors, t.mux.Close())
@@ -292,7 +283,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		errC <- nil
 	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errors = append(errors, <-errC)
 	}
 	return trace.NewAggregate(errors...)
@@ -312,7 +303,7 @@ func (t *TLSServer) Serve() error {
 		errC <- t.grpcServer.server.Serve(t.mux.HTTP2())
 	}()
 	errors := []error{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errors = append(errors, <-errC)
 	}
 	return trace.NewAggregate(errors...)
@@ -321,8 +312,6 @@ func (t *TLSServer) Serve() error {
 // Middleware is authentication middleware checking every request
 type Middleware struct {
 	authz.Middleware
-	// TODO(tross): Delete ClusterName once e no longer references it.
-	ClusterName string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
 	// GRPCMetrics is the configured gRPC metrics for the interceptors
@@ -541,7 +530,7 @@ func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
 // withAuthenticatedUserUnaryInterceptor is a gRPC unary server interceptor
 // which sets the ContextUser field on the request context to the caller's user
 // identity as authenticated by their client TLS certificate.
-func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	ctx, err := a.withAuthenticatedUser(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -552,7 +541,7 @@ func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, 
 // withAuthenticatedUserUnaryInterceptor is a gRPC stream server interceptor
 // which sets the ContextUser field on the request context to the caller's user
 // identity as authenticated by their client TLS certificate.
-func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv any, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	ctx, err := a.withAuthenticatedUser(serverStream.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -611,80 +600,4 @@ func findPrimarySystemRole(roles []string) *types.SystemRole {
 		}
 	}
 	return nil
-}
-
-// ImpersonatorRoundTripper is a round tripper that impersonates a user with
-// the identity provided.
-type ImpersonatorRoundTripper struct {
-	http.RoundTripper
-}
-
-// NewImpersonatorRoundTripper returns a new impersonator round tripper.
-func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper {
-	return &ImpersonatorRoundTripper{
-		RoundTripper: rt,
-	}
-}
-
-// RoundTrip implements http.RoundTripper interface to include the identity
-// in the request header.
-func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-
-	identity, err := authz.UserFromContext(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b, err := json.Marshal(identity.GetIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.Header.Set(teleportImpersonateUserHeader, string(b))
-
-	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req.Header.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
-
-	return r.RoundTripper.RoundTrip(req)
-}
-
-// CloseIdleConnections ensures that the returned [net.RoundTripper]
-// has a CloseIdleConnections method.
-func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
-	type closeIdler interface {
-		CloseIdleConnections()
-	}
-	if c, ok := r.RoundTripper.(closeIdler); ok {
-		c.CloseIdleConnections()
-	}
-}
-
-// IdentityForwardingHeaders returns a copy of the provided headers with
-// the TeleportImpersonateUserHeader and TeleportImpersonateIPHeader headers
-// set to the identity provided.
-// The returned headers shouln't be used across requests as they contain
-// the client's IP address and the user's identity.
-func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header) (http.Header, error) {
-	identity, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b, err := json.Marshal(identity.GetIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headers := originalHeaders.Clone()
-	headers.Set(teleportImpersonateUserHeader, string(b))
-
-	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	headers.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
-	return headers, nil
 }

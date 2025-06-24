@@ -66,7 +66,7 @@ type fileTransferRequest struct {
 	moderatedSessionID string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:               site.GetName(),

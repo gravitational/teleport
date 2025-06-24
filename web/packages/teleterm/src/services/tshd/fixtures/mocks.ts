@@ -118,7 +118,12 @@ export class MockTshClient implements TshdClient {
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
-  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
+  getServiceInfo = () =>
+    new MockedUnaryCall({
+      appDnsZones: [],
+      clusters: [],
+      sshConfigured: false,
+    });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
 
   runDiagnostics() {

@@ -36,6 +36,9 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
+KUBECTL_VERSION := $(shell go list -m -f '{{.Version}}' k8s.io/kubectl | sed 's/v0/v1/')
+KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
+
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
@@ -362,7 +365,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # TELEPORT_LDFLAGS and TOOLS_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -387,8 +390,6 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
-$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
@@ -916,10 +917,11 @@ test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) ensure-gotestsum 
 
 # Runs base unit tests
 .PHONY: test-go-unit
+test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
-	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $$(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -1079,9 +1081,10 @@ FLAKY_RUNS ?= 3
 FLAKY_TIMEOUT ?= 1h
 FLAKY_TOP_N ?= 20
 FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
+test-go-flaky: rdpclient
 test-go-flaky: FLAGS ?= -race -shuffle on
 test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e e2e -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
-test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
+test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \

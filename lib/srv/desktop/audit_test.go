@@ -595,7 +595,7 @@ func fillReadRequestCache(cache *sharedDirectoryAuditCache, did directoryID) {
 	cache.Lock()
 	defer cache.Unlock()
 
-	for i := 0; i < maxAuditCacheItems; i++ {
+	for i := range maxAuditCacheItems {
 		cache.readRequestCache[completionID(i)] = readRequestInfo{
 			directoryID: did,
 		}

@@ -28,6 +28,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -159,6 +160,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 		out.Resource = &proto.Event_HealthCheckConfig{
 			HealthCheckConfig: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*presencev1.RelayServer]:
+		out.Resource = &proto.Event_RelayServer{
+			RelayServer: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -651,6 +656,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetHealthCheckConfig(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetRelayServer(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

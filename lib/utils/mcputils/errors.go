@@ -21,6 +21,7 @@ package mcputils
 import (
 	"errors"
 	"io"
+	"io/fs"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -29,5 +30,16 @@ import (
 // indicates the connection is ended.
 func IsOKCloseError(err error) bool {
 	return errors.Is(err, io.ErrClosedPipe) ||
+		isFileClosedError(err) ||
 		utils.IsOKNetworkError(err)
+}
+
+// isFileClosedError check if the error is a common error when exec.Command
+// pipes are closed.
+func isFileClosedError(err error) bool {
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) {
+		return false
+	}
+	return errors.Is(pathErr.Err, fs.ErrClosed)
 }

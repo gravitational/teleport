@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.4.10",
+      "version": "17.5.2",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -818,6 +818,11 @@
     {
       "source": "/admin-guides/teleport-policy/",
       "destination": "/identity-security/teleport-policy/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/architecture/proxy-peering/",
+      "destination": "/admin-guides/management/operations/proxy-peering/",
       "permanent": true
     }
   ]
