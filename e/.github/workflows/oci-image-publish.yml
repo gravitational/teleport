@@ -46,7 +46,7 @@ jobs:
         with:
           environment-name: ${{ inputs.environment }}
           value-sets: oci
-      
+
       - name: Set source and destination repos
         env:
           REPOSITORY_NAME: ${{ inputs.repository }}
@@ -69,11 +69,11 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ECR_OCI_PENDING_PULL_ROLE_ARN }}
-          role-session-name: "gha-oci-image-publish-download-${{ github.run_number }}"
+          role-session-name: "gha-oci-image-publish-download-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
           role-duration-seconds: 900
 
         # Even after changing AWS roles, the docker daemon should still be able to use these credentials
-        # until they expire.  
+        # until they expire.
       - name: Login to Pending ECR Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
@@ -97,7 +97,7 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ECR_OCI_PUSH_ROLE_ARN }}
-          role-session-name: "gha-oci-image-publish-upload-${{ github.run_number }}"
+          role-session-name: "gha-oci-image-publish-upload-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
           role-duration-seconds: 900
 
       - name: Login to Production ECR Registry

@@ -221,7 +221,7 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
-          role-session-name: "gha-oci-image-build-ecr-${{ github.run_attempt }}"
+          role-session-name: "gha-oci-image-build-ecr-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
       # Authenticate with public ECR for higher rate limits
@@ -245,7 +245,7 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
-          role-session-name: "gha-oci-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
+          role-session-name: "gha-oci-image-build-dl-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
       - name: Download Teleport packages
@@ -312,7 +312,7 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
-          role-session-name: "gha-oci-image-build-${{ github.run_number }}"
+          role-session-name: "gha-oci-image-build-push-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
       - name: Login to Destination ECR Registry
@@ -390,7 +390,7 @@ jobs:
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
-          role-session-name: "gha-oci-image-build-${{ github.run_number }}-trivy"
+          role-session-name: "gha-oci-image-build-trivy-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
       - name: Login to ECR
