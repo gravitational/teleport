@@ -57,8 +57,16 @@ func TestDatabaseResourceURI(t *testing.T) {
 			expectedDatabaseUser: "",
 			expectedClusterName:  "default",
 		},
-		"generated uri": {
-			uri:                  NewDatabaseResourceURI("default", "db").String(),
+		"generated uri with params": {
+			uri:                  NewDatabaseResourceURIWithConnectParams("default", "db", "user", "name").String(),
+			expectedDatabase:     true,
+			expectedServiceName:  "db",
+			expectedDatabaseName: "name",
+			expectedDatabaseUser: "user",
+			expectedClusterName:  "default",
+		},
+		"generated uri without params": {
+			uri:                  NewDatabaseResourceURIWithConnectParams("default", "db", "user", "name").WithoutParams().String(),
 			expectedDatabase:     true,
 			expectedServiceName:  "db",
 			expectedDatabaseName: "",
@@ -108,8 +116,8 @@ func TestEqualResourceURI(t *testing.T) {
 			expectedResult: true,
 		},
 		"same resources, different params": {
-			a:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "readonly", "postgres"),
-			b:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "random"),
+			a:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "readonly", "postgres").WithoutParams(),
+			b:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "random").WithoutParams(),
 			expectedResult: true,
 		},
 		"same resource type, different resources": {
@@ -121,6 +129,11 @@ func TestEqualResourceURI(t *testing.T) {
 			a:              *randomType,
 			b:              NewDatabaseResourceURI("cluster", "pg"),
 			expectedResult: false,
+		},
+		"same resources compare params": {
+			a:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "postgres"),
+			b:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "postgres"),
+			expectedResult: true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

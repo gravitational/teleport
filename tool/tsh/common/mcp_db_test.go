@@ -259,7 +259,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			},
 			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
 			assertError:       require.NoError,
-			expectedDatabases: []string{dbURI0.StringWithParams()},
+			expectedDatabases: []string{dbURI0.String()},
 		},
 		"append database to config": {
 			cf: &CLIConf{
@@ -269,8 +269,8 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			},
 			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
 			assertError:       require.NoError,
-			initialDatabases:  []string{dbURI0.StringWithParams()},
-			expectedDatabases: []string{dbURI0.StringWithParams(), dbURI1.StringWithParams()},
+			initialDatabases:  []string{dbURI0.String()},
+			expectedDatabases: []string{dbURI0.String(), dbURI1.String()},
 		},
 		"update existent database": {
 			cf: &CLIConf{
@@ -280,8 +280,8 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			},
 			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
 			assertError:       require.NoError,
-			initialDatabases:  []string{dbURI0.StringWithParams(), dbURI1.StringWithParams()},
-			expectedDatabases: []string{dbURI0Updated.StringWithParams(), dbURI1.StringWithParams()},
+			initialDatabases:  []string{dbURI0.String(), dbURI1.String()},
+			expectedDatabases: []string{dbURI0Updated.String(), dbURI1.String()},
 		},
 		"database not found": {
 			cf: &CLIConf{

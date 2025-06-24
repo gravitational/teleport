@@ -137,28 +137,21 @@ func (u ResourceURI) IsDatabase() bool {
 	return u.GetDatabaseServiceName() != ""
 }
 
-// String returns the string representation of the resource URI (excluding the
-// query params).
+// String returns the string representation of the resource URI.
 func (u ResourceURI) String() string {
-	c := u.url
-	c.RawQuery = ""
-	return c.String()
+	return u.url.String()
 }
 
-// StringWithParams returns the string representation of the resource URI
-// including the query params.
-func (u ResourceURI) StringWithParams() string {
-	return u.url.String()
+// WithoutParams returns a copy of the resource without additional parameters.
+func (u ResourceURI) WithoutParams() ResourceURI {
+	copyURL := u.url
+	copyURL.RawQuery = ""
+	return ResourceURI{url: copyURL}
 }
 
 // Equal returns true if both resources represent the same Teleport resource.
 func (u ResourceURI) Equal(b ResourceURI) bool {
-	switch {
-	case u.IsDatabase() && b.IsDatabase():
-		return u.GetClusterName() == b.GetClusterName() && u.GetDatabaseServiceName() == b.GetDatabaseServiceName()
-	default:
-		return false
-	}
+	return u.String() == b.String()
 }
 
 // path returns the resource URI full path. We must include the hostname as the

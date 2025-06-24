@@ -26,8 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/client/mcp"
 )
 
 func TestFileConfig_fileNotExists(t *testing.T) {
@@ -254,8 +252,8 @@ func Test_formatJSON(t *testing.T) {
 // arguments it must encode and output those URIs in a readable format.
 func TestReadableResourceURIs(t *testing.T) {
 	for name, uri := range map[string]string{
-		"uri with query params":    mcp.NewDatabaseResourceURIWithConnectParams("cluster", "pg", "readonly", "postgres").StringWithParams(),
-		"uri without query params": mcp.NewDatabaseResourceURI("cluster", "pg").StringWithParams(),
+		"uri with query params":    "teleport://clusters/root/databases/pg",
+		"uri without query params": "teleport://clusters/root/databases/pg?dbName=postgres&dbUser=readonly",
 		"random uri with params":   "teleport://random?hello=world&random=resource",
 	} {
 		t.Run(name, func(t *testing.T) {
