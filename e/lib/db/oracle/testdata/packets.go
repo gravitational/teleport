@@ -41,6 +41,69 @@ const ConnectPacketDumpTransformed = `
 00000100  3d 3d 29 29 29                                    |==)))|
 `
 
+// ConnectPacketDumpSplit is a connect packet with a long connection string split into another packet: DataPacketForConnectDataDump.
+const ConnectPacketDumpSplit = `
+0000   00 4a 00 00 01 00 00 00 01 3e 01 2c 0c 41 20 00   .J.......>.,.A .
+0010   ff ff 7f 08 00 00 01 00 01 09 00 4a 00 00 14 00   ...........J....
+0020   51 51 42 f6 00 00 00 00 00 00 00 00 00 00 00 00   QQB.............
+0030   00 00 00 00 00 00 00 00 00 00 00 00 20 00 00 20   ............ .. 
+0040   00 00 00 00 00 00 00 00 00 01                     ..........
+`
+
+// DataPacketForConnectDataDump is a data packet with connection string for ConnectPacketDumpSplit.
+const DataPacketForConnectDataDump = `
+0000   01 13 00 00 06 00 00 00 00 00 28 44 45 53 43 52   ..........(DESCR
+0010   49 50 54 49 4f 4e 3d 28 43 4f 4e 4e 45 43 54 5f   IPTION=(CONNECT_
+0020   54 49 4d 45 4f 55 54 3d 35 29 28 54 52 41 4e 53   TIMEOUT=5)(TRANS
+0030   50 4f 52 54 5f 43 4f 4e 4e 45 43 54 5f 54 49 4d   PORT_CONNECT_TIM
+0040   45 4f 55 54 3d 33 29 28 52 45 54 52 59 5f 43 4f   EOUT=3)(RETRY_CO
+0050   55 4e 54 3d 33 29 28 43 4f 4e 4e 45 43 54 5f 44   UNT=3)(CONNECT_D
+0060   41 54 41 3d 28 53 45 52 56 49 43 45 5f 4e 41 4d   ATA=(SERVICE_NAM
+0070   45 3d 44 42 30 35 32 38 5f 72 68 62 5f 70 68 78   E=DB0528_rhb_phx
+0080   2e 73 75 62 30 35 32 38 30 38 34 30 33 32 30 2e   .sub05280840320.
+0090   74 65 6e 65 72 32 30 32 35 30 35 32 38 2e 6f 72   tener20250528.or
+00a0   61 63 6c 65 76 63 6e 2e 63 6f 6d 29 28 43 49 44   aclevcn.com)(CID
+00b0   3d 28 50 52 4f 47 52 41 4d 3d 73 71 6c 70 6c 75   =(PROGRAM=sqlplu
+00c0   73 40 64 62 31 29 28 48 4f 53 54 3d 64 62 31 29   s@db1)(HOST=db1)
+00d0   28 55 53 45 52 3d 6f 72 61 63 6c 65 29 29 29 28   (USER=oracle)))(
+00e0   41 44 44 52 45 53 53 3d 28 50 52 4f 54 4f 43 4f   ADDRESS=(PROTOCO
+00f0   4c 3d 54 43 50 29 28 48 4f 53 54 3d 31 30 2e 30   L=TCP)(HOST=10.0
+0100   2e 30 2e 38 33 29 28 50 4f 52 54 3d 31 35 32 31   .0.83)(PORT=1521
+0110   29 29 29                                          )))
+`
+
+// RedirectPacketDump is a short redirect packet to be followed by DataPacketForRedirectDump.
+const RedirectPacketDump = `
+0000   00 0a 00 00 05 02 00 00 01 66                     .........f
+`
+
+// DataPacketForRedirectDump is a DATA packet with details regarding RedirectPacketDump.
+const DataPacketForRedirectDump = `
+0000   01 70 00 00 06 00 00 00 00 40 28 41 44 44 52 45   .p.......@(ADDRE
+0010   53 53 3d 28 50 52 4f 54 4f 43 4f 4c 3d 54 43 50   SS=(PROTOCOL=TCP
+0020   29 28 48 4f 53 54 3d 31 30 2e 30 2e 30 2e 35 32   )(HOST=10.0.0.52
+0030   29 28 50 4f 52 54 3d 31 35 32 31 29 29 00 28 44   )(PORT=1521)).(D
+0040   45 53 43 52 49 50 54 49 4f 4e 3d 28 43 4f 4e 4e   ESCRIPTION=(CONN
+0050   45 43 54 5f 54 49 4d 45 4f 55 54 3d 35 29 28 54   ECT_TIMEOUT=5)(T
+0060   52 41 4e 53 50 4f 52 54 5f 43 4f 4e 4e 45 43 54   RANSPORT_CONNECT
+0070   5f 54 49 4d 45 4f 55 54 3d 33 29 28 52 45 54 52   _TIMEOUT=3)(RETR
+0080   59 5f 43 4f 55 4e 54 3d 33 29 28 43 4f 4e 4e 45   Y_COUNT=3)(CONNE
+0090   43 54 5f 44 41 54 41 3d 28 53 45 52 56 49 43 45   CT_DATA=(SERVICE
+00a0   5f 4e 41 4d 45 3d 44 42 30 35 32 38 5f 72 68 62   _NAME=DB0528_rhb
+00b0   5f 70 68 78 2e 73 75 62 30 35 32 38 30 38 34 30   _phx.sub05280840
+00c0   33 32 30 2e 74 65 6e 65 72 32 30 32 35 30 35 32   320.tener2025052
+00d0   38 2e 6f 72 61 63 6c 65 76 63 6e 2e 63 6f 6d 29   8.oraclevcn.com)
+00e0   28 43 49 44 3d 28 50 52 4f 47 52 41 4d 3d 73 71   (CID=(PROGRAM=sq
+00f0   6c 70 6c 75 73 40 64 62 31 29 28 48 4f 53 54 3d   lplus@db1)(HOST=
+0100   64 62 31 29 28 55 53 45 52 3d 6f 72 61 63 6c 65   db1)(USER=oracle
+0110   29 29 28 53 45 52 56 45 52 3d 64 65 64 69 63 61   ))(SERVER=dedica
+0120   74 65 64 29 28 49 4e 53 54 41 4e 43 45 5f 4e 41   ted)(INSTANCE_NA
+0130   4d 45 3d 44 42 30 35 32 38 31 29 29 28 41 44 44   ME=DB05281))(ADD
+0140   52 45 53 53 3d 28 50 52 4f 54 4f 43 4f 4c 3d 54   RESS=(PROTOCOL=T
+0150   43 50 29 28 48 4f 53 54 3d 31 30 2e 30 2e 30 2e   CP)(HOST=10.0.0.
+0160   38 33 29 28 50 4f 52 54 3d 31 35 32 31 29 29 29   83)(PORT=1521)))
+`
+
 const ResendPacketDump = `
 00000000  00 08 00 00 0b 08 00 00                           |........|
 `

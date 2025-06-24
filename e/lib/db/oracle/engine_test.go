@@ -185,7 +185,7 @@ func TestOracleEngine(t *testing.T) {
 		session.Identity.RouteToDatabase.Database = ""
 
 		engine := mkEngine()
-		connectPacketChannel := make(chan *protocol.ConnectPacket)
+		connectPacketChannel := make(chan *protocol.ConnectPacket, 1)
 		engine.onConnectPacketRead = func(p *protocol.ConnectPacket) {
 			connectPacketChannel <- p
 		}

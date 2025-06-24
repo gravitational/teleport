@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -77,7 +78,10 @@ func TestClientServerConnReg(t *testing.T) {
 	tcpConn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
 
-	serverConn, err := NewConn(tcpConn, WithTLS(&tls.Config{
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	serverConn, err := NewConn(tcpConn, WithTLS(ctx, &tls.Config{
 		ServerName: "localhost",
 		RootCAs:    pool,
 	}))
@@ -93,7 +97,7 @@ func TestClientServerConnReg(t *testing.T) {
 	require.Equal(t, mustParseDumpToPacket(t, testdata.ResendPacketDump), response)
 
 	// retry TLS
-	serverConn, err = NewConn(tcpConn, WithTLS(&tls.Config{
+	serverConn, err = NewConn(tcpConn, WithTLS(ctx, &tls.Config{
 		ServerName: "localhost",
 		RootCAs:    pool,
 	}))

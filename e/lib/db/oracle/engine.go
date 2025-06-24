@@ -106,9 +106,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	err = e.dialServerAndForward(ctx, sessionCtx)
-	if err != nil && !utils.IsOKNetworkError(err) {
-		e.Log.ErrorContext(e.Context, "Error handling connection.", "error", err)
-	}
 	return trace.Wrap(err)
 }
 

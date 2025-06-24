@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 
@@ -107,11 +108,11 @@ func WithOnWritePacket(onWritePacket func(protocol.Packet)) ConnOption {
 }
 
 // WithTLS modifies the OracleConn by performing TLS over existing connection and replacing the connection with resulting TLS connection.
-func WithTLS(config *tls.Config) ConnOption {
+func WithTLS(ctx context.Context, config *tls.Config) ConnOption {
 	return func(conn *OracleConn) error {
 		tlsConn := tls.Client(conn.conn, config)
-		if err := tlsConn.Handshake(); err != nil {
-			return trace.Wrap(err)
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			return trace.Wrap(err, "tls handshake failed")
 		}
 		conn.conn = tlsConn
 		return nil

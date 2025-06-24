@@ -19,6 +19,12 @@ type Packet interface {
 	Header() PacketHeader
 }
 
+// PacketReader provides ReadPacket method.
+type PacketReader interface {
+	ReadPacket() (Packet, error)
+}
+
+// DebugPacket is implemented by Packets to provide debug information.
 type DebugPacket interface {
 	DebugData() map[string]any
 }
@@ -55,39 +61,19 @@ type UnknownPacket struct {
 func parsePacket(bp *basePacket) (Packet, error) {
 	switch bp.Type() {
 	case ACCEPT:
-		ac, err := parseAcceptPacket(bp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ac, nil
+		return parseAcceptPacket(bp)
+	case DATA:
+		return parseDataPacket(bp)
+	case REDIRECT:
+		return parseRedirectPacket(bp)
+	case CONNECT:
+		return parseConnectPacket(bp)
+	case REFUSE:
+		return parseRefusePacket(bp)
+	case MARKER:
+		return parseMarkerPacket(bp)
 	case RESEND:
 		return &ResendPacket{basePacket: *bp}, nil
-	case DATA:
-		dp, err := parseDataPacket(bp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return dp, nil
-	case REDIRECT:
-		return &RedirectPacket{basePacket: *bp}, nil
-	case CONNECT:
-		cp, err := parseConnectPacket(bp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cp, nil
-	case REFUSE:
-		ac, err := parseRefusePacket(bp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ac, nil
-	case MARKER:
-		marker, err := parseMarkerPacket(bp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return marker, nil
 	default:
 		return &UnknownPacket{basePacket: *bp}, nil
 	}
@@ -143,4 +129,12 @@ func ReadPacket(protocolVersion uint16, reader io.Reader) (ReadPacketResult, err
 
 	result.SuccessPacket = pck
 	return result, nil
+}
+
+type fixedPacketReader struct {
+	packet Packet
+}
+
+func (r *fixedPacketReader) ReadPacket() (Packet, error) {
+	return r.packet, nil
 }

@@ -2,13 +2,19 @@ package oracle
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/e/lib/db/oracle/connection"
 	"github.com/gravitational/teleport/e/lib/db/oracle/logging"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
+	"github.com/gravitational/teleport/e/lib/db/oracle/tns"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/packetcapture"
 	"github.com/gravitational/teleport/lib/utils"
@@ -65,21 +71,32 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	}
 	defer packetLogger.Close()
 
-	serverTcpConn, err := net.Dial("tcp", getURI(sessionCtx.Database))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer serverTcpConn.Close()
-
-	// Note that we don't have to close clientConn or serverConn:
-	// - serverTcpConn.Close() already deals with the server connection,
-	// - e.clientConn.Close() deals with the client one.
-	clientConn, serverConn, err := e.openServerConnection(ctx, packetLogger, sessionCtx, serverTcpConn)
+	clientConn, err := connection.NewConn(e.clientConn,
+		connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ClientToTeleport, header) }),
+		connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ClientToTeleport, packet) }),
+		connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToClient, packet) }),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// client and server flows are independent, so we can run them at the same time.
+	connectPacket, err := e.readConnect(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = tweakConnectPacket(e.Context, e.Log, connectPacket)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Note that client connection is already closed by the `e.clientConn.Close()` call in HandleConnection function.
+	serverConn, err := e.openServerConnection(ctx, packetLogger, sessionCtx, clientConn, connectPacket)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serverConn.Close()
+
+	// perform auth. client and server flows are independent, so we can run them at the same time.
 	errCh := make(chan error, 2)
 	go func() {
 		errClient := e.secureNetworkServicesClient(clientConn)
@@ -110,51 +127,27 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	return nil
 }
 
-// openServerConnection handles the first phase of the connection.
-// The client declares the database it wishes to connect to and server accepts or refuses.
-// Server may also request TLS renegotiation.
-// Protocol version is negotiated, which impacts the binary message layout.
-func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.PacketLogger, sessionCtx *common.Session, serverTcpConn net.Conn) (*connection.OracleConn, *connection.OracleConn, error) {
-	clientConn, err := connection.NewConn(e.clientConn,
-		connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ClientToTeleport, header) }),
-		connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ClientToTeleport, packet) }),
-		connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToClient, packet) }),
-	)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// TODO: Consider replacing client-made connect packet with a custom one, properly sanitized.
-	//       However, that would require better understanding of the various flags involved.
-	connectPacket, err := e.readConnect(clientConn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+// tweakConnectPacket modifies connectPacket to constrain the requested protocol version and options to the supported subset.
+func tweakConnectPacket(ctx context.Context, logger *slog.Logger, connectPacket *protocol.ConnectPacket) error {
 	requestedProtocolVersion, err := connectPacket.GetProtocolVersion()
 	if err == nil {
-		e.Log.DebugContext(e.Context, "Protocol version", "requested_protocol_version", requestedProtocolVersion)
+		logger.DebugContext(ctx, "Protocol version", "requested_protocol_version", requestedProtocolVersion)
 	} else {
-		e.Log.DebugContext(e.Context, "Failed to get protocol version", "error", err)
+		logger.DebugContext(ctx, "Failed to get protocol version", "error", err)
 	}
 
 	const maxProtocolVersion = 317
 	if requestedProtocolVersion > maxProtocolVersion {
-		e.Log.InfoContext(e.Context, "Lowering protocol version", "new_protocol_version", maxProtocolVersion, "requested_protocol_version", requestedProtocolVersion)
+		logger.DebugContext(ctx, "Lowering protocol version", "new_protocol_version", maxProtocolVersion, "requested_protocol_version", requestedProtocolVersion)
 		err = connectPacket.SetProtocolVersion(maxProtocolVersion)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
 	opts, err := connectPacket.GetServiceOptions()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Disable "full duplex" service option, as having it enabled may cause differences in login flows that we don't want.
@@ -163,85 +156,247 @@ func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.
 	// - the feature is known to be problematic and is disabled by default in various configurations, including RDS Oracle.
 	// - even if enabled on both client and server side, plenty of networks won't work with it anyway.
 	if opts.HasFlag(protocol.ServiceOptionFullDuplex) {
-		e.Log.DebugContext(e.Context, "Found service option full duplex, disabling", "options", opts)
+		logger.DebugContext(ctx, "Found service option full duplex, disabling", "options", opts)
 		opts = opts.WithFlagUnset(protocol.ServiceOptionFullDuplex)
 		err = connectPacket.SetServiceOptions(opts)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
-	// CONNECT -> ACCEPT loop; may need to restart TLS and retry.
-	// Typical happy flow:
-	// - send CONNECT
-	// - receive RESEND
-	// - send CONNECT
-	// - receive ACCEPT
-	// We allow for more RESEND packets because handling that isn't hard and the protocol technically allows for that.
-	const maxResendAttempts = 3
-	for attempt := 1; ; attempt++ {
-		if attempt > maxResendAttempts {
-			return nil, nil, trace.BadParameter("exceeded max resend attempts")
+	return nil
+}
+
+// openServerConnection handles the first phase of the connection.
+// The client declares the database it wishes to connect to and server accepts or refuses.
+// Server may also request TLS renegotiation.
+// Protocol version is negotiated, which impacts the binary message layout.
+func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.PacketLogger, sessionCtx *common.Session, clientConn *connection.OracleConn, connectPacket *protocol.ConnectPacket) (*connection.OracleConn, error) {
+	var serverTcpConn net.Conn
+	closeServerTcpConn := true
+	defer func() {
+		if closeServerTcpConn && serverTcpConn != nil {
+			_ = serverTcpConn.Close()
 		}
-		e.Log.InfoContext(e.Context, "Sending connect packet", "attempt", attempt)
+	}()
 
-		serverConn, err := connection.NewConn(serverTcpConn, connection.WithTLS(tlsConfig),
-			connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ServerToTeleport, header) }),
-			connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ServerToTeleport, packet) }),
-			connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToServer, packet) }),
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		// pass the CONNECT (and optional DATA packet) down to the server.
-		err = serverConn.WritePacket(connectPacket)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		if connectPacket.DataPacket != nil {
-			err = serverConn.WritePacket(connectPacket.DataPacket)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-		}
-
-		// read the response from server. expecting either RESEND or ACCEPT.
-		pkt, err := serverConn.ReadPacket()
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		switch pktT := pkt.(type) {
-		case *protocol.AcceptPacket:
-			accept := pktT
-			e.Log.InfoContext(e.Context, "Received accept packet", "protocol_version", accept.ProtocolVersion)
-
-			// update negotiated protocol version.
-			clientConn.SetProtocolVersion(accept.ProtocolVersion)
-			serverConn.SetProtocolVersion(accept.ProtocolVersion)
-
-			// forward the accept packet to the client.
-			err = clientConn.WritePacket(accept)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-
-			e.Log.InfoContext(e.Context, "Protocol handshake complete.")
-			return clientConn, serverConn, nil
-		case *protocol.RefusePacket:
-			e.Log.WarnContext(e.Context, "Received refuse packet.", "message", pktT.Message)
-			return nil, nil, trace.AccessDenied("server refused connection: %s", pktT.Message)
-		case *protocol.ResendPacket:
-			e.Log.DebugContext(e.Context, "RESEND received, trying again.")
-			continue
-		case *protocol.RedirectPacket:
-			e.Log.WarnContext(e.Context, "Remote server requested redirect which is not supported. Update your configuration to connect to individual database nodes.")
-			return nil, nil, trace.AccessDenied("unsupported redirect request, update your configuration to directly connect to individual database nodes")
-		}
-
-		return nil, nil, trace.BadParameter("received unexpected packet type: %T", pkt)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	// server address to dial; initially set from database spec, may be overridden by data from redirect packet.
+	serverDialAddr := getURI(sessionCtx.Database)
+
+	// we allow maximum of 3 dial attempts.
+	// - in regular, direct connection we will observe a single dial attempt.
+	// - in SCAN, a single redirect to the direct server will happen, resulting in total two dial attempts.
+	// - we will accept yet another redirect, although there are no known configurations that would behave like this.
+	const maxDialAttempts = 3
+
+	// handling the redirect packet requires continue against the outer loop.
+dial:
+	for dialAttempt := 1; ; dialAttempt++ {
+		e.Log.DebugContext(e.Context, "Opening server connection", "attempt", dialAttempt, "address", serverDialAddr)
+		if dialAttempt > maxDialAttempts {
+			return nil, trace.BadParameter("exceeded max dial attempts")
+		}
+
+		serverTcpConn, err = net.DialTimeout("tcp", serverDialAddr, defaults.DefaultIOTimeout)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		e.Log.DebugContext(e.Context, "Connection opened.", "local_addr", serverTcpConn.LocalAddr(), "remote_addr", serverTcpConn.RemoteAddr())
+
+		// CONNECT -> ACCEPT loop; may need to restart TLS and retry.
+		// Typical happy flow:
+		// - send CONNECT
+		// - receive RESEND
+		// - send CONNECT
+		// - receive ACCEPT
+		// We allow for more RESEND packets because handling that isn't hard and the protocol technically allows for that.
+		const maxResendAttempts = 3
+		for attempt := 1; ; attempt++ {
+			if attempt > maxResendAttempts {
+				return nil, trace.BadParameter("exceeded max resend attempts")
+			}
+
+			connectionOptions := []connection.ConnOption{
+				connection.WithTLS(ctx, tlsConfig),
+				connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ServerToTeleport, header) }),
+				connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ServerToTeleport, packet) }),
+				connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToServer, packet) }),
+			}
+
+			serverConn, err := connection.NewConn(serverTcpConn, connectionOptions...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// pass the CONNECT (and optional DATA packet) down to the server.
+			e.Log.InfoContext(e.Context, "Sending connect packet", "attempt", attempt)
+			err = serverConn.WritePacket(connectPacket)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if connectPacket.DataPacket != nil {
+				err = serverConn.WritePacket(connectPacket.DataPacket)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+
+			// read the response from server. expecting either RESEND or ACCEPT.
+			pkt, err := serverConn.ReadPacket()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			switch pktT := pkt.(type) {
+			case *protocol.AcceptPacket:
+				accept := pktT
+				e.Log.InfoContext(e.Context, "Received accept packet", "protocol_version", accept.ProtocolVersion)
+
+				// update negotiated protocol version.
+				clientConn.SetProtocolVersion(accept.ProtocolVersion)
+				serverConn.SetProtocolVersion(accept.ProtocolVersion)
+
+				// forward the accept packet to the client.
+				err = clientConn.WritePacket(accept)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				e.Log.InfoContext(e.Context, "Protocol handshake complete.")
+
+				closeServerTcpConn = false
+
+				return serverConn, nil
+			case *protocol.RefusePacket:
+				e.Log.WarnContext(e.Context, "Received refuse packet.", "message", pktT.Message)
+
+				// forward refuse packet to the client
+				err = clientConn.WritePacket(pktT)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return nil, trace.AccessDenied("server refused connection: %s", pktT.Message)
+			case *protocol.ResendPacket:
+				e.Log.DebugContext(e.Context, "RESEND received, trying again.")
+				continue
+			case *protocol.RedirectPacket:
+				e.Log.DebugContext(e.Context, "Received REDIRECT packet, processing.")
+				redirect := pktT
+
+				// similar to connect packet, redirect packet often needs more data which is sent in a follow-up DATA packet.
+				err = redirect.MaybeReadMoreData(serverConn)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				redirectAddr, err := redirect.RedirectAddress()
+				if err != nil {
+					return nil, trace.Wrap(err, "failed to get redirect address")
+				}
+				e.Log.DebugContext(e.Context, "Redirect address", "addr", redirectAddr)
+
+				redirectHost, redirectPort, err := parseRedirectAddress(e.Context, e.Log, redirectAddr)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				serverDialAddr = net.JoinHostPort(redirectHost, strconv.Itoa(redirectPort))
+
+				redirectConnStr, err := redirect.RedirectConnectionString()
+				if err != nil {
+					return nil, trace.Wrap(err, "failed to get redirect connection string")
+				}
+				e.Log.DebugContext(e.Context, "Redirect connection string", "conn_str", redirectConnStr)
+
+				// We need to update connect packet dropping old connection string in favor of the new one provided by the server.
+				// However, the client shouldn't be bothered to provide an updated connect packet: it is unaware of the redirect happening at all.
+				// We also cannot make the fresh packet from scratch, we need to keep the flags provided by the client intact.
+				// We construct the new packet by updating the connection string of the original packet.
+				newConnectPacket, err := connectPacket.WithConnectionString(redirectConnStr)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				connectPacket = newConnectPacket
+
+				// close old TCP connection; ignore potential errors.
+				_ = serverTcpConn.Close()
+
+				// continue to new dial (outer loop)
+				continue dial
+			}
+
+			e.Log.DebugContext(e.Context, "Received unexpected packet.", "type", fmt.Sprintf("%T", pkt))
+
+			return nil, trace.BadParameter("received unexpected packet type: %T", pkt)
+		}
+	}
+}
+
+// parseRedirectAddress extracts connection address and port from redirect address, such as:
+//
+//	(ADDRESS=(PROTOCOL=TCPS)(HOST=10.0.0.52)(PORT=2452))
+//
+// or with an additional DESCRIPTION node:
+//
+//	(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=10.0.0.52)(PORT=2452)))
+//
+// TCPS protocol is enforced.
+func parseRedirectAddress(ctx context.Context, logger *slog.Logger, addr string) (string, int, error) {
+	// parse the address
+	nodes, err := tns.ParseNodes(addr)
+	if err != nil {
+		return "", 0, trace.Wrap(err, "failed to parse redirect address %q", addr)
+	}
+	if len(nodes) > 1 {
+		logger.DebugContext(ctx, "Parsed redirect address with more than one node", "addr", addr)
+	}
+
+	tree := &tns.Node{Children: nodes}
+
+	const (
+		descriptionKey = "DESCRIPTION"
+		addressKey     = "ADDRESS"
+		hostKey        = "HOST"
+		portKey        = "PORT"
+		protocolKey    = "PROTOCOL"
+	)
+
+	hostNode := tree.Path(addressKey, hostKey)
+	port := tree.Path(addressKey, portKey).GetValue()
+	proto := tree.Path(addressKey, protocolKey).GetValue()
+
+	// if HOST node is missing, check within the DESCRIPTION node.
+	if hostNode == nil {
+		hostNode = tree.Path(descriptionKey, addressKey, hostKey)
+		if hostNode == nil {
+			return "", 0, trace.BadParameter("redirect address %q is missing a host key", addr)
+		}
+		port = tree.Path(descriptionKey, addressKey, portKey).GetValue()
+		proto = tree.Path(descriptionKey, addressKey, protocolKey).GetValue()
+	}
+	host := hostNode.GetValue()
+
+	logger.DebugContext(ctx, "Parsed redirect address", "host", host, "port", port, "protocol", proto)
+
+	// validate
+	if host == "" {
+		return "", 0, trace.BadParameter("empty host value")
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return "", 0, trace.BadParameter("failed to parse port number: %q", port)
+	}
+	if !strings.EqualFold(proto, "tcps") {
+		return "", 0, trace.BadParameter("expected TCPS protocol, got %q", proto)
+	}
+
+	return host, portNum, nil
 }
 
 // secureNetworkServicesClient performs SNS negotiation with the client.

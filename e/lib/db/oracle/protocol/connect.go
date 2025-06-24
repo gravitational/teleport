@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"bytes"
 	"encoding/binary"
+	"math"
 	"regexp"
 	"slices"
 
@@ -63,6 +65,15 @@ func (cp *ConnectPacket) DebugData() map[string]any {
 	protoVersion, _ := cp.GetProtocolVersion()
 	out["ProtocolVersion"] = protoVersion
 
+	serviceOptions, _ := cp.GetServiceOptions()
+	out["ServiceOptions"] = serviceOptions
+
+	connString, _ := cp.GetConnectionString()
+	out["ConnectionString"] = connString
+
+	serviceName, _ := cp.GetServiceName()
+	out["ServiceName"] = serviceName
+
 	return out
 }
 
@@ -78,9 +89,7 @@ func (cp *ConnectPacket) addMoreData(buffer []byte) {
 
 // MaybeReadMoreData optionally reads additional DATA packets from the connection and extends the ConnectPacket with it.
 // This only happens if this data is actually needed.
-//
-// Parameter declared as inline interface type to avoid cyclic dependency.
-func (cp *ConnectPacket) MaybeReadMoreData(conn interface{ ReadPacket() (Packet, error) }) error {
+func (cp *ConnectPacket) MaybeReadMoreData(conn PacketReader) error {
 	if !cp.needMoreData() {
 		return nil
 	}
@@ -96,18 +105,15 @@ func (cp *ConnectPacket) MaybeReadMoreData(conn interface{ ReadPacket() (Packet,
 
 	cp.DataPacket = data
 
-	// header + 2 bytes of junk data
-	const offset = PacketHeaderSize + 2
-	payload := data.Payload()
-
-	if len(payload) < offset {
-		return trace.BadParameter("expected at least %d bytes, got %d", offset, len(payload))
+	payload, err := data.DataPayload()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	cp.addMoreData(payload[offset:])
+	cp.addMoreData(payload)
 
-	// should not happen!
+	// should not happen unless the client is doing something very unusual.
 	if cp.needMoreData() {
-		return trace.BadParameter("ConnectPacket already extended with additional data, still not enough. (base:%v, data:%v)", cp.base, cp.DataPacket)
+		return trace.BadParameter("packet already extended with additional data, still not enough. (base:%v, data:%v)", cp.base, cp.DataPacket)
 	}
 
 	return nil
@@ -214,17 +220,140 @@ func (cp *ConnectPacket) SetServiceOptions(options ServiceOptions) error {
 	return nil
 }
 
-func parseConnectPacket(bp *basePacket) (*ConnectPacket, error) {
-	const connStrOffset = 24 // Offset where the Connection String length is stored.
+// WithConnectionString returns a fresh copy of ConnectPacket but with connection string substituted for the provided value.
+func (cp *ConnectPacket) WithConnectionString(connStr string) (*ConnectPacket, error) {
+	if cp.needMoreData() {
+		return nil, trace.BadParameter("connect packet is incomplete, updating connection string is not supported")
+	}
 
+	connStrData := []byte(connStr)
+
+	if len(connStrData) > math.MaxUint16 {
+		return nil, trace.BadParameter("connection string is too long: %d bytes", len(connStrData))
+	}
+
+	// Modifying the connect packet in place would be fairly complex:
+	// - there are multiple fields that come into play,
+	// - there is either one or two packets,
+	// - there are semi-independent raw payload bytes to update as well.
+	//
+	// To makes things more manageable we will take a detour through raw byte buffer.
+	// The key parts of the function are operating on a serialized packet form.
+	//
+	// Once we are done with the modifications we will parse the packet back, yielding a fresh but modified copy.
+	//
+	// For the result we will unconditionally produce two packets:
+	// - main connect packet with protocol options etc.
+	// - auxiliary data packet with the actual connection string.
+	//
+	// This is allowed by the protocol and simplifies the function by having just a single possible (valid) outcome.
+
+	// get the payload for the modification
+	payload := bytes.Clone(cp.Payload())
+
+	// extend the payload with data packet contents
+	if cp.DataPacket != nil {
+		payload = append(payload, bytes.Clone(cp.DataPacket.Payload())...)
+	}
+
+	// At this point, payload contains:
+	// - 24 bytes: packet header with a bunch of options: protocol version, SDU size, ...
+	// - 2 bytes: connection string length
+	// - 2 bytes: connection string offset
+	// - X variable bytes: some extra data
+	// - connection string length bytes: actual connection string, starting at specified offset.
+	// - possibly extra trailing bytes (not actually observed so far).
+	//
+	// This data might have been split into two packets, but we no longer care about this detail.
+
+	// After an update, we will have two parts:
+	// 1. Connect packet:
+	//    - 24 bytes of header. The header contains packet length (first two bytes), *updated* with current value.
+	//    - 2 bytes of *updated* connection string length
+	//    - 2 bytes of unchanged connection string offset
+	//    - X bytes of extra data (variable, client-dependent)
+	//
+	// 2. Data packet *payload* (no header; DataPacketFromPayload will add that):
+	//    - *updated* connection string bytes
+	//    - trailing bytes
+
+	// ensure sufficient payload length to ensure no panics.
+	maxIndex := int(cp.connStringOffset + cp.connStringLength)
+	if len(payload) < maxIndex {
+		return nil, trace.BadParameter("incorrect packet: payload too short (%d)", len(payload))
+	}
+
+	// construct connect packet.
+	// contents: everything up until the start of connection string data.
+	connectPacketBytes := payload[:cp.connStringOffset]
+	if len(connectPacketBytes) < connStrOffsetConnectPacket+2 {
+		return nil, trace.BadParameter("incorrect packet: connect packet too short")
+	}
+	// update packet length in header (first two bytes)
+	binary.BigEndian.PutUint16(connectPacketBytes[0:], uint16(len(connectPacketBytes)))
+	// update connection string length
+	binary.BigEndian.PutUint16(connectPacketBytes[connStrOffsetConnectPacket:], uint16(len(connStrData)))
+
+	// construct data packet *payload* with connection string and optional suffix.
+	dataPacketPayload := connStrData
+	suffix := payload[cp.connStringOffset+cp.connStringLength:]
+	dataPacketPayload = append(dataPacketPayload, suffix...)
+
+	// parse the updated payload back.
+	result, err := ReadPacket(0, bytes.NewReader(connectPacketBytes))
+	if err != nil || result.SuccessPacket == nil {
+		return nil, trace.BadParameter("failed to clone packet: %v", err)
+	}
+
+	clonedPacket, ok := result.SuccessPacket.(*ConnectPacket)
+	if !ok {
+		return nil, trace.BadParameter("expected ConnectPacket, got %T", result.SuccessPacket)
+	}
+
+	// append data packet with actual connection string.
+	dp, err := DataPacketFromPayload(false, dataPacketPayload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = clonedPacket.MaybeReadMoreData(&fixedPacketReader{packet: dp})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// sanity check #1
+	if clonedPacket.needMoreData() {
+		return nil, trace.BadParameter("not enough data for connection string: %q (this is a bug)", connStr)
+	}
+
+	// sanity check #2
+	connStrParsed, err := clonedPacket.GetConnectionString()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if connStrParsed != connStr {
+		return nil, trace.BadParameter("connection string mangled after update: %q != %q (this is a bug)", connStrParsed, connStr)
+	}
+
+	return clonedPacket, nil
+}
+
+// connStrOffsetConnectPacket is the offset to connection string length in the connect packet.
+const connStrOffsetConnectPacket = 24
+
+func parseConnectPacket(bp *basePacket) (*ConnectPacket, error) {
 	// Check if the payload is large enough to contain the necessary data.
-	if len(bp.payload) < PacketHeaderSize+connStrOffset {
+	if len(bp.payload) < PacketHeaderSize+connStrOffsetConnectPacket {
 		return nil, trace.BadParameter("payload too small")
 	}
 
 	// Retrieve the Connection String length and offset from the payload.
-	length := binary.BigEndian.Uint16(bp.payload[connStrOffset : connStrOffset+2])   // Length field size is 2 bytes
-	offset := binary.BigEndian.Uint16(bp.payload[connStrOffset+2 : connStrOffset+4]) // Offset field size is 2 bytes
+	length := binary.BigEndian.Uint16(bp.payload[connStrOffsetConnectPacket : connStrOffsetConnectPacket+2])   // Length field size is 2 bytes
+	offset := binary.BigEndian.Uint16(bp.payload[connStrOffsetConnectPacket+2 : connStrOffsetConnectPacket+4]) // Offset field size is 2 bytes
+
+	// sanity check offset value
+	if offset < (connStrOffsetConnectPacket + 2 + 2) {
+		return nil, trace.BadParameter("connect packet invalid: invalid connection string offset (%d)", offset)
+	}
 
 	return &ConnectPacket{
 		base:             *bp,
