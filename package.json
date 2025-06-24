@@ -22,9 +22,12 @@
     "lint-fix": "pnpm eslint --fix && pnpm prettier-write",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
+    "optimize-icons": "pnpm optimize-app-icons && pnpm optimize-resource-icons",
+    "optimize-app-icons": "svgo --multipass --quiet -rf web/packages/design/src/Icon/assets -o web/packages/design/src/Icon/optimized",
+    "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets -o web/packages/design/src/ResourceIcon/optimized",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
+    "process-icons": "pnpm optimize-icons && node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
@@ -67,6 +70,7 @@
     "prettier": "^3.5.3",
     "react-select-event": "^5.5.1",
     "storybook": "^8.6.12",
+    "svgo": "^4.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },

@@ -33,7 +33,7 @@ const path = require('path');
 
 const basePath = 'web/packages/design/src/Icon';
 
-const svgAssetsPath = basePath + '/assets';
+const svgAssetsPath = basePath + '/optimized';
 const iconComponentTemplate = basePath + '/script/IconTemplate.txt';
 const storybookTemplatePath = basePath + '/script/StoryTemplate.txt';
 
