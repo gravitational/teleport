@@ -142,7 +142,7 @@ const ErrorText = (props: PropsWithChildren) => (
  */
 const VnetStatus = () => {
   const {
-    getServiceInfo,
+    refreshServiceInfoAttempt,
     serviceInfoAttempt: eagerServiceInfoAttempt,
     openSSHConfigurationModal,
   } = useVnetContext();
@@ -153,10 +153,10 @@ const VnetStatus = () => {
     function refreshListOnOpen() {
       if (!serviceInfoRefreshRequestedRef.current) {
         serviceInfoRefreshRequestedRef.current = true;
-        getServiceInfo();
+        refreshServiceInfoAttempt();
       }
     },
-    [getServiceInfo]
+    [refreshServiceInfoAttempt]
   );
 
   if (serviceInfoAttempt.status === 'error') {
@@ -169,7 +169,7 @@ const VnetStatus = () => {
           ml={2}
           size="small"
           type="button"
-          onClick={getServiceInfo}
+          onClick={refreshServiceInfoAttempt}
         >
           Retry
         </ButtonSecondary>
@@ -214,7 +214,9 @@ const VnetStatus = () => {
           href="#"
           onClick={e => {
             e.preventDefault();
-            return openSSHConfigurationModal(serviceInfo.vnetSshConfigPath);
+            return openSSHConfigurationModal({
+              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            });
           }}
         >
           Resolve

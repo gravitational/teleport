@@ -447,7 +447,9 @@ function CheckReportSSHConfiguration({
             href="#"
             onClick={e => {
               e.preventDefault();
-              openSSHConfigurationModal(vnetSshConfigPath);
+              openSSHConfigurationModal({
+                vnetSSHConfigPath: vnetSshConfigPath,
+              });
             }}
           >
             Resolve

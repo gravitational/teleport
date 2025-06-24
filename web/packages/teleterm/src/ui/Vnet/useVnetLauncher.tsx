@@ -51,7 +51,7 @@ export const useVnetLauncher = (): {
     status,
     startAttempt,
     hasEverStarted,
-    getServiceInfo,
+    currentServiceInfo,
     openSSHConfigurationModal,
   } = useVnetContext();
   const { open } = useConnectionsContext();
@@ -101,35 +101,6 @@ export const useVnetLauncher = (): {
     [workspacesService]
   );
 
-  const maybeShowSSHWarning = useCallback(
-    (host: string) => {
-      getServiceInfo().then(([serviceInfo, err]) => {
-        if (err) {
-          notificationsService.notifyError({
-            title: 'Failed to fetch VNet service info',
-            description: err.message,
-            isAutoRemovable: true,
-          });
-          return;
-        }
-        if (serviceInfo.sshConfigured) {
-          // SSH clients are correctly configured, no need to show a warning.
-          return;
-        }
-        notificationsService.notifyWarning({
-          title: 'SSH clients are not configured for VNet connections',
-          isAutoRemovable: true,
-          action: {
-            content: 'Resolve',
-            onClick: () =>
-              openSSHConfigurationModal(serviceInfo.vnetSshConfigPath, host),
-          },
-        });
-      });
-    },
-    [getServiceInfo, notificationsService, openSSHConfigurationModal]
-  );
-
   const launchVnetAndCopyAddr = useCallback(
     async (args?: VnetLauncherArgs) => {
       if (!(await launchVnet())) {
@@ -142,8 +113,6 @@ export const useVnetLauncher = (): {
       const { addrToCopy, isMultiPortApp, resourceUri } = args;
       const isApp = !!routing.parseAppUri(resourceUri)?.params?.appId;
       const isServer = !!routing.parseServerUri(resourceUri)?.params?.serverId;
-
-      if (isServer) maybeShowSSHWarning(addrToCopy);
 
       let msgParts = [];
       if (isApp) {
@@ -159,9 +128,23 @@ export const useVnetLauncher = (): {
       if (isApp && !isMultiPortApp) {
         msgParts.push('and any port');
       }
-      notificationsService.notifyInfo(msgParts.join(' ') + '.');
+      const msg = msgParts.join(' ') + '.';
+
+      if (isServer) {
+        const serviceInfo = await currentServiceInfo();
+        if (!serviceInfo.sshConfigured) {
+          openSSHConfigurationModal({
+            vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            host: addrToCopy,
+            onSuccess: () => notificationsService.notifyInfo(msg),
+          });
+          return;
+        }
+      }
+
+      notificationsService.notifyInfo(msg);
     },
-    [launchVnet, notificationsService, maybeShowSSHWarning]
+    [launchVnet, notificationsService, currentServiceInfo]
   );
 
   return useMemo(

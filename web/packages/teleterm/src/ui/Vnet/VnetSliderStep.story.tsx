@@ -239,13 +239,13 @@ function VnetSliderStep(props: StoryProps) {
 }
 
 const RerequestServiceInfo = () => {
-  const { getServiceInfo, serviceInfoAttempt } = useVnetContext();
+  const { serviceInfoAttempt, refreshServiceInfoAttempt } = useVnetContext();
 
   useEffect(() => {
     if (serviceInfoAttempt.status === 'success') {
-      getServiceInfo();
+      refreshServiceInfoAttempt();
     }
-  }, [serviceInfoAttempt, getServiceInfo]);
+  }, [serviceInfoAttempt, refreshServiceInfoAttempt]);
 
   return null;
 };
