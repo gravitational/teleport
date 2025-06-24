@@ -324,7 +324,7 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '',
       searchTerm: '',
-      sort: 'bot_name:asc',
+      sort: 'bot_name:desc',
     });
   });
 });

@@ -271,22 +271,22 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 		require.NoError(t, err)
 	}, 2*time.Second, 10*time.Millisecond)
 
-	// sort descending by active_at_latest
-	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", "") // empty sort should default to `active_at_latest:desc`
-	require.NoError(t, err)
-	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
-	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
-	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
-
 	// sort ascending by active_at_latest
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "active_at_latest:asc")
+	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", "active_at_latest:asc")
 	require.NoError(t, err)
 	require.Equal(t, "instance-3", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
 	require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
 
+	// sort descending by active_at_latest
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "active_at_latest:desc")
+	require.NoError(t, err)
+	require.Equal(t, "instance-2", results[0].GetMetadata().GetName())
+	require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
+	require.Equal(t, "instance-3", results[2].GetMetadata().GetName())
+
 	// sort ascending by bot_name
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "bot_name:asc")
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", "") // empty sort should default to `bot_name:asc`
 	require.NoError(t, err)
 	require.Equal(t, "instance-1", results[0].GetMetadata().GetName())
 	require.Equal(t, "instance-3", results[1].GetMetadata().GetName())

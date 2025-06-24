@@ -175,9 +175,9 @@ func matchBotInstance(b *machineidv1.BotInstance, botName string, search string)
 }
 
 func parseSort(sort string) (botInstanceIndex, func(botInstance *machineidv1.BotInstance) string, bool) {
-	index := botInstanceActiveAtIndex
-	keyFn := keyForActiveAtIndex
-	isDesc := true
+	index := botInstanceNameIndex
+	keyFn := keyForNameIndex
+	isDesc := false
 
 	parts := strings.Split(strings.ToLower(sort), ":")
 	if len(parts) < 2 {
@@ -186,10 +186,10 @@ func parseSort(sort string) (botInstanceIndex, func(botInstance *machineidv1.Bot
 
 	field, dir := parts[0], parts[1]
 
-	switch {
-	case field == "bot_name":
+	switch field {
+	case "bot_name":
 		return botInstanceNameIndex, keyForNameIndex, dir == "desc"
-	case field == "active_at_latest":
+	case "active_at_latest":
 		return botInstanceActiveAtIndex, keyForActiveAtIndex, dir == "desc"
 	default:
 		return index, keyFn, isDesc
