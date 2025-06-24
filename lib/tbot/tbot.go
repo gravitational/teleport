@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -296,20 +297,21 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		})
 	}
 
-	services = append(services, &heartbeatService{
-		now:       time.Now,
-		botCfg:    b.cfg,
-		startedAt: startedAt,
-		log: b.log.With(
+	heartbeatService, err := heartbeat.NewService(heartbeat.Config{
+		Interval:           30 * time.Minute,
+		RetryLimit:         5,
+		Client:             machineidv1pb.NewBotInstanceServiceClient(b.botIdentitySvc.GetClient().GetConnection()),
+		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
+		StartedAt:          startedAt,
+		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		Logger: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
 		),
-		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
-			b.botIdentitySvc.GetClient().GetConnection(),
-		),
-		botIdentityReadyCh: b.botIdentitySvc.Ready(),
-		interval:           time.Minute * 30,
-		retryLimit:         5,
 	})
+	if err != nil {
+		return trace.Wrap(err, "building heartbeat service")
+	}
+	services = append(services, heartbeatService)
 
 	services = append(services, &caRotationService{
 		getBotIdentity:     b.botIdentitySvc.GetIdentity,
