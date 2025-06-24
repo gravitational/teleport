@@ -17,7 +17,7 @@
  */
 
 import { PropsWithChildren, useEffect } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import {
   Alert,
@@ -50,8 +50,8 @@ import {
 } from 'teleport/services/integrations';
 
 import { AwsResource } from '../StatCard';
-import { SidePanel } from './SidePanel';
 import { Markdown } from './Markdown';
+import { SidePanel } from './SidePanel';
 
 export function Task({
   name,
@@ -60,7 +60,6 @@ export function Task({
   name: string;
   close: (resolved: boolean) => void;
 }) {
-  const theme = useTheme();
   const { attempt, setAttempt } = useAttempt('');
 
   const [taskAttempt, fetchTask] = useAsync(() =>
@@ -163,9 +162,7 @@ export function Task({
       <H3 my={2} style={{ overflow: 'unset' }}>
         Details
       </H3>
-      <Markdown
-        text={taskAttempt.data.description}
-      />
+      <Markdown text={taskAttempt.data.description} />
       <H3 my={2} style={{ overflow: 'unset' }}>
         Impacted instances ({Object.keys(impacts).length})
       </H3>
