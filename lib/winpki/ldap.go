@@ -81,7 +81,7 @@ func (cfg LDAPConfig) Check() error {
 		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
 	}
 	if !cfg.LocateServer && cfg.Site != "" {
-		cfg.Logger.Warn("Site is set, but locate_server is false. Site will be ignored.")
+		cfg.Logger.WarnContext(context.Background(), "Site is set, but locate_server is false. Site will be ignored.")
 	}
 	if cfg.Domain == "" {
 		return trace.BadParameter("missing Domain in LDAPConfig")
@@ -314,7 +314,7 @@ func (c *LDAPConfig) CreateClient(ctx context.Context, ldapTlsConfig *tls.Config
 		var resolver *net.Resolver
 		resolverAddr := os.Getenv("TELEPORT_DESKTOP_ACCESS_RESOLVER_IP")
 		if resolverAddr != "" {
-			c.Logger.Debug("Using custom DNS resolver address", "address", resolverAddr)
+			c.Logger.DebugContext(ctx, "Using custom DNS resolver address", "address", resolverAddr)
 			// Check if resolver address has a port
 			host, port, err := net.SplitHostPort(resolverAddr)
 			if err != nil {
@@ -361,7 +361,7 @@ func (c *LDAPConfig) CreateClient(ctx context.Context, ldapTlsConfig *tls.Config
 
 		if err != nil {
 			// If the connection fails, try the next server
-			c.Logger.Debug("Error connecting to LDAP server %q: %v, trying next available server.", server, err)
+			c.Logger.DebugContext(ctx, "Error connecting to LDAP server %q: %v, trying next available server.", server, err)
 			continue
 		}
 
