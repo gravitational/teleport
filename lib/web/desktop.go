@@ -387,17 +387,11 @@ func (h *Handler) performSessionMFACeremony(
 	}()
 
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
-	var channelID string
+	channelID := uuid.NewString()
 
 	mfaCeremony := &mfa.Ceremony{
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 		SSOMFACeremonyConstructor: func(_ context.Context) (mfa.SSOMFACeremony, error) {
-			id, err := uuid.NewRandom()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			channelID = id.String()
-
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -426,7 +420,7 @@ func (h *Handler) performSessionMFACeremony(
 				}
 
 				// Send the challenge over the socket.
-				codec := tdpMFACodec{}
+				var codec tdpMFACodec
 				msg, err := codec.Encode(&challenge, defaults.WebsocketMFAChallenge)
 				if err != nil {
 					return nil, trace.Wrap(err)
