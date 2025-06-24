@@ -241,7 +241,7 @@ func (c *sshChan) writeDataFrom(ctx context.Context, source *sshChan) {
 	// streams are finished writing.
 	defer c.ch.CloseWrite()
 
-	errors := make(chan error)
+	errors := make(chan error, 2)
 	go func() {
 		_, err := io.Copy(c.ch, source.ch)
 		errors <- err
@@ -265,8 +265,7 @@ func (c *sshChan) writeDataFrom(ctx context.Context, source *sshChan) {
 			//
 			// This should also unblock the stderr stream if the regular stream
 			// returned an error, and vice-versa.
-			c.log.ErrorContext(ctx, "Fatal error proxying SSH channel data",
-				"error", trace.Wrap(err))
+			c.log.ErrorContext(ctx, "Fatal error proxying SSH channel data", "error", err)
 			c.ch.Close()
 			source.ch.Close()
 		}
