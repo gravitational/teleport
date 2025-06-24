@@ -186,7 +186,7 @@ Include "%s"
 					[]byte(tc.userOpenSSHConfigContents), filePerms))
 			}
 
-			err := AutoConfigureOpenSSH(t.Context(), profilePath, userOpenSSHConfigPath)
+			err := AutoConfigureOpenSSH(t.Context(), profilePath, withUserSSHConfigPathOverride(userOpenSSHConfigPath))
 
 			if tc.expectAlreadyIncludedError {
 				assert.ErrorIs(t, err, trace.AlreadyExists("%s is already included in %s",

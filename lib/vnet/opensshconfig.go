@@ -265,18 +265,33 @@ type configFileTemplateInput struct {
 	KnownHostsPath string
 }
 
+type autoConfigureOpenSSHOptions struct {
+	overrideUserSSHConfigPath string
+}
+type autoConfigureOpenSSHOption func(*autoConfigureOpenSSHOptions)
+
+func withUserSSHConfigPathOverride(path string) autoConfigureOpenSSHOption {
+	return func(opts *autoConfigureOpenSSHOptions) {
+		opts.overrideUserSSHConfigPath = path
+	}
+}
+
 // AutoConfigureOpenSSH adds an Include directive to the default user OpenSSH
 // config file (~/.ssh/config) to include the vnet_ssh_config file found under
 // profilePath.
-func AutoConfigureOpenSSH(ctx context.Context, profilePath string, overrideUserSSHConfigPath ...string) (err error) {
+func AutoConfigureOpenSSH(ctx context.Context, profilePath string, opts ...autoConfigureOpenSSHOption) (err error) {
+	var options autoConfigureOpenSSHOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	sshConfigChecker, err := diag.NewSSHConfigChecker(profilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if len(overrideUserSSHConfigPath) > 0 {
-		// For tests.
-		sshConfigChecker.UserOpenSSHConfigPath = overrideUserSSHConfigPath[0]
+	if options.overrideUserSSHConfigPath != "" {
+		sshConfigChecker.UserOpenSSHConfigPath = options.overrideUserSSHConfigPath
 	}
 
 	// Create ~/.ssh if it does not exist yet.
