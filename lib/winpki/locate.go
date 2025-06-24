@@ -42,24 +42,22 @@ func LocateLDAPServer(ctx context.Context, domain string, site string, resolver 
 	}
 
 	// note: LookupSRV already returns records sorted by priority and takes in to account weights
-	result := make([]string, 0, len(records))
+	var result []string
 	for _, record := range records {
-		var addr string
+		var addrs []string
 		// If TELEPORT_DESKTOP_ACCESS_RESOLVER_IP is set, we resolve the target
 		// IP address because this is likely a development environment without
 		// proper DNS records.
 		if os.Getenv("TELEPORT_DESKTOP_ACCESS_RESOLVER_IP") != "" {
-			addrs, err := resolver.LookupHost(ctx, record.Target)
+			var err error
+			addrs, err = resolver.LookupHost(ctx, record.Target)
 			if err != nil {
 				continue
 			}
-			if len(addrs) > 0 {
-				addr = addrs[0]
-			}
 		} else {
-			addr = record.Target
+			addrs = []string{record.Target}
 		}
-		if addr != "" {
+		for _, addr := range addrs {
 			result = append(result, net.JoinHostPort(addr, "636"))
 		}
 	}
