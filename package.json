@@ -27,7 +27,7 @@
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets -o web/packages/design/src/ResourceIcon/optimized",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "pnpm optimize-icons && node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
+    "process-icons": "pnpm optimize-icons && node web/packages/design/src/Icon/script/script.js && pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
