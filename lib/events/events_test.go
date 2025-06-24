@@ -258,6 +258,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	SigstorePolicyCreateEvent:                     &apievents.SigstorePolicyCreate{},
 	SigstorePolicyUpdateEvent:                     &apievents.SigstorePolicyUpdate{},
 	SigstorePolicyDeleteEvent:                     &apievents.SigstorePolicyDelete{},
+	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
+	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
+	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
 }
 
 // TestJSON tests JSON marshal events

@@ -309,6 +309,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: Icons.RocketLaunch,
   [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: Icons.Checks,
   [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: Icons.Restore,
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: Icons.Info,
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: Icons.Info,
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {
