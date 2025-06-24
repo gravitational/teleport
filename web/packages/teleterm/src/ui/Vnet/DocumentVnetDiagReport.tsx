@@ -20,6 +20,7 @@ import { useCallback, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
+import { ActionButton } from 'design/Alert';
 import { AlertProps } from 'design/Alert/Alert';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
@@ -443,18 +444,16 @@ function CheckReportSSHConfiguration({
           The user's default SSH configuration file does not include VNet's
           generated SSH configuration file. SSH clients will not be able to make
           connections to VNet SSH addresses by default.{' '}
-          <Link
-            href="#"
-            onClick={e => {
-              e.preventDefault();
+        </P2>
+        <ActionButton
+          action={{
+            onClick: () =>
               openSSHConfigurationModal({
                 vnetSSHConfigPath: vnetSshConfigPath,
-              });
-            }}
-          >
-            Resolve
-          </Link>
-        </P2>
+              }),
+            content: 'Resolve',
+          }}
+        />
       </Stack>
       {userOpensshConfigExists ? (
         <details>

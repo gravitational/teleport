@@ -18,7 +18,8 @@
 
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
-import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
@@ -208,20 +209,18 @@ const VnetStatus = () => {
   const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
     <Flex>
       <ConnectionStatusIndicator status={'warning'} inline mr={2} />
-      <Text>
-        SSH clients are not configured to use VNet{' '}
-        <Link
-          href="#"
-          onClick={e => {
-            e.preventDefault();
-            return openSSHConfigurationModal({
-              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
-            });
+      <Text>SSH clients are not configured to use VNet</Text>
+      <Box alignSelf={'center'}>
+        <ActionButton
+          action={{
+            onClick: () =>
+              openSSHConfigurationModal({
+                vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+              }),
+            content: 'Resolve',
           }}
-        >
-          Resolve
-        </Link>
-      </Text>
+        />
+      </Box>
     </Flex>
   );
 
