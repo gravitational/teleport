@@ -1073,7 +1073,7 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 	return
 }
 
-func expires(t time.Time) interface{} {
+func expires(t time.Time) any {
 	if t.IsZero() {
 		return nil
 	}

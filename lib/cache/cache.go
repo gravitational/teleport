@@ -852,7 +852,7 @@ func New(config Config) (*Cache, error) {
 
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
-	for i := 0; i < config.FanoutShards; i++ {
+	for range config.FanoutShards {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 

@@ -113,7 +113,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			}
 
 			totalKeys := pageSize * 3
-			for i := 0; i < totalKeys; i++ {
+			for range totalKeys {
 				_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 				require.NoError(t, err, trace.DebugReport(err))
 			}

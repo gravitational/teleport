@@ -93,7 +93,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 	// The reason we bother to re-attempt is because state updates aren't meant
 	// to be "first come first serve".  Denials should overwrite approvals, but
 	// approvals should not overwrite denials.
-	for i := 0; i < maxCmpAttempts; i++ {
+	for range maxCmpAttempts {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -165,7 +165,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		return nil, trace.Wrap(err)
 	}
 	// Review application is attempted multiple times in the event of concurrent writes.
-	for i := 0; i < maxCmpAttempts; i++ {
+	for range maxCmpAttempts {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {

@@ -40,7 +40,7 @@ import (
 //
 // The result of this call is a redirect to "/web", regardless of the outcome of
 // the ConfirmDeviceWebAuthentication RPC.
-func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (interface{}, error) {
+func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (any, error) {
 	query := r.URL.Query()
 
 	// Read input parameters.

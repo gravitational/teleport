@@ -306,7 +306,7 @@ const (
 )
 
 // Color formats the string in a terminal escape color
-func Color(color int, v interface{}) string {
+func Color(color int, v any) string {
 	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
 }
 

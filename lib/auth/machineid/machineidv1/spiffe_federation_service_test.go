@@ -135,7 +135,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 					return fed
 				}(),
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "status: cannot be set")
@@ -151,7 +151,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 					return fed
 				}(),
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "metadata.name: must not include the spiffe:// prefix")
@@ -163,7 +163,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 			req: &machineidv1pb.CreateSPIFFEFederationRequest{
 				SpiffeFederation: good,
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -293,7 +293,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			name:   "not-exist",
 			user:   authorizedUser.GetName(),
 			create: false,
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -302,7 +302,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			name:   "unauthorized",
 			user:   unauthorizedUser.GetName(),
 			create: true,
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -428,7 +428,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 			name:    "not-exist",
 			user:    authorizedUser.GetName(),
 			getName: "do-not-exist",
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -488,7 +488,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*machineidv1pb.SPIFFEFederation{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := 0; i < 49; i++ {
+	for i := range 49 {
 		created, err := srv.AuthServer.AuthServer.Services.SPIFFEFederations.CreateSPIFFEFederation(
 			ctx,
 			&machineidv1pb.SPIFFEFederation{

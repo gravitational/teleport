@@ -758,7 +758,7 @@ func (p *Pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
 		raConf.Logger = utils.NewSlogLoggerForTests()
@@ -927,7 +927,7 @@ func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name stri
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
 		laConf.Logger = utils.NewSlogLoggerForTests()

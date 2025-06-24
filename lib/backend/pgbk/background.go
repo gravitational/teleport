@@ -49,7 +49,7 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 		// here because it could be possible to have more than ExpiryBatchSize
 		// new items expire every ExpiryInterval, so we could end up not ever
 		// catching up
-		for i := 0; i < backend.DefaultRangeLimit/b.cfg.ExpiryBatchSize; i++ {
+		for range backend.DefaultRangeLimit / b.cfg.ExpiryBatchSize {
 			t0 := time.Now()
 			// TODO(espadolini): try getting keys in a read-only deferrable
 			// transaction and deleting them later to reduce potential

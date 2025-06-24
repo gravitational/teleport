@@ -197,7 +197,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -289,7 +288,6 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -382,7 +380,6 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, tc.getRequest())
@@ -598,7 +595,6 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -704,7 +700,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
@@ -1074,7 +1069,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
 	}
 	for _, test := range tests {
-		test := test
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
 		makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
@@ -1807,7 +1801,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
@@ -1816,13 +1810,13 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
 		},
