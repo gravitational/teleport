@@ -17,7 +17,6 @@
  */
 
 import { PropsWithChildren, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
 import styled, { useTheme } from 'styled-components';
 
 import {
@@ -52,6 +51,7 @@ import {
 
 import { AwsResource } from '../StatCard';
 import { SidePanel } from './SidePanel';
+import { Markdown } from './Markdown';
 
 export function Task({
   name,
@@ -163,26 +163,9 @@ export function Task({
       <H3 my={2} style={{ overflow: 'unset' }}>
         Details
       </H3>
-      <ReactMarkdown
-        components={{
-          a(props) {
-            return (
-              <a
-                style={{
-                  fontStyle: 'unset',
-                  color: theme.colors.buttons.link.default,
-                  background: 'none',
-                  textDecoration: 'underline',
-                  textTransform: 'none',
-                }}
-                {...props}
-              />
-            );
-          },
-        }}
-      >
-        {taskAttempt.data.description}
-      </ReactMarkdown>
+      <Markdown
+        text={taskAttempt.data.description}
+      />
       <H3 my={2} style={{ overflow: 'unset' }}>
         Impacted instances ({Object.keys(impacts).length})
       </H3>
