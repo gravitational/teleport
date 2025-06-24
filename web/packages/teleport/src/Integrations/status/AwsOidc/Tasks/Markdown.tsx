@@ -1,4 +1,4 @@
-import { createElement, type ReactNode, useMemo } from 'react';
+import { createElement, useMemo, type ReactNode } from 'react';
 import styled from 'styled-components';
 
 interface MarkdownParser {
@@ -29,8 +29,12 @@ const parsers: MarkdownParser[] = [
     render: (content, key) => <code key={key}>{content}</code>,
   },
   {
-    pattern: /\[(?<content>[^\]]*)](?:\((?<url>[^)]*)\))?/,
-    render: (content, key, url) => <StyledLink key={key} href={url}>{content}</StyledLink>,
+    pattern: /\[(?<content>[^\]]*)](?:\((?<url>https?:\/\/[^)]+|[^:)]+)\))?/,
+    render: (content, key, url) => (
+      <StyledLink key={key} href={url}>
+        {content}
+      </StyledLink>
+    ),
   },
 ];
 
@@ -71,7 +75,9 @@ function parseLine(line: string): ReactNode[] {
 
     key += 1;
 
-    items.push(parser.render(match.groups!.content, `inline-${key}`, match.groups?.url));
+    items.push(
+      parser.render(match.groups!.content, `inline-${key}`, match.groups?.url)
+    );
 
     remaining = remaining.substring(match.index + match[0].length);
   }

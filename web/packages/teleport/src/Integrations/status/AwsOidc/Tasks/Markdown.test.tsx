@@ -34,7 +34,9 @@ describe('Markdown', () => {
     });
 
     it('renders multiple inline elements', () => {
-      renderMarkdown(`**bold** and \`code\` and [link](https://example.com) together`);
+      renderMarkdown(
+        `**bold** and \`code\` and [link](https://example.com) together`
+      );
 
       expect(screen.getByText('bold')).toBeInTheDocument();
       expect(screen.getByText('code')).toBeInTheDocument();
@@ -45,7 +47,10 @@ describe('Markdown', () => {
       renderMarkdown(`**bold \`code\` text**`);
 
       const strong = screen.getByText((content, element) => {
-        return element.tagName === 'STRONG' && element.textContent === 'bold code text';
+        return (
+          element.tagName === 'STRONG' &&
+          element.textContent === 'bold code text'
+        );
       });
 
       expect(strong).toBeInTheDocument();
@@ -226,7 +231,9 @@ Second paragraph`;
     });
 
     it('renders paragraph with inline formatting', () => {
-      renderMarkdown(`Paragraph with **bold** and \`code\` and [link](https://example.com)`);
+      renderMarkdown(
+        `Paragraph with **bold** and \`code\` and [link](https://example.com)`
+      );
 
       expect(screen.getByText('bold')).toBeInTheDocument();
       expect(screen.getByText('bold').tagName).toBe('STRONG');
@@ -372,7 +379,7 @@ Paragraph 2`;
 
       const link = screen.getByText('link text');
 
-      expect(link).toHaveAttribute('href', '');
+      expect(link).not.toHaveAttribute('href');
     });
 
     it('handles empty link text', () => {
@@ -417,6 +424,134 @@ Paragraph 2`;
 
       expect(screen.queryByText('Original')).not.toBeInTheDocument();
       expect(screen.getByText('Updated')).toBeInTheDocument();
+    });
+  });
+
+  describe('script injection prevention', () => {
+    it('does not execute inline scripts', () => {
+      renderMarkdown(`<script>alert('xss')</script>`);
+
+      expect(
+        screen.getByText("<script>alert('xss')</script>")
+      ).toBeInTheDocument();
+    });
+
+    it('does not execute scripts in markdown elements', () => {
+      renderMarkdown(`# Header <script>alert('xss')</script>`);
+
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: "Header <script>alert('xss')</script>",
+        })
+      ).toBeInTheDocument();
+    });
+
+    it('does not execute javascript: URLs in links', () => {
+      renderMarkdown(`[Click me](javascript:alert('xss'))`);
+
+      const link = screen.getByText('Click me');
+
+      expect(link).not.toHaveAttribute('href', "javascript:alert('xss')");
+    });
+
+    it('renders script tags as plain text in paragraphs', () => {
+      renderMarkdown(`This is <script>alert('xss')</script> dangerous`);
+
+      expect(
+        screen.getByText("This is <script>alert('xss')</script> dangerous")
+      ).toBeInTheDocument();
+    });
+
+    it('renders script tags as plain text in lists', () => {
+      renderMarkdown(`- Item with <script>alert('xss')</script>`);
+
+      const listItem = screen.getByRole('listitem');
+      expect(listItem).toHaveTextContent(
+        "Item with <script>alert('xss')</script>"
+      );
+    });
+
+    it('does not render HTML tags', () => {
+      renderMarkdown(`<div onclick="alert('xss')">Click me</div>`);
+
+      expect(
+        screen.getByText('<div onclick="alert(\'xss\')">Click me</div>')
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Click me')).not.toBeInTheDocument();
+    });
+
+    it('escapes HTML in bold text', () => {
+      renderMarkdown(`**<script>alert('xss')</script>**`);
+
+      const strong = screen.getByText("<script>alert('xss')</script>");
+      expect(strong.tagName).toBe('STRONG');
+      expect(strong.innerHTML).not.toContain('<script>');
+    });
+
+    it('escapes HTML in code blocks', () => {
+      renderMarkdown('`<script>alert("xss")</script>`');
+
+      const code = screen.getByText('<script>alert("xss")</script>');
+      expect(code.tagName).toBe('CODE');
+      expect(code.innerHTML).not.toContain('<script>');
+    });
+
+    it('does not execute scripts in link text', () => {
+      renderMarkdown(`[<script>alert('xss')</script>](https://example.com)`);
+
+      const link = screen.getByRole('link', {
+        name: "<script>alert('xss')</script>",
+      });
+      expect(link).toHaveAttribute('href', 'https://example.com');
+    });
+
+    it('handles data: URLs safely', () => {
+      renderMarkdown(
+        `[Click me](data:text/html,<script>alert('xss')</script>)`
+      );
+
+      const link = screen.getByText('Click me');
+      expect(link).not.toHaveAttribute('href');
+    });
+
+    it('handles vbscript: URLs safely', () => {
+      renderMarkdown(`[Click me](vbscript:msgbox("xss"))`);
+
+      const link = screen.getByText('Click me');
+
+      expect(link).not.toHaveAttribute('href');
+    });
+
+    it('does not interpret HTML entities', () => {
+      renderMarkdown(`&lt;script&gt;alert('xss')&lt;/script&gt;`);
+
+      expect(
+        screen.getByText("&lt;script&gt;alert('xss')&lt;/script&gt;")
+      ).toBeInTheDocument();
+    });
+
+    it('handles mixed content with potential XSS', () => {
+      const text = `# Title <script>alert('xss')</script>
+
+This is **bold <script>alert('xss')</script>** text.
+
+- List with <script>alert('xss')</script>
+- [Link](javascript:alert('xss'))
+
+\`code <script>alert('xss')</script>\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+        "Title <script>alert('xss')</script>"
+      );
+      expect(
+        screen.getByText("bold <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("code <script>alert('xss')</script>")
+      ).toBeInTheDocument();
     });
   });
 });
