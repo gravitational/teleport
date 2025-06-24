@@ -15250,7 +15250,8 @@ type LockTarget struct {
 	// ignored otherwise.
 	BotInstanceID string `protobuf:"bytes,10,opt,name=BotInstanceID,proto3" json:"bot_instance_id,omitempty"`
 	// JoinToken is the name of the join token used when this identity originally
-	// joined. This only applies to bot identities and will be ignored otherwise.
+	// joined. This is ignored for bot identities, and cannot be used to target
+	// `token`-joined bots.
 	JoinToken            string   `protobuf:"bytes,11,opt,name=JoinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

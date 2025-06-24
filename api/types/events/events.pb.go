@@ -10959,7 +10959,7 @@ type Identity struct {
 	// identity was issued to, if any.
 	BotInstanceID string `protobuf:"bytes,29,opt,name=BotInstanceID,proto3" json:"bot_instance_id,omitempty"`
 	// JoinToken is the name of the join token used when a Machine ID bot joined,
-	// if any.
+	// if any. It is not set for bots using the `token` join method.
 	JoinToken            string   `protobuf:"bytes,30,opt,name=JoinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

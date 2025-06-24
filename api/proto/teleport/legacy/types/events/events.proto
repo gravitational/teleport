@@ -4957,7 +4957,7 @@ message Identity {
   // identity was issued to, if any.
   string BotInstanceID = 29 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
   // JoinToken is the name of the join token used when a Machine ID bot joined,
-  // if any.
+  // if any. It is not set for bots using the `token` join method.
   string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 

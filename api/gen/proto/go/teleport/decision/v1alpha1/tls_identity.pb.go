@@ -132,8 +132,9 @@ type TLSIdentity struct {
 	DeviceExtensions *DeviceExtensions `protobuf:"bytes,34,opt,name=device_extensions,json=deviceExtensions,proto3" json:"device_extensions,omitempty"`
 	// UserType indicates if the User was created by an SSO Provider or locally.
 	UserType string `protobuf:"bytes,35,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
-	// JoinToken is the name of the join token used when a bot joins; empty for
-	// other user types.
+	// JoinToken is the name of the join token used when a bot joins; it does not
+	// apply to other identity types, or to bots using the traditional `token`
+	// join method.
 	JoinToken     string `protobuf:"bytes,36,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
