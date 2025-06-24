@@ -20,6 +20,7 @@ package servicecfg
 
 import (
 	"crypto/x509"
+	"log/slog"
 	"maps"
 	"regexp"
 	"time"
@@ -168,4 +169,6 @@ type LDAPConfig struct {
 	// Use LDAP site to locate servers from a specific logical site.
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
 	Site string
+	// Logger is the logger for the service.
+	Logger *slog.Logger
 }

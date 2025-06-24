@@ -127,13 +127,13 @@ const searchPageSize = 1000
 // is closed. Callers should check for trace.ConnectionProblem errors
 // and provide a new client with [SetClient].
 type LDAPClient struct {
-	client ldap.Client
+	cfg LDAPConfig
 }
 
 // NewLDAPClient returns new LDAPClient. Parameter client may be nil.
-func NewLDAPClient(client ldap.Client) *LDAPClient {
+func NewLDAPClient(cfg LDAPConfig) *LDAPClient {
 	return &LDAPClient{
-		client: client,
+		cfg: cfg,
 	}
 }
 
@@ -172,7 +172,13 @@ func convertLDAPError(err error) error {
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string, cfg LDAPConfig, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
+func (c *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
+	client, err := c.cfg.CreateClient(ctx, ldapTlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating LDAP client")
+	}
+	defer client.Close()
+
 	req := ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
@@ -184,11 +190,6 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string, cf
 		attrs,
 		nil, // no Controls
 	)
-
-	client, err := cfg.CreateClient(context.Background(), ldapTlsConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating LDAP client")
-	}
 
 	res, err := client.SearchWithPaging(req, searchPageSize)
 	if err != nil {
@@ -206,8 +207,8 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string, cf
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPClient) Read(dn string, class string, attrs []string, cfg LDAPConfig, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
-	return c.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs, cfg, ldapTlsConfig)
+func (c *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
+	return c.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs, ldapTlsConfig)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
@@ -218,7 +219,13 @@ func (c *LDAPClient) Read(dn string, class string, attrs []string, cfg LDAPConfi
 // attributes for similar entries using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string, client *ldap.Conn) error {
+func (c *LDAPClient) Create(ctx context.Context, dn string, class string, attrs map[string][]string, ldapTlsConfig *tls.Config) error {
+	client, err := c.cfg.CreateClient(ctx, ldapTlsConfig)
+	if err != nil {
+		return trace.Wrap(err, "creating LDAP client")
+	}
+	defer client.Close()
+
 	req := ldap.NewAddRequest(dn, nil)
 	for k, v := range attrs {
 		req.Attribute(k, v)
@@ -233,8 +240,8 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string, 
 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
-func (c *LDAPClient) CreateContainer(dn string, client *ldap.Conn) error {
-	err := c.Create(dn, classContainer, nil, client)
+func (c *LDAPClient) CreateContainer(ctx context.Context, dn string, ldapTlsConfig *tls.Config) error {
+	err := c.Create(ctx, dn, classContainer, nil, ldapTlsConfig)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
@@ -251,7 +258,13 @@ func (c *LDAPClient) CreateContainer(dn string, client *ldap.Conn) error {
 //
 // You can browse LDAP on the Windows host to find attributes of existing
 // entries using ADSIEdit.msc.
-func (c *LDAPClient) Update(dn string, replaceAttrs map[string][]string, client *ldap.Conn) error {
+func (c *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[string][]string, ldapTlsConfig *tls.Config) error {
+	client, err := c.cfg.CreateClient(ctx, ldapTlsConfig)
+	if err != nil {
+		return trace.Wrap(err, "creating LDAP client")
+	}
+	defer client.Close()
+
 	req := ldap.NewModifyRequest(dn, nil)
 	for k, v := range replaceAttrs {
 		req.Replace(k, v)

@@ -342,7 +342,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
-		lc:          winpki.NewLDAPClient(nil),
+		lc:          winpki.NewLDAPClient(cfg.LDAPConfig),
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
@@ -1117,7 +1117,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid}, s.cfg.LDAPConfig, tc)
+		entries, err := s.lc.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid}, tc)
 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
