@@ -225,7 +225,6 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			Timestamp:  br.Timestamp,
 			Expires:    br.Expires,
 			RevisionV2: br.RevisionV2,
-			snapShot:   doc,
 		}
 	default:
 		if err := doc.DataTo(&r); err != nil {
@@ -241,10 +240,11 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 				Value:     []byte(rl.Value),
 				Timestamp: rl.Timestamp,
 				Expires:   rl.Expires,
-				snapShot:  doc,
 			}
 		}
 	}
+
+	r.snapShot = doc
 
 	if r.RevisionV2 == "" {
 		r.RevisionV1 = toRevisionV1(doc.UpdateTime)

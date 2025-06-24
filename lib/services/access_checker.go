@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"slices"
 	"strings"
@@ -1310,10 +1311,9 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// make a shallow copy of traits to avoid modifying the original
+	// (don't use maps.Clone, as we want to ensure the result is an empty, but not nil, map)
 	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
-	for k, v := range unmappedIdentity.Traits {
-		traits[k] = v
-	}
+	maps.Copy(traits, unmappedIdentity.Traits)
 
 	// Prior to Teleport 6.2 the only trait passed to the remote cluster
 	// was the "logins" trait set to the SSH certificate principals.
@@ -1355,6 +1355,9 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) 
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
+		if access == nil {
+			return nil, trace.BadParameter("UserGetter not provided")
+		}
 		u, err := access.GetUser(context.TODO(), identity.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

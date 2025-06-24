@@ -127,7 +127,7 @@ func TestSafeEnvAdd(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			require.Len(t, tc.keys, len(tc.values))
 
@@ -212,7 +212,7 @@ func TestSafeEnvAddFull(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -293,7 +293,6 @@ func TestStaticHostUserCRUD(t *testing.T) {
 	}
 
 	for _, tc := range accessTests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 
 			t.Run("allow", func(t *testing.T) {
@@ -407,7 +406,6 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		},
 	}
 	for _, tc := range otherTests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			authorizer := authorizeWithVerbs(tc.verbs, true)
@@ -509,7 +507,7 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 
 	localResourceService, err := local.NewStaticHostUserService(backend)
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		_, err := localResourceService.CreateStaticHostUser(ctx, makeStaticHostUser(i))
 		require.NoError(t, err)
 	}

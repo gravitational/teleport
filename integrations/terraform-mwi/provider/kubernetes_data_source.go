@@ -19,12 +19,18 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 func NewKubernetesDataSource() datasource.DataSource {
@@ -52,7 +58,9 @@ type KubernetesDataSourceModelOutput struct {
 	ClusterCACertificate types.String `tfsdk:"cluster_ca_certificate"`
 }
 
-type KubernetesDataSource struct{}
+type KubernetesDataSource struct {
+	pd *providerData // provider data, set in Configure
+}
 
 func (d *KubernetesDataSource) Metadata(
 	ctx context.Context,
@@ -124,7 +132,22 @@ func (d *KubernetesDataSource) Configure(
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
 ) {
-	// TODO: Fetch bot config data from the provider.
+	if req.ProviderData == nil {
+		return
+	}
+	pd, ok := req.ProviderData.(*providerData)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected type",
+			fmt.Sprintf(
+				"Expected *providerData, got: %T. Please report this issue to the provider developers.",
+				req.ProviderData,
+			),
+		)
+
+		return
+	}
+	d.pd = pd
 }
 
 func (r *KubernetesDataSource) loadModelAndSetDefaults(
@@ -158,10 +181,91 @@ func (d *KubernetesDataSource) Read(
 		return
 	}
 
+	dest := &config.DestinationMemory{}
+	if err := dest.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting up memory destination",
+			"Failed to set up memory destination: "+err.Error(),
+		)
+		return
+	}
+	botCfg := d.pd.newBotConfig()
+	botCfg.Services = config.ServiceConfigs{
+		&config.KubernetesV2Output{
+			Destination: dest,
+			Selectors: []*config.KubernetesSelector{
+				{
+					Name: data.Selector.Name.ValueString(),
+				},
+			},
+			DisableExecPlugin: true,
+		},
+	}
+	if err := botCfg.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot config",
+			"Failed to set defaults for bot config: "+err.Error(),
+		)
+		return
+	}
+	bot := tbot.New(botCfg, slog.Default())
+	if err := bot.Run(ctx); err != nil {
+		resp.Diagnostics.AddError(
+			"Error running tbot in data source",
+			"Failed to run tbot\n"+trace.DebugReport(err),
+		)
+		return
+	}
+
+	// Parse kubeconfig from the destination.
+	destData, err := dest.Read(ctx, "kubeconfig.yaml")
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading kubeconfig",
+			"Failed to read kubeconfig: "+err.Error(),
+		)
+		return
+	}
+	cfg, err := clientcmd.Load(destData)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error parsing kubeconfig",
+			"Failed to load kubeconfig: "+err.Error(),
+		)
+		return
+	}
+
+	kubectx, ok := cfg.Contexts[cfg.CurrentContext]
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Error loading kubeconfig context",
+			"Failed to load kubeconfig context: current-context not found in contexts map",
+		)
+		return
+	}
+	cluster, ok := cfg.Clusters[kubectx.Cluster]
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Error loading kubeconfig cluster",
+			"Failed to load kubeconfig cluster: cluster not found in clusters map",
+		)
+		return
+	}
+	user, ok := cfg.AuthInfos[kubectx.AuthInfo]
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Error loading kubeconfig user",
+			"Failed to load kubeconfig user: user not found in users map",
+		)
+		return
+	}
+
 	out := KubernetesDataSourceModelOutput{
-		Host: types.StringValue(
-			fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
-		),
+		Host:                 types.StringValue(cluster.Server),
+		TLSServerName:        types.StringValue(cluster.TLSServerName),
+		ClientKey:            types.StringValue(string(user.ClientKeyData)),
+		ClientCertificate:    types.StringValue(string(user.ClientCertificateData)),
+		ClusterCACertificate: types.StringValue(string(cluster.CertificateAuthorityData)),
 	}
 
 	data.Output = &out

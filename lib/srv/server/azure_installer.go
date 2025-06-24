@@ -64,7 +64,6 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	g.SetLimit(10)
 
 	for _, inst := range req.Instances {
-		inst := inst
 		g.Go(func() error {
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,

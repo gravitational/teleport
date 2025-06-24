@@ -695,7 +695,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -969,7 +969,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -1155,7 +1155,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 		},
 	}
 
-	for i := 0; i < utils.GetIterations(); i++ {
+	for i := range utils.GetIterations() {
 		t.Run(fmt.Sprintf("Iteration=%d", i), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
@@ -2823,7 +2823,6 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()

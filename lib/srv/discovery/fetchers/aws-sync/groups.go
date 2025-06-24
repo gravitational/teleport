@@ -53,7 +53,6 @@ func (a *Fetcher) pollAWSGroups(ctx context.Context, result *Resources, collectE
 		groupsMu := sync.Mutex{}
 		var existing = a.lastResult
 		for _, group := range result.Groups {
-			group := group
 			eG.Go(func() error {
 				groupInlinePolicies, err := a.fetchGroupInlinePolicies(ctx, group)
 				if err != nil {

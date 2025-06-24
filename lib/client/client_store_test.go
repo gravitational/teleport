@@ -205,7 +205,6 @@ func TestClientStore(t *testing.T) {
 		"software key": softKeyRing,
 		"hardware key": hardKeyRing,
 	} {
-		keyRing := keyRing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -468,7 +467,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	}
 
 	kubeClusterNames := make([]string, 0, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
 		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
 		kubeClusterNames = append(kubeClusterNames, kubeClusterName)

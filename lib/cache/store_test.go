@@ -33,7 +33,7 @@ func TestResourceStore(t *testing.T) {
 			"characters": func(i int) string { return strconv.FormatUint(uint64(i), 16) },
 		})
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		require.NoError(t, store.put(i))
 	}
 	require.Equal(t, 100, store.len())
