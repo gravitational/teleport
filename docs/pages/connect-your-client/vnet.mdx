@@ -125,19 +125,14 @@ manually.
 
 ### Verifying that VNet receives DNS queries
 
-Start VNet with `tsh vnet -d`. Look at `/var/log/vnet.log` and note the IPv6 and IPv4 CIDR range used by VNet.
-
-```code
-From tsh vnet -d:
-INFO [VNET]      Running Teleport VNet. ipv6_prefix:fd60:67ec:4325:: vnet/vnet.go:317
-
-From /var/log/vnet.log:
-INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
-```
+Open Teleport Connect. From the Connections panel in the top left, select VNet. Make sure VNet is
+running, then select "Open Diag Report". Note the IPv6 prefix and the IPv4 CIDR range used by VNet.
 
 Send a query for a TCP app available in your cluster, replacing <Var
 name="tcp-app.teleport.example.com" /> with the name of your app:
 
+<Tabs>
+<TabItem label="macOS">
 ```code
 $ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />
 name: tcp-app.teleport.example.com
@@ -146,11 +141,24 @@ ipv6_address: fd60:67ec:4325::647a:547d
 name: tcp-app.teleport.example.com
 ip_address: 100.68.51.151
 ```
+</TabItem>
+<TabItem label="Windows">
+```code
+# In PowerShell.
+$ Resolve-DnsName <Var name="tcp-app.teleport.example.com" />
 
-The addresses reported by `dscacheutil` should belong to ranges reported by VNet above.
+Name                                           Type   TTL   Section    IPAddress
+----                                           ----   ---   -------    ---------
+tcp-app.teleport.example.com                   AAAA   10    Answer     fd60:67ec:4325::647a:547d
+tcp-app.teleport.example.com                   A      10    Answer     100.68.51.151
+```
+</TabItem>
+</Tabs>
+
+The returned addresses should belong to ranges listed in the VNet diag report.
 
 Querying for anything other than an address of a TCP app should return the address belonging to the
-Proxy Service.
+Proxy Service. Using macOS as an example:
 
 ```code
 $ dscacheutil -q host -a name dashboard.teleport.example.com
@@ -161,7 +169,8 @@ name: dashboard.teleport.example.com
 ip_address: 93.184.215.14
 ```
 
-Querying for both addresses should result in some output being emitted by `tsh vnet -d`.
+Querying for any of those hostnames should result in some output being emitted in the debug logs of
+VNet (see [Submitting an issue](#submitting-an-issue) on how to enable debug logs).
 
 ### Submitting an issue
 
