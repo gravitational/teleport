@@ -180,14 +180,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	addr := "localhost:0"
 	randomPort := true
 	if cf.LocalProxyAddr != "" {
-		host, port, err := net.SplitHostPort(cf.LocalProxyAddr)
+		host, _, err := net.SplitHostPort(cf.LocalProxyAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
 			return trace.BadParameter("only loopback addresses are allowed for listener without the insecure switch, got %q", cf.LocalProxyAddr)
 		}
-		randomPort = port == "0"
+		randomPort = false
 		addr = cf.LocalProxyAddr
 	} else if cf.LocalProxyPort != "" {
 		randomPort = false
