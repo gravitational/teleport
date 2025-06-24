@@ -422,7 +422,7 @@ func (h *Handler) performSessionMFACeremony(
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web, please register a supported mfa method to connect to this desktop")
+					return nil, trace.AccessDenied("Only WebAuthn and SSO MFA methods are supported on the web, please register a supported MFA method to connect to this desktop")
 				}
 
 				// Send the challenge over the socket.
