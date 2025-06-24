@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -589,13 +590,7 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 			l.logger.WarnContext(context.Background(), "invalid JSON in line found", "file", path, "line_number", lineNo)
 			continue
 		}
-		accepted := len(filter.eventTypes) == 0
-		for _, eventType := range filter.eventTypes {
-			if ef.GetString(EventType) == eventType {
-				accepted = true
-				break
-			}
-		}
+		accepted := len(filter.eventTypes) == 0 || slices.Contains(filter.eventTypes, ef.GetString(EventType))
 		if !accepted {
 			continue
 		}
@@ -657,7 +652,7 @@ func (f ByTimeAndIndex) Swap(i, j int) {
 }
 
 // getTime converts json time to string
-func getTime(v interface{}) time.Time {
+func getTime(v any) time.Time {
 	sval, ok := v.(string)
 	if !ok {
 		return time.Time{}
@@ -669,7 +664,7 @@ func getTime(v interface{}) time.Time {
 	return t
 }
 
-func getEventIndex(v interface{}) float64 {
+func getEventIndex(v any) float64 {
 	switch val := v.(type) {
 	case float64:
 		return val

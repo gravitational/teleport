@@ -90,7 +90,7 @@ func TestSearchEvents(t *testing.T) {
 
 	sliceOfDummyEvents := func(noOfEvents int) []apievents.AuditEvent {
 		out := make([]apievents.AuditEvent, 0, noOfEvents)
-		for i := 0; i < noOfEvents; i++ {
+		for range noOfEvents {
 			out = append(out, &apievents.AppCreate{
 				Metadata: apievents.Metadata{
 					ID:   uuid.NewString(),
