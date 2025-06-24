@@ -40,6 +40,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/client"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/loop"
@@ -60,7 +61,7 @@ type KubernetesOutputService struct {
 	cfg                *config.KubernetesOutput
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	reloadBroadcaster  *channelBroadcaster
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
@@ -160,7 +161,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	)
 
 	// Ping the proxy to resolve connection addresses.
-	proxyPong, err := s.proxyPingCache.ping(ctx)
+	proxyPong, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -409,7 +410,7 @@ func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name 
 
 // selectKubeConnectionMethod determines the address and SNI that should be
 // put into the kubeconfig file.
-func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
+func selectKubeConnectionMethod(proxyPong *connection.ProxyPong) (
 	clusterAddr string, sni string, err error,
 ) {
 	// First we check for TLS routing. If this is enabled, we use the Proxy's
@@ -418,7 +419,7 @@ func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
 	// Even if KubePublicAddr is specified, we still use the general
 	// PublicAddr when using TLS routing.
 	if proxyPong.Proxy.TLSRoutingEnabled {
-		addr, err := proxyPong.proxyWebAddr()
+		addr, err := proxyPong.ProxyWebAddr()
 		if err != nil {
 			return "", "", trace.Wrap(err)
 		}
