@@ -110,27 +110,41 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		latestHeartbeats := item.GetStatus().GetLatestHeartbeats()
-		heartbeat := item.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-		if len(latestHeartbeats) > 0 {
-			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-		}
-
-		values := []string{
-			item.Spec.BotName,
-			item.Spec.InstanceId,
-		}
-
-		if heartbeat != nil {
-			values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
-		}
-
-		return slices.ContainsFunc(values, func(val string) bool {
-			return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-		})
+		return matchBotInstance(item, botName, search)
 	})
 
 	return r, nextToken, trace.Wrap(err)
+}
+
+func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
+	// If updating this, ensure it's consistent with the cache search logic in `lib/cache/bot_instance.go`.
+
+	if botName != "" && b.Spec.BotName != botName {
+		return false
+	}
+
+	if search == "" {
+		return true
+	}
+
+	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
+	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+	if len(latestHeartbeats) > 0 {
+		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	}
+
+	values := []string{
+		b.Spec.BotName,
+		b.Spec.InstanceId,
+	}
+
+	if heartbeat != nil {
+		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+	})
 }
 
 // DeleteBotInstance deletes a specific bot instance matching the given bot name
@@ -138,6 +152,11 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
 	serviceWithPrefix := b.service.WithPrefix(botName)
 	return trace.Wrap(serviceWithPrefix.DeleteResource(ctx, instanceID))
+}
+
+// DeleteAllBotInstances deletes all bot instances for all bots
+func (b *BotInstanceService) DeleteAllBotInstances(ctx context.Context) error {
+	return trace.Wrap(b.service.DeleteAllResources(ctx))
 }
 
 // PatchBotInstance uses the supplied function to patch the bot instance

@@ -334,6 +334,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			backend := newBotInstanceBackend(t)
 			service, err := NewBotInstanceService(BotInstanceServiceConfig{
 				Backend: backend,
+				Cache:   backend,
 				Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 					return &authz.Context{
 						Identity: identityGetterFn(func() tlsca.Identity {
@@ -391,6 +392,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	backend := newBotInstanceBackend(t)
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Backend: backend,
+		Cache:   backend,
 		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 			return &authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
@@ -583,6 +585,7 @@ func newBotInstanceService(
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
+		Cache:      backendService,
 	})
 	require.NoError(t, err)
 

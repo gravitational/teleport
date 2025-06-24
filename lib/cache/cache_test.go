@@ -146,6 +146,7 @@ type testPack struct {
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
+	botInstanceService      *local.BotInstanceService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -424,6 +425,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -480,6 +486,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
+		BotInstanceService:      p.botInstanceService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -755,6 +762,7 @@ func TestCompletenessInit(t *testing.T) {
 			EventsC:                 p.eventsC,
 			GitServers:              p.gitServers,
 			HealthCheckConfig:       p.healthCheckConfig,
+			BotInstanceService:      p.botInstanceService,
 		}))
 		require.NoError(t, err)
 
@@ -842,6 +850,7 @@ func TestCompletenessReset(t *testing.T) {
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -1000,6 +1009,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -1097,6 +1107,7 @@ func initStrategy(t *testing.T) {
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -1854,6 +1865,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
+		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 	}
 
 	for name, cfg := range cases {
@@ -1913,6 +1925,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
