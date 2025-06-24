@@ -48,7 +48,7 @@ type ClientToolsConfig struct {
 	// `{"profile-name":{"version": "1.2.3", "disabled":false}}`.
 	Configs map[string]*Config `json:"configs"`
 	// Tools stores information about tools directories per versions:
-	// `[{"tool_name": "tsh", "path": "tool-path"}]`.
+	// `[{"tool_name": "tsh", "path": "tool-path", "version": "tool-version"}]`.
 	Tools Tools `json:"tools"`
 }
 
@@ -65,6 +65,7 @@ type Tool struct {
 	Package string            `json:"package"`
 }
 
+// Tools is the list of the installed tools by version.
 type Tools []Tool
 
 // PickVersion lookups the version and re-order by last recently used.

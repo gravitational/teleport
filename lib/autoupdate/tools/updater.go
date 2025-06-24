@@ -328,6 +328,9 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		return trace.Wrap(err)
 	}
 
+	// ignoreTools is the list of tools installed and tracked by the config.
+	// They should be preserved during cleanup. If we have more than [defaultSizeStoredVersion]
+	// versions, the updater will forget about the least used version.
 	var ignoreTools []string
 	for _, tool := range tools {
 		// If the version of the running binary or the version downloaded to
@@ -354,7 +357,8 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		pkgNames = append(pkgNames, pkgName)
 	}
 
-	// Cleanup the tools directory with previously downloaded and un-archived versions.
+	// Cleanup all tools in directory with the specific prefix by ignoring tools
+	// that are currently recorded in the configuration.
 	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffixV2, append(ignoreTools, pkgNames...)); err != nil {
 		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
