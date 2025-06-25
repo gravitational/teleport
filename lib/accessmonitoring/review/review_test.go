@@ -213,7 +213,7 @@ func TestResourceRequest(t *testing.T) {
 	testRule := newApprovedRule(
 		testRuleName,
 		`access_request.spec.requested_resources.length != 0 &&
-		access_request.spec.requested_resources.has_labels("env", "test")`)
+		access_request.spec.requested_resources.all_has_labels("env", "test")`)
 
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
