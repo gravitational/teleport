@@ -265,6 +265,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
 			assertError:       require.NoError,
 			expectedDatabases: []string{dbURI0.String()},
+			expectedEnv:       map[string]string{},
 		},
 		"append database to config": {
 			cf: &CLIConf{
@@ -276,6 +277,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			assertError:       require.NoError,
 			initialDatabases:  []string{dbURI0.String()},
 			expectedDatabases: []string{dbURI0.String(), dbURI1.String()},
+			expectedEnv:       map[string]string{},
 		},
 		"update existent database": {
 			cf: &CLIConf{
@@ -287,6 +289,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			assertError:       require.NoError,
 			initialDatabases:  []string{dbURI0.String(), dbURI1.String()},
 			expectedDatabases: []string{dbURI0Updated.String(), dbURI1.String()},
+			expectedEnv:       map[string]string{},
 		},
 		"database not found": {
 			cf: &CLIConf{
@@ -309,6 +312,8 @@ func TestMCPDBConfigCommand(t *testing.T) {
 				DatabaseService: dbURI0.GetDatabaseServiceName(),
 				DatabaseUser:    dbURI0.GetDatabaseUser(),
 				DatabaseName:    dbURI0.GetDatabaseName(),
+				DebugSetByUser:  true,
+				Debug:           true,
 			},
 			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
 			assertError:       require.NoError,
