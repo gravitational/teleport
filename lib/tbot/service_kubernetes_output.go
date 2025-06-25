@@ -39,8 +39,8 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/loop"
@@ -157,7 +157,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		"Generated identity for Kubernetes cluster",
 		"kubernetes_cluster",
 		kubeClusterName,
-		"identity", describeTLSIdentity(ctx, s.log, routedIdentity),
+		"identity", routedIdentity,
 	)
 
 	// Ping the proxy to resolve connection addresses.

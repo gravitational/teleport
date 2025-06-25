@@ -27,11 +27,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -40,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const renewalRetryLimit = 5
@@ -226,50 +223,6 @@ func writeTLSCAs(ctx context.Context, dest destination.Destination, hostCAs, use
 	}
 
 	return nil
-}
-
-// describeTLSIdentity generates an informational message about the given
-// TLS identity, appropriate for user-facing log messages.
-func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) string {
-	failedToDescribe := "failed-to-describe"
-	cert := ident.X509Cert
-	if cert == nil {
-		log.WarnContext(ctx, "Attempted to describe TLS identity without TLS credentials.")
-		return failedToDescribe
-	}
-
-	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		log.WarnContext(ctx, "Bot TLS certificate can not be parsed as an identity", "error", err)
-		return failedToDescribe
-	}
-
-	var principals []string
-	for _, principal := range tlsIdent.Principals {
-		if !strings.HasPrefix(principal, constants.NoLoginPrefix) {
-			principals = append(principals, principal)
-		}
-	}
-
-	botDesc := ""
-	if tlsIdent.BotInstanceID != "" {
-		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
-	}
-
-	duration := cert.NotAfter.Sub(cert.NotBefore)
-	return fmt.Sprintf(
-		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
-		tlsIdent.BotName,
-		botDesc,
-		cert.NotBefore.Format(time.RFC3339),
-		cert.NotAfter.Format(time.RFC3339),
-		duration,
-		tlsIdent.Renewable,
-		tlsIdent.DisallowReissue,
-		tlsIdent.Groups,
-		principals,
-		tlsIdent.Generation,
-	)
 }
 
 // chooseOneResource chooses one matched resource by name, or tries to choose
