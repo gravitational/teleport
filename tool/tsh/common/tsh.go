@@ -248,12 +248,17 @@ type CLIConf struct {
 
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
+	// DatabaseServices specifies a list of database services.
+	DatabaseServices string
 	// DatabaseUser specifies database user to embed in the certificate.
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
 	// DatabaseRoles specifies database roles to embed in the certificate.
 	DatabaseRoles string
+	// DatabaseCommand specifies the command to execute.
+	DatabaseCommand string
+
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
@@ -595,6 +600,13 @@ type CLIConf struct {
 	// direct PIV service so that prompts are not split between processes.
 	disableHardwareKeyAgentClient bool
 
+	// ParallelJobs specifies the number of parallel jobs allowed.
+	ParallelJobs int
+	// OutputDir specifies the directory for storing command outputs.
+	OutputDir string
+	// Confirm determines whether to provide a y/N confirmation prompt.
+	Confirm bool
+
 	// clientStore is the client identity storage interface. This store must be initialized once
 	// and only once in order to ensure key (and hardware key) storage is synced across the process.
 	//
@@ -664,6 +676,23 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 		return c.lookPathOverride, nil
 	}
 	return exec.LookPath(file)
+}
+
+// PromptConfirmation prompts the user for a yes/no confirmation for question.
+// The prompt is skipped unless cf.Confirm is set.
+func (c *CLIConf) PromptConfirmation(question string) error {
+	if !c.Confirm {
+		fmt.Fprintf(c.Stdout(), "Skipping confirmation for %q due to the --no-confirm flag.\n", question)
+		return nil
+	}
+
+	ok, err := prompt.Confirmation(c.Context, c.Stdout(), prompt.Stdin(), question)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("Operation canceled by user request.")
+	}
+	return nil
 }
 
 func Main() {
@@ -1069,6 +1098,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
+	dbExec := db.Command("exec", "Execute database commands on target database services.")
+	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	dbExec.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	dbExec.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbExec.Flag("parallel", "Run commands on target databases in parallel. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.ParallelJobs)
+	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
+	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
+	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)
+	dbExec.Arg("command", "Execute this command on target database services.").Required().StringVar(&cf.DatabaseCommand)
+	dbExec.Alias(dbExecHelp)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -1651,6 +1692,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseConfig(&cf)
 	case dbConnect.FullCommand():
 		err = onDatabaseConnect(&cf)
+	case dbExec.FullCommand():
+		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
 	case mfa.ls.FullCommand():
@@ -5945,4 +5988,15 @@ func tryLockMemory(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unexpected value for --mlock, expected one of (%v)", strings.Join(mlockModes, ", "))
 	}
+}
+
+// stringFlagToStrings parses a comma-separated string from a CLIConf flag into
+// a slice of strings. It trims whitespace from each value and removes
+// duplicates.
+func stringFlagToStrings(value string) []string {
+	values := strings.Split(value, ",")
+	for i := range values {
+		values[i] = strings.TrimSpace(values[i])
+	}
+	return apiutils.Deduplicate(values)
 }

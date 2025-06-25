@@ -75,6 +75,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -7561,6 +7562,17 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
+			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
+				trace.IsNotFound(err) {
+				// Do not add extra user messages to
+				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
+				// client-side code from using errors.Is to reliably identify
+				// this specific error after it goes through gRPC. The original
+				// error isn't particularly useful to the user anyway, so just
+				// log it at debug level.
+				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
 
