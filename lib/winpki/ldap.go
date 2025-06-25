@@ -309,10 +309,13 @@ func (c *LDAPConfig) CreateConnection(ctx context.Context, ldapTlsConfig *tls.Co
 		Timeout: ldapDialTimeout,
 	}
 
-	var servers []string
+	servers := []string{c.Addr}
 	if c.LocateServer {
 		var resolver *net.Resolver
 		resolverAddr := os.Getenv("TELEPORT_DESKTOP_ACCESS_RESOLVER_IP")
+		dial := func(dialCtx context.Context, network, address string) (net.Conn, error) {
+			return dnsDialer.DialContext(dialCtx, network, address)
+		}
 		if resolverAddr != "" {
 			c.Logger.DebugContext(ctx, "Using custom DNS resolver address", "address", resolverAddr)
 			// Check if resolver address has a port
@@ -323,29 +326,19 @@ func (c *LDAPConfig) CreateConnection(ctx context.Context, ldapTlsConfig *tls.Co
 			}
 			customResolverAddr := net.JoinHostPort(host, port)
 
-			resolver = &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					return dnsDialer.DialContext(ctx, network, customResolverAddr)
-				},
-			}
-		} else {
-			resolver = &net.Resolver{
-				PreferGo: true,
-				Dial: func(dialCtx context.Context, network, address string) (net.Conn, error) {
-					return dnsDialer.DialContext(dialCtx, network, address)
-				},
+			dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+				return dnsDialer.DialContext(ctx, network, customResolverAddr)
 			}
 		}
-		dnsDialer.Resolver = resolver
+		dnsDialer.Resolver = &net.Resolver{
+			PreferGo: true,
+			Dial:     dial,
+		}
 
 		var err error
-		servers, err = LocateLDAPServer(ctx, c.Domain, c.Site, resolver)
-		if err != nil {
+		if servers, err = LocateLDAPServer(ctx, c.Domain, c.Site, resolver); err != nil {
 			return nil, trace.Wrap(err, "locating LDAP server")
 		}
-	} else {
-		servers = []string{c.Addr}
 	}
 
 	if len(servers) == 0 {
