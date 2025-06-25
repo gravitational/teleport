@@ -31,6 +31,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
@@ -137,7 +138,7 @@ func NewSSHConfigChecker(profilePath string) (*SSHConfigChecker, error) {
 		userHome:              userHome,
 		UserOpenSSHConfigPath: userOpenSSHConfigPath,
 		VNetSSHConfigPath:     vnetSSHConfigPath,
-		isWindows:             runtime.GOOS == "windows",
+		isWindows:             runtime.GOOS == constants.WindowsOS,
 	}, nil
 }
 
