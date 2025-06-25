@@ -335,28 +335,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
-	// Set SELinux context for the child process if SELinux support is
-	// enabled so the child process will be running with the correct SELinux
-	// user, role and domain.
-	if c.SetSELinuxContext {
-		seContext, err := selinux.UserContext(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
-		}
-
-		// SetExecLabel changes the SELinux exec context for the
-		// calling thread only, so we need to ensure that is the
-		// thread that will create the child. We don't ever unlock
-		// the thread as we're exiting after the child exits, and
-		// we want to avoid another goroutine getting denied due to
-		// running on this thread with a different (likely much more
-		// restrictive)SELinux context.
-		runtime.LockOSThread()
-		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
-		}
-	}
-
 	// Alert the parent process that the child process has completed any setup operations,
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
@@ -418,6 +396,28 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	if err := setNeutralOOMScore(); err != nil {
 		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
+	}
+
+	// Set SELinux context for the child process if SELinux support is
+	// enabled so the child process will be running with the correct SELinux
+	// user, role and domain.
+	if c.SetSELinuxContext {
+		seContext, err := selinux.UserContext(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+		}
+
+		// SetExecLabel changes the SELinux exec context for the
+		// calling thread only, so we need to ensure that is the
+		// thread that will create the child. We don't ever unlock
+		// the thread as we're exiting after the child exits, and
+		// we want to avoid another goroutine getting denied due to
+		// running on this thread with a different (likely much more
+		// restrictive)SELinux context.
+		runtime.LockOSThread()
+		if err := ocselinux.SetExecLabel(seContext); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
+		}
 	}
 
 	// Start the command.
