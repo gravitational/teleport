@@ -210,6 +210,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindRelayServer},
+		{Kind: types.KindBotInstance},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -744,6 +745,8 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -852,7 +855,7 @@ func New(config Config) (*Cache, error) {
 
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
-	for i := 0; i < config.FanoutShards; i++ {
+	for range config.FanoutShards {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 

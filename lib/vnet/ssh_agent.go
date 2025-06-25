@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"crypto/rand"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -33,10 +34,8 @@ import (
 // and the root cluster proxy terminated with the SSH key in the
 // [ssh.ClientConfig], and then the key forwarded via this agent will be used
 // to terminate the final SSH connection to the target node.
-//
-// It is not safe for concurrent use, setSessionKey must only be called before
-// the agent will actually be used.
 type sshAgent struct {
+	mu     sync.Mutex
 	signer ssh.Signer
 }
 
@@ -49,6 +48,8 @@ func newSSHAgent() *sshAgent {
 // agent must be passed to [proxy.Client.DialHost] before the session SSH
 // signer has been created.
 func (a *sshAgent) setSessionKey(signer ssh.Signer) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.signer != nil {
 		return trace.Errorf("sshAgent.setSessionKey must be called at most once (this is a bug)")
 	}
@@ -59,6 +60,8 @@ func (a *sshAgent) setSessionKey(signer ssh.Signer) error {
 // List implements [agent.ExtendedAgent.List], it returns a single key if it
 // has been set by setSessionKey.
 func (a *sshAgent) List() ([]*agent.Key, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.signer == nil {
 		return nil, nil
 	}
@@ -72,6 +75,8 @@ func (a *sshAgent) List() ([]*agent.Key, error) {
 // List implements [agent.ExtendedAgent.Signers], it returns a single key if it
 // has been set by setSessionKey.
 func (a *sshAgent) Signers() ([]ssh.Signer, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.signer == nil {
 		return nil, nil
 	}
@@ -88,6 +93,8 @@ func (a *sshAgent) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) 
 // SSH signature with a.signer if it has been set and matches the requested
 // key.
 func (a *sshAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.signer == nil {
 		return nil, trace.Errorf("VNet SSH agent has no signer")
 	}

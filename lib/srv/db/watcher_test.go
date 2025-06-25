@@ -436,9 +436,7 @@ func makeDatabase(name string, labels map[string]string, additionalLabels map[st
 		labels = make(map[string]string)
 	}
 
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, additionalLabels)
 
 	ds := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,

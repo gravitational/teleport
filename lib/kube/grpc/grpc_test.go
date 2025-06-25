@@ -593,7 +593,6 @@ func TestListKubernetesResources(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, restCfg := testCtx.GenTestKubeClientTLSCert(t, tt.args.user.GetName(), "")

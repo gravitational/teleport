@@ -319,6 +319,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.MCP_SESSION_REQUEST]: Icons.ModelContextProtocol,
   [eventCodes.MCP_SESSION_REQUEST_FAILURE]: Icons.Warning,
   [eventCodes.MCP_SESSION_NOTIFICATION]: Icons.ModelContextProtocol,
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: Icons.Info,
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: Icons.Info,
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {
