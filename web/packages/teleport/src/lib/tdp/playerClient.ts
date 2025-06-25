@@ -206,7 +206,7 @@ export class PlayerClient extends TdpClient {
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+  sendRdpResponsePdu(responseFrame: ArrayBuffer) {
     return;
   }
 
