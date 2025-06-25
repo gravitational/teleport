@@ -88,6 +88,7 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		"access_request.spec.expiry": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (time.Time, error) {
 			return env.Expiry, nil
 		}),
+
 		"access_request.spec.requested_resources": typical.DynamicVariable(func(env AccessRequestExpressionEnv) ([]types.ResourceWithLabels, error) {
 			return env.RequestedResources, nil
 		}),
@@ -100,21 +101,36 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		}),
 	}
 
-	hasLabelsKey := "has_labels"
-	hasLabelsFunc := typical.TernaryFunction[AccessRequestExpressionEnv](
-		func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
-			for _, resource := range resources {
-				if resource.GetAllLabels()[key] != val {
-					return false, nil
+	expFuncs := map[string]typical.Function{
+		"all_has_labels": typical.TernaryFunction[AccessRequestExpressionEnv](
+			func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
+				for _, resource := range resources {
+					if resource.GetAllLabels()[key] != val {
+						return false, nil
+					}
 				}
-			}
-			return true, nil
-		})
+				return true, nil
+			}),
+		"some_has_labels": typical.TernaryFunction[AccessRequestExpressionEnv](
+			func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
+				for _, resource := range resources {
+					if resource.GetAllLabels()[key] == val {
+						return true, nil
+					}
+				}
+				return false, nil
+			}),
+	}
 
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
-	defParserSpec.Functions[hasLabelsKey] = hasLabelsFunc
-	defParserSpec.Methods[hasLabelsKey] = hasLabelsFunc
+
+	// Set additional expression functions/methods, overwriting any defaults
+	// with the same name.
+	for key, fn := range expFuncs {
+		defParserSpec.Functions[key] = fn
+		defParserSpec.Methods[key] = fn
+	}
 
 	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {

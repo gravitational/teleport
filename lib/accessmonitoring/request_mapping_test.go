@@ -144,10 +144,12 @@ func TestEvaluateCondition(t *testing.T) {
 			match: false,
 		},
 		{
-			description: "single resource has_labels",
+			description: "single resource has label",
 			condition: `
-				access_request.spec.requested_resources.has_labels("env", "test") &&
-				has_labels(access_request.spec.requested_resources, "env", "test")`,
+				access_request.spec.requested_resources.all_has_labels("env", "test") &&
+				all_has_labels(access_request.spec.requested_resources, "env", "test") &&
+				access_request.spec.requested_resources.some_has_labels("env", "test") &&
+				some_has_labels(access_request.spec.requested_resources, "env", "test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -160,10 +162,10 @@ func TestEvaluateCondition(t *testing.T) {
 			match: true,
 		},
 		{
-			description: "multiple resources has_labels",
+			description: "multiple resources have label",
 			condition: `
-				access_request.spec.requested_resources.has_labels("env", "test") &&
-				has_labels(access_request.spec.requested_resources, "env", "test")`,
+				access_request.spec.requested_resources.all_has_labels("env", "test") &&
+				all_has_labels(access_request.spec.requested_resources, "env", "test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -187,10 +189,10 @@ func TestEvaluateCondition(t *testing.T) {
 			match: true,
 		},
 		{
-			description: "some resources !has_labels",
+			description: "some resources do not have label",
 			condition: `
-				access_request.spec.requested_resources.has_labels("env", "test") &&
-				has_labels(access_request.spec.requested_resources, "env", "test")`,
+				access_request.spec.requested_resources.all_has_labels("env", "test") &&
+				all_has_labels(access_request.spec.requested_resources, "env", "test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -206,6 +208,27 @@ func TestEvaluateCondition(t *testing.T) {
 				},
 			},
 			match: false,
+		},
+		{
+			description: "some resources have label",
+			condition: `
+				access_request.spec.requested_resources.some_has_labels("env", "test") &&
+				some_has_labels(access_request.spec.requested_resources, "env", "test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "prod"},
+						},
+					},
+				},
+			},
+			match: true,
 		},
 		{
 			description: "requested_resources is empty",
