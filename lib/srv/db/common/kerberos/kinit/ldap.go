@@ -271,9 +271,6 @@ func convertLDAPError(err error) error {
 	if errors.As(err, &ldapErr) {
 		switch ldapErr.ResultCode {
 		case ldap.ErrorNetwork:
-			// this one is especially important, because Teleport will
-			// try to re-establish the connection when a ConnectionProblem
-			// is detected
 			return trace.ConnectionProblem(err, "network error")
 		case ldap.LDAPResultOperationsError:
 			if strings.Contains(err.Error(), "successful bind must be completed") {
