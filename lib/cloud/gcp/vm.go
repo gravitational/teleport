@@ -37,7 +37,6 @@ import (
 	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
@@ -45,6 +44,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"

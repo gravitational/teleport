@@ -21,9 +21,10 @@ package apiserver
 import (
 	"context"
 
-	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/trail"
 )
 
 // withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
