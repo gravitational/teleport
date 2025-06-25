@@ -136,13 +136,14 @@ following sets would match:
 - `set("cloud-stage")`
 - `set("cloud-dev", "cloud-stage")`
 
-The `Requested Resource Labels` input is converted into a series of `has_labels`
+The `Requested Resource Labels` input is converted into a series of `all_has_labels`
 expressions. In the example form, the resource labels are:
 - `env: dev`
 - `service: demo`
 
 The resulting expresion uses AND across labels. All requested resources must
-have both labels `env: dev` and `service: demo`.
+have both labels `env: dev` and `service: demo`. The expression will also ensure
+that the length of requested resources is greater zero.
 
 The `User Traits` input is converted into a series of `contains_any` expressions.
 The resulting expression uses AND across traits, and OR logic within a trait.
@@ -165,8 +166,9 @@ spec:
     - access_request
   condition: |-
     contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
-    access_request.spec.requested_resources.has_labels("env", "dev") &&
-    access_request.spec.requested_resources.has_labels("service", "demo") &&
+    access_request.spec.requested_resources.length > 0 &&
+    access_request.spec.requested_resources.all_has_labels("env", "dev") &&
+    access_request.spec.requested_resources.all_has_labels("service", "demo") &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
@@ -216,8 +218,10 @@ dynamic variables:
 - `contains_all(list, items)` and `list.contains_all(items)` return `true` if
 `list` contains an exact match for all elements in `items`. This function enables
 users to define more restrictive conditions for automatic reviews.
-- `has_labels(resources_list, key, value)` returns `true` if all resources within
-`resources_list` has the `key: value` label.
+- `all_has_labels(resources_list, key, value)` returns `true` if all resources
+within `resources_list` has the `key: value` label.
+- `some_has_labels(resources_list, key, value)` returns `true` if at least one
+resource within `resources_list` has the `key: value` label.
 - `user.traits` variable contains the requester's user traits. It maps trait
 names to sets of values. This allows users to specify arbitrary traits—such as
 "level", "team", or "location"—which can then be used to determine whether a
@@ -225,7 +229,7 @@ user is on-call or pre-approved for the access request.
 - `access_request.spec.requested_resources` contains the list of requested
 resource. This allows users to specify which sets of requested resources are
 automatically reviewed. The only function/method allowed with this value is
-`has_labels`.
+`all_has_labels` and `some_has_labels`.
 
 #### Examples
 ```yaml
@@ -250,8 +254,8 @@ spec:
 ```
 
 ```yaml
-# This AMR automatically denies requests for resources with the `env: prod` label
-# if the requester does not have the trait "team: admin".
+# This AMR automatically denies requests if any requested resource has the
+# "env: prod" label and the requester does not have the "team: admin" trait.
 kind: access_monitoring_rule
 version: v1
 metadata:
@@ -260,7 +264,8 @@ spec:
   subjects:
     - access_request
   condition: |-
-    access_request.spec.requested_resources.has_labels("env", "prod") &&
+    access_request.spec.requested_resources.length > 0 &&
+    access_request.spec.requested_resources.some_has_labels("env", "prod") &&
     !user.traits["team"].contains("admin")
   desired_state: reviewed
   automatic_review:
@@ -300,8 +305,6 @@ existing AMRs. The automatic review service provides the additional user
 traits received from Teleport before the AMR condition is evaluated.
 4. If the AR matches the AMR, the plugin submits a review for the AR.
 
-
-
 ## Security & Auditability
 Automatic reviews are already a supported feature, although it is currently
 only supported when integrated with an external incident management system. The
@@ -331,51 +334,41 @@ same information as regular access request reviews.
 }
 ```
 
-### RBAC
-To request roles and resources, the requester must have the correct role permissions.
+### Condition Misconfiguration
+Now that access monitoring rules support automatic approvals for access
+requests, potentionally granting access to users, there are some concerns
+about the risk of misconfigured access monitoring rule conditions.
+
+In addition, the lack of condition validation tooling make it difficult for
+administrators to trust that their automatic review rules are correctly set up.
+
+While these edge cases aren't blockers, they do represent potential footguns
+that admins should be cautious of.
+
+
+#### Example Scenario 1
+Suppose an access monitoring rule is created with a condition that only checks
+the requested resources:
 ```yaml
-kind: role
-version: v7
+# This AMR automatically approves requests for resources with the label `env: dev`.
+kind: access_monitoring_rule
+version: v1
 metadata:
-  name: requester
+  name: pre-approved-resources
 spec:
-  allow:
-    request:
-      # The requester is allowed to request the roles "editor" or "auditor".
-      roles:
-      - editor
-      - auditor
-      # The requester can request any resource accessible by the "access" role.
-      search_as_roles:
-      - access
+  subjects:
+    - access_request
+  condition: |-
+    access_request.spec.requested_resources.all_has_labels("env", "dev")
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
 ```
 
-For resource-based access requests, the user must still request a role that
-grants access to the requested resource. This is handled automatically if the
-`--roles` flag is not specified:
-
-```sh
-$ tsh request create --resource /example.teleport.sh/app/dev-app
-Creating request...
-Request ID:     <request-id>
-Username:       requester
-Roles:          access
-Resources:      ["/example.teleport.sh/app/dev-app"]
-Status:         PENDING
-```
-
-However, the `--roles` flag can still be specified when making a resource-based
-access request. This introduces a potential misconfiguration risk, where an
-automatic review rule can be used unintentionally to automatically approve
-privileged access.
-
-#### Example Scenario
-Suppose the `requester` role is modified to include the `editor` role in
-`search_as_roles`, and an automatic review rule is created that automatically
-approves any request for the "dev-app" resource.
-
-Now, any user could submit the following request and be automatically approved:
-
+Now in the case that a requesting user has permissions to request access to the
+`editor` role, the requester could submit the following request and be automatically
+approved:
 ```sh
 $ tsh request create --roles=editor --resource /example.teleport.sh/app/dev-app
 Creating request...
@@ -399,10 +392,64 @@ Getting updated certificates...
   Allowed Resources:  ["/example.teleport.sh/app/dev-app"]
 ```
 
-This is a concerning edge case in the configuration of automatic review rules.
-While it is not a blocker, it is another footgun to be mindful of. The preset
-`requester` role does not include privileged access roles within `search_as_roles`,
-and it would be unexpected for users to add them.
+In order for this edge case to be possible, it would require that the `editor` role
+has been added to `search_as_roles` in the `requester` role RBAC. The preset role
+does not include privileged access roles within `search_as_roles`, and it would
+be unexpected for users to add them.
+
+#### Example Scenario 2
+Suppose the access monitoring rule is now updated to also match on a specific
+role:
+```yaml
+# This AMR automatically approves requests the access role and for resources
+# with the label `env: dev`.
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: pre-approved-resources
+spec:
+  subjects:
+    - access_request
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    access_request.spec.requested_resources.all_has_labels("env", "dev")
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+```
+
+Now in the case that a requesting user has permissions to request access to the
+`access` role, the requester could submit the following request and be automatically
+approved:
+```sh
+$ tsh request create --roles=access
+Creating request...
+Request ID:     <request-id>
+Username:       requester
+Roles:          access
+Status:         PENDING
+
+Waiting for request approval...
+
+Approval received, reason="Access request has been automatically approved by \"@teleport-access-approval-bot\". User \"requester\" is approved by access_monitoring_rule \"demo\"."
+Getting updated certificates...
+
+> Profile URL:        https://example.teleport.sh:443
+  Logged in as:       requester
+  Active requests:    <request-id>
+  Cluster:            example.teleport.sh
+  Roles:              access, requester
+  Logins:             root
+  Kubernetes:         enabled
+```
+
+This is the expected behavior because the `all_has_labels` function returns `true`
+if the list of requested resources is empty.
+
+In order for this edge case to be possible, it would require that the `access`
+role has been added to `allow.request.roles` in the `requester` role RBAC. The
+preset role does not include the `access` role within `allow.request.roles`.
 
 ## Observability
 Anonymized metrics will be collected for access requests. These metrics will
@@ -460,7 +507,6 @@ supported for all resource types, and there is no standardized format.
 
 For these reasons, access monitoring rules will not support matching on resource
 IDs or names.
-
 
 ### Predicate Expression Macros
 The Teleport predicate expression language does not currently support
