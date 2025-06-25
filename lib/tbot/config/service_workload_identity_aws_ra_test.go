@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
@@ -32,7 +33,7 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 			name: "full",
 			in: WorkloadIdentityAWSRAService{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				SessionDuration:         time.Minute * 59,
@@ -50,7 +51,7 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 			name: "simple",
 			in: WorkloadIdentityAWSRAService{
 				Destination: dest,
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				SessionDuration:        time.Minute * 59,
@@ -73,7 +74,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -88,7 +89,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			want: &WorkloadIdentityAWSRAService{
-				Selector: WorkloadIdentitySelector{
+				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
 				Destination: &DestinationDirectory{
@@ -108,7 +109,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid with labels",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
 						},
@@ -131,7 +132,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{},
+					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &DestinationDirectory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
@@ -149,7 +150,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "too many selectors",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
 							"key": {"value"},
@@ -173,7 +174,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Destination: nil,
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					RoleARN:        "arn:aws:iam::123456789012:role/example-role",
@@ -188,7 +189,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing role_arn",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -207,7 +208,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing trust_anchor_arn",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -226,7 +227,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing profile_arn",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -245,7 +246,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid role arn",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -265,7 +266,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid trust anchor arn",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -285,7 +286,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid profile arn",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{
@@ -305,7 +306,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid region",
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
-					Selector: WorkloadIdentitySelector{
+					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Destination: &DestinationDirectory{

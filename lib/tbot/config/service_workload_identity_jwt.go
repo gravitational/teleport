@@ -36,7 +36,7 @@ var (
 type WorkloadIdentityJWTService struct {
 	// Selector is the selector for the WorkloadIdentity resource that will be
 	// used to issue WICs.
-	Selector WorkloadIdentitySelector `yaml:"selector"`
+	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 	// Audiences is the list of audiences that the JWT should be valid for.
