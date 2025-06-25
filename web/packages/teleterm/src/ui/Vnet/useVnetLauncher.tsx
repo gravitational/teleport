@@ -18,6 +18,7 @@
 
 import { useCallback, useMemo } from 'react';
 
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { VnetLauncherArgs } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
@@ -131,12 +132,20 @@ export const useVnetLauncher = (): {
       const msg = msgParts.join(' ') + '.';
 
       if (isServer) {
-        const serviceInfo = await currentServiceInfo();
-        if (!serviceInfo.sshConfigured) {
-          openSSHConfigurationModal({
-            vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
-            host: addrToCopy,
-            onSuccess: () => notificationsService.notifyInfo(msg),
+        try {
+          const serviceInfo = await currentServiceInfo();
+          if (!serviceInfo.sshConfigured) {
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+              host: addrToCopy,
+              onSuccess: () => notificationsService.notifyInfo(msg),
+            });
+            return;
+          }
+        } catch (err) {
+          notificationsService.notifyError({
+            title: isTshdRpcError(err) ? err.message : String(err),
+            isAutoRemovable: true,
           });
           return;
         }
