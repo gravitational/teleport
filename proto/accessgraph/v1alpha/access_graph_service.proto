@@ -644,8 +644,8 @@ message AWSCloudWatchStreamResponse {
 message AWSCloudWatchConfig {
   // The starting point for tailing the log
   google.protobuf.Timestamp start_date = 1;
-  // The log group from which to tail logs
-  string log_group = 2;
+  // The log groups from which to tail logs
+  repeated string log_groups = 2;
   // The AWS account ID
   string account_id = 3;
 }
@@ -656,7 +656,7 @@ message AWSCloudWatchEvents {
   // The events as they arrive from the CloudWatch API
   repeated AWSCloudWatchEvent events = 1;
   // The cursor, for querying and paging
-  AWSCloudWatchCursor cursor = 2;
+  repeated AWSCloudWatchCursor cursor = 2;
   // The AWS account ID for this batch of logs
   string account_id = 3;
 }
@@ -674,10 +674,12 @@ message AWSCloudWatchEvent {
 // The CloudWatch cursor, providing both a next token and a start time for
 // paging through CloudWatch logs.
 message AWSCloudWatchCursor {
+  // The log group name the cursor belongs to
+  string log_group = 1;
   // The next token used for paging query results
-  string next_token = 1;
+  string next_token = 2;
   // The start time used for the query
-  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp start_time = 3;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
