@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -199,10 +200,10 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: "gitlab",
 					TokenValue: "my-gitlab-token",
-					Gitlab: bot.GitlabOnboardingConfig{
+					Gitlab: onboarding.GitlabOnboardingConfig{
 						TokenEnvVarName: "MY_CUSTOM_ENV_VAR",
 					},
 				},
@@ -397,7 +398,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: true,
-		Onboarding: bot.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			CAPins: []string{"123"},
 		},
 	}
@@ -408,7 +409,7 @@ func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 func TestBotConfig_InsecureWithCAPath(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: true,
-		Onboarding: bot.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			CAPath: "/tmp/invalid-path/some.crt",
 		},
 	}
@@ -419,7 +420,7 @@ func TestBotConfig_InsecureWithCAPath(t *testing.T) {
 func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
 	cfg := &BotConfig{
 		Insecure: false,
-		Onboarding: bot.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			CAPath: "/tmp/invalid-path/some.crt",
 			CAPins: []string{"123"},
 		},
@@ -539,7 +540,7 @@ func TestBotConfig_Base64(t *testing.T) {
 			expected: BotConfig{
 				Version:     V2,
 				ProxyServer: "example.teleport.sh:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: "token",
 					TokenValue: "my-token",
 				},
@@ -557,7 +558,7 @@ func TestBotConfig_Base64(t *testing.T) {
 			expected: BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: "token",
 					TokenValue: "my-token",
 				},

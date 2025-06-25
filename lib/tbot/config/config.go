@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -51,9 +52,9 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBo
 // BotConfig is the bot's root config object.
 // This is currently at version "v2".
 type BotConfig struct {
-	Version    Version              `yaml:"version"`
-	Onboarding bot.OnboardingConfig `yaml:"onboarding,omitempty"`
-	Storage    *StorageConfig       `yaml:"storage,omitempty"`
+	Version    Version           `yaml:"version"`
+	Onboarding onboarding.Config `yaml:"onboarding,omitempty"`
+	Storage    *StorageConfig    `yaml:"storage,omitempty"`
 	// Deprecated: Use Services
 	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
 	Services ServiceConfigs `yaml:"services,omitempty"`
@@ -214,7 +215,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	// Therefore, we need to check its valid here, but enforce its presence
 	// elsewhere.
 	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
-		if !slices.Contains(bot.SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+		if !slices.Contains(onboarding.SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
 		}
 	}

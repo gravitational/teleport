@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bot
+package onboarding
 
 import (
 	"github.com/gravitational/trace"
@@ -76,9 +76,9 @@ type BoundKeypairOnboardingConfig struct {
 	InitialJoinSecret string
 }
 
-// OnboardingConfig contains values relevant to how the bot authenticates with
+// Config contains values relevant to how the bot authenticates with
 // and joins the Teleport cluster.
-type OnboardingConfig struct {
+type Config struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -112,7 +112,7 @@ type OnboardingConfig struct {
 
 // HasToken gives the ability to check if there has been a token value stored
 // in the config
-func (conf *OnboardingConfig) HasToken() bool {
+func (conf *Config) HasToken() bool {
 	return conf.TokenValue != ""
 }
 
@@ -123,7 +123,7 @@ func (conf *OnboardingConfig) HasToken() bool {
 // instead of trying to read the file every time that teleport is launched.
 // This means we can allow temporary token files that are removed after teleport has
 // successfully connected the first time.
-func (conf *OnboardingConfig) SetToken(token string) {
+func (conf *Config) SetToken(token string) {
 	conf.TokenValue = token
 }
 
@@ -132,7 +132,7 @@ func (conf *OnboardingConfig) SetToken(token string) {
 // If the value stored points to a file, it will attempt to read the token value from the file
 // and return an error if it wasn't successful
 // If the value stored doesn't point to a file, it'll return the value stored
-func (conf *OnboardingConfig) Token() (string, error) {
+func (conf *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(conf.TokenValue)
 	if err != nil {
 		return "", trace.Wrap(err)

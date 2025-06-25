@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
@@ -116,7 +117,7 @@ destinations:
 					TTL:             time.Minute * 30,
 				},
 				DiagAddr: "127.0.0.1:621",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "my-token",
 					CAPins: []string{
@@ -203,7 +204,7 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodGitHub,
 					TokenValue: "my-token",
 				},
@@ -244,7 +245,7 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodGitHub,
 					TokenValue: "my-token",
 				},
@@ -286,7 +287,7 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodGitHub,
 					TokenValue: "my-token",
 				},
@@ -323,7 +324,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "auth.example.com:3025",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "00000000000000000000000000000000",
 					CAPins: []string{
@@ -366,7 +367,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -416,7 +417,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -466,7 +467,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -516,7 +517,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -570,7 +571,7 @@ oneshot: false
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "1234abcd5678efgh9",
 					CAPins: []string{
@@ -613,7 +614,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -656,7 +657,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -697,7 +698,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 					CAPins: []string{
@@ -731,7 +732,7 @@ onboarding:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "abcd123-insecure-do-not-use-this",
 				},
@@ -767,7 +768,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleport.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					JoinMethod: types.JoinMethodIAM,
 					TokenValue: "iam-token-kube",
 				},
@@ -850,7 +851,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "teleportvm.example.com:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted",
 				},
 				Storage: &StorageConfig{
@@ -889,7 +890,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "redacted.teleport.sh:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted-scanner-token",
 					JoinMethod: types.JoinMethodIAM,
 					CAPins: []string{
@@ -947,7 +948,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "redacted.teleport.sh:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted-argocd-token",
 					JoinMethod: types.JoinMethodIAM,
 					CAPins: []string{
@@ -1030,7 +1031,7 @@ destinations:
 			wantOutput: &BotConfig{
 				Version:    V2,
 				AuthServer: "redacted.teleport.sh:443",
-				Onboarding: bot.OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "redacted",
 					JoinMethod: types.JoinMethodToken,
 				},
