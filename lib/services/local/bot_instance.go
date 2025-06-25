@@ -95,7 +95,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instan
 // If an non-empty bot name is provided, only instances for that bot will be fetched.
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
 // Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest)
-func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string, sort string) ([]*machineidv1.BotInstance, string, error) {
+func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
 	var service *generic.ServiceWrapper[*machineidv1.BotInstance]
 	if botName == "" {
 		// If botName is empty, return instances for all bots by not using a service prefix
