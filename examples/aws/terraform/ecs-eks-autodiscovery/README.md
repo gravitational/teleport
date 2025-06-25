@@ -14,44 +14,47 @@ It creates the required AWS resources:
 The following set up is required:
 - install [`terraform`](https://developer.hashicorp.com/terraform/install)
 - [configure AWS credentials](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration)
-- EKS Clusters running in your AWS account
-- create an IAM Join Token in teleport which allows [Discovery and Kube roles](https://goteleport.com/docs/enroll-resources/auto-discovery/kubernetes/aws/#get-a-join-token)
+- EKS Clusters running in your AWS account with discoverable tags
+- An IAM Join Token in teleport which allows [Discovery and Kube roles](https://goteleport.com/docs/enroll-resources/auto-discovery/kubernetes/aws/#get-a-join-token)
+- The Teleport service must be able to connect to the EKS API
 
 ## Instructions
 
-Create a `my.tfvars` file with the following content, and replace to match your teleport cluster and aws information.
-```hcl
-// Your Teleport Cluster Address
-teleport_proxy_server = "tenant.teleport.sh:443"
+1. Create a `my.tfvars` file using the following example and replace the variable values with your Teleport cluster and AWS information.
 
-// Create a new IAM Join Token that allows Discovery and Kubernetes roles.
-teleport_iam_token_name = "iam-join-token"
+            hcl
+            // Your Teleport Cluster Address
+            teleport_proxy_server = "tenant.teleport.sh:443"
+            
+            // Create a new IAM Join Token that allows Discovery and Kubernetes roles.
+            teleport_iam_token_name = "iam-join-token"
+            
+            // This information indicates where the Teleport Discovery and Kubernetes services will run and its network access.
+            aws_region = "eu-south-2"
+            teleport_agent_subnets = [ "subnet-1111" ]
+            teleport_agent_security_groups = [ "sg-2222" ]
+            // The name for the ECS Cluster that will be created.
+            ecs_cluster = "my-cluster"
+            
+            // Update this value to match the version that your cluster is running.
+            teleport_image = "public.ecr.aws/gravitational/teleport-ent-distroless:17.5.2"
+            
+            // Default tags to add to AWS resources when creating them.
+            default_tags = {
+                "DeployedBy" = "TerraformTeleport"
+            }
+            
+            // The following allows you to filter the EKS Clusters to proxy.
+            // Only the matching EKS clusters will be enrolled.
+            discover_eks_tags = {
+                "TeleportAutoDiscover" = ["please"]
+            }
 
-// This information indicates where the Teleport Discovery and Kubernetes services will run and its network access.
-aws_region = "eu-south-2"
-teleport_agent_subnets = [ "subnet-1111" ]
-teleport_agent_security_groups = [ "sg-2222" ]
-// The name for the ECS Cluster that will be created.
-ecs_cluster = "my-cluster"
+2. Save the my.tfvars you created in the previous step.
+3. Run the following command using Terraform:
+   
+        bash
+        $ terraform apply -var-file my.tfvars
 
-// Update this value to match the version that your cluster is running.
-teleport_image = "public.ecr.aws/gravitational/teleport-ent-distroless:17.5.2"
+After deploying, you should see your discovered EKS clusters in your Teleport tenant.
 
-// Default tags to add to AWS resources when creating them.
-default_tags = {
-    "DeployedBy" = "TerraformTeleport"
-}
-
-// The following allows you to filter the EKS Clusters to proxy.
-// Only the matching EKS clusters will be enrolled.
-discover_eks_tags = {
-    "TeleportAutoDiscover" = ["please"]
-}
-```
-
-Save this as a file and then run:
-```bash
-$ terraform apply -var-file my.tfvars
-```
-
-After deploying, you should see the Kube Clusters in Teleport.
