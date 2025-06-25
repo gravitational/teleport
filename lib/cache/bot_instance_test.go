@@ -107,8 +107,9 @@ func TestBotInstanceCachePaging(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := p.cache.GetBotInstance(ctx, "bot-1", "instance-2")
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
+		require.Len(t, results, 5)
 	}, 2*time.Second, 10*time.Millisecond)
 
 	// page size equal to total items
@@ -149,34 +150,33 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for n := range 2 {
-		for m := range 5 {
-			_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
-				Kind:     types.KindBotInstance,
-				Version:  types.V1,
-				Metadata: &headerv1.Metadata{},
-				Spec: &machineidv1.BotInstanceSpec{
-					BotName:    "bot-" + strconv.Itoa(n+1),
-					InstanceId: "instance-" + strconv.Itoa((n+1)*(m+1)),
-				},
-				Status: &machineidv1.BotInstanceStatus{},
-			})
-			require.NoError(t, err)
-		}
+	for n := range 10 {
+		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    "bot-" + strconv.Itoa(n%2),
+				InstanceId: "instance-" + strconv.Itoa(n),
+			},
+			Status: &machineidv1.BotInstanceStatus{},
+		})
+		require.NoError(t, err)
 	}
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := p.cache.GetBotInstance(ctx, "bot-2", "instance-10")
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
+		require.Len(t, results, 10)
 	}, 2*time.Second, 10*time.Millisecond)
 
-	results, _, err := p.cache.ListBotInstances(ctx, "bot-2", 0, "", "", nil)
+	results, _, err := p.cache.ListBotInstances(ctx, "bot-1", 0, "", "", nil)
 	require.NoError(t, err)
 	require.Len(t, results, 5)
 
 	for _, b := range results {
-		require.Equal(t, "bot-2", b.GetSpec().GetBotName())
+		require.Equal(t, "bot-1", b.GetSpec().GetBotName())
 	}
 }
 
@@ -213,8 +213,9 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := p.cache.GetBotInstance(ctx, "bot-1", "instance-10")
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
+		require.Len(t, results, 10)
 	}, 2*time.Second, 10*time.Millisecond)
 
 	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "host-1", nil)
@@ -267,8 +268,9 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 
 	// Let the cache catch up
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := p.cache.GetBotInstance(ctx, "bot-1", "instance-3")
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
+		require.Len(t, results, 3)
 	}, 2*time.Second, 10*time.Millisecond)
 
 	// sort ascending by active_at_latest
