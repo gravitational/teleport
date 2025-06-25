@@ -456,7 +456,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
+			wantErr: "config: enable at least one of ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -546,6 +546,11 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:             "proxy enabled",
 			config:           &Config{Proxy: ProxyConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "relay enabled",
+			config:           &Config{Relay: RelayConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{

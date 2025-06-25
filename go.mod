@@ -15,6 +15,7 @@ require (
 	cloud.google.com/go/storage v1.53.0
 	code.dny.dev/ssrf v0.2.0
 	connectrpc.com/connect v1.18.1
+	filippo.io/age v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0
@@ -603,7 +604,7 @@ replace (
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2
 	github.com/opencontainers/selinux => github.com/gravitational/selinux v1.13.0-teleport
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
 
 // this package was included in google.golang.org/grpc but because it's still

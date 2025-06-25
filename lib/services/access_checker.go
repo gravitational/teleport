@@ -1355,6 +1355,9 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) 
 	// empty traits are a valid use case in standard certs,
 	// so we only check for whether roles are empty.
 	if len(identity.Groups) == 0 {
+		if access == nil {
+			return nil, trace.BadParameter("UserGetter not provided")
+		}
 		u, err := access.GetUser(context.TODO(), identity.Username, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
