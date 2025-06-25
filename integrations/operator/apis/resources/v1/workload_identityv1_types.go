@@ -40,10 +40,10 @@ func init() {
 // WorkloadIdentity
 type TeleportWorkloadIdentityV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   *TeleportWorkloadIdentityV1Spec `json:"spec,omitempty"`
-	Status resources.Status                `json:"status,omitempty"`
+	Status resources.Status                `json:"status"`
 }
 
 // TeleportWorkloadIdentityV1Spec defines the desired state of TeleportWorkloadIdentityV1
@@ -54,7 +54,7 @@ type TeleportWorkloadIdentityV1Spec workloadidentityv1.WorkloadIdentitySpec
 // TeleportWorkloadIdentityV1List contains a list of TeleportWorkloadIdentityV1
 type TeleportWorkloadIdentityV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportWorkloadIdentityV1 `json:"items"`
 }
 

@@ -144,10 +144,7 @@ func (s *mockBackendLister) List(ctx context.Context, pageSize int, pageToken st
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	endIndex := startIndex + pageSize
-	if endIndex > len(s.items) {
-		endIndex = len(s.items)
-	}
+	endIndex := min(startIndex+pageSize, len(s.items))
 	items := s.items[startIndex:endIndex]
 	if endIndex < len(s.items) {
 		return items, strconv.Itoa(endIndex), nil

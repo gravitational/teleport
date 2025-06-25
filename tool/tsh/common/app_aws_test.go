@@ -82,8 +82,8 @@ func TestAWS(t *testing.T) {
 		// Validate AWS credentials are set.
 		getEnvValue := func(key string) string {
 			for _, env := range cmd.Env {
-				if strings.HasPrefix(env, key+"=") {
-					return strings.TrimPrefix(env, key+"=")
+				if after, ok := strings.CutPrefix(env, key+"="); ok {
+					return after
 				}
 			}
 			return ""

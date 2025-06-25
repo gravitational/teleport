@@ -160,14 +160,14 @@ func copyAssets(zipWriter *zip.Writer) error {
 }
 
 // printStep prints formatted string leaded with step number
-func printStep(step *byte, message string, args ...interface{}) {
-	p := append([]interface{}{*step}, args...)
+func printStep(step *byte, message string, args ...any) {
+	p := append([]any{*step}, args...)
 	fmt.Printf("[%v] "+message+"\n", p...)
 	*step++
 }
 
 // renderTemplateTo renders template from a string and writes file to targetPath
-func renderTemplateTo(w io.Writer, content string, payload interface{}) error {
+func renderTemplateTo(w io.Writer, content string, payload any) error {
 	tpl, err := template.New("template").Parse(content)
 	if err != nil {
 		return trace.Wrap(err)

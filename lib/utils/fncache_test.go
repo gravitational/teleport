@@ -101,8 +101,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 	const workers = 100
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up a chage that won't ttl out values during the test
 	cache, err := NewFnCache(FnCacheConfig{TTL: time.Hour})
@@ -110,7 +109,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 
 	results := make(chan result, workers)
 
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(n int) {
 			val, err := FnCacheGet(ctx, cache, "key", func(context.Context) (any, error) {
 				// return a unique value for each worker so that we can verify whether
@@ -127,7 +126,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 	val := first.val.(string)
 	require.NotEmpty(t, val)
 
-	for i := 0; i < (workers - 1); i++ {
+	for range workers - 1 {
 		r := <-results
 		require.NoError(t, r.err)
 		require.Equal(t, val, r.val.(string))
@@ -138,8 +137,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 func TestFnCacheExpiry(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 
@@ -171,7 +169,7 @@ func TestFnCacheExpiry(t *testing.T) {
 	require.True(t, get())
 
 	// subsequent gets use the cached value
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		require.False(t, get())
 	}
 
@@ -252,7 +250,7 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	var wg sync.WaitGroup
 
 	// spawn workers
-	for w := int64(0); w < workers; w++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -376,8 +374,7 @@ func TestFnCacheContext(t *testing.T) {
 
 func TestFnCacheReloadOnErr(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:         time.Minute,
@@ -389,7 +386,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 
 	// test synchronous case, all sad path loads should result in
 	// calls to loadfn.
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
 			happy.Add(1)
 			return "yay!", nil
@@ -405,7 +402,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 
 	// test concurrent case. some "sad" loads should overlap now.
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
@@ -430,8 +427,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 func TestFnCacheEviction(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 
@@ -464,7 +460,7 @@ func TestFnCacheEviction(t *testing.T) {
 	require.Equal(t, "test", out2)
 
 	// Assert that eviction does not occur prematurely.
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		clock.Advance(10 * time.Minute)
 		cache.RemoveExpired()
 
@@ -507,7 +503,7 @@ func TestFnCacheEviction(t *testing.T) {
 	// Shutdown the cache and validate all items are expired.
 	cache.Shutdown(context.Background())
 	timeout := time.After(10 * time.Second)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case expired := <-expiredC:
 			switch k := expired.k.(type) {
@@ -538,8 +534,7 @@ func TestFnCacheEviction(t *testing.T) {
 func TestFnCacheRemove(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	type item struct {
 		k any
@@ -585,8 +580,7 @@ func TestFnCacheRemove(t *testing.T) {
 func TestFnCacheSet(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 	type item struct {

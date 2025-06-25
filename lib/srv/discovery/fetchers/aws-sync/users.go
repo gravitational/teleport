@@ -54,7 +54,6 @@ func (a *Fetcher) pollAWSUsers(ctx context.Context, result, existing *Resources,
 		// fetch user inline policies, attached policies, and groups in parallel
 		// and collect the results.
 		for _, user := range result.Users {
-			user := user
 			eG.Go(func() error {
 				userInlinePolicies, err := a.fetchUserInlinePolicies(ctx, user)
 				if err != nil {

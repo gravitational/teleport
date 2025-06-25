@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -55,9 +56,11 @@ type fakeAuth struct {
 	mu             sync.Mutex
 	failUpserts    int
 	failKeepAlives int
+	failDeletes    int
 
 	upserts    int
 	keepalives int
+	deletes    int
 	err        error
 
 	expectAddr      string
@@ -125,6 +128,14 @@ func (a *fakeAuth) UpsertDatabaseServer(_ context.Context, server types.Database
 }
 
 func (a *fakeAuth) DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
 	return nil
 }
 
@@ -155,6 +166,16 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error 
 	}
 	a.lastServerExpiry = ka.Expires
 	return a.err
+}
+
+// UpsertRelayServer implements [Auth].
+func (a *fakeAuth) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error) {
+	panic("unimplemented")
+}
+
+// DeleteRelayServer implements [Auth].
+func (a *fakeAuth) DeleteRelayServer(ctx context.Context, name string) error {
+	panic("unimplemented")
 }
 
 func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) error {
@@ -688,7 +709,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake db server heartbeat
-	for i := 0; i < dbCount; i++ {
+	for i := range dbCount {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
 				Metadata: types.Metadata{
@@ -716,6 +737,39 @@ func TestDatabaseServerBasics(t *testing.T) {
 		expect(dbUpsertOk, dbKeepAliveOk, dbUpsertOk, dbKeepAliveOk, dbUpsertOk, dbKeepAliveOk),
 		deny(dbUpsertErr, dbKeepAliveErr, handlerClose),
 	)
+
+	// set up to induce delete failure
+	auth.mu.Lock()
+	auth.failDeletes = 1
+	auth.mu.Unlock()
+
+	// stop a heartbeat
+	err := downstream.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
+		Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
+		Name: "db-1",
+	})
+	require.NoError(t, err)
+
+	// verify that keep alive stops, even if the heartbeat couldn't be deleted
+	awaitEvents(t, events,
+		expect(dbKeepAliveDel, dbDelErr),
+		deny(dbDelOk, dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
+	require.Equal(t, dbCount-1, rc.count())
+
+	// verify heartbeat stop keepalive idempotency
+	err = downstream.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
+		Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
+		Name: "db-1",
+	})
+	require.NoError(t, err)
+	require.Equal(t, dbCount-1, rc.count())
+
+	awaitEvents(t, events,
+		expect(dbStopErr),
+		deny(dbKeepAliveDel, dbDelOk, dbDelErr, dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
+	require.Equal(t, dbCount-1, rc.count())
 
 	// set up to induce some failures, but not enough to cause the control
 	// stream to be closed.
@@ -778,7 +832,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	defer cancel()
 
 	// execute ping
-	_, err := handle.Ping(pingCtx, 1)
+	_, err = handle.Ping(pingCtx, 1)
 	require.NoError(t, err)
 
 	// ensure that local db keepalive states have reset to healthy by waiting
@@ -1741,6 +1795,7 @@ func deny(events ...testEvent) eventOption {
 }
 
 func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
+	t.Helper()
 	options := eventOpts{
 		expect: make(map[testEvent]int),
 		deny:   make(map[testEvent]struct{}),

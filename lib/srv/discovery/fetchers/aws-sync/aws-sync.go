@@ -210,7 +210,7 @@ func (r *Resources) count() int {
 
 	elem := reflect.ValueOf(r).Elem()
 	sum := 0
-	for i := 0; i < elem.NumField(); i++ {
+	for i := range elem.NumField() {
 		field := elem.Field(i)
 		if field.IsValid() {
 			switch field.Kind() {
@@ -368,7 +368,7 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 // with the v2 sdk.
 func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
-		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: a.Config.Integration}),
 	}
 
 	if a.Config.AssumeRole != nil {
