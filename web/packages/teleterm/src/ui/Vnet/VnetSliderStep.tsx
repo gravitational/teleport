@@ -212,6 +212,9 @@ const VnetStatus = () => {
       <Text>SSH clients are not configured to use VNet</Text>
       <Box alignSelf={'center'}>
         <ActionButton
+          fill="minimal"
+          intent="neutral"
+          inputAlignment
           action={{
             onClick: () =>
               openSSHConfigurationModal({

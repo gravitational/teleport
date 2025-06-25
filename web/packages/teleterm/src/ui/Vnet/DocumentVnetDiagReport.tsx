@@ -20,7 +20,6 @@ import { useCallback, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
-import { ActionButton } from 'design/Alert';
 import { AlertProps } from 'design/Alert/Alert';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
@@ -380,6 +379,7 @@ function CheckReportSSHConfiguration({
 }: {
   checkReport: diag.CheckReport;
 }) {
+  const { openSSHConfigurationModal } = useVnetContext();
   if (!reportOneOfIsSSHConfigurationReport(report)) {
     return null;
   }
@@ -433,7 +433,6 @@ function CheckReportSSHConfiguration({
       </>
     );
   }
-  const { openSSHConfigurationModal } = useVnetContext();
   return (
     <>
       <Stack>
@@ -445,15 +444,16 @@ function CheckReportSSHConfiguration({
           generated SSH configuration file. SSH clients will not be able to make
           connections to VNet SSH addresses by default.{' '}
         </P2>
-        <ActionButton
-          action={{
-            onClick: () =>
-              openSSHConfigurationModal({
-                vnetSSHConfigPath: vnetSshConfigPath,
-              }),
-            content: 'Resolve',
-          }}
-        />
+        <Button
+          intent="neutral"
+          onClick={() =>
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: vnetSshConfigPath,
+            })
+          }
+        >
+          Resolve
+        </Button>
       </Stack>
       {userOpensshConfigExists ? (
         <details>
