@@ -231,6 +231,12 @@ jobs:
               --products 'teleport' --products 'teleport-ent' \
               --os 'darwin' --architecture 'universal' \
               --description "Teleport Connect"
+          
+            "${RELCLI_PATH}" generate-manifest \
+              --path "Teleport Connect-${TELEPORT_VERSION}-mac.zip" \
+              --products 'teleport' --products 'teleport-ent' \
+              --os 'darwin' --architecture 'universal' \
+              --description "Teleport Connect in-app Update"
 
             "${RELCLI_PATH}" generate-manifest \
               --path "teleport-ent-v${TELEPORT_VERSION}-darwin-universal-bin.tar.gz" \
@@ -249,6 +255,12 @@ jobs:
               --products 'teleport' \
               --os 'darwin' --architecture 'universal' \
               --description "Teleport Connect"
+          
+            "${RELCLI_PATH}" generate-manifest \
+              --path "Teleport Connect-${TELEPORT_VERSION}-mac.zip" \
+              --products 'teleport' \
+              --os 'darwin' --architecture 'universal' \
+              --description "Teleport Connect in-app Update"
           fi
 
           ls -lah
