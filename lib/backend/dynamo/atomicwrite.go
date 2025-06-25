@@ -165,7 +165,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	// retry is lazily initialized as-needed.
 	var retry *retryutils.RetryV2
 TxnLoop:
-	for i := 0; i < maxTxnAttempts; i++ {
+	for i := range maxTxnAttempts {
 		if i != 0 {
 			if retry == nil {
 				// ideally we want one of the concurrently canceled transactions to retry immediately, with the rest holding back. since we

@@ -117,7 +117,7 @@ func TestParallelUpdate(t *testing.T) {
 
 	outputs := make([]bytes.Buffer, 3)
 	errChan := make(chan error, 3)
-	for i := 0; i < len(outputs); i++ {
+	for i := range outputs {
 		cmd := exec.Command(tshPath, "version")
 		cmd.Stdout = &outputs[i]
 		cmd.Stderr = &outputs[i]
@@ -146,7 +146,7 @@ func TestParallelUpdate(t *testing.T) {
 
 	// Wait till process finished with exit code 0, but we still should get progress
 	// bar in output content.
-	for i := 0; i < cap(outputs); i++ {
+	for range cap(outputs) {
 		select {
 		case <-time.After(5 * time.Second):
 			require.Fail(t, "failed to wait till the process is finished")
@@ -156,7 +156,7 @@ func TestParallelUpdate(t *testing.T) {
 	}
 
 	var progressCount int
-	for i := 0; i < cap(outputs); i++ {
+	for i := range cap(outputs) {
 		matches := pattern.FindStringSubmatch(outputs[i].String())
 		require.Len(t, matches, 2)
 		assert.Equal(t, testVersions[1], matches[1])

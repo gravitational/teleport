@@ -50,7 +50,7 @@ export function ChangeAccessRequestKind({
           <Cross size="small" />
         </ButtonIcon>
       </DialogHeader>
-      <DialogContent mb={4} color="text.slightlyMuted">
+      <DialogContent mb={4}>
         <P>
           Resource Access Request cannot be combined with Role Access Request.
           The current items will be cleared.

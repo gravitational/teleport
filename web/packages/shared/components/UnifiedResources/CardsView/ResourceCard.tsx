@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
@@ -24,6 +24,7 @@ import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';
@@ -310,10 +311,17 @@ export function ResourceCard({
   );
 }
 
-const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick?(): void }) => {
+const WarningRightEdgeBadgeIcon = ({
+  onClick,
+  ref,
+}: {
+  onClick?(): void;
+  ref?: Ref<HTMLDivElement>;
+}) => {
   return (
     <Box
       onClick={onClick}
+      ref={ref}
       css={`
         position: absolute;
         top: 0;

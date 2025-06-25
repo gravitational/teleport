@@ -37,7 +37,7 @@ type PermissionsBody struct {
 // PermissionsData contains the permissions data.
 type PermissionsData struct {
 	Metadata
-	Attributes PermissionsAttributes `json:"attributes,omitempty"`
+	Attributes PermissionsAttributes `json:"attributes"`
 }
 
 // PermissionsAttributes contains the permissions attributes.
@@ -50,19 +50,19 @@ type PermissionsAttributes struct {
 //
 // See: https://docs.datadoghq.com/api/latest/incidents
 type IncidentsBody struct {
-	Data IncidentsData `json:"data,omitempty"`
+	Data IncidentsData `json:"data"`
 }
 
 // IncidentData contains the incident data.
 type IncidentsData struct {
 	Metadata
-	Attributes IncidentsAttributes `json:"attributes,omitempty"`
+	Attributes IncidentsAttributes `json:"attributes"`
 }
 
 // IncidentsAttributes contains the incident attributes.
 type IncidentsAttributes struct {
 	Title               string               `json:"title,omitempty"`
-	Fields              IncidentsFields      `json:"fields,omitempty"`
+	Fields              IncidentsFields      `json:"fields"`
 	NotificationHandles []NotificationHandle `json:"notification_handles,omitempty"`
 }
 
@@ -97,19 +97,19 @@ type NotificationHandle struct {
 
 // TimelineBody contains the request/response body for an incident timeline request.
 type TimelineBody struct {
-	Data TimelineData `json:"data,omitempty"`
+	Data TimelineData `json:"data"`
 }
 
 // TimelineData contains the incident timeline data.
 type TimelineData struct {
 	Metadata
-	Attributes TimelineAttributes `json:"attributes,omitempty"`
+	Attributes TimelineAttributes `json:"attributes"`
 }
 
 // TimelineAttributes contains the incident timeline attributes.
 type TimelineAttributes struct {
 	CellType string          `json:"cell_type,omitempty"`
-	Content  TimelineContent `json:"content,omitempty"`
+	Content  TimelineContent `json:"content"`
 }
 
 // TimelineContent contains the incident tineline content.
@@ -126,8 +126,8 @@ type OncallTeamsBody struct {
 // OncallTeamsData contains the on-call teams data.
 type OncallTeamsData struct {
 	Metadata
-	Attributes    OncallTeamsAttributes    `json:"attributes,omitempty"`
-	Relationships OncallTeamsRelationships `json:"relationships,omitempty"`
+	Attributes    OncallTeamsAttributes    `json:"attributes"`
+	Relationships OncallTeamsRelationships `json:"relationships"`
 }
 
 // OncallTeamsAttributes contains the on-call teams attributes.
@@ -138,7 +138,7 @@ type OncallTeamsAttributes struct {
 
 // OncallTeamsRelationships contains the on-call teams relationships.
 type OncallTeamsRelationships struct {
-	OncallUsers OncallUsers `json:"oncall_users,omitempty"`
+	OncallUsers OncallUsers `json:"oncall_users"`
 }
 
 // OncallUsers contains the list of on-call users.
@@ -154,7 +154,7 @@ type OncallUsersData struct {
 // OncallTeamsIncluded contains the on-call teams included related resources.
 type OncallTeamsIncluded struct {
 	Metadata
-	Attributes OncallTeamsIncludedAttributes `json:"attributes,omitempty"`
+	Attributes OncallTeamsIncludedAttributes `json:"attributes"`
 }
 
 // OncallTeamsIncludedAttributes contains the on-call teams included related resource

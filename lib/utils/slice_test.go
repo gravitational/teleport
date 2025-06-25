@@ -31,7 +31,7 @@ func TestSlice(t *testing.T) {
 	pool := NewSliceSyncPool(1024)
 	// having a loop is not a guarantee that the same slice
 	// will be reused, but a good enough bet
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		slice := pool.Get()
 		require.Len(t, slice, 1024, "Returned slice should have zero len and values")
 		for i := range slice {

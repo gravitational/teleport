@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -129,6 +130,13 @@ type server struct {
 	// gitKeyManager manages keys for git proxies.
 	gitKeyManager *git.KeyManager
 }
+
+// EICESigner is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
+// [ssh.Signer] is required for clients to be able to connect to the instance.
+type EICESigner func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error)
+
+// EICEDialer is a function that is used to dial and obtain a connection to an EICE instance.
+type EICEDialer func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error)
 
 // Config is a reverse tunnel server configuration
 type Config struct {
@@ -227,6 +235,11 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
 	PROXYSigner multiplexer.PROXYHeaderSigner
+
+	// EICEDialer is used to open a connection to an EICE instance.
+	EICEDialer EICEDialer
+	// EICESigner is used to generate and upload credentials to an EICE instance.
+	EICESigner EICESigner
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -285,6 +298,13 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+
+	if cfg.EICEDialer == nil {
+		return trace.BadParameter("missing parameter EICEDialer")
+	}
+	if cfg.EICESigner == nil {
+		return trace.BadParameter("missing parameter EICESigner")
 	}
 	return nil
 }

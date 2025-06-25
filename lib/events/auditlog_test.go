@@ -104,6 +104,14 @@ func TestLogRotation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, found, 1)
+
+		foundUnstructured, _, err := alog.SearchUnstructuredEvents(ctx, events.SearchEventsRequest{
+			From:  now.Add(-time.Hour),
+			To:    now.Add(time.Hour),
+			Order: types.EventOrderAscending,
+		})
+		require.NoError(t, err)
+		require.Len(t, foundUnstructured, 1)
 	}
 }
 
@@ -130,7 +138,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	// on the download that the first one started
 	streams := 2
 	errors := make(chan error, streams)
-	for i := 0; i < streams; i++ {
+	for range streams {
 		go func() {
 			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
 			for {
@@ -149,7 +157,7 @@ func TestConcurrentStreaming(t *testing.T) {
 
 	// This test just verifies that the streamer does not panic when multiple
 	// concurrent streams are waiting on the same download to complete.
-	for i := 0; i < streams; i++ {
+	for range streams {
 		<-errors
 	}
 }

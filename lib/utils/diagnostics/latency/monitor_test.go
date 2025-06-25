@@ -101,7 +101,7 @@ func TestMonitor(t *testing.T) {
 	assert.Equal(t, Statistics{}, monitor.GetStats(), "expected initial latency stats to be zero got %v", stats)
 
 	// Simulate a few ping loops to validate the pingers are activated appropriately.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		// Wait for the ping timers and reporting timer to block.
 		clock.BlockUntil(3)
 		// Advance the clock enough to trigger a ping.
@@ -109,7 +109,7 @@ func TestMonitor(t *testing.T) {
 
 		pingTimeout := time.After(15 * time.Second)
 		// Wait for both pings to return a response.
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			// Wait for the fake pingers to sleep and the reporting timer to block.
 			clock.BlockUntil(3)
 			// Advance the clock in intervals of 5s to wake up the pingers one at a time.

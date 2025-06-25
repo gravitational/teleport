@@ -84,7 +84,7 @@ func TestUploadParallel(t *testing.T) {
 
 	sessions := make(map[string][]apievents.AuditEvent)
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		fileStreamer, err := NewStreamer(p.scanDir)
 		require.NoError(t, err)
 
@@ -406,7 +406,7 @@ func TestUploadBackoff(t *testing.T) {
 	attempts := 10
 	var prev time.Time
 	var diffs []time.Duration
-	for i := 0; i < attempts; i++ {
+	for i := range attempts {
 		// wait for the upload event
 		var event events.UploadEvent
 		select {
@@ -611,7 +611,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	for i := 0; i < testCase.retries; i++ {
+	for i := range testCase.retries {
 		if testCase.onRetry != nil {
 			testCase.onRetry(t, i, uploader)
 		}

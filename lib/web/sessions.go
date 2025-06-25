@@ -27,6 +27,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -250,7 +251,7 @@ func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelcl
 // A [singleflight.Group] is leveraged to prevent duplicate requests for remote
 // clients at the same time to race.
 func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (interface{}, error) {
+	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (any, error) {
 		// check if we already have a connection to this cluster
 		if clt, ok := c.remoteClientCache.getRemoteClient(site); ok {
 			return clt, nil
@@ -343,16 +344,11 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		ctx,
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
 	)
@@ -1262,7 +1258,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = append(c.closers[:i], c.closers[i+1:]...)
+			c.closers = slices.Delete(c.closers, i, i+1)
 			return
 		}
 	}

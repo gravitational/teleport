@@ -924,6 +924,15 @@ const (
 	// MCPSessionNotificationEvent is emitted when a notification is sent by
 	// client during a MCP session.
 	MCPSessionNotificationEvent = "mcp.session.notification"
+
+	// BoundKeypairRecovery is emitted when a bound keypair token is used to
+	// perform a recovery.
+	BoundKeypairRecovery = "join_token.bound_keypair.recovery"
+	// BoundKeypairRotation is emitted when a keypair rotation is attempted.
+	BoundKeypairRotation = "join_token.bound_keypair.rotation"
+	// BoundKeypairJoinStateVerificationFailed is emitted when join state
+	// document verification fails.
+	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1192,6 +1201,16 @@ type AuditLogger interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
+
+	// SearchUnstructuredEvents is a flexible way to find events and returns them in an unstructured format (JSON like)
+	//
+	// Event types to filter can be specified and pagination is handled by an iterator key that allows
+	// a query to be resumed.
+	//
+	// The only mandatory requirement is a date range (UTC).
+	//
+	// This function may never return more than 1 MiB of event data.
+	SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error)
 }
 
 // EventFields instance is attached to every logged event

@@ -34,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -251,6 +252,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	teleport.ComponentRelay:                  connectedResources.WithLabelValues(teleport.ComponentRelay),
 }
 
 // SendKeepAlives allows node to send a stream of keep alive requests
@@ -5253,6 +5255,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
@@ -5315,6 +5318,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
 	})
@@ -5767,30 +5771,23 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
-		From:       req.StartDate.AsTime(),
-		To:         req.EndDate.AsTime(),
-		EventTypes: req.EventTypes,
-		Limit:      int(req.Limit),
-		Order:      types.EventOrder(req.Order),
-		StartKey:   req.StartKey,
-	})
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchUnstructuredEvents(
+		ctx,
+		events.SearchEventsRequest{
+			From:       req.StartDate.AsTime(),
+			To:         req.EndDate.AsTime(),
+			EventTypes: req.EventTypes,
+			Limit:      int(req.Limit),
+			Order:      types.EventOrder(req.Order),
+			StartKey:   req.StartKey,
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	unstructuredEvents := make([]*auditlogpb.EventUnstructured, 0, len(rawEvents))
-	for _, event := range rawEvents {
-		unstructuredEvent, err := apievents.ToUnstructured(event)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		unstructuredEvents = append(unstructuredEvents, unstructuredEvent)
-	}
-
 	return &auditlogpb.EventsUnstructured{
-		Items:   unstructuredEvents,
+		Items:   rawEvents,
 		LastKey: lastkey,
 	}, nil
 }
