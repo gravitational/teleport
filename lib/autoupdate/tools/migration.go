@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -34,13 +32,35 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// migrateV1AndUpdateConfig launches migration process and add migrated
+// tools to configuration file.
+func migrateV1AndUpdateConfig(toolsDir string, tools []string) error {
+	migratedTools, err := migrateV1(toolsDir, tools)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(migratedTools) == 0 {
+		return nil
+	}
+
+	ctc, save, err := newClientToolsConfig(toolsDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, tool := range migratedTools {
+		ctc.AddTool(tool)
+	}
+
+	return trace.Wrap(save())
+}
+
 // migrateV1 verifies the tool binary located in the tool's directory.
 // If it is a symlink, it reads the target location and generates a tool object
 // to be saved in the configuration for backward compatibility.
 // If it is a regular binary, a new package folder should be created,
 // and the binary should be copied to the new location.
 // TODO(vapopov): DELETE in v21.0.0 - the version without caching will no longer be supported.
-func migrateV1(toolsDir string, tools []string) ([]Tool, error) {
+func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 	migratedTools := make(map[string]Tool)
 	for _, tool := range tools {
 		path := filepath.Join(toolsDir, tool)
@@ -107,7 +127,7 @@ func migrateV1(toolsDir string, tools []string) ([]Tool, error) {
 		}
 	}
 
-	return slices.Collect(maps.Values(migratedTools)), nil
+	return migratedTools, nil
 }
 
 func extractPackageName(toolsDir string, fullPath string) (string, string) {

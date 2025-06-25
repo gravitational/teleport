@@ -148,7 +148,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// Download the version of client tools required by the cluster. This
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
-	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
+	err := updater.Update(ctxUpdate, toolsVersion)
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
 		slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", toolsVersion)
 		// Continue executing the current version of the client tools (tsh, tctl)

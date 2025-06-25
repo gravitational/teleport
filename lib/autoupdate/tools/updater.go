@@ -60,8 +60,6 @@ const (
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
-	// lockFileName is file used for locking update process in parallel.
-	lockFileName = ".lock"
 	// updatePackageSuffix is directory suffix used for package extraction in tools directory for v1.
 	updatePackageSuffix = "-update-pkg"
 	// updatePackageSuffix is directory suffix used for package extraction in tools directory for v2.
@@ -146,7 +144,7 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 // CheckLocal is run at client tool startup and will only perform local checks.
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
-func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
+func (u *Updater) CheckLocal(profileName string) (resp *UpdateResponse, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -166,17 +164,22 @@ func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
 		return &UpdateResponse{Version: requestedVersion, ReExec: true}, nil
 	}
 
-	config, err := u.loadConfig(profileName)
-	if err != nil && !trace.IsNotFound(err) {
+	// We should acquire and release the lock before checking the version
+	// by executing the binary, as it might block tool execution until the version
+	// check is completed, which can take several seconds.
+	ctc, save, err := newClientToolsConfig(u.toolsDir)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if config != nil {
+	if config, ok := ctc.Configs[profileName]; ok {
 		if config.Disabled || config.Version == u.localVersion {
-			return &UpdateResponse{Version: config.Version, ReExec: false}, nil
+			return &UpdateResponse{Version: config.Version, ReExec: false}, trace.Wrap(save())
 		} else {
-			return &UpdateResponse{Version: config.Version, ReExec: true}, nil
+			return &UpdateResponse{Version: config.Version, ReExec: true}, trace.Wrap(save())
 		}
+	}
+	if err := save(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Backward compatibility check. If a version of the client tools has already been downloaded
@@ -190,19 +193,9 @@ func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	tools, err := u.loadTools()
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	if !tools.HasVersion(toolsVersion) {
-		migrateTools, err := migrateV1(u.toolsDir, u.tools)
-		if err != nil {
+	if !ctc.HasVersion(toolsVersion) {
+		if err := migrateV1AndUpdateConfig(u.toolsDir, u.tools); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		for _, tool := range migrateTools {
-			if err := u.saveTool(tool); err != nil {
-				return nil, trace.Wrap(err)
-			}
 		}
 	}
 
@@ -228,13 +221,12 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		// If the environment variable is set during a remote check,
-		// prioritize this version for the current host and use it as the default
-		// for all commands under the current profile.
-		if err := u.updateConfig(proxyHost, requestedVersion, false); err != nil {
+		ctc, save, err := newClientToolsConfig(u.toolsDir)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		ctc.SetConfig(proxyHost, requestedVersion, false)
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, trace.Wrap(save())
 	// No requested version, we continue.
 	case "":
 	// Requested version that is not the local one.
@@ -242,10 +234,15 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
 			return nil, trace.Wrap(err, "checking that request version is semantic")
 		}
-		if err := u.updateConfig(proxyHost, requestedVersion, false); err != nil {
+		// If the environment variable is set during a remote check,
+		// prioritize this version for the current host and use it as the default
+		// for all commands under the current profile.
+		ctc, save, err := newClientToolsConfig(u.toolsDir)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &UpdateResponse{Version: requestedVersion, ReExec: true}, nil
+		ctc.SetConfig(proxyHost, requestedVersion, false)
+		return &UpdateResponse{Version: requestedVersion, ReExec: true}, trace.Wrap(save())
 	}
 
 	certPool, err := x509.SystemCertPool()
@@ -274,65 +271,32 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
 	}
 
-	if err := u.updateConfig(proxyHost, updateResp.Version, updateResp.Disabled); err != nil {
+	ctc, save, err := newClientToolsConfig(u.toolsDir)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctc.SetConfig(proxyHost, updateResp.Version, updateResp.Disabled)
 
-	return updateResp, nil
+	return updateResp, trace.Wrap(save())
 }
 
-// updateConfig updates configuration for the host by setting version and disabling flag.
-func (u *Updater) updateConfig(proxyHost, version string, disabled bool) error {
-	config, err := u.loadConfig(proxyHost)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	if config == nil {
-		config = &Config{}
-	}
-
-	config.Version = version
-	config.Disabled = disabled
-	if err := u.saveConfig(proxyHost, config); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// UpdateWithLock acquires filesystem lock, downloads requested version package,
-// unarchive and replace existing one.
-func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string) (err error) {
-	// Lock concurrent client tools execution util requested version is updated.
-	unlock, err := utils.FSWriteLock(filepath.Join(u.toolsDir, lockFileName))
+// Update acquires filesystem lock, downloads requested version package, unarchive, replace
+// existing one and cleanups the previous downloads with defined updater directory suffix.
+func (u *Updater) Update(ctx context.Context, toolsVersion string) (err error) {
+	// opens or creates configuration file and acquire a lock until it is saved.
+	ctc, save, err := newClientToolsConfig(u.toolsDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err = trace.NewAggregate(err, unlock())
+		err = trace.NewAggregate(err, save())
 	}()
-
-	// Download and update client tools in tools directory.
-	if err := u.Update(ctx, updateToolsVersion); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// Update downloads requested version and replace it with existing one and cleanups the previous downloads
-// with defined updater directory suffix.
-func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
-	tools, err := u.loadTools()
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
 
 	// ignoreTools is the list of tools installed and tracked by the config.
 	// They should be preserved during cleanup. If we have more than [defaultSizeStoredVersion]
 	// versions, the updater will forget about the least used version.
 	var ignoreTools []string
-	for _, tool := range tools {
+	for _, tool := range ctc.Tools {
 		// If the version of the running binary or the version downloaded to
 		// tools directory is the same as the requested version of client tools,
 		// nothing to be done, exit early.
@@ -351,7 +315,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 	var pkgNames []string
 	for _, pkg := range packages {
 		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffixV2)
-		if err := u.update(ctx, pkg, pkgName); err != nil {
+		if err := u.update(ctx, ctc, pkg, pkgName); err != nil {
 			return trace.Wrap(err)
 		}
 		pkgNames = append(pkgNames, pkgName)
@@ -368,7 +332,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 
 // update downloads the archive and validate against the hash. Download to a
 // temporary path within tools directory.
-func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) error {
+func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packageURL, pkgName string) error {
 	f, err := os.CreateTemp("", "teleport-")
 	if err != nil {
 		return trace.Wrap(err)
@@ -413,20 +377,21 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 		return trace.Wrap(err)
 	}
 
-	if err := u.saveTool(Tool{Version: pkg.Version, PathMap: toolsMap, Package: pkgName}); err != nil {
-		return trace.Wrap(err)
-	}
+	ctc.AddTool(Tool{Version: pkg.Version, PathMap: toolsMap, Package: pkgName})
 
 	return nil
 }
 
 // ToolPath loads full path from config file to specific tool and version.
-func (u *Updater) ToolPath(toolName, toolVersion string) (string, error) {
-	tools, err := u.loadTools()
+func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error) {
+	ctc, save, err := newClientToolsConfig(u.toolsDir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	tool := tools.PickVersion(toolVersion)
+	defer func() {
+		err = trace.NewAggregate(err, save())
+	}()
+	tool := ctc.SelectVersion(toolVersion)
 	if tool == nil {
 		return "", trace.NotFound("tool version %q not found", toolVersion)
 	}
