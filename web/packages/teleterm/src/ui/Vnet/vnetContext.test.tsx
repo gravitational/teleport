@@ -20,8 +20,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   ComponentType,
   createRef,
-  MutableRefObject,
   PropsWithChildren,
+  RefObject,
   useEffect,
   useImperativeHandle,
 } from 'react';
@@ -218,12 +218,12 @@ describe('diag notification', () => {
   const tests: Array<{
     it: string;
     /** Ref for opening/closing the connections panel. If provided, the panel will be open by default. */
-    controlConnectionsRef?: MutableRefObject<ControlConnections>;
+    controlConnectionsRef?: RefObject<ControlConnections>;
     mockAppContext: (appContext: MockAppContext) => void;
     verify: (
       appContext: MockAppContext,
       result: { current: VnetContext },
-      controlConnectionsRef?: MutableRefObject<ControlConnections>
+      controlConnectionsRef?: RefObject<ControlConnections>
     ) => Promise<void>;
   }> = [
     {
@@ -476,7 +476,7 @@ describe('diag notification', () => {
 const Wrapper = (
   props: PropsWithChildren<{
     appContext: IAppContext;
-    controlConnectionsRef?: MutableRefObject<ControlConnections>;
+    controlConnectionsRef?: RefObject<ControlConnections>;
   }>
 ) => {
   return (
@@ -511,7 +511,7 @@ function createWrapper<Props>(
 }
 
 const OpenConnections = (props: {
-  controlConnectionsRef: MutableRefObject<ControlConnections>;
+  controlConnectionsRef: RefObject<ControlConnections>;
 }) => {
   const { open, close } = useConnectionsContext();
   useImperativeHandle(props.controlConnectionsRef, () => ({ open, close }));
