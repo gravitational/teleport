@@ -452,6 +452,9 @@ type Server struct {
 	// usageEventCache keeps track of which instances the server has emitted
 	// usage events for.
 	usageEventCache map[string]struct{}
+
+	// Provides the cloudwatch poller with a set of resources to poll for
+	cloudWatchResourcesCh chan []cloudWatchResource
 }
 
 // New initializes a discovery Server
@@ -478,6 +481,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		awsEC2ResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEC2),
 		awsRDSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherRDS),
 		awsEKSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEKS),
+		cloudWatchResourcesCh:      make(chan []cloudWatchResource),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 

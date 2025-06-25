@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"sync"
@@ -75,7 +76,12 @@ const (
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
 var errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 
-func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
+func (s *Server) reconcileAccessGraph(
+	ctx context.Context,
+	currentTAGResources *aws_sync.Resources,
+	stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
+	features aws_sync.Features,
+) error {
 	type fetcherResult struct {
 		result *aws_sync.Resources
 		err    error
@@ -138,6 +144,17 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Merge all results into a single result
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
+
+	// Send EKS cluster references to be polled for logs via CloudWatch
+	var cwRes []cloudWatchResource
+	for _, cluster := range result.EKSClusters {
+		cwRes = append(cwRes, cloudWatchResource{
+			resourceType: cloudWatchResourceEKS,
+			resourceID:   cluster.Name,
+			region:       cluster.Region,
+		})
+	}
+	s.cloudWatchResourcesCh <- cwRes
 
 	for _, fetcher := range allFetchers {
 		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
@@ -879,7 +896,19 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	}
 }
 
-func (s *Server) startCloudwatchPoller(ctx context.Context, reloadCh <-chan struct{}, specs []*types.AccessGraphAWSSync) error {
+const cloudWatchResourceEKS = "eks"
+
+type cloudWatchResource struct {
+	resourceType string
+	resourceID   string
+	region       string
+}
+
+func (s *Server) startCloudwatchPoller(
+	ctx context.Context,
+	reloadCh <-chan struct{},
+	specs []*types.AccessGraphAWSSync,
+) error {
 	// Check that the access graph is enabled
 	clusterFeatures := s.Config.ClusterFeatures()
 	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
@@ -1370,52 +1399,96 @@ func (s *Server) pollEventsFromCloudWatch(
 	ctx context.Context,
 	accountID string,
 	spec *types.AccessGraphAWSSync,
-	ch chan<- cloudWatchEvents,
+	eventsCh chan<- cloudWatchEvents,
 ) error {
 	s.Log.Info("Polling for CloudWatch events")
-	for _, region := range spec.Regions {
-		awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cli := cloudwatchlogs.NewFromConfig(awsCfg)
-		startTime := time.Now().Unix()
-		logGroupName := "/aws/eks/mbrock-test/cluster"
-		go func() {
-			var resumeToken *string
-			for {
-				params := &cloudwatchlogs.FilterLogEventsInput{
-					LogGroupName:        aws.String(logGroupName),
-					LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
-					StartTime:           aws.Int64(startTime),
-					NextToken:           resumeToken,
-				}
-				out, err := cli.FilterLogEvents(ctx, params)
-				if err != nil {
-					s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
-						"error", err, "region", region)
-					return
-				}
-				var events []*accessgraphv1alpha.AWSCloudWatchEvent
-				for _, cwEvent := range out.Events {
-					event := &accessgraphv1alpha.AWSCloudWatchEvent{
-						LogStream: *cwEvent.LogStreamName,
-						Message:   *cwEvent.Message,
-						Timestamp: timestamppb.New(time.UnixMilli(*cwEvent.Timestamp)),
-					}
-					events = append(events, event)
-				}
-				ch <- cloudWatchEvents{
-					events:    events,
-					accountID: accountID,
-				}
-				select {
-				case <-ctx.Done():
-					s.Log.ErrorContext(ctx, "Context done for CloudWatch poller", "region", region)
-					return
-				}
+	restartPollerCh := make(chan struct{})
+	var cwResourceLock sync.RWMutex
+	cwResMap := make(map[string][]cloudWatchResource)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case cwResources := <-s.cloudWatchResourcesCh:
+			s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources)
+			cwResourceLock.Lock()
+			cwResMap = make(map[string][]cloudWatchResource)
+			for _, resource := range cwResources {
+				cwResMap[resource.region] = append(cwResMap[resource.region], resource)
 			}
-		}()
+			cwResourceLock.Unlock()
+			restartPollerCh <- struct{}{}
+		}
+	}()
+	for {
+		pollerCtx, pollerCancel := context.WithCancel(ctx)
+		for _, region := range spec.Regions {
+			awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
+			if err != nil {
+				pollerCancel()
+				return trace.Wrap(err)
+			}
+			cli := cloudwatchlogs.NewFromConfig(awsCfg)
+			startTime := time.Now().Unix()
+
+			cwResourceLock.RLock()
+			cwResources, ok := cwResMap[region]
+			cwResourceLock.RUnlock()
+			if !ok {
+				continue
+			}
+			for _, resource := range cwResources {
+				// We only support EKS for now
+				if resource.resourceType != cloudWatchResourceEKS {
+					continue
+				}
+				go func() {
+					var resumeToken *string
+					for {
+						logGroupName := fmt.Sprintf("/aws/eks/%s/cluster", resource.resourceID)
+						params := &cloudwatchlogs.FilterLogEventsInput{
+							LogGroupName:        aws.String(logGroupName),
+							LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
+							StartTime:           aws.Int64(startTime),
+							NextToken:           resumeToken,
+						}
+						out, err := cli.FilterLogEvents(ctx, params)
+						if err != nil {
+							s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
+								"error", err, "region", region)
+							return
+						}
+						var events []*accessgraphv1alpha.AWSCloudWatchEvent
+						for _, cwEvent := range out.Events {
+							event := &accessgraphv1alpha.AWSCloudWatchEvent{
+								LogStream: *cwEvent.LogStreamName,
+								Message:   *cwEvent.Message,
+								Timestamp: timestamppb.New(time.UnixMilli(*cwEvent.Timestamp)),
+							}
+							events = append(events, event)
+						}
+						eventsCh <- cloudWatchEvents{
+							events:    events,
+							accountID: accountID,
+						}
+						select {
+						case <-ctx.Done():
+							return
+						case <-pollerCtx.Done():
+							return
+						}
+					}
+				}()
+			}
+		}
+		select {
+		case <-ctx.Done():
+			s.Log.ErrorContext(ctx, "Context done for CloudWatch poller")
+			pollerCancel()
+			return nil
+		case <-restartPollerCh:
+			s.Log.InfoContext(ctx, "Restarting poller for CloudWatch logs")
+			pollerCancel()
+		}
 	}
-	return nil
 }
