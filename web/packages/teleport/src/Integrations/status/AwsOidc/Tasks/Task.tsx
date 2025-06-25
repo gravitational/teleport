@@ -26,6 +26,7 @@ import {
   Link as ExternalLink,
   Flex,
   H2,
+  Indicator,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
@@ -74,6 +75,14 @@ export function Task({
     return (
       <SidePanel onClose={() => close(false)}>
         <Danger>{taskAttempt.statusText}</Danger>
+      </SidePanel>
+    );
+  }
+
+  if (taskAttempt.status === 'processing') {
+    return (
+      <SidePanel onClose={() => close(false)}>
+        <Indicator />
       </SidePanel>
     );
   }
