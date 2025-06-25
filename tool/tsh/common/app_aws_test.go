@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -167,9 +168,15 @@ func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
 		testserver.WithBootstrap(connector, user, awsRole),
 	)
 
-	fakeAWSCredentials := `{"Version":1,"AccessKeyId":"id"}`
-	authProcess.GetAuthServer().OverrideAWSCredentialGeneration = func() string {
-		return fakeAWSCredentials
+	expectedAWSCredentials := `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`
+	authProcess.GetAuthServer().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
 	}
 
 	integrationName := "aws-app"
@@ -248,7 +255,7 @@ credential_process=tsh apps config --format aws-credential-process aws-profile
 		setCopyStdout(appsConfigcommandOutput),
 	)
 	require.NoError(t, err)
-	require.Equal(t, fakeAWSCredentials, appsConfigcommandOutput.String())
+	require.Equal(t, expectedAWSCredentials, appsConfigcommandOutput.String())
 
 	// Profile is removed after logout.
 	err = Run(

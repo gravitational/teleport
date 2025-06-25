@@ -111,6 +111,8 @@ import (
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -1238,9 +1240,9 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
-	// OverrideAWSCredentialGeneration overrides the generation of AWS credentials for AWS Apps which use the Roles Anywhere Integration.
+	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
-	OverrideAWSCredentialGeneration func() string
+	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -3471,9 +3473,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	var awsCredentialProcessCredentials string
-	if a.OverrideAWSCredentialGeneration != nil {
-		awsCredentialProcessCredentials = a.OverrideAWSCredentialGeneration()
+	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	identity := tlsca.Identity{
@@ -3597,6 +3600,106 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
 
 	return certs, nil
+}
+
+func generateAWSConfigCredentialProcessCredentials(ctx context.Context,
+	a *Server,
+	req certRequest,
+	notAfter time.Time,
+) (string, error) {
+	if req.appName == "" || req.awsRoleARN == "" {
+		return "", nil
+	}
+
+	appInfo, err := getAppServerByName(ctx, a, req.appName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Only integrations can generate credentials.
+	integrationName := appInfo.GetIntegration()
+	if integrationName == "" {
+		return "", nil
+	}
+
+	integration, err := a.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	switch integration.GetSubKind() {
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		// Only AWS Roles Anywhere integrations can generate credentials.
+		return generateAWSRolesAnywhereCredentials(ctx, a, req, appInfo, integration, notAfter)
+
+	default:
+		return "", trace.BadParameter("application %q is using integration %q for access, which does not support credential generation", req.appName, integrationName)
+	}
+}
+
+func getAppServerByName(ctx context.Context, a *Server, appServerName string) (types.Application, error) {
+	appServers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, s := range appServers {
+		if s.GetName() == appServerName {
+			return s.GetApp(), nil
+		}
+	}
+	return nil, trace.NotFound("application %q not found", appServerName)
+}
+
+func generateAWSRolesAnywhereCredentials(
+	ctx context.Context,
+	a *Server,
+	req certRequest,
+	appInfo types.Application,
+	integration types.Integration,
+	notAfter time.Time,
+) (string, error) {
+	integrationSpec := integration.GetAWSRolesAnywhereIntegrationSpec()
+	if integrationSpec == nil || integrationSpec.TrustAnchorARN == "" {
+		return "", trace.BadParameter("roles anywhere integration %q does not have a valid spec", integration.GetName())
+	}
+
+	awsProfileARN := appInfo.GetAWSRolesAnywhereProfileARN()
+	acceptRoleSessionName := appInfo.GetAWSRolesAnywhereAcceptRoleSessionName()
+	if awsProfileARN == "" {
+		return "", trace.BadParameter("application %q does not have a valid AWS Roles Anywhere Profile ARN", req.appName)
+	}
+
+	durationSeconds := int(notAfter.Sub(a.clock.Now()).Seconds())
+	createSession := createsession.CreateSession
+
+	// Replace by the override function if it is set.
+	// This method does an HTTP call to AWS services, so this is useful for mocking that call.
+	// Only used in tests.
+	if a.AWSRolesAnywhereCreateSessionOverride != nil {
+		createSession = a.AWSRolesAnywhereCreateSessionOverride
+	}
+
+	generateCredentialsRequest := awsra.GenerateCredentialsRequest{
+		Clock:                 a.clock,
+		TrustAnchorARN:        integrationSpec.TrustAnchorARN,
+		ProfileARN:            awsProfileARN,
+		RoleARN:               req.awsRoleARN,
+		SubjectCommonName:     req.user.GetName(),
+		KeyStoreManager:       a.keyStore,
+		AcceptRoleSessionName: acceptRoleSessionName,
+		DurationSeconds:       &durationSeconds,
+		Cache:                 a.Cache,
+		CreateSession:         createSession,
+	}
+
+	resp, err := awsra.GenerateCredentials(ctx, generateCredentialsRequest)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	encodedCredentials, err := resp.EncodeCredentialProcessFormat()
+	return encodedCredentials, trace.Wrap(err)
 }
 
 type attestHardwareKeyParams struct {
