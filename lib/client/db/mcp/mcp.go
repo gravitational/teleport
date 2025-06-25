@@ -66,9 +66,6 @@ type Database struct {
 	DB types.Database
 	// ClusterName is the cluster name where the database is located.
 	ClusterName string
-	// Addr is the address the MCP server used to create a new database
-	// connection.
-	Addr string
 	// DatabaseUser is the database username used on the connections.
 	DatabaseUser string
 	// DatabaseName is the database name used on the connections.

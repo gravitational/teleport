@@ -5562,35 +5562,28 @@ func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer typ
 	return cert, trace.Wrap(err)
 }
 
-// DialDatabaseConfig is the config used when dialing a database.
-type DialDatabaseConfig struct {
-	// Username is the database username used on the connection.
-	Username string
-	// Database is the database name used on the connection.
-	Database string
-	// Roles are the database roles used on the connection.
-	Roles []string
-	// TTL is the connection/certificate max TTL.
-	TTL time.Duration
-}
-
 // DialDatabase makes a remote connection to the database.
 //
 // TODO(gabrielcorado): support acccess requests connections.
-func (tc *TeleportClient) DialDatabase(ctx context.Context, db types.Database, config DialDatabaseConfig) (net.Conn, error) {
+func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToDatabase) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialDatabase",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("db", route.GetServiceName()),
+			attribute.String("protocol", route.GetProtocol()),
+		),
+	)
+	defer span.End()
+
 	dbCertParams := ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: db.GetName(),
-			Protocol:    db.GetProtocol(),
-			Username:    config.Username,
-			Database:    config.Database,
-			Roles:       config.Roles,
-		},
-		TTL: config.TTL,
+		RouteToCluster:  tc.SiteName,
+		RouteToDatabase: route,
+		TTL:             tc.KeyTTL,
 	}
 
-	alpnProtocol, err := alpncommon.ToALPNProtocol(db.GetProtocol())
+	alpnProtocol, err := alpncommon.ToALPNProtocol(route.GetProtocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5600,7 +5593,7 @@ func (tc *TeleportClient) DialDatabase(ctx context.Context, db types.Database, c
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := keyRing.DBTLSCert(db.GetName())
+	cert, err := keyRing.DBTLSCert(route.GetServiceName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	pgmcp "github.com/gravitational/teleport/lib/client/db/postgres/mcp"
@@ -168,19 +169,17 @@ func (c *mcpDBStartCommand) prepareDatabases(
 			ClusterName:  uri.GetClusterName(),
 			DatabaseUser: dbUser,
 			DatabaseName: dbName,
-			// This is just a placeholder so drivers whose require a valid URL
-			// address won't fail.
-			Addr: "in-memory",
 			// Connections are always handled by the TeleportClient, so here we
 			// just need to return a placeholder.
 			LookupFunc: func(ctx context.Context, host string) (addrs []string, err error) {
 				return []string{host}, nil
 			},
 			DialContextFunc: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				conn, err := tc.DialDatabase(ctx, db, client.DialDatabaseConfig{
-					Username: dbUser,
-					Database: dbName,
-					TTL:      tc.KeyTTL,
+				conn, err := tc.DialDatabase(ctx, proto.RouteToDatabase{
+					ServiceName: db.GetName(),
+					Protocol:    db.GetProtocol(),
+					Username:    dbUser,
+					Database:    dbName,
 				})
 				return conn, trace.Wrap(err)
 			},

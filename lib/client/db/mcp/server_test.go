@@ -150,7 +150,6 @@ func buildDatabase(t *testing.T, name string) *Database {
 	return &Database{
 		DB:          db,
 		ClusterName: "root",
-		Addr:        "localhost:5555",
 	}
 }
 

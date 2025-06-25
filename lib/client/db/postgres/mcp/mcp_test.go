@@ -113,7 +113,6 @@ func TestFormatErrors(t *testing.T) {
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
 					DatabaseName: "postgres",
-					Addr:         listener.Addr().String(),
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
@@ -132,7 +131,6 @@ func TestFormatErrors(t *testing.T) {
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
 					DatabaseName: "postgres",
-					Addr:         listener.Addr().String(),
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},

@@ -204,7 +204,9 @@ func (s *Server) getDatabase(uri string) (*database, error) {
 }
 
 func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
-	config, err := pgxpool.ParseConfig("postgres://" + db.Addr)
+	// No need to provide a valid address here as the Lookup and DialContext
+	// will handle the connection.
+	config, err := pgxpool.ParseConfig("postgres://")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
