@@ -105,7 +105,7 @@ type Config struct {
 	// ReloadCh allows the task to be triggered immediately, ideal for handling
 	// CA rotations or a manual signal from a user. ReloadCh can be nil, in
 	// which case, the task will only run on the interval.
-	ReloadCh chan struct{}
+	ReloadCh <-chan struct{}
 
 	// IdentityReadyCh allows the loop to wait until the internal bot identity
 	// renewal has completed before running, to avoid spamming the logs if the
