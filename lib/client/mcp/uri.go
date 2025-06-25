@@ -69,14 +69,39 @@ func ParseResourceURI(uri string) (*ResourceURI, error) {
 	return &ResourceURI{url: *parsedURL}, nil
 }
 
-// NewDatabaseResourceURI creates a new database resource URI.
-func NewDatabaseResourceURI(cluster, databaseName string) ResourceURI {
-	return NewDatabaseResourceURIWithConnectParams(cluster, databaseName, "", "")
+// databaseParams represents the connect params for the database resource.
+type databaseParams struct {
+	// user is the user to log in as.
+	user string
+	// name is the name to log in to.
+	name string
+}
+
+// databaseParam is a param function used for setting database connect params.
+type databaseParam func(*databaseParams)
+
+// WithDatabaseUser configures database params with database user.
+func WithDatabaseUser(user string) databaseParam {
+	return func(dp *databaseParams) {
+		dp.user = user
+	}
+}
+
+// WithDatabaseUser configures database params with database name.
+func WithDatabaseName(name string) databaseParam {
+	return func(dp *databaseParams) {
+		dp.name = name
+	}
 }
 
 // NewDatabaseResourceURI creates a new database resource URI with connect
 // params.
-func NewDatabaseResourceURIWithConnectParams(cluster, databaseName, dbUser, dbName string) ResourceURI {
+func NewDatabaseResourceURI(cluster string, databaseName string, opts ...databaseParam) ResourceURI {
+	params := &databaseParams{}
+	for _, opt := range opts {
+		opt(params)
+	}
+
 	pathWithHost, _ := databaseURITemplate.Build(urlpath.Match{
 		Params: map[string]string{
 			"cluster": cluster,
@@ -84,19 +109,19 @@ func NewDatabaseResourceURIWithConnectParams(cluster, databaseName, dbUser, dbNa
 		},
 	})
 
-	params := url.Values{}
-	if dbUser != "" {
-		params.Add(databaseUserQueryParamName, dbUser)
+	values := url.Values{}
+	if params.user != "" {
+		values.Add(databaseUserQueryParamName, params.user)
 	}
-	if dbName != "" {
-		params.Add(databaseNameQueryParamName, dbName)
+	if params.name != "" {
+		values.Add(databaseNameQueryParamName, params.name)
 	}
 
 	return ResourceURI{
 		url: url.URL{
 			Scheme:   resourceScheme,
 			Path:     strings.TrimPrefix(pathWithHost, "/"),
-			RawQuery: params.Encode(),
+			RawQuery: values.Encode(),
 		},
 	}
 }

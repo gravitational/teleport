@@ -58,7 +58,7 @@ func TestDatabaseResourceURI(t *testing.T) {
 			expectedClusterName:  "default",
 		},
 		"generated uri with params": {
-			uri:                  NewDatabaseResourceURIWithConnectParams("default", "db", "user", "name").String(),
+			uri:                  NewDatabaseResourceURI("default", "db", WithDatabaseUser("user"), WithDatabaseName("name")).String(),
 			expectedDatabase:     true,
 			expectedServiceName:  "db",
 			expectedDatabaseName: "name",
@@ -66,7 +66,7 @@ func TestDatabaseResourceURI(t *testing.T) {
 			expectedClusterName:  "default",
 		},
 		"generated uri without params": {
-			uri:                  NewDatabaseResourceURIWithConnectParams("default", "db", "user", "name").WithoutParams().String(),
+			uri:                  NewDatabaseResourceURI("default", "db", WithDatabaseUser("user"), WithDatabaseName("name")).WithoutParams().String(),
 			expectedDatabase:     true,
 			expectedServiceName:  "db",
 			expectedDatabaseName: "",
@@ -116,8 +116,8 @@ func TestEqualResourceURI(t *testing.T) {
 			expectedResult: true,
 		},
 		"same resources, different params": {
-			a:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "readonly", "postgres").WithoutParams(),
-			b:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "random").WithoutParams(),
+			a:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("readonly"), WithDatabaseName("postgres")).WithoutParams(),
+			b:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("rw"), WithDatabaseName("random")).WithoutParams(),
 			expectedResult: true,
 		},
 		"same resource type, different resources": {
@@ -131,8 +131,8 @@ func TestEqualResourceURI(t *testing.T) {
 			expectedResult: false,
 		},
 		"same resources compare params": {
-			a:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "postgres"),
-			b:              NewDatabaseResourceURIWithConnectParams("cluster", "pg", "rw", "postgres"),
+			a:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("rw"), WithDatabaseName("postgres")),
+			b:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("rw"), WithDatabaseName("postgres")),
 			expectedResult: true,
 		},
 	} {

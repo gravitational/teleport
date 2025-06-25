@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"text/template"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -245,11 +246,11 @@ type databasesGetter interface {
 type mcpDBConfigCommand struct {
 	*kingpin.CmdClause
 
-	clientConfig     mcpClientConfigFlags
-	ctx              context.Context
-	cf               *CLIConf
-	siteName         string
-	overwriteCommand bool
+	clientConfig mcpClientConfigFlags
+	ctx          context.Context
+	cf           *CLIConf
+	siteName     string
+	overwriteEnv bool
 
 	// databasesGetter used to retrieve databases information. Can be mocked in
 	// tests.
@@ -265,7 +266,7 @@ func newMCPDBconfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpDBConfigC
 
 	cmd.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
 	cmd.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
-	cmd.Flag("overwrite", "Overwrites command and environment variable from the config file.").BoolVar(&cmd.overwriteCommand)
+	cmd.Flag("overwrite", "Overwrites command and environment variable from the config file.").BoolVar(&cmd.overwriteEnv)
 	cmd.Arg("name", "Database service name.").StringVar(&cf.DatabaseService)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpDBConfigHelp)
@@ -306,7 +307,7 @@ func (m *mcpDBConfigCommand) run() error {
 		return trace.BadParameter("You must specify --db-user and --db-name flags used to connect to the database")
 	}
 
-	dbURI := mcp.NewDatabaseResourceURIWithConnectParams(m.siteName, db.GetName(), m.cf.DatabaseUser, m.cf.DatabaseName)
+	dbURI := mcp.NewDatabaseResourceURI(m.siteName, db.GetName(), mcp.WithDatabaseUser(m.cf.DatabaseUser), mcp.WithDatabaseName(m.cf.DatabaseName))
 	switch {
 	case m.clientConfig.isSet():
 		return trace.Wrap(m.updateClientConfig(dbURI))
@@ -352,19 +353,19 @@ func (m *mcpDBConfigCommand) updateClientConfig(dbURI mcp.ResourceURI) error {
 	}
 
 	templateData := struct {
-		Name             string
-		ConfigPath       string
-		ConfigName       string
-		PreexistentDB    bool
-		CommandChanged   bool
-		OverwriteCommand bool
+		Name          string
+		ConfigPath    string
+		ConfigName    string
+		PreexistentDB bool
+		EnvChanged    bool
+		OverwriteEnv  bool
 	}{
-		Name:             dbURI.GetDatabaseServiceName(),
-		ConfigPath:       config.Path(),
-		ConfigName:       mcpDBConfigName,
-		PreexistentDB:    preexistentDB,
-		CommandChanged:   commandChanged,
-		OverwriteCommand: m.overwriteCommand,
+		Name:          dbURI.GetDatabaseServiceName(),
+		ConfigPath:    config.Path(),
+		ConfigName:    mcpDBConfigName,
+		PreexistentDB: preexistentDB,
+		EnvChanged:    commandChanged,
+		OverwriteEnv:  m.overwriteEnv,
 	}
 
 	return trace.Wrap(mcpDBConfigMessageTemplate.Execute(m.cf.Stdout(), templateData))
@@ -375,19 +376,18 @@ func (m *mcpDBConfigCommand) updateClientConfig(dbURI mcp.ResourceURI) error {
 // displayed to users.
 func (m *mcpDBConfigCommand) addDatabaseToConfig(config claudeConfig, dbURI mcp.ResourceURI) (bool, bool, error) {
 	var (
-		dbs            []string
-		updated        bool
-		commandChanged bool
-		server         = makeLocalMCPServer(m.cf, nil /* args */)
+		dbs        []string
+		updated    bool
+		envChanged bool
+		server     = makeLocalMCPServer(m.cf, nil /* args */)
 	)
 	if existentServer, ok := config.GetMCPServers()[mcpDBConfigName]; ok {
-		// We don't place any environment variable on the MCP config, meaning if
-		// it is not empty, the user manually edited the server config.
-		// For those cases we want to keep their changes. However, in case they
-		// want a "fresh start" they can provide a flag.
-		if len(existentServer.Envs) != 0 {
-			commandChanged = true
-			if !m.overwriteCommand {
+		// For most common cases we want to keep the environment variables
+		// unchanged. However, in case users want a "fresh start" they can
+		// provide a flag so we overwrite them with default values.
+		if !maps.Equal(server.Envs, existentServer.Envs) {
+			envChanged = true
+			if !m.overwriteEnv {
 				server.Envs = existentServer.Envs
 			}
 		}
@@ -401,10 +401,10 @@ func (m *mcpDBConfigCommand) addDatabaseToConfig(config claudeConfig, dbURI mcp.
 			}
 
 			if !uri.IsDatabase() {
-				return false, false, trace.BadParameter("")
+				return false, false, trace.BadParameter("resource %q on config is not a database", uri.String())
 			}
 
-			if uri.Equal(dbURI) {
+			if uri.WithoutParams().Equal(dbURI.WithoutParams()) {
 				dbs = append(dbs, dbURI.String())
 				updated = true
 			} else {
@@ -418,7 +418,7 @@ func (m *mcpDBConfigCommand) addDatabaseToConfig(config claudeConfig, dbURI mcp.
 	}
 
 	server.Args = append([]string{"mcp", "db", "start"}, dbs...)
-	return updated, commandChanged, trace.Wrap(config.PutMCPServer(mcpDBConfigName, server))
+	return updated, envChanged, trace.Wrap(config.PutMCPServer(mcpDBConfigName, server))
 }
 
 var (
@@ -442,7 +442,7 @@ Teleport database access MCP server is named {{ .ConfigName | quote }} in this c
 
 You may need to restart your client to reload these new configurations.
 
-{{- if (and (.CommandChanged) (not .OverwriteCommand)) }}
+{{- if (and (.EnvChanged) (not .OverwriteEnv)) }}
 
 Environment variables have changed, but existing values will be preserved.
 To overwrite them, rerun this command with the --overwrite flag.

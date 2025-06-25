@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
@@ -240,16 +242,19 @@ func TestMCPDBConfigCommand(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dbURI0 := clientmcp.NewDatabaseResourceURIWithConnectParams(clusterName, db0.GetName(), "readonly", "dbname")
-	dbURI0Updated := clientmcp.NewDatabaseResourceURIWithConnectParams(clusterName, db0.GetName(), "rw", "anotherdb")
-	dbURI1 := clientmcp.NewDatabaseResourceURIWithConnectParams(clusterName, db1.GetName(), "rw", "dbname")
+	dbURI0 := clientmcp.NewDatabaseResourceURI(clusterName, db0.GetName(), clientmcp.WithDatabaseUser("readonly"), clientmcp.WithDatabaseName("dbname"))
+	dbURI0Updated := clientmcp.NewDatabaseResourceURI(clusterName, db0.GetName(), clientmcp.WithDatabaseUser("rw"), clientmcp.WithDatabaseName("anotherdb"))
+	dbURI1 := clientmcp.NewDatabaseResourceURI(clusterName, db1.GetName(), clientmcp.WithDatabaseUser("rw"), clientmcp.WithDatabaseName("dbname"))
 
 	for name, tc := range map[string]struct {
 		cf                *CLIConf
+		overwriteEnv      bool
 		databasesGetter   databasesGetter
 		assertError       require.ErrorAssertionFunc
 		initialDatabases  []string
 		expectedDatabases []string
+		initialEnv        map[string]string
+		expectedEnv       map[string]string
 	}{
 		"add database to empty config": {
 			cf: &CLIConf{
@@ -299,9 +304,36 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			databasesGetter: &mockDatabasesGetter{dbs: []types.Database{db0}},
 			assertError:     require.Error,
 		},
+		"keep current environment setting": {
+			cf: &CLIConf{
+				DatabaseService: dbURI0.GetDatabaseServiceName(),
+				DatabaseUser:    dbURI0.GetDatabaseUser(),
+				DatabaseName:    dbURI0.GetDatabaseName(),
+			},
+			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
+			assertError:       require.NoError,
+			initialDatabases:  []string{dbURI0.String()},
+			expectedDatabases: []string{dbURI0.String()},
+			initialEnv:        map[string]string{"test": "hello"},
+			expectedEnv:       map[string]string{"test": "hello"},
+		},
+		"reset environment setting": {
+			cf: &CLIConf{
+				DatabaseService: dbURI0.GetDatabaseServiceName(),
+				DatabaseUser:    dbURI0.GetDatabaseUser(),
+				DatabaseName:    dbURI0.GetDatabaseName(),
+			},
+			overwriteEnv:      true,
+			databasesGetter:   &mockDatabasesGetter{dbs: []types.Database{db0, db1}},
+			assertError:       require.NoError,
+			initialDatabases:  []string{dbURI0.String()},
+			expectedDatabases: []string{dbURI0.String()},
+			initialEnv:        map[string]string{"test": "hello"},
+			expectedEnv:       map[string]string{},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			configPath := setupMockDBMCPConfig(t, tc.initialDatabases)
+			configPath := setupMockDBMCPConfig(t, tc.cf, tc.initialDatabases, tc.initialEnv)
 			var buf bytes.Buffer
 			tc.cf.Context = context.Background()
 			tc.cf.Proxy = "proxy:3080"
@@ -318,6 +350,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 				ctx:             t.Context(),
 				siteName:        clusterName,
 				databasesGetter: tc.databasesGetter,
+				overwriteEnv:    tc.overwriteEnv,
 			}
 
 			err := cmd.run()
@@ -330,14 +363,25 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			require.NoError(t, err)
 			mcpCmd, ok := jsonConfig.GetMCPServers()[mcpDBConfigName]
 			require.True(t, ok, "expected configuration to include database access server definition, but got nothing")
-			for _, uri := range tc.expectedDatabases {
-				require.Contains(t, mcpCmd.Args, uri)
-			}
+			require.Empty(t, cmp.Diff(mcpCmd.Args, tc.expectedDatabases, cmpopts.EquateEmpty(), cmpopts.IgnoreSliceElements(func(arg string) bool {
+				// Only assert database resources on the args.
+				_, err := clientmcp.ParseResourceURI(arg)
+				return err != nil
+			})))
+			require.Empty(t, cmp.Diff(mcpCmd.Envs, tc.expectedEnv, cmpopts.EquateEmpty(), cmpopts.IgnoreMapEntries(func(key string, _ string) bool {
+				// Ignore default fields, only look for additional ones.
+				switch key {
+				case types.HomeEnvVar, debugEnvVar, osLogEnvVar:
+					return true
+				default:
+					return false
+				}
+			})))
 		})
 	}
 }
 
-func setupMockDBMCPConfig(t *testing.T, databasesURIs []string) string {
+func setupMockDBMCPConfig(t *testing.T, cf *CLIConf, databasesURIs []string, additionalEnv map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
@@ -348,10 +392,11 @@ func setupMockDBMCPConfig(t *testing.T, databasesURIs []string) string {
 		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
 	}))
 	if len(databasesURIs) > 0 {
-		require.NoError(t, config.PutMCPServer(mcpDBConfigName, claude.MCPServer{
-			Command: "tsh",
-			Args:    append([]string{"mcp", "db", "start"}, databasesURIs...),
-		}))
+		srv := makeLocalMCPServer(cf, append([]string{"mcp", "db", "start"}, databasesURIs...))
+		for name, value := range additionalEnv {
+			srv.AddEnv(name, value)
+		}
+		require.NoError(t, config.PutMCPServer(mcpDBConfigName, srv))
 	}
 	require.NoError(t, config.Save(claude.FormatJSONPretty))
 	return config.Path()
