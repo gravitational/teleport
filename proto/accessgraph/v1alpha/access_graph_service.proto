@@ -665,8 +665,8 @@ message AWSCloudWatchEvents {
 message AWSCloudWatchEvent {
   // The event timestamp
   google.protobuf.Timestamp timestamp = 1;
-  // The event log stream
-  string log_stream = 2;
+  // The event log group
+  string log_group = 2;
   // The event message
   string message = 3;
 }

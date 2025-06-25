@@ -3132,8 +3132,8 @@ type AWSCloudWatchEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The event timestamp
 	Timestamp *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	// The event log stream
-	LogStream string `protobuf:"bytes,2,opt,name=log_stream,json=logStream,proto3" json:"log_stream,omitempty"`
+	// The event log group
+	LogGroup string `protobuf:"bytes,2,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
 	// The event message
 	Message       string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3177,9 +3177,9 @@ func (x *AWSCloudWatchEvent) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *AWSCloudWatchEvent) GetLogStream() string {
+func (x *AWSCloudWatchEvent) GetLogGroup() string {
 	if x != nil {
-		return x.LogStream
+		return x.LogGroup
 	}
 	return ""
 }
@@ -4027,11 +4027,10 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12@\n" +
 	"\x06cursor\x18\x02 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"\x87\x01\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"\x85\x01\n" +
 	"\x12AWSCloudWatchEvent\x128\n" +
-	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1d\n" +
-	"\n" +
-	"log_stream\x18\x02 \x01(\tR\tlogStream\x12\x18\n" +
+	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1b\n" +
+	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\"\x8c\x01\n" +
 	"\x13AWSCloudWatchCursor\x12\x1b\n" +
 	"\tlog_group\x18\x01 \x01(\tR\blogGroup\x12\x1d\n" +
