@@ -144,7 +144,12 @@ export const useVnetLauncher = (): {
 
       notificationsService.notifyInfo(msg);
     },
-    [launchVnet, notificationsService, currentServiceInfo]
+    [
+      launchVnet,
+      notificationsService,
+      currentServiceInfo,
+      openSSHConfigurationModal,
+    ]
   );
 
   return useMemo(

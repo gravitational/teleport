@@ -491,7 +491,7 @@ export const VnetContextProvider: FC<
     await vnet.autoConfigureSSH({});
     // Refresh the service info attempt because SSH is now configured.
     refreshServiceInfoAttempt();
-  }, [vnet]);
+  }, [vnet, refreshServiceInfoAttempt]);
   const openSSHConfigurationModal = useCallback(
     ({ vnetSSHConfigPath, host, onSuccess }) => {
       appCtx.modalsService.openRegularDialog({
