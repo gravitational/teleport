@@ -23,14 +23,14 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 // BoundKeypairBotFSAdapter is an adapter to use bot destinations with the FS
 // abstraction for bound keypair joining. This allows keypair and state storage
 // to be written to all supported bot destination types.
 type BoundKeypairDestinationAdapter struct {
-	destination bot.Destination
+	destination destination.Destination
 }
 
 func (f *BoundKeypairDestinationAdapter) Read(ctx context.Context, name string) ([]byte, error) {
@@ -48,7 +48,7 @@ func (f *BoundKeypairDestinationAdapter) Write(ctx context.Context, name string,
 
 // NewBoundkeypairDestinationAdapter creates a new destination adapter for bound
 // keypair loading and storage.
-func NewBoundkeypairDestinationAdapter(d bot.Destination) *BoundKeypairDestinationAdapter {
+func NewBoundkeypairDestinationAdapter(d destination.Destination) *BoundKeypairDestinationAdapter {
 	return &BoundKeypairDestinationAdapter{
 		destination: d,
 	}

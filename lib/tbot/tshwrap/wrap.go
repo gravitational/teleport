@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -127,7 +127,7 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 }
 
 type destinationHolder interface {
-	GetDestination() bot.Destination
+	GetDestination() destination.Destination
 }
 
 // GetDestinationDirectory attempts to select an unambiguous destination, either

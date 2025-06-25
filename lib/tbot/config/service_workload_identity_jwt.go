@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 const WorkloadIdentityJWTOutputType = "workload-identity-jwt"
@@ -38,7 +39,7 @@ type WorkloadIdentityJWTService struct {
 	// used to issue WICs.
 	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Audiences is the list of audiences that the JWT should be valid for.
 	Audiences []string
 
@@ -105,7 +106,7 @@ func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
+func (o *WorkloadIdentityJWTService) GetDestination() destination.Destination {
 	return o.Destination
 }
 

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -105,7 +106,7 @@ outputs:
 func TestDestinationFromURI(t *testing.T) {
 	tests := []struct {
 		in      string
-		want    bot.Destination
+		want    destination.Destination
 		wantErr bool
 	}{
 		{

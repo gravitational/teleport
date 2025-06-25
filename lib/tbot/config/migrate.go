@@ -26,6 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 type destinationMixinV1 struct {
@@ -33,7 +34,7 @@ type destinationMixinV1 struct {
 	Memory    *DestinationMemory    `yaml:"memory"`
 }
 
-func (c *destinationMixinV1) migrate() (bot.Destination, error) {
+func (c *destinationMixinV1) migrate() (destination.Destination, error) {
 	switch {
 	case c.Memory != nil && c.Directory != nil:
 		return nil, trace.BadParameter("both 'memory' and 'directory' cannot be specified")

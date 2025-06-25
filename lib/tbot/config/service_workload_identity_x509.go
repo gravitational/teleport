@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 const WorkloadIdentityX509OutputType = "workload-identity-x509"
@@ -39,7 +40,7 @@ type WorkloadIdentityX509Service struct {
 	// used to issue WICs.
 	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// IncludeFederatedTrustBundles controls whether to include federated trust
 	// bundles in the output.
 	IncludeFederatedTrustBundles bool `yaml:"include_federated_trust_bundles,omitempty"`
@@ -55,7 +56,7 @@ func (o *WorkloadIdentityX509Service) Init(ctx context.Context) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityX509Service) GetDestination() bot.Destination {
+func (o *WorkloadIdentityX509Service) GetDestination() destination.Destination {
 	return o.Destination
 }
 

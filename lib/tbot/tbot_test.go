@@ -63,6 +63,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -537,7 +538,7 @@ func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles [
 	require.Equal(t, wantRoles, ident.Groups)
 }
 
-func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *tlsca.Identity {
+func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destination) *tlsca.Identity {
 	t.Helper()
 	keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
 	require.NoError(t, err)
@@ -716,7 +717,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	}
 }
 
-func newWriteNotifier(dst bot.Destination) *writeNotifier {
+func newWriteNotifier(dst destination.Destination) *writeNotifier {
 	return &writeNotifier{
 		Destination: dst,
 		ch:          make(chan struct{}, 1),
@@ -724,7 +725,7 @@ func newWriteNotifier(dst bot.Destination) *writeNotifier {
 }
 
 type writeNotifier struct {
-	bot.Destination
+	destination.Destination
 
 	ch chan struct{}
 }

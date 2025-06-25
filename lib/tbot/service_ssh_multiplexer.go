@@ -53,8 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -123,7 +123,7 @@ type SSHMultiplexerService struct {
 //
 // TODO(noah): Replace this with proper atomic writing.
 // https://github.com/gravitational/teleport/issues/25462
-func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger, path string, data []byte) error {
+func writeIfChanged(ctx context.Context, dest destination.Destination, log *slog.Logger, path string, data []byte) error {
 	existingData, err := dest.Read(ctx, path)
 	if err != nil {
 		log.DebugContext(

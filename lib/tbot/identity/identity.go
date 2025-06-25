@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -278,7 +278,7 @@ func parseSSHIdentity(
 // VerifyWrite attempts to write to the .write-test artifact inside the given
 // destination. It should be called before attempting a renewal to help ensure
 // we won't then fail to save the identity.
-func VerifyWrite(ctx context.Context, dest bot.Destination) error {
+func VerifyWrite(ctx context.Context, dest destination.Destination) error {
 	return trace.Wrap(dest.Write(ctx, WriteTestKey, []byte{}))
 }
 
@@ -298,7 +298,7 @@ func ListKeys(kinds ...ArtifactKind) []string {
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
+func SaveIdentity(ctx context.Context, id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
 		if !artifact.Matches(kinds...) {
@@ -317,7 +317,7 @@ func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ..
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(ctx context.Context, d destination.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 

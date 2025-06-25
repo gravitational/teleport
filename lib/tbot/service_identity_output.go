@@ -33,9 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/config/openssh"
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/loop"
@@ -232,7 +232,7 @@ func renderSSHConfig(
 	log *slog.Logger,
 	proxyPing *connection.ProxyPong,
 	clusterNames []string,
-	dest bot.Destination,
+	dest destination.Destination,
 	certAuthGetter certAuthGetter,
 	getExecutablePath func() (string, error),
 	alpnTester alpnTester,

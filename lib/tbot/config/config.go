@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -169,7 +170,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	destinationPaths := map[string]int{}
-	addDestinationToKnownPaths := func(d bot.Destination) {
+	addDestinationToKnownPaths := func(d destination.Destination) {
 		switch d := d.(type) {
 		case *DestinationDirectory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
@@ -178,7 +179,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 	for _, svc := range conf.Services {
-		v, ok := svc.(interface{ GetDestination() bot.Destination })
+		v, ok := svc.(interface {
+			GetDestination() destination.Destination
+		})
 		if ok {
 			addDestinationToKnownPaths(v.GetDestination())
 		}
@@ -390,9 +393,9 @@ func withTypeHeader[T any](payload T, payloadType string) (any, error) {
 	return header, nil
 }
 
-// unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
+// unmarshalDestination takes a *yaml.Node and produces a destination.Destination by
 // considering the `type` field.
-func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
+func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
@@ -427,7 +430,7 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 // Initable represents any ServiceConfig which is compatible with
 // `tbot init`.
 type Initable interface {
-	GetDestination() bot.Destination
+	GetDestination() destination.Destination
 	Init(ctx context.Context) error
 	Describe() []FileDescription
 }
@@ -443,8 +446,8 @@ func (conf *BotConfig) GetInitables() []Initable {
 }
 
 // DestinationFromURI parses a URI from the input string and returns a matching
-// bot.Destination implementation, if possible.
-func DestinationFromURI(uriString string) (bot.Destination, error) {
+// destination.Destination implementation, if possible.
+func DestinationFromURI(uriString string) (destination.Destination, error) {
 	uri, err := url.Parse(uriString)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing --data-dir")

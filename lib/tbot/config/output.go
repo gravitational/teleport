@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 // extractOutputDestination performs surgery on yaml.Node to unmarshal a
@@ -35,7 +35,7 @@ import (
 //
 // If there's no destination in the provided yaml node, then this will return
 // nil, nil.
-func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
+func extractOutputDestination(node *yaml.Node) (destination.Destination, error) {
 	for i, subNode := range node.Content {
 		if subNode.Value == "destination" {
 			// Next node will be the contents
@@ -51,7 +51,7 @@ func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
 	return nil, nil
 }
 
-func validateOutputDestination(dest bot.Destination) error {
+func validateOutputDestination(dest destination.Destination) error {
 	if dest == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

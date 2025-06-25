@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 const SSHHostOutputType = "ssh_host"
@@ -50,7 +51,7 @@ var (
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
 type SSHHostOutput struct {
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -67,7 +68,7 @@ func (o *SSHHostOutput) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *SSHHostOutput) GetDestination() bot.Destination {
+func (o *SSHHostOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 

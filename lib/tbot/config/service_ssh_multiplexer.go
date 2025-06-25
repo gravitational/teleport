@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 // SSHMultiplexerServiceType is the type of the `ssh-proxy` service.
@@ -32,7 +33,7 @@ const SSHMultiplexerServiceType = "ssh-multiplexer"
 type SSHMultiplexerService struct {
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.

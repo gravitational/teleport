@@ -25,7 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")
@@ -34,7 +34,7 @@ var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")
 // storage.
 type StorageConfig struct {
 	// Destination's yaml is handled by MarshalYAML/UnmarshalYAML
-	Destination bot.Destination
+	Destination destination.Destination
 }
 
 func (sc *StorageConfig) CheckAndSetDefaults() error {
