@@ -257,13 +257,14 @@ export const VnetContextProvider: FC<
     [status.value]
   );
 
-  const rootClusterUri = useStoreSelector(
+  const isWorkspaceSelected = useStoreSelector(
     'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
+    useCallback(state => !!state.rootClusterUri, [])
   );
 
   const openReport = useCallback(
     (report: Report) => {
+      const rootClusterUri = workspacesService.getRootClusterUri();
       if (!rootClusterUri) {
         return;
       }
@@ -295,7 +296,7 @@ export const VnetContextProvider: FC<
       // upon on the next run of runDiagnosticsAndShowNotification.
       notificationsService.removeNotification(diagNotificationIdRef.current);
     },
-    [rootClusterUri, workspacesService, notificationsService]
+    [workspacesService, notificationsService]
   );
 
   const showDiagWarningIndicator: boolean = useMemo(
@@ -481,7 +482,7 @@ export const VnetContextProvider: FC<
         dismissDiagnosticsAlert,
         hasDismissedDiagnosticsAlert,
         reinstateDiagnosticsAlert,
-        openReport: rootClusterUri ? openReport : undefined,
+        openReport: isWorkspaceSelected ? openReport : undefined,
         showDiagWarningIndicator,
         hasEverStarted,
       }}
