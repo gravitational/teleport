@@ -303,11 +303,11 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database := dbServer.GetDatabase()
+	database := dbServers[0].GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -819,8 +819,8 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-// fetchDatabaseServerByDatabaseName fetch a database with provided database name.
-func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.DatabaseServer, error) {
+// fetchDatabaseServersWithName fetches all database servers with provided database name.
+func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) ([]types.DatabaseServer, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -835,13 +835,10 @@ func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGett
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch len(servers) {
-	case 0:
+	if len(servers) == 0 {
 		return nil, trace.NotFound("database %q not found", databaseName)
-	default:
-		return servers[0], nil
 	}
+	return servers, nil
 }
 
 func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {

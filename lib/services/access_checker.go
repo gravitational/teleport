@@ -1043,9 +1043,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			slog.Any("error", err),
 			slog.Any("allow", labelMatchers),
 		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
 		if matchLabels {
 			return nil
 		}
