@@ -65,7 +65,10 @@ type SPIFFESVIDOutputService struct {
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
-	return fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("spiffe-svid-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {

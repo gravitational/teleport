@@ -117,6 +117,8 @@ func (o JWTSVID) CheckAndSetDefaults() error {
 // SPIFFESVIDOutput is the configuration for the SPIFFE SVID output.
 // Emulates the output of https://github.com/spiffe/spiffe-helper
 type SPIFFESVIDOutput struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination                  bot.Destination `yaml:"destination"`
 	SVID                         SVIDRequest     `yaml:"svid"`
@@ -128,6 +130,11 @@ type SPIFFESVIDOutput struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *SPIFFESVIDOutput) GetName() string {
+	return o.Name
 }
 
 // Init initializes the destination.
