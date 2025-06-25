@@ -174,6 +174,36 @@ func (s *sessionHandler) processClientNotification(ctx context.Context, notifica
 	s.emitNotificationEvent(ctx, notification)
 }
 
+func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
+	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		s.processClientNotification(ctx, notification)
+		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, notification))
+	}
+}
+
+func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
+	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
+		msg, replyDirection := s.processClientRequest(ctx, request)
+		if replyDirection == replyToClient {
+			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
+		}
+		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, msg))
+	}
+}
+
+func (s *sessionHandler) onServerNotification(clientResponseWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
+	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, notification))
+	}
+}
+
+func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageWriter) mcputils.HandleResponseFunc {
+	return func(ctx context.Context, response *mcputils.JSONRPCResponse) error {
+		msgToClient := s.processServerResponse(ctx, response)
+		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msgToClient))
+	}
+}
+
 type replyDirection bool
 
 const (
