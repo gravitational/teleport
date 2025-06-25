@@ -674,12 +674,14 @@ message AWSCloudWatchEvent {
 // The CloudWatch cursor, providing both a next token and a start time for
 // paging through CloudWatch logs.
 message AWSCloudWatchCursor {
+  // The AWS region of the log group
+  string region = 1;
   // The log group name the cursor belongs to
-  string log_group = 1;
+  string log_group = 2;
   // The next token used for paging query results
-  string next_token = 2;
+  string next_token = 3;
   // The start time used for the query
-  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp start_time = 4;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,

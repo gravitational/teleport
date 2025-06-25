@@ -3195,12 +3195,14 @@ func (x *AWSCloudWatchEvent) GetMessage() string {
 // paging through CloudWatch logs.
 type AWSCloudWatchCursor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// The AWS region of the log group
+	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
 	// The log group name the cursor belongs to
-	LogGroup string `protobuf:"bytes,1,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
+	LogGroup string `protobuf:"bytes,2,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
 	// The next token used for paging query results
-	NextToken string `protobuf:"bytes,2,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
+	NextToken string `protobuf:"bytes,3,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
 	// The start time used for the query
-	StartTime     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	StartTime     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3233,6 +3235,13 @@ func (x *AWSCloudWatchCursor) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AWSCloudWatchCursor.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchCursor) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *AWSCloudWatchCursor) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
 }
 
 func (x *AWSCloudWatchCursor) GetLogGroup() string {
@@ -4031,13 +4040,14 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x12AWSCloudWatchEvent\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1b\n" +
 	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\x8c\x01\n" +
-	"\x13AWSCloudWatchCursor\x12\x1b\n" +
-	"\tlog_group\x18\x01 \x01(\tR\blogGroup\x12\x1d\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xa4\x01\n" +
+	"\x13AWSCloudWatchCursor\x12\x16\n" +
+	"\x06region\x18\x01 \x01(\tR\x06region\x12\x1b\n" +
+	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x1d\n" +
 	"\n" +
-	"next_token\x18\x02 \x01(\tR\tnextToken\x129\n" +
+	"next_token\x18\x03 \x01(\tR\tnextToken\x129\n" +
 	"\n" +
-	"start_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"\xaf\x01\n" +
+	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"\xaf\x01\n" +
 	"\x1bGitHubAuditLogStreamRequest\x12=\n" +
 	"\x06config\x18\x01 \x01(\v2#.accessgraph.v1alpha.GitHubConfigV1H\x00R\x06config\x12D\n" +
 	"\taudit_log\x18\x02 \x01(\v2%.accessgraph.v1alpha.GitHubAuditLogV1H\x00R\bauditLogB\v\n" +
