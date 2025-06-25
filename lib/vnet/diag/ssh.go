@@ -159,7 +159,7 @@ func (c *SSHConfigChecker) OpenSSHConfigIncludesVNetSSHConfig() ([]byte, bool, e
 		return nil, false, trace.Wrap(trace.ConvertSystemError(err), "reading %s", c.UserOpenSSHConfigPath)
 	}
 	if len(userOpenSSHConfigContents) == maxOpenSSHConfigFileSize {
-		return nil, false, trace.Errorf("%s is too large to (max size %s)",
+		return nil, false, trace.Errorf("%s is too large to read (max size %s)",
 			c.UserOpenSSHConfigPath, humanize.Bytes(maxOpenSSHConfigFileSize))
 	}
 
