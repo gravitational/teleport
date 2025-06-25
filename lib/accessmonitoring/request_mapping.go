@@ -91,6 +91,9 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		"access_request.spec.requested_resources": typical.DynamicVariable(func(env AccessRequestExpressionEnv) ([]types.ResourceWithLabels, error) {
 			return env.RequestedResources, nil
 		}),
+		"access_request.spec.requested_resources.length": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (int, error) {
+			return len(env.RequestedResources), nil
+		}),
 
 		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
 			return expression.DictFromStringSliceMap(env.UserTraits), nil

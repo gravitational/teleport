@@ -212,7 +212,8 @@ func TestResourceRequest(t *testing.T) {
 
 	testRule := newApprovedRule(
 		testRuleName,
-		`access_request.spec.requested_resources.has_labels("env", "test")`)
+		`access_request.spec.requested_resources.length != 0 &&
+		access_request.spec.requested_resources.has_labels("env", "test")`)
 
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
@@ -222,6 +223,22 @@ func TestResourceRequest(t *testing.T) {
 		setupMock   func(m *mockClient)
 		assertErr   require.ErrorAssertionFunc
 	}{
+		{
+			description: "test 0 requested resources",
+			setupMock: func(m *mockClient) {
+				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+					Return(requester, nil)
+
+				m.On("ListResources", mock.Anything, mock.Anything).
+					Return(&types.ListResourcesResponse{
+						Resources:  []types.ResourceWithLabels{},
+						TotalCount: 0,
+					}, nil)
+
+				m.AssertNotCalled(t, "SubmitAccessReview")
+			},
+			assertErr: require.NoError,
+		},
 		{
 			description: "test !matching resource labels",
 			setupMock: func(m *mockClient) {

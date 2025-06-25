@@ -207,6 +207,14 @@ func TestEvaluateCondition(t *testing.T) {
 			},
 			match: false,
 		},
+		{
+			description: "requested_resources is empty",
+			condition:   `access_request.spec.requested_resources.length == 0`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{},
+			},
+			match: true,
+		},
 	}
 
 	for _, test := range tests {
