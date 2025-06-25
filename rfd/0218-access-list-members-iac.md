@@ -40,7 +40,7 @@ IaC tools.
 
 ### Glossary
 
-- ***static Access List*** - Access List with a "static" *sub_kind*.
+- ***static Access List*** - Access List with the *.spec.type* field set to "static".
 
 ### UX
 
@@ -53,15 +53,20 @@ resource "teleport_access_list" "crane_operation" {
   header = {
     version = "v1"
     metadata = {
-      sub_kind = "static"
       name = "crane-operation"
     }
   }
   spec = {
+    # type must be set to "static" to manage members with Terraform.
+    type = "static"
     title = "Crane operation"
     description = "Used to grant access to the crane."
     grants = {
       roles = ["crane-operator"]
+    }
+    # membership_requires is optional.
+    membership_requires = {
+      roles = ["crane-operation-license"]
     }
   }
 }
@@ -75,33 +80,69 @@ resource "teleport_access_list_member" "crane_operator" {
   }
   spec = {
     access_list = teleport_access_list.crane_operation.id
-    membership_kind = 1 // 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+    // membership_kind is 1 for "MEMBERSHIP_KIND_USER" or 2 for "MEMBERSHIP_KIND_LIST"
+    membership_kind = 1
+    // expires is optional. The member will stay in the list after it expires but will lose the
+    // grants. expires can be updated.
+    expires = "2025-07-28T22:00:00Z"
   }
 }
 ```
 
 There are a few things to note here:
 
-- fields not present and not allowed in *teleport_access_list* resource:
-  - *owners* - owners are optional with static Access Lists as they don't serve any major purpose
-  - *membership_requires*/*ownership_requires* - eligibility criteria is disabled for static Access
-    Lists
-  - *audit* - reviews are disabled for static Access Lists
+- fields not present in *teleport_access_list* resource:
+  - *.spec.audit* - reviews are disabled for static Access Lists and specifying it results in an error
+  - *.spec.owners* - owners are optional with static Access Lists as they don't serve any major purpose
+  - *.spec.ownership_requires* - allowed but skipped because *owners* are skipped
+- fields not present in *teleport_access_list_member* resource:
+  - *.spec.name* - when not set, defaults to *.header.metadata.name*
 - unfortunately we have to user integers for *membership_kind* because of how `protoc` generates
   schema code from proto files
 
-The new resource only allows managing members for the "static" *access_list* *sub_kind*. If the *sub_kind* is not set to "static":
+The new resource only allows managing members for the *access_list* with *.spec.type* set to
+"static". If the *type* is not set to "static":
 
 ```
 teleport_access_list_member.crane_operator: Creating...
 ╷
-│ Error: Error creating Member
-│ 
+│ Error: Error reading Member
+│
 │   with teleport_access_list_member.crane_operator,
 │   on main.tf line 61, in resource "teleport_access_list_member" "crane_operator":
 │   61: resource "teleport_access_list_member" "crane_operator" {
-│ 
-│ member's access_list is not static subkind
+│
+│ member's access_list is not static type
+╵
+```
+
+The *access_list* type cannot be modified once it's created:
+
+```
+teleport_access_list.crane_operation: Modifying... [id=crane-operation]
+╷
+│ Error: Error updating AccessList
+│
+│   with teleport_access_list.crane_operation,
+│   on main.tf line 15, in resource "teleport_access_list" "crane_operation":
+│   15: resource "teleport_access_list" "crane_operation" {
+│
+│ access_list "crane-operation" type "static" cannot be changed to "dynamic"
+╵
+```
+
+The *.spec.audit* field is illegal for static *access_list*:
+
+```
+teleport_access_list.crane_operation: Modifying... [id=crane-operation]
+╷
+│ Error: Error reading AccessList
+│
+│   with teleport_access_list.crane_operation,
+│   on main.tf line 15, in resource "teleport_access_list" "crane_operation":
+│   15: resource "teleport_access_list" "crane_operation" {
+│
+│ Can not convert *accesslist.AccessList to AccessList: audit not supported for static access_list
 ╵
 ```
 
@@ -127,9 +168,9 @@ will be exposed.
 - DeleteStaticAccessListMember
 
 All the new gRPCs have _Static_ in the name and will only allow member management for the
-access_list resources with "static" sub_kind.
+access_list resources of "static" type.
 
-The API should be exactly the same as for the existing *non-Static* endpoints. E.g. for
+The API should be similar to the existing *non-Static* endpoints. E.g. for
 `UpsertStaticAccessListMember`:
 
 ```protobuf
@@ -142,7 +183,7 @@ service AccessListService {
 }
 
 // UpsertStaticAccessListMemberRequest is the request for upserting an access_list_member. It fails
-// if the access_list is not static (i.e. does't have "static" subkind)
+// if the access_list is not static type.
 message UpsertStaticAccessListMemberRequest {
   // member is the access_list_member to upsert.
   Member member = 1;
@@ -169,7 +210,7 @@ static Access Lists and their members but:
   static Access Lists (enforced by using `*Static*` gRPCs)
 - `tctl` can modify any Access List (with `create -f` and `edit access_list/<name`) and its members
   (with `acl users add/rm`) freely
-- Access List and its members validation is different depending on the subkind
+- Access List and its members validation is different depending on the type
 
 ### Backward compatibility
 
@@ -190,5 +231,8 @@ Audit events will be exactly the same as the current Access List membership rela
 
 *Access Lists* section of the test plan should be extended with points verifying that:
 
-- it is not possible to set, *owners*, *membership_requires*, *ownership_requires* and *audit*
-- Access List members can managed with Terraform only for "static" Access List *sub_kind*
+- it is not possible to set *audit* and *owners* are optional
+- Access List type cannot be changed
+- appropriate web UI elements are disabled for static Access Lists
+- Access List members can be managed with Terraform only for Access List of type static
+- Member *.spec.name* defaults to the resource name
