@@ -76,7 +76,7 @@ build: buildbox-centos7 webassets
 .PHONY:build-binaries
 build-binaries: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
+		scl enable $(DEVTOOLSET) "make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full"
 
 #
 # Build 'teleport' Enterprise release inside a docker container

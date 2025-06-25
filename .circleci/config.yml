@@ -1,23 +1,117 @@
 version: 2.1
 
-# Define the jobs we want to run for this project
-jobs:
-  build:
-    docker:
-      - image: cimg/base:2023.03
-    steps:
-      - checkout
-      - run: echo "this is the build job"
-  test:
-    docker:
-      - image: cimg/base:2023.03
-    steps:
-      - checkout
-      - run: echo "this is the test job"
+tag-pattern: &tag-pattern
+  only: /(^(v)?\d+\.\d+\.\d+$)|(^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}\.[0-9]+$)/
 
-# Orchestrate our job run sequence
+orbs:
+  lumper: loadsmart/lumper@4
+  aws-ecr: circleci/aws-ecr@9.5.2
+  sentinel: loadsmart/sentinel@1
+
+jobs:
+  build-distroless:
+    parameters:
+      push:
+        type: boolean
+        default: false
+      arch:
+        type: enum
+        default: arm64
+        enum: ['amd64', 'arm64']
+      resource_class:
+        type: string
+        default: arm.large
+    machine:
+      image: ubuntu-2004:current
+      docker_layer_caching: true
+    resource_class: << parameters.resource_class >>
+    environment:
+      ARCH: << parameters.arch >>
+    steps:
+      - checkout
+
+      - run:
+          name: Setup Environment Variables
+          command: |
+            TELEPORT_VERSION=$(make print-version)
+            echo 'export TARBALL_PATH="/tmp/teleport-tarballs"' >> "$BASH_ENV"
+            echo "export TELEPORT_VERSION=${TELEPORT_VERSION}" >> "$BASH_ENV"
+
+      - restore_cache:
+          keys:
+            - go-cache-v1-{{ arch }}-{{ checksum "go.sum" }}
+
+      - run:
+          name: Build Teleport Binaries
+          command: |
+            export GOCACHE="$HOME/.cache/go"
+            mkdir -p "$GOCACHE"
+            make docker-binaries
+
+      - save_cache:
+          key: go-cache-v1-{{ arch }}-{{ checksum "go.sum" }}
+          paths:
+            - ~/.cache/go
+
+      - run:
+          name: Build Tarball
+          command: |
+            make build-archive
+
+      - run:
+          name: Prepare Artifacts
+          command: |
+            mkdir -p ${TARBALL_PATH}
+            cp teleport-v${TELEPORT_VERSION}-linux-${ARCH}-bin.tar.gz ${TARBALL_PATH}/
+            cp build.assets/charts/fetch-debs build/fetch-debs
+            cp build.assets/charts/Dockerfile-distroless build/Dockerfile
+
+      - run:
+          name: Build Debian Package
+          command: |
+            make deb
+
+      - run:
+          name: Build Distroless Docker Image
+          command: |
+            docker buildx build \
+              -f build/Dockerfile \
+              --platform linux/${ARCH} \
+              --build-arg TELEPORT_VERSION=${TELEPORT_VERSION} \
+              --build-arg TELEPORT_RELEASE_INFIX= \
+              -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/platform/teleport:${TELEPORT_VERSION}-${ARCH} build
+
+      - when:
+          condition: << parameters.push >>
+          steps:
+            - aws-ecr/ecr_login
+            - aws-ecr/push_image:
+                repo: platform/teleport
+                tag: '${TELEPORT_VERSION}-${ARCH}'
+
 workflows:
-  build_and_test:
+  build:
     jobs:
-      - build
-      - test
+      - build-distroless:
+          context: org-global
+          filters:
+            branches:
+              ignore:
+                - master
+
+  build-and-push:
+    jobs:
+      - build-distroless:
+          name: build-and-push-distroless
+          context: org-global
+          push: true
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              <<: *tag-pattern
+
+  developer-productivity:
+    jobs:
+      - sentinel/default:
+          context: org-global
