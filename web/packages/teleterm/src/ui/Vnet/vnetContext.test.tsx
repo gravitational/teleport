@@ -227,7 +227,7 @@ describe('diag notification', () => {
     ) => Promise<void>;
   }> = [
     {
-      it: 'is shown when the report cycles from issues found to no issues and back to issues found',
+      it: 'is shown, closed, then shown again when the report cycles from issues found to no issues and back to issues found',
       mockAppContext: appContext => {
         jest
           .spyOn(appContext.vnet, 'runDiagnostics')
@@ -253,7 +253,12 @@ describe('diag notification', () => {
         );
 
         expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(2);
-        expect(notificationsService.getNotifications()).toHaveLength(1);
+        const notifications = notificationsService.getNotifications();
+        expect(notifications).toHaveLength(1);
+        expect(notifications[0].content).toMatchObject({
+          description: undefined,
+          action: expect.objectContaining({ content: 'Open Diag Report' }),
+        });
       },
     },
     {
@@ -405,6 +410,32 @@ describe('diag notification', () => {
           { interval }
         );
         expect(notificationsService.getNotifications()).toHaveLength(1);
+      },
+    },
+    {
+      it: 'does not show a button to open the diag report if there is no workspace',
+      mockAppContext: appContext => {
+        jest
+          .spyOn(appContext.vnet, 'runDiagnostics')
+          .mockResolvedValue(
+            new MockedUnaryCall({ report: issuesFoundReport })
+          );
+        appContext.workspacesService.setState(draft => {
+          draft.rootClusterUri = undefined;
+        });
+      },
+      verify: async ({ notificationsService }, result) => {
+        await waitFor(
+          () =>
+            expect(result.current.diagnosticsAttempt.status).toEqual('success'),
+          { interval }
+        );
+        const notifications = notificationsService.getNotifications();
+        expect(notifications).toHaveLength(1);
+        expect(notifications[0].content).toMatchObject({
+          description: expect.stringContaining('Log in to a cluster'),
+          action: undefined,
+        });
       },
     },
   ];

@@ -28,6 +28,7 @@ import {
   useState,
 } from 'react';
 
+import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
@@ -396,10 +397,10 @@ export const VnetContextProvider: FC<
         return;
       }
 
-      diagNotificationIdRef.current = notificationsService.notifyWarning({
-        isAutoRemovable: false,
-        title: 'Other software on your device might interfere with VNet.',
-        action: {
+      let action: Action;
+      let description: string;
+      if (workspacesService.getRootClusterUri()) {
+        action = {
           content: 'Open Diag Report',
           onClick: () => {
             openReport(report);
@@ -409,7 +410,17 @@ export const VnetContextProvider: FC<
               diagNotificationIdRef.current
             );
           },
-        },
+        };
+      } else {
+        description =
+          'Log in to a cluster to open the diag report from the VNet panel.';
+      }
+
+      diagNotificationIdRef.current = notificationsService.notifyWarning({
+        isAutoRemovable: false,
+        title: 'Other software on your device might interfere with VNet.',
+        description,
+        action,
       });
     },
     [
@@ -419,6 +430,7 @@ export const VnetContextProvider: FC<
       hasDismissedDiagnosticsAlertRef,
       resetHasActedOnPreviousNotification,
       isConnectionsPanelOpenRef,
+      workspacesService,
     ]
   );
 
