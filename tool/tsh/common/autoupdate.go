@@ -27,21 +27,16 @@ import (
 
 type autoUpdateCommand struct {
 	update *managedUpdatesUpdateCommand
-	clean  *managedUpdatesCleanCommand
 }
 
-func newAutoUpdateCommand(app *kingpin.Application) *autoUpdateCommand {
+func newUpdateCommand(app *kingpin.Application) *autoUpdateCommand {
 	root := &autoUpdateCommand{
 		update: &managedUpdatesUpdateCommand{},
-		clean:  &managedUpdatesCleanCommand{},
 	}
 
-	parentCmd := app.Command("autoupdate", "Client-tools managed updates commands")
-
-	root.clean.CmdClause = parentCmd.Command("clean",
-		"Removes locally installed client tools updates from the Teleport home directory.")
-	root.update.CmdClause = parentCmd.Command("update",
+	root.update.CmdClause = app.Command("update",
 		"Update client tools to the latest version defined by the cluster configuration")
+	root.update.CmdClause.Flag("clear", "Removes locally installed client tools updates from the Teleport home directory.").BoolVar(&root.update.clear)
 
 	return root
 }
@@ -50,33 +45,26 @@ func newAutoUpdateCommand(app *kingpin.Application) *autoUpdateCommand {
 // version in cluster and runs update.
 type managedUpdatesUpdateCommand struct {
 	*kingpin.CmdClause
+	clear bool
 }
 
 func (c *managedUpdatesUpdateCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, nil); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// managedUpdatesCleanCommand removes client tools symlinks downloaded during managed
-// updates and all extracted directories.
-type managedUpdatesCleanCommand struct {
-	*kingpin.CmdClause
-}
-
-func (c *managedUpdatesCleanCommand) run() error {
-	toolsDir, err := tools.Dir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := tools.CleanUp(toolsDir, tools.DefaultClientTools()); err != nil {
-		return trace.Wrap(err)
+	if c.clear {
+		toolsDir, err := tools.Dir()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := tools.CleanUp(toolsDir, tools.DefaultClientTools()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		tc, err := makeClient(cf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := tools.DownloadUpdate(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

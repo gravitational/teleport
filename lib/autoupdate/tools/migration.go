@@ -69,7 +69,7 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 			continue
 		}
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "tool %q does not exist", tool)
+			return nil, trace.Wrap(err, "failed to retrieve information for tool %q", tool)
 		}
 
 		toolVersion, err := CheckToolVersion(path)
@@ -85,7 +85,7 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 		if info.Mode().Type()&os.ModeSymlink != 0 {
 			fullPath, err := os.Readlink(path)
 			if err != nil {
-				return nil, trace.WrapWithMessage(err, "failed to read symlink %q", path)
+				return nil, trace.Wrap(err, "failed to read symlink %q", path)
 			}
 			pkg, relPath := extractPackageName(toolsDir, fullPath)
 			if t, ok := migratedTools[toolVersion]; ok {

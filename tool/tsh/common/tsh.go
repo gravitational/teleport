@@ -1352,7 +1352,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// Client-tools managed updates commands.
-	autoupdate := newAutoUpdateCommand(app)
+	updateCommand := newUpdateCommand(app)
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
@@ -1784,10 +1784,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.dbStart.run(&cf)
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
-	case autoupdate.update.FullCommand():
-		err = autoupdate.update.run(&cf)
-	case autoupdate.clean.FullCommand():
-		err = autoupdate.clean.run()
+	case updateCommand.update.FullCommand():
+		err = updateCommand.update.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

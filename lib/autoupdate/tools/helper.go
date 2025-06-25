@@ -44,9 +44,9 @@ var (
 	ErrDisabled = errors.New("client tools update is disabled")
 )
 
-// NewDefaultUpdater inits the updater with default base ULR and tools directory
+// newUpdater inits the updater with default base ULR and tools directory
 // from Teleport home directory.
-func NewDefaultUpdater() (*Updater, error) {
+func newUpdater() (*Updater, error) {
 	toolsDir, err := Dir()
 	if err != nil {
 		return nil, ErrDisabled
@@ -70,8 +70,6 @@ func NewDefaultUpdater() (*Updater, error) {
 // version is compared with the current client tools version. If they differ, the version
 // package is downloaded, extracted to the client tools directory, and re-executed
 // with the updated version.
-// If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
-// using the version from the home directory.
 func CheckAndUpdateLocal(ctx context.Context, name string, reExecArgs []string) error {
 	var err error
 	if name == "" {
@@ -86,7 +84,7 @@ func CheckAndUpdateLocal(ctx context.Context, name string, reExecArgs []string) 
 		}
 	}
 
-	updater, err := NewDefaultUpdater()
+	updater, err := newUpdater()
 	if errors.Is(err, ErrDisabled) {
 		slog.WarnContext(ctx, "Client tools update is disabled")
 		return nil
@@ -115,10 +113,8 @@ func CheckAndUpdateLocal(ctx context.Context, name string, reExecArgs []string) 
 // version is compared with the current client tools version. If they differ, the version
 // package is downloaded, extracted to the client tools directory, and re-executed
 // with the updated version.
-// If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
-// using the version from the home directory.
 func CheckAndUpdateRemote(ctx context.Context, name string, insecure bool, reExecArgs []string) error {
-	updater, err := NewDefaultUpdater()
+	updater, err := newUpdater()
 	if errors.Is(err, ErrDisabled) {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
@@ -135,6 +131,36 @@ func CheckAndUpdateRemote(ctx context.Context, name string, insecure bool, reExe
 	if !resp.Disabled && resp.ReExec {
 		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
 		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// DownloadUpdate checks if a client tools version is set for update in the cluster
+// configuration by making an HTTP request to the `webapi/find` endpoint.
+// Downloads the new version if it is not already installed without re-execution.
+func DownloadUpdate(ctx context.Context, name string, insecure bool) error {
+	updater, err := newUpdater()
+	if errors.Is(err, ErrDisabled) {
+		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slog.DebugContext(ctx, "Attempting to remote update", "name", name, "insecure", insecure)
+	resp, err := updater.CheckRemote(ctx, name, insecure)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !resp.Disabled && resp.ReExec {
+		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
+		err := updater.Update(ctxUpdate, resp.Version)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
 			return trace.Wrap(err)
 		}
 	}
