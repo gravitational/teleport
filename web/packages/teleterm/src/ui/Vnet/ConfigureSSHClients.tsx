@@ -58,13 +58,13 @@ export function ConfigureSSHClients(props: {
           Compatible SSH clients can connect to SSH servers with Teleport
           features like per-session MFA without complex configuration. Teleport
           VNet will handle the connection and manage SSH certificates
-          automatically, simply connect with
+          automatically, simply connect with:
         </Text>
         <TextSelectCopy text={`ssh <username>@${host}`} mt={1} />
         <Text typography="body2" mt={2}>
           To enable this for any OpenSSH-compatible client that reads
-          configuration from <code>~/.ssh/config</code> add the following line
-          at the top of the file or click the button below to add it
+          configuration from <code>~/.ssh/config</code>, add the following line
+          at the top of the file, or click the button below to add it
           automatically.
         </Text>
         <TextSelectCopy
