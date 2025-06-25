@@ -31,10 +31,10 @@ import (
 func withErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req interface{},
+		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (interface{}, error) {
+	) (any, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			log.ErrorContext(ctx, "Request failed", "error", err)

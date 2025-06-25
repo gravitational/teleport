@@ -619,7 +619,6 @@ func TestListResources(t *testing.T) {
 	}
 
 	for testName, test := range tests {
-		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			backend, err := lite.NewWithConfig(ctx, lite.Config{

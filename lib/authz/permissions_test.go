@@ -869,7 +869,6 @@ func TestContext_GetAccessState(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			// Prepare AuthPreference.
 			spec := test.authSpec
