@@ -145,16 +145,18 @@ func (s *Server) reconcileAccessGraph(
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
 
-	// Send EKS cluster references to be polled for logs via CloudWatch
-	var cwRes []cloudWatchResource
-	for _, cluster := range result.EKSClusters {
-		cwRes = append(cwRes, cloudWatchResource{
-			resourceType: cloudWatchResourceEKS,
-			resourceID:   cluster.Name,
-			region:       cluster.Region,
-		})
+	if s.hasCloudWatchPollers.Load() {
+		// Send EKS cluster references to be polled for logs via CloudWatch
+		var cwRes []cloudWatchResource
+		for _, cluster := range result.EKSClusters {
+			cwRes = append(cwRes, cloudWatchResource{
+				resourceType: cloudWatchResourceEKS,
+				resourceID:   cluster.Name,
+				region:       cluster.Region,
+			})
+		}
+		s.cloudWatchResourcesCh <- cwRes
 	}
-	s.cloudWatchResourcesCh <- cwRes
 
 	for _, fetcher := range allFetchers {
 		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
@@ -618,6 +620,8 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					}
 					continue
 				}
+				s.cloudWatchResourcesCh = make(chan []cloudWatchResource, 1)
+				s.hasCloudWatchPollers.Store(true)
 				err = s.startCloudwatchPoller(ctx, reloadCh, specs)
 				if err != nil {
 					if errors.Is(err, errTAGFeatureNotEnabled) {
@@ -634,7 +638,6 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				}
 			}
 		}()
-
 	}
 	return nil
 }
@@ -1406,18 +1409,20 @@ func (s *Server) pollEventsFromCloudWatch(
 	var cwResourceLock sync.RWMutex
 	cwResMap := make(map[string][]cloudWatchResource)
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case cwResources := <-s.cloudWatchResourcesCh:
-			s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources)
-			cwResourceLock.Lock()
-			cwResMap = make(map[string][]cloudWatchResource)
-			for _, resource := range cwResources {
-				cwResMap[resource.region] = append(cwResMap[resource.region], resource)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case cwResources := <-s.cloudWatchResourcesCh:
+				s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources)
+				cwResourceLock.Lock()
+				cwResMap = make(map[string][]cloudWatchResource)
+				for _, resource := range cwResources {
+					cwResMap[resource.region] = append(cwResMap[resource.region], resource)
+				}
+				cwResourceLock.Unlock()
+				restartPollerCh <- struct{}{}
 			}
-			cwResourceLock.Unlock()
-			restartPollerCh <- struct{}{}
 		}
 	}()
 	for {
@@ -1445,6 +1450,7 @@ func (s *Server) pollEventsFromCloudWatch(
 				go func() {
 					var resumeToken *string
 					for {
+						// TODO (mvbrock): Check that the log group exists before fetching logs
 						logGroupName := fmt.Sprintf("/aws/eks/%s/cluster", resource.resourceID)
 						params := &cloudwatchlogs.FilterLogEventsInput{
 							LogGroupName:        aws.String(logGroupName),
@@ -1472,8 +1478,6 @@ func (s *Server) pollEventsFromCloudWatch(
 							accountID: accountID,
 						}
 						select {
-						case <-ctx.Done():
-							return
 						case <-pollerCtx.Done():
 							return
 						}

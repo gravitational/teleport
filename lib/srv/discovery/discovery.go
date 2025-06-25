@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -454,6 +455,7 @@ type Server struct {
 	usageEventCache map[string]struct{}
 
 	// Provides the cloudwatch poller with a set of resources to poll for
+	hasCloudWatchPollers  atomic.Bool
 	cloudWatchResourcesCh chan []cloudWatchResource
 }
 
