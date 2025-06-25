@@ -60,7 +60,7 @@ export function ConfigureSSHClients(props: {
           VNet will handle the connection and manage SSH certificates
           automatically, simply connect with
         </Text>
-        <TextSelectCopy text={`ssh <username>@${host}`} mt={2} />
+        <TextSelectCopy text={`ssh <username>@${host}`} mt={1} />
         <Text typography="body2" mt={2}>
           To enable this for any OpenSSH-compatible client that reads
           configuration from <code>~/.ssh/config</code> add the following line
@@ -70,7 +70,7 @@ export function ConfigureSSHClients(props: {
         <TextSelectCopy
           text={`Include "${props.vnetSSHConfigPath}"`}
           bash={false}
-          mt={2}
+          mt={1}
         />
       </DialogContent>
       <DialogFooter>
@@ -87,12 +87,9 @@ export function ConfigureSSHClients(props: {
           </ButtonPrimary>
         </Flex>
         {confirmAttempt.status === 'error' && (
-          <Alert
-            mt={4}
-            mb={0}
-            dismissible
-            children={confirmAttempt.statusText}
-          />
+          <Alert mt={4} mb={0} dismissible>
+            {confirmAttempt.statusText}
+          </Alert>
         )}
       </DialogFooter>
     </Dialog>
