@@ -331,7 +331,11 @@ func (m *mcpDBConfigCommand) printJSONWithHint(dbURI mcp.ResourceURI) error {
 	if err := config.Write(w, claude.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := fmt.Fprintln(w, ""); err != nil {
+	if _, err := fmt.Fprintf(w, `
+If you already have an entry for %q server, add the following database resource URI to the command arguments list:
+%s
+
+`, mcpDBConfigName, dbURI.String()); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(m.clientConfig.printHint(w))
