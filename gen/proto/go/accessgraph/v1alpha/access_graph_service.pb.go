@@ -3068,8 +3068,8 @@ type AWSCloudWatchEvents struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The events as they arrive from the CloudWatch API
 	Events []*AWSCloudWatchEvent `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	// The cursor, for querying and paging
-	Cursor []*AWSCloudWatchCursor `protobuf:"bytes,2,rep,name=cursor,proto3" json:"cursor,omitempty"`
+	// The cursors for each log group, for querying and paging
+	Cursors []*AWSCloudWatchCursor `protobuf:"bytes,2,rep,name=cursors,proto3" json:"cursors,omitempty"`
 	// The AWS account ID for this batch of logs
 	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3113,9 +3113,9 @@ func (x *AWSCloudWatchEvents) GetEvents() []*AWSCloudWatchEvent {
 	return nil
 }
 
-func (x *AWSCloudWatchEvents) GetCursor() []*AWSCloudWatchCursor {
+func (x *AWSCloudWatchEvents) GetCursors() []*AWSCloudWatchCursor {
 	if x != nil {
-		return x.Cursor
+		return x.Cursors
 	}
 	return nil
 }
@@ -4022,10 +4022,10 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\n" +
 	"log_groups\x18\x02 \x03(\tR\tlogGroups\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"\xb7\x01\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"\xb9\x01\n" +
 	"\x13AWSCloudWatchEvents\x12?\n" +
-	"\x06events\x18\x01 \x03(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12@\n" +
-	"\x06cursor\x18\x02 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\x12\x1d\n" +
+	"\x06events\x18\x01 \x03(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12B\n" +
+	"\acursors\x18\x02 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\acursors\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\"\x85\x01\n" +
 	"\x12AWSCloudWatchEvent\x128\n" +
@@ -4243,7 +4243,7 @@ var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
 	47, // 53: accessgraph.v1alpha.AWSCloudWatchStreamResponse.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
 	64, // 54: accessgraph.v1alpha.AWSCloudWatchConfig.start_date:type_name -> google.protobuf.Timestamp
 	46, // 55: accessgraph.v1alpha.AWSCloudWatchEvents.events:type_name -> accessgraph.v1alpha.AWSCloudWatchEvent
-	47, // 56: accessgraph.v1alpha.AWSCloudWatchEvents.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
+	47, // 56: accessgraph.v1alpha.AWSCloudWatchEvents.cursors:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
 	64, // 57: accessgraph.v1alpha.AWSCloudWatchEvent.timestamp:type_name -> google.protobuf.Timestamp
 	64, // 58: accessgraph.v1alpha.AWSCloudWatchCursor.start_time:type_name -> google.protobuf.Timestamp
 	74, // 59: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1

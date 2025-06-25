@@ -655,8 +655,8 @@ message AWSCloudWatchConfig {
 message AWSCloudWatchEvents {
   // The events as they arrive from the CloudWatch API
   repeated AWSCloudWatchEvent events = 1;
-  // The cursor, for querying and paging
-  repeated AWSCloudWatchCursor cursor = 2;
+  // The cursors for each log group, for querying and paging
+  repeated AWSCloudWatchCursor cursors = 2;
   // The AWS account ID for this batch of logs
   string account_id = 3;
 }
