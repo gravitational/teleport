@@ -128,9 +128,6 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
     FuzzReadProxyLineV2 fuzz_read_proxy_linec_v2
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/vnet/diag \
-    FuzzOpenSSHConfigIncludesPath fuzz_openssh_config_includes_path
-
 }
 
 build_teleport_api_fuzzers() {
