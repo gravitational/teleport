@@ -52,6 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
+
+	internalidentity "github.com/gravitational/teleport/lib/tbot/internal/identity"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
@@ -93,7 +95,7 @@ type Bot struct {
 
 	mu             sync.Mutex
 	started        bool
-	botIdentitySvc *identityService
+	botIdentitySvc *internalidentity.Service
 }
 
 func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
@@ -241,15 +243,23 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}()
 	}
 
+	idReloadCh, unsubscribe := reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
 	b.mu.Lock()
-	b.botIdentitySvc = &identityService{
-		cfg:               b.cfg,
-		reloadBroadcaster: reloadBroadcaster,
-		clientBuilder:     clientBuilder,
-		log: b.log.With(
+	b.botIdentitySvc, err = internalidentity.NewService(internalidentity.Config{
+		Connection:      b.cfg.ConnectionConfig(),
+		Onboarding:      b.cfg.Onboarding,
+		TTL:             b.cfg.CredentialLifetime.TTL,
+		RenewalInterval: b.cfg.CredentialLifetime.RenewalInterval,
+		Destination:     b.cfg.Storage.Destination,
+		FIPS:            b.cfg.FIPS,
+		Logger: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
-	}
+		ReloadCh:      idReloadCh,
+		ClientBuilder: clientBuilder,
+	})
 	b.mu.Unlock()
 
 	// Initialize bot's own identity. This will load from disk, or fetch a new
