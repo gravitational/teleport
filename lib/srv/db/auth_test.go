@@ -309,6 +309,8 @@ const (
 	redshiftAuthToken = "redshift-auth-token"
 	// cloudSQLAuthToken is a mock Cloud SQL IAM auth token.
 	cloudSQLAuthToken = "cloudsql-auth-token"
+	// alloyDBAuthToken is a mock AlloyDB IAM auth token.
+	alloyDBAuthToken = "alloydb-auth-token"
 	// cloudSQLPassword is a mock Cloud SQL user password.
 	cloudSQLPassword = "cloudsql-password"
 	// cloudSpannerAuthToken is a mock Cloud Spanner IAM auth token.
@@ -376,6 +378,11 @@ func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error) {
 	a.InfoContext(ctx, "Generating Cloud SQL auth token", "database_user", databaseUser)
 	return cloudSQLAuthToken, nil
+}
+
+func (a *testAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error) {
+	a.InfoContext(ctx, "Generating AlloyDB auth token", "database_user", databaseUser)
+	return alloyDBAuthToken, nil
 }
 
 func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {

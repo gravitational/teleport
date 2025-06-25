@@ -2436,7 +2436,8 @@ type agentParams struct {
 	// NoStart indicates server should not be started.
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
-	GCPSQL *mocks.GCPSQLAdminClientMock
+	GCPSQL     *mocks.GCPSQLAdminClientMock
+	GCPAlloyDB *mocks.GCPAlloyDBAdminClientMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
@@ -2477,6 +2478,10 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
+	if p.GCPAlloyDB == nil {
+		p.GCPAlloyDB = &mocks.GCPAlloyDBAdminClientMock{}
+	}
+
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2485,7 +2490,8 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			GCPSQL: p.GCPSQL,
+			GCPSQL:     p.GCPSQL,
+			GCPAlloyDB: p.GCPAlloyDB,
 		}
 	}
 	if p.AWSConfigProvider == nil {
