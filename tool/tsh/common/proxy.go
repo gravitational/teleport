@@ -185,7 +185,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
-			return trace.BadParameter("only loopback addresses are allowed for listener without the insecure switch, got %q", cf.LocalProxyAddr)
+			return trace.BadParameter("only loopback addresses are allowed for listener without --insecure-listen-anywhere switch, got %q", cf.LocalProxyAddr)
 		}
 		randomPort = false
 		addr = cf.LocalProxyAddr
