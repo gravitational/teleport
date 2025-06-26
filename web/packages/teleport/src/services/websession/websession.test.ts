@@ -16,27 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { waitFor } from '@testing-library/react';
+
 import history from 'teleport/services/history';
 
 import websession from '.';
 import api from '../api';
 
 test('user should be redirected to login even if session delete call fails', async () => {
-  const mockPromise = {
-    then: jest.fn().mockReturnThis(),
-    catch: jest.fn().mockReturnThis(),
-    finally: jest.fn().mockImplementation(callback => {
-      callback();
-      return mockPromise;
-    }),
-    [Symbol.toStringTag]: 'Promise',
-  };
-
-  jest.spyOn(api, 'delete').mockReturnValue(mockPromise as any);
+  jest.spyOn(console, 'error').mockImplementation();
+  jest.spyOn(api, 'delete').mockRejectedValue(new Error('some error'));
   const goToLoginSpy = jest.spyOn(history, 'goToLogin').mockImplementation();
   jest.spyOn(websession, 'clear').mockImplementation();
 
   websession.logout();
 
-  expect(goToLoginSpy).toHaveBeenCalled();
+  await waitFor(() => expect(goToLoginSpy).toHaveBeenCalled());
 });

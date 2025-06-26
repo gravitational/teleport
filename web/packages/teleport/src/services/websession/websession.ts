@@ -41,7 +41,14 @@ const session = {
     api
       .delete(cfg.api.webSessionPath)
       .then(response => {
-        samlSloUrl = response.samlSloUrl;
+        samlSloUrl = response?.samlSloUrl;
+      })
+      .catch(err => {
+        // This request can fail if the session is already expired, which isn't an issue, but we should still catch the error.
+        logger.error(
+          'Failed to delete session. This can happen if the session has already expired.',
+          err
+        );
       })
       .finally(() => {
         this.clear();
