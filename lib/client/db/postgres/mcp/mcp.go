@@ -77,7 +77,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 			return nil, trace.BadParameter("failed to parse database %q connection config: %s", db.DB.GetName(), err)
 		}
 
-		s.databases[db.ResourceURI().String()] = &database{
+		s.databases[db.ResourceURI().WithoutParams().String()] = &database{
 			Database: db,
 			pool:     pool,
 		}

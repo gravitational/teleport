@@ -86,7 +86,7 @@ func TestFormatErrors(t *testing.T) {
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
-	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).String()
+	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).WithoutParams().String()
 
 	for name, tc := range map[string]struct {
 		databaseURI        string

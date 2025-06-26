@@ -19,7 +19,6 @@
 package peer
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -154,8 +153,7 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	stream, err := proto.NewProxyServiceClient(conn.(*grpcClientConn).cc).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
