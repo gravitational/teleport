@@ -6519,12 +6519,14 @@ func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.Lis
 		limit = apidefaults.DefaultChunkSize
 	}
 	for desktopStream.Next() {
+		desktop := desktopStream.Item()
 		if len(resp.Desktops) == limit {
+			resp.NextKey = desktop.GetHostID() + "/" + desktop.GetName()
 			desktopStream.Done()
 			break
 		}
 
-		resp.Desktops = append(resp.Desktops, desktopStream.Item())
+		resp.Desktops = append(resp.Desktops, desktop)
 	}
 
 	return &resp, nil
