@@ -20,6 +20,7 @@ package utils
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -423,7 +424,11 @@ Arguments:
 			app.UsageWriter(&buffer)
 			args := []string{"help"}
 			app.Terminate(func(int) {})
-			UpdateAppUsageTemplate(app, args)
+
+			docsUsageTemplatePath := "docs-usage.md.tmpl"
+			f, err := os.Open(docsUsageTemplatePath)
+			require.NoError(t, err)
+			updateAppUsageTemplate(f, app)
 
 			// kingpin only adds a help command if there is at least
 			// one subcommand. Make sure that all test cases
@@ -431,12 +436,10 @@ Arguments:
 			app.HelpCommand = app.Command("help", "Print help for the application.")
 			// HelpCommand is triggered on PreAction during Parse.
 			// See kingpin.Application.init for more details.
-			_, err := app.Parse(args)
+			_, err = app.Parse(args)
 			require.NoError(t, err)
 			expected := strings.ReplaceAll(tt.expectSubstring, "@", "`")
-			if !strings.Contains(buffer.String(), expected) {
-				t.Fatalf("could not find the expected substring in the following reference page:\n\n%v", buffer.String())
-			}
+			require.Contains(t, buffer.String(), expected)
 		})
 	}
 }

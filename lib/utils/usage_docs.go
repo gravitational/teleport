@@ -20,9 +20,13 @@ package utils
 
 import (
 	"bytes"
+	"cmp"
 	_ "embed"
 	"fmt"
-	"sort"
+	"io"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -31,30 +35,36 @@ import (
 // formatThreeColMarkdownTable formats the provided row data into a three-column
 // Markdown table, minus the header.
 func formatThreeColMarkdownTable(rows [][3]string) string {
-	buf := bytes.NewBuffer(nil)
+	var buf bytes.Buffer
+
 	for _, r := range rows {
-		buf.WriteString("\n|" + r[0] + "|" + r[1] + "|" + r[2] + "|")
+		fmt.Fprintf(&buf, "\n|%v|%v|%v|", r[0], r[1], r[2])
 	}
 	return buf.String()
 }
 
-// flagsToColumns outputs data for a table that lists flags, their default
+// flagsToRows outputs data for a table that lists flags, their default
 // values, and help texts.
-func flagsToColumns(f []*kingpin.FlagModel) [][3]string {
+func flagsToRows(f []*kingpin.FlagModel) [][3]string {
 	rows := [][3]string{}
-	haveShort := false
-	for _, flag := range f {
-		if flag.Short != 0 {
-			haveShort = true
-			break
-		}
-	}
+
 	for _, flag := range f {
 		if flag.Hidden {
 			continue
 		}
+		flagString := ""
+		flagName := flag.Name
+		if flag.IsBoolFlag() {
+			flagName = "[no-]" + flagName
+		}
+		if flag.Short != 0 {
+			flagString += fmt.Sprintf("`-%c`, `--%s`", flag.Short, flagName)
+		} else {
+			flagString += fmt.Sprintf("`--%s`", flagName)
+		}
+
 		rows = append(rows, [3]string{
-			formatFlagForTable(haveShort, flag),
+			flagString,
 			formatDefaultFlagValue(flag),
 			formatHelp(flag.Help),
 		})
@@ -65,33 +75,24 @@ func flagsToColumns(f []*kingpin.FlagModel) [][3]string {
 // anyVisibleFlags returns whether any flags in f are visible, i.e., should be
 // included in a table of flags.
 func anyVisibleFlags(f []*kingpin.FlagModel) bool {
-	for _, l := range f {
-		if !l.Hidden {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(f, func(m *kingpin.FlagModel) bool {
+		return !m.Hidden
+	})
 }
 
 // anyEnvVarsForCmd indicates whether at least one of the arguments and flags
 // provided exposes an environment variable for configuration.
 func anyEnvVarsForCmd(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) bool {
-	for _, a := range args {
-		if a.Envar != "" {
-			return true
-		}
-	}
-	for _, f := range flags {
-		if f.Envar != "" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(args, func(arg *kingpin.ArgModel) bool {
+		return arg.Envar != ""
+	}) || slices.ContainsFunc(flags, func(flag *kingpin.FlagModel) bool {
+		return flag.Envar != ""
+	})
 }
 
-// argsToColumns outputs data for a table that lists arguments, their default
+// argsToRows outputs data for a table that lists arguments, their default
 // values, and help texts.
-func argsToColumns(a []*kingpin.ArgModel) [][3]string {
+func argsToRows(a []*kingpin.ArgModel) [][3]string {
 	rows := [][3]string{}
 	for _, arg := range a {
 		if arg.Hidden {
@@ -101,18 +102,11 @@ func argsToColumns(a []*kingpin.ArgModel) [][3]string {
 		// Some commands declare empty argument names and help texts as
 		// a hack to allow arbitrary values. Indicate this in the table
 		// as a special case.
-		var argName string
-		if arg.Name != "" {
-			argName = arg.Name
-		} else {
-			argName = "args"
-		}
+		argName := cmp.Or(arg.Name, "args")
 
-		var help string
+		help := "Arbitrary arguments"
 		if arg.Help != "" {
 			help = formatHelp(arg.Help)
-		} else {
-			help = "Arbitrary arguments"
 		}
 
 		rows = append(rows, [3]string{
@@ -124,9 +118,9 @@ func argsToColumns(a []*kingpin.ArgModel) [][3]string {
 	return rows
 }
 
-// envVarsToColumns prints table data for a list of environment variables, their
+// envVarsToRows prints table data for a list of environment variables, their
 // default values, and help texts.
-func envVarsToColumns(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) [][3]string {
+func envVarsToRows(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) [][3]string {
 	rows := [][3]string{}
 	for _, arg := range args {
 		if arg.Hidden || arg.Envar == "" {
@@ -153,53 +147,20 @@ func envVarsToColumns(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) [][3
 	return rows
 }
 
-// formatFlagForTable includes the names of flags so we can display them in a
-// table of flag information.
-func formatFlagForTable(haveShort bool, flag *kingpin.FlagModel) string {
-	flagString := ""
-	flagName := flag.Name
-	if flag.IsBoolFlag() {
-		flagName = "[no-]" + flagName
-	}
-	if flag.Short != 0 {
-		flagString += fmt.Sprintf("`-%c`, `--%s`", flag.Short, flagName)
-	} else {
-		if haveShort {
-			flagString += fmt.Sprintf("    `--%s`", flagName)
-		} else {
-			flagString += fmt.Sprintf("`--%s`", flagName)
-		}
-	}
-	return flagString
-}
-
-// cmdModelCollection is used to sort CmdModels for display in the CLI reference
-// docs page.
-type cmdModelCollection []*kingpin.CmdModel
-
-// Len returns the length of c. Required to implement sort.Interface.
-func (c cmdModelCollection) Len() int {
-	return len(c)
-}
-
-// Less returns whether command name i is lexicographically ordered before
-// command name j. Required to implement sort.Interface.
-func (c cmdModelCollection) Less(i, j int) bool {
-	return c[i].FullCommand < c[j].FullCommand
-}
-
-// Swap reverses the ordering of i and j within c. Required to implement
-// sort.Interface.
-func (c cmdModelCollection) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
 // sortcommandsByName sorts the commands in cmds by their full command names,
 // including all subcommands.
 func sortCommandsByName(cmds []*kingpin.CmdModel) []*kingpin.CmdModel {
-	col := cmdModelCollection(cmds)
-	sort.Stable(&col)
-	return []*kingpin.CmdModel(col)
+	slices.SortStableFunc(cmds, func(a, b *kingpin.CmdModel) int {
+		switch {
+		case a.FullCommand < b.FullCommand:
+			return -1
+		case a.FullCommand > b.FullCommand:
+			return 1
+		default:
+			return 0
+		}
+	})
+	return cmds
 }
 
 // formatDefaultFlagValue returns the default value of flag to display in a
@@ -276,24 +237,42 @@ func formatHelp(help string) string {
 	return strings.NewReplacer("{", `\{`, "}", `\}`, "|", `\|`).Replace(help)
 }
 
-// docsUsageTemplate is a help text template for CLI reference documentation.
-// Intended to be used as the argument to *kingpin.Application.UsageTemplate.
-//
-//go:embed docs-usage.md.tmpl
-var docsUsageTemplate string
+// docsUsageTemplatePath points to a help text template for CLI reference
+// documentation. Intended to be used as the argument to
+// *kingpin.Application.UsageTemplate.
+var docsUsageTemplatePath = filepath.Join("lib", "utils", "docs-usage.md.tmpl")
 
-// UpdateAppUsageTemplate updates the app usage template to print a reference
-// guide for the CLI application.
-func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
+// updateAppUsageTemplatePath updates the app usage template to print a reference
+// guide for the CLI application. It reads the template from r.
+func updateAppUsageTemplate(r io.Reader, app *kingpin.Application) {
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		panic(fmt.Sprintf("unable to read from the docs usage template: %v", err))
+	}
+
 	app.UsageFuncs(map[string]any{
 		"AnyEnvVarsForCmd":            anyEnvVarsForCmd,
 		"AnyVisibleFlags":             anyVisibleFlags,
-		"ArgsToColumns":               argsToColumns,
-		"EnvVarsToColumns":            envVarsToColumns,
-		"FlagsToColumns":              flagsToColumns,
+		"ArgsToRows":                  argsToRows,
+		"EnvVarsToRows":               envVarsToRows,
+		"FlagsToRows":                 flagsToRows,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,
 		"FormatUsageArg":              formatUsageArg,
 		"SortCommandsByName":          sortCommandsByName,
 	})
-	app.UsageTemplate(docsUsageTemplate)
+	app.UsageTemplate(buf.String())
+}
+
+// UpdateAppUsageTemplate updates the app usage template to print a reference
+// guide for the CLI application.
+func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
+	// Panic when failing to open or read from the docs usage template since
+	// we need to keep the signature of UpdateAppUsageTemplate consistent
+	// with the one included without build tags, i.e., with no return value.
+	f, err := os.Open(docsUsageTemplatePath)
+	if err != nil {
+		panic(fmt.Sprintf("unable to open the docs usage template at %v: %v", docsUsageTemplatePath, err))
+	}
+
+	updateAppUsageTemplate(f, app)
 }
