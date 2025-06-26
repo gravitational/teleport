@@ -518,10 +518,14 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	if a.output == "" {
 		l := len(authorities)
 		switch {
+		case l == 0:
+			return trace.BadParameter("found no authorities")
 		case l > 1:
 			return trace.BadParameter("found %d authorities, use --out to export all CRLs", l)
-		case l == 1 && len(authorities[0].GetActiveKeys().TLS) > 1:
+		case len(authorities[0].GetActiveKeys().TLS) > 1:
 			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
+		case len(authorities[0].GetActiveKeys().TLS) == 0:
+			return trace.BadParameter("CA has no active keys")
 		}
 	}
 
@@ -563,8 +567,10 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	}
 
 	// Only a single CRL is exported if we got this far.
-	crl := authorities[0].GetActiveKeys().TLS[0].CRL
+	authority := authorities[0]
+	crl := authority.GetActiveKeys().TLS[0].CRL
 	if len(crl) == 0 {
+		fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
 		crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
 		if err != nil {
 			return trace.Wrap(err)
