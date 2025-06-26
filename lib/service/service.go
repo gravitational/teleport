@@ -2150,7 +2150,10 @@ func (process *TeleportProcess) initAuthService() error {
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
-	encryptedIO := recordingencryption.NewEncryptedIO(clusterConfig, recordingEncryptionManager)
+	encryptedIO, err := recordingencryption.NewEncryptedIO(clusterConfig, recordingEncryptionManager)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.

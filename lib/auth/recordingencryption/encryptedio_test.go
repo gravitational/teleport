@@ -77,6 +77,10 @@ func TestEncryptedIO(t *testing.T) {
 
 	_, err = encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})
 	require.ErrorIs(t, err, recordingencryption.ErrEncryptionDisabled)
+
+	// wrapping decryption with a nil keyFinder should return an ErrDecryptionDisabled
+	_, err = encryptedIO.WithDecryption(ctx, out)
+	require.ErrorIs(t, err, recordingencryption.ErrDecryptionDisabled)
 }
 
 type fakeSRCGetter struct {
