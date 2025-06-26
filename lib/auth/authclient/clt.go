@@ -638,6 +638,10 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient {
+	return integrationv1.NewAWSRolesAnywhereServiceClient(c.APIClient.GetConnection())
+}
+
 // UserTasksClient returns a client for managing User Task resources.
 func (c *Client) UserTasksClient() services.UserTasks {
 	return c.APIClient.UserTasksServiceClient()
@@ -1504,6 +1508,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// IntegrationAWSRolesAnywhereClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient
 
 	// UserTasksServiceClient returns an User Task service client.
 	UserTasksServiceClient() *usertask.Client
