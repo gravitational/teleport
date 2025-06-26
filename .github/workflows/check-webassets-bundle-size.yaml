@@ -51,36 +51,39 @@ jobs:
         run: VITE_OUTPUT_STATS=1 pnpm build-ui-oss
 
       - name: Store base
+        id: store-base
         run: |
           if [ -f webassets/teleport/stats.json ]; then
             cp webassets/teleport/stats.json /tmp/stats-before.json
+            echo "has-base-stats=true" >> $GITHUB_OUTPUT
           else
             echo "Base branch does not have the Vite stats plugin"
-            touch /tmp/no-base-stats
+            echo "has-base-stats=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout PR branch
+        if: steps.store-base.outputs.has-base-stats == 'true'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
 
       - name: Install JS dependencies
+        if: steps.store-base.outputs.has-base-stats == 'true'
         run: |
           pnpm install --frozen-lockfile
 
       - name: Build WASM
+        if: steps.store-base.outputs.has-base-stats == 'true'
         run: pnpm build-wasm
 
       - name: Build web assets
+        if: steps.store-base.outputs.has-base-stats == 'true'
         run: VITE_OUTPUT_STATS=1 pnpm build-ui-oss
 
       - name: Store base
+        if: steps.store-base.outputs.has-base-stats == 'true'
         run: cp webassets/teleport/stats.json /tmp/stats-after.json
 
       - name: Compare the bundle sizes
-        run: |
-          if [ -f /tmp/no-base-stats ]; then
-            echo "Skipping bundle size comparison - base branch does not have stats"
-            exit 0
-          fi
-          cd .github/shared-workflows/bot && go run main.go -workflow=webassets -token="${{ secrets.GITHUB_TOKEN }}" --stats /tmp/stats-before.json,/tmp/stats-after.json  -reviewers="${{ secrets.reviewers }}"
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=webassets -token="${{ secrets.GITHUB_TOKEN }}" --stats /tmp/stats-before.json,/tmp/stats-after.json  -reviewers="${{ secrets.reviewers }}"
