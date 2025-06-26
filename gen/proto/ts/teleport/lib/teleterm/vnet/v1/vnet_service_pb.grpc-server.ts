@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { AutoConfigureSSHResponse } from "./vnet_service_pb";
+import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
@@ -69,6 +71,13 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
      */
     runDiagnostics: grpc.handleUnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse>;
+    /**
+     * AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+     * connections to Teleport SSH hosts.
+     *
+     * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
+     */
+    autoConfigureSSH: grpc.handleUnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -131,5 +140,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => RunDiagnosticsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(RunDiagnosticsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(RunDiagnosticsRequest.toBinary(value))
+    },
+    autoConfigureSSH: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH",
+        originalName: "AutoConfigureSSH",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => AutoConfigureSSHResponse.fromBinary(bytes),
+        requestDeserialize: bytes => AutoConfigureSSHRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(AutoConfigureSSHResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(AutoConfigureSSHRequest.toBinary(value))
     }
 };
