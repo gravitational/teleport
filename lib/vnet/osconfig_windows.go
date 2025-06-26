@@ -43,6 +43,7 @@ type platformOSConfigState struct {
 	configuredV6Address bool
 	configuredRanges    []string
 	configuredDNSZones  []string
+	configuredDNSAddrs  []string
 
 	ifaceIndex string
 }
@@ -114,10 +115,11 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	}
 
 	if shouldUpdateDNSConfig(cfg, state) {
-		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddr); err != nil {
+		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs); err != nil {
 			return trace.Wrap(err, "configuring DNS")
 		}
 		state.configuredDNSZones = cfg.dnsZones
+		state.configuredDNSAddrs = cfg.dnsAddrs
 	}
 
 	return nil
@@ -135,20 +137,22 @@ func addrMaskForCIDR(cidr string) (string, string, error) {
 }
 
 func shouldUpdateDNSConfig(cfg *osConfig, state *platformOSConfigState) bool {
-	// Always reconfigure if there should be no zones, to make sure we clear
-	// any leftover state when starting up.
-	if len(cfg.dnsZones) == 0 {
+	// Always reconfigure if there should be no zones or nameservers to make
+	// sure we clear any leftover state when starting up.
+	if len(cfg.dnsAddrs) == 0 || len(cfg.dnsZones) == 0 {
 		return true
 	}
 	// Otherwise, reconfigure if anything has changed.
-	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
+	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones) ||
+		!utils.ContainSameUniqueElements(cfg.dnsAddrs, state.configuredDNSAddrs)
 }
 
-func configureDNS(ctx context.Context, zones []string, nameserver string) (err error) {
-	if len(nameserver) == 0 && len(zones) > 0 {
-		return trace.BadParameter("empty nameserver with non-empty zones")
+func configureDNS(ctx context.Context, zones, nameservers []string) (err error) {
+	if len(nameservers) == 0 {
+		// Can't handle any zones if there are no nameservers.
+		zones = nil
 	}
-	log.InfoContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
+	log.InfoContext(ctx, "Configuring DNS.", "zones", zones, "nameservers", nameservers)
 
 	// Split DNS is configured via the Name Resolution Policy Table in the
 	// Windows registry. The UUID at the end was randomly generated, we'll
@@ -182,15 +186,24 @@ func configureDNS(ctx context.Context, zones []string, nameserver string) (err e
 		err = trace.NewAggregate(origErr, deleteErr, closeErr)
 	}()
 
+	// The NRPT version must be 1.
 	if err := dnsKey.SetDWordValue("Version", 1); err != nil {
 		return trace.Wrap(err, "failed to set Version in DNS registry key")
 	}
+	// Name is a list of strings holding the DNS suffixes to match.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpnrpt/c1f8a4c0-d4e0-49b2-b4ef-87031be16662
 	if err := dnsKey.SetStringsValue("Name", normalizeDNSZones(zones)); err != nil {
 		return trace.Wrap(err, "failed to set Name in DNS registry key")
 	}
-	if err := dnsKey.SetStringValue("GenericDNSServers", nameserver); err != nil {
+	// GenericDNSServers is a string value holding a semicolon-delimited list of
+	// IP addresses of DNS nameservers.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpnrpt/06088ca3-4cf1-48fa-8837-ca8d853ee1e8
+	if err := dnsKey.SetStringValue("GenericDNSServers", strings.Join(nameservers, ";")); err != nil {
 		return trace.Wrap(err, "failed to set GenericDNSServers in DNS registry key")
 	}
+	// Setting ConfigOptions to 8 tells NRPT that only GenericDNSServers is
+	// specified (DNSSEC, DirectAccess, and IDN options are not set).
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpnrpt/2d34f260-1e9e-4a52-ac91-2056dfd29702
 	if err := dnsKey.SetDWordValue("ConfigOptions", 8); err != nil {
 		return trace.Wrap(err, "failed to set ConfigOptions in DNS registry key")
 	}
