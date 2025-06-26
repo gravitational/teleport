@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -87,16 +88,23 @@ func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
 func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Client) error {
-	var req types.ListWindowsDesktopsRequest
+	var start string
 	var desktops []types.WindowsDesktop
 	for {
+
+		req := types.ListWindowsDesktopsRequest{
+			// A non zero limit is required by older versions.
+			Limit:    defaults.DefaultChunkSize,
+			StartKey: start,
+		}
+
 		resp, err := client.ListWindowsDesktops(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		desktops = append(desktops, resp.Desktops...)
-		req.StartKey = resp.NextKey
+		start = resp.NextKey
 		if resp.NextKey == "" {
 			break
 		}

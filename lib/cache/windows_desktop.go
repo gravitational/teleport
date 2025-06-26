@@ -43,20 +43,27 @@ func newWindowsDesktopServiceCollection(upstream services.WindowsDesktops, w typ
 				windowsDesktopServiceNameIndex: types.WindowsDesktopService.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktopService, error) {
-			var req types.ListWindowsDesktopServicesRequest
+			var start string
 			var out []types.WindowsDesktopService
 			for {
+				req := types.ListWindowsDesktopServicesRequest{
+					// A non zero limit is required by older versions.
+					Limit:    defaults.DefaultChunkSize,
+					StartKey: start,
+				}
+
 				resp, err := upstream.ListWindowsDesktopServices(ctx, req)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
 				out = append(out, resp.DesktopServices...)
-				req.StartKey = resp.NextKey
+				start = resp.NextKey
 				if resp.NextKey == "" {
 					break
 				}
 			}
+
 			return out, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktopService {
@@ -194,22 +201,28 @@ func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.Watc
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktop, error) {
-			var req types.ListWindowsDesktopsRequest
-			var out []types.WindowsDesktop
+			var start string
+			var desktops []types.WindowsDesktop
 			for {
+				req := types.ListWindowsDesktopsRequest{
+					// A non zero limit is required by older versions.
+					Limit:    defaults.DefaultChunkSize,
+					StartKey: start,
+				}
+
 				resp, err := upstream.ListWindowsDesktops(ctx, req)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				out = append(out, resp.Desktops...)
-				req.StartKey = resp.NextKey
+				desktops = append(desktops, resp.Desktops...)
+				start = resp.NextKey
 				if resp.NextKey == "" {
 					break
 				}
 			}
 
-			return out, nil
+			return desktops, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktop {
 			return &types.WindowsDesktopV3{
