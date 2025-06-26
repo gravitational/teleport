@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -111,12 +110,6 @@ func (conf *BotConfig) ConnectionConfig() connection.Config {
 	return cc
 }
 
-func (conf *BotConfig) CipherSuites() []uint16 {
-	if conf.FIPS {
-		return defaults.FIPSCipherSuites
-	}
-	return utils.DefaultCipherSuites()
-}
 
 func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Wrap conf in an anonymous struct to avoid having the deprecated field on
