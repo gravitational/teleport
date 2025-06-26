@@ -31,17 +31,20 @@ guide you through configuring the Okta integration.
 
 </details>
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="Okta"!)
+
 ## Prerequisites
 
 - An Okta account with admin access. Your account must include users and at
   least two groups. If you don't already have Okta groups you want to assign to
   Teleport roles don't worry, we'll create example groups below.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
   available in the default `editor` role.
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
 ## Step 1/4. Create & assign groups
 

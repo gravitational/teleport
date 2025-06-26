@@ -76,7 +76,10 @@ import (
 	_ "github.com/ghodss/yaml"
 	_ "github.com/go-jose/go-jose/v3"
 	_ "github.com/go-jose/go-jose/v3/json"
+
+	// TODO(Joerger): Remove once /e uses v2
 	_ "github.com/go-piv/piv-go/piv"
+	_ "github.com/go-piv/piv-go/v2/piv"
 	_ "github.com/gogo/protobuf/proto"
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/google/go-cmp/cmp"
@@ -89,7 +92,6 @@ import (
 	_ "github.com/gravitational/license/generate"
 	_ "github.com/gravitational/roundtrip"
 	_ "github.com/gravitational/trace"
-	_ "github.com/gravitational/trace/trail"
 	_ "github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/pgtype"

@@ -80,8 +80,7 @@ export function shouldHideFromNavigation(cfg: Cfg) {
 }
 
 class AccessRequests implements TeleportFeature {
-  category = NavigationCategory.Resources;
-  sideNavCategory = SideNavigationCategory.Resources;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Access Requests',
@@ -103,8 +102,6 @@ class AccessRequests implements TeleportFeature {
     },
     searchableTags: ['access requests'],
   };
-
-  topMenuItem = this.navigationItem;
 }
 
 export class FeatureJoinTokens implements TeleportFeature {
@@ -198,7 +195,6 @@ export class FeatureSessions implements TeleportFeature {
     },
     searchableTags: ['active sessions', 'active', 'sessions'],
   };
-  topMenuItem = this.navigationItem;
 }
 
 // ****************************

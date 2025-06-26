@@ -603,7 +603,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge, t.proxyPublicAddr),
@@ -615,7 +615,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		return nil, trace.Wrap(err)
 	}
 
-	sshCert, err = sshutils.ParseCertificate(certs.SSH)
+	sshCert, err = sshutils.ParseCertificate(result.NewCerts.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -628,16 +628,11 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 
 func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc, proxyAddr string) *mfa.Ceremony {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
-	var channelID string
+	channelID := uuid.NewString()
 
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			id, err := uuid.NewRandom()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			channelID = id.String()
 
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {

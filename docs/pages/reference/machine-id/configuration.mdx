@@ -208,7 +208,7 @@ The `identity` output can be used to authenticate:
 - Management of Teleport resources using the Teleport Terraform provider.
 - Access to the Teleport API using the Teleport Go SDK.
 
-See the [Getting Started guide](../../enroll-resources/machine-id/getting-started.mdx) to see the `identity`
+See the [Getting Started guide](../../machine-workload-identity/machine-id/getting-started.mdx) to see the `identity`
 output used in context.
 
 ```yaml
@@ -234,7 +234,7 @@ allow_reissue: false
 The `application` output is used to generate credentials that can be used to
 access applications that have been configured with Teleport.
 
-See the [Machine ID with Applications guide](../../enroll-resources/machine-id/access-guides/applications.mdx)
+See the [Machine ID with Applications guide](../../machine-workload-identity/machine-id/access-guides/applications.mdx)
 to see the `application` output used in context.
 
 ```yaml
@@ -254,7 +254,7 @@ app_name: grafana
 The `database` output is used to generate credentials that can be used to
 access databases that have been configured with Teleport.
 
-See the [Machine ID with Databases guide](../../enroll-resources/machine-id/access-guides/databases.mdx)
+See the [Machine ID with Databases guide](../../machine-workload-identity/machine-id/access-guides/databases.mdx)
 to see the `database` output used in context.
 
 ```yaml
@@ -300,7 +300,7 @@ access Kubernetes clusters that have been configured with Teleport.
 It outputs a `kubeconfig.yaml` in the output destination, which can be used
 with `kubectl`.
 
-See the [Machine ID with Kubernetes Clusters guide](../../enroll-resources/machine-id/access-guides/kubernetes.mdx)
+See the [Machine ID with Kubernetes Clusters guide](../../machine-workload-identity/machine-id/access-guides/kubernetes.mdx)
 to see the `kubernetes` output used in context.
 
 ```yaml
@@ -416,7 +416,7 @@ The output generates the following artifacts:
 - `svid.key`: the private key associated with the X509 SVID.
 - `bundle.pem`: the X509 bundle that contains the trust domain CAs.
 
-See [Workload Identity introduction](../../enroll-resources/workload-identity/introduction.mdx)
+See [Workload Identity introduction](../../machine-workload-identity/workload-identity/introduction.mdx)
 for more information on Workload Identity functionality.
 
 ```yaml
@@ -439,7 +439,7 @@ The output generates the following artifacts:
 
 - `jwt_svid`: the JWT SVID.
 
-See [Workload Identity introduction](../../enroll-resources/workload-identity/introduction.mdx)
+See [Workload Identity introduction](../../machine-workload-identity/workload-identity/introduction.mdx)
 for more information on Workload Identity functionality.
 
 ```yaml
@@ -471,7 +471,7 @@ The output generates the following artifacts:
 
 - `aws_credentials`: the CLI and SDK compatible AWS shared credentials file.
 
-See [Workload Identity introduction](../../enroll-resources/workload-identity/introduction.mdx)
+See [Workload Identity introduction](../../machine-workload-identity/workload-identity/introduction.mdx)
 for more information on Workload Identity functionality.
 
 ```yaml
@@ -549,7 +549,7 @@ An artifact will also be generated for each entry within the `jwts` list. This
 will be named according to `file_name`. This artifact will contain only the
 JWT-SVID with the audience specified in `audience`.
 
-See [Workload Identity](../../enroll-resources/workload-identity/introduction.mdx) for more information on how
+See [Workload Identity](../../machine-workload-identity/workload-identity/introduction.mdx) for more information on how
 to use SPIFFE SVIDs.
 
 ```yaml
@@ -614,7 +614,7 @@ The `spiffe-workload-api` service opens a listener for a service that implements
 the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
 workloads.
 
-See [Workload Identity](../../enroll-resources/workload-identity/introduction.mdx) for more information on the
+See [Workload Identity](../../machine-workload-identity/workload-identity/introduction.mdx) for more information on the
 SPIFFE Workload API.
 
 ```yaml
