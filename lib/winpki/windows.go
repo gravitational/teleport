@@ -356,6 +356,24 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	return ext, nil
 }
 
+func ADSIDExtension(sid string) (pkix.Extension, error) {
+	extension := pkix.Extension{
+		Id: ADUserMappingExtensionOID,
+	}
+	adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
+		otherName[adSid]{
+			OID: ADUserMappingInternalOID,
+			Value: adSid{
+				Value: []byte(sid),
+			},
+		}})
+	if err != nil {
+		return extension, trace.Wrap(err)
+	}
+	extension.Value = adUserMapping
+	return extension, nil
+}
+
 // Types for ASN.1 SAN serialization.
 type (
 	// SubjectAltName is a struct that can be marshaled as ASN.1

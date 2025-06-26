@@ -664,14 +664,18 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 
 		const username = "examplesa"
 		const domain = "ad.ottr.sh"
+		// For Active Directory, we include a SAN extension with OID
+		// 1.3.6.1.4.1.311.20.2.3
 		otherNameSAN, err := winpki.SubjectAltNameExtension(username, domain)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating otherName SAN for Active Directory")
 		}
-		// For Active Directory, we set the otherName SAN to the UPN.
 		template.ExtraExtensions = append(template.ExtraExtensions,
 			otherNameSAN,
 		)
+		// For Active Directory, we'll also include an additional extension for
+		// the SID for "strong certificate binding", see
+		// https://support.microsoft.com/en-us/topic/kb5014754-certificate-based-authentication-changes-on-windows-domain-controllers-ad2c23b0-15d8-4340-a468-4d4f3b188f16
 	}
 
 	certBytes, err := x509.CreateCertificate(
