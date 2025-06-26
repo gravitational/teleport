@@ -27,6 +27,7 @@ import { generateAppHashFile } from './apphash';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
 import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
+import { statsPlugin } from './stats';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
@@ -94,6 +95,10 @@ export function createViteConfig(
 
     if (process.env.VITE_ANALYZE_BUNDLE) {
       config.plugins.push(visualizer());
+    }
+
+    if (process.env.VITE_OUTPUT_STATS) {
+      config.plugins.push(statsPlugin(rootDirectory, outputDirectory));
     }
 
     if (mode === 'production') {
