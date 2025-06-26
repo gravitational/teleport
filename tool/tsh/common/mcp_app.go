@@ -50,7 +50,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 		cf:        cf,
 	}
 
-	cmd.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
+	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
 	return cmd
 }
 
@@ -77,7 +77,7 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Flag("all", "Select all MCP servers. Mutually exclusive with --labels or --query.").Short('R').BoolVar(&cf.ListAll)
 	cmd.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	cmd.Arg("name", "Name of the MCP server").StringVar(&cf.AppName)
+	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
 	return cmd

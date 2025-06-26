@@ -78,9 +78,9 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               <Text bold as="span">
                 Step 2
               </Text>
-              {' - Log in the MCP server'}
+              {' - Print configuration for the MCP server'}
             </Text>
-            <TextSelectCopy text={`tsh mcp login ${app.name}`} />
+            <TextSelectCopy text={`tsh mcp config ${app.name}`} />
           </Stack>
           <Box>
             Restart your AI client to load the updated configuration if
