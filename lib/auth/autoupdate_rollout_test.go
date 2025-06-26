@@ -33,21 +33,34 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSampleAgentsFromGroup(t *testing.T) {
 	clock := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
 
 	auth := &Server{
-		clock:    clock,
-		ServerID: uuid.NewString(),
-		logger:   utils.NewSlogLoggerForTests(),
+		cancelFunc: func() {},
+		clock:      clock,
+		ServerID:   uuid.NewString(),
+		logger:     utils.NewSlogLoggerForTests(),
+		Services: &Services{
+			// The inventory is running heartbeats on the background.
+			// If we don't create a presence service this will cause panics.
+			PresenceInternal: local.NewPresenceService(bk),
+		},
 	}
-	auth.Cache = auth.Services
+	// auth.Cache = auth.Services
 	controller := inventory.NewController(auth, nil, inventory.WithClock(clock))
 	auth.inventory = controller
+	t.Cleanup(func() {
+		auth.Close()
+	})
 
 	const (
 		testNodeCount         = 1000
@@ -124,15 +137,26 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 
 func TestLookupAgentInInventory(t *testing.T) {
 	clock := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
 
 	auth := &Server{
-		clock:    clock,
-		ServerID: uuid.NewString(),
-		logger:   utils.NewSlogLoggerForTests(),
+		cancelFunc: func() {},
+		clock:      clock,
+		ServerID:   uuid.NewString(),
+		logger:     utils.NewSlogLoggerForTests(),
+		Services: &Services{
+			// The inventory is running heartbeats on the background.
+			// If we don't create a presence service this will cause panics.
+			PresenceInternal: local.NewPresenceService(bk),
+		},
 	}
-	auth.Cache = auth.Services
+	// auth.Cache = auth.Services
 	controller := inventory.NewController(auth, nil, inventory.WithClock(clock))
 	auth.inventory = controller
+	t.Cleanup(func() {
+		auth.Close()
+	})
 
 	const testNodeCount = 5
 	const testGroupName = "my-group"
