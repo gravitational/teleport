@@ -23,8 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base32"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/winpki"
 	"os"
 	"testing"
 	"time"
@@ -34,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func TestMain(m *testing.M) {

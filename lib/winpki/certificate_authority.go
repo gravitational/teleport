@@ -21,12 +21,12 @@ package winpki
 import (
 	"context"
 	"encoding/base32"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // NewCertificateStoreClient returns a new structure for modifying windows certificates in a Windows CA.
