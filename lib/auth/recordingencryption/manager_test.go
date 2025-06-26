@@ -134,6 +134,7 @@ func newManagerConfig(t *testing.T, bk backend.Backend, keyType types.PrivateKey
 
 	return recordingencryption.ManagerConfig{
 		Backend:       recordingEncryptionService,
+		Cache:         recordingEncryptionService,
 		ClusterConfig: clusterConfigService,
 		KeyStore:      &fakeKeyStore{keyType: keyType},
 		Logger:        logtest.NewLogger(),
