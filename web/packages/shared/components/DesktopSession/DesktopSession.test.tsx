@@ -185,3 +185,63 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
   await userEvent.click(screen.getByTitle('More actions'));
   expect(await screen.findByText('Share Directory')).toBeVisible();
 });
+
+test('re-sharing directory is possible after a reconnect', async () => {
+  const transport = getMockTransport();
+  const mockFsSpy = jest.fn(async () => mockDirectoryAccess());
+  const tpdClient = new TdpClient(transport.getTransport, mockFsSpy);
+  render(
+    <DesktopSession
+      client={tpdClient}
+      username="admin"
+      desktop="win-lab"
+      aclAttempt={aclAttempt}
+      hasAnotherSession={hasNoOtherSession}
+      browserSupportsSharing
+    />
+  );
+
+  // The session is initializing.
+  expect(await screen.findByTestId('indicator')).toBeInTheDocument();
+
+  // Successfully initialize the connection.
+  await act(() => transport.emitPngFrameMessage());
+
+  // Share a directory.
+  await testSharingDirectory();
+
+  // An error occurred, the connection has been closed.
+  transport.emitTransportError();
+  expect(
+    await screen.findByText('The desktop session is offline.')
+  ).toBeInTheDocument();
+
+  // Reconnect.
+  const reconnect = await screen.findByRole('button', { name: 'Reconnect' });
+  await userEvent.click(reconnect);
+  await act(() => transport.emitPngFrameMessage());
+
+  // Share the directory again.
+  await testSharingDirectory();
+  expect(mockFsSpy).toHaveBeenCalledTimes(2);
+});
+
+async function testSharingDirectory() {
+  expect(await screen.findByTitle('More actions')).toBeVisible();
+  await userEvent.click(screen.getByTitle('More actions'));
+  await userEvent.click(await screen.findByText('Share Directory'));
+  expect(await screen.findByTitle('Alerts')).toHaveTextContent('0');
+}
+
+function mockDirectoryAccess(): SharedDirectoryAccess {
+  return {
+    getDirectoryName: () => '',
+    create: () => undefined,
+    read: () => undefined,
+    stat: () => undefined,
+    delete: () => undefined,
+    readDir: () => undefined,
+    truncate: () => undefined,
+    write: () => undefined,
+  };
+}
