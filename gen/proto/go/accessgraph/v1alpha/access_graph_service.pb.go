@@ -3112,12 +3112,16 @@ func (x *AWSCloudWatchResults) GetLogGroups() []*AWSCloudWatchLogGroup {
 // querying and paging
 type AWSCloudWatchLogGroup struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name of the log group
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The AWS region of the log group
+	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
 	// The events as they arrive from the CloudWatch API
-	Events *AWSCloudWatchEvent `protobuf:"bytes,1,opt,name=events,proto3" json:"events,omitempty"`
+	Events []*AWSCloudWatchEvent `protobuf:"bytes,3,rep,name=events,proto3" json:"events,omitempty"`
 	// The cursors for each log group, for querying and paging
-	Cursor *AWSCloudWatchCursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Cursor *AWSCloudWatchCursor `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	// The AWS account ID for this batch of logs
-	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountId     string `protobuf:"bytes,5,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3152,7 +3156,21 @@ func (*AWSCloudWatchLogGroup) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
 }
 
-func (x *AWSCloudWatchLogGroup) GetEvents() *AWSCloudWatchEvent {
+func (x *AWSCloudWatchLogGroup) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AWSCloudWatchLogGroup) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
+func (x *AWSCloudWatchLogGroup) GetEvents() []*AWSCloudWatchEvent {
 	if x != nil {
 		return x.Events
 	}
@@ -3178,10 +3196,8 @@ type AWSCloudWatchEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The event timestamp
 	Timestamp *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	// The event log group
-	LogGroup string `protobuf:"bytes,2,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
 	// The event message
-	Message       string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Message       string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3223,13 +3239,6 @@ func (x *AWSCloudWatchEvent) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *AWSCloudWatchEvent) GetLogGroup() string {
-	if x != nil {
-		return x.LogGroup
-	}
-	return ""
-}
-
 func (x *AWSCloudWatchEvent) GetMessage() string {
 	if x != nil {
 		return x.Message
@@ -3241,10 +3250,6 @@ func (x *AWSCloudWatchEvent) GetMessage() string {
 // paging through CloudWatch logs.
 type AWSCloudWatchCursor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The AWS region of the log group
-	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
-	// The log group name the cursor belongs to
-	LogGroup string `protobuf:"bytes,2,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
 	// The next token used for paging query results
 	NextToken string `protobuf:"bytes,3,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
 	// The start time used for the query
@@ -3281,20 +3286,6 @@ func (x *AWSCloudWatchCursor) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AWSCloudWatchCursor.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchCursor) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
-}
-
-func (x *AWSCloudWatchCursor) GetRegion() string {
-	if x != nil {
-		return x.Region
-	}
-	return ""
-}
-
-func (x *AWSCloudWatchCursor) GetLogGroup() string {
-	if x != nil {
-		return x.LogGroup
-	}
-	return ""
 }
 
 func (x *AWSCloudWatchCursor) GetNextToken() string {
@@ -4080,19 +4071,18 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"account_id\x18\x03 \x01(\tR\taccountId\"a\n" +
 	"\x14AWSCloudWatchResults\x12I\n" +
 	"\n" +
-	"log_groups\x18\x01 \x03(\v2*.accessgraph.v1alpha.AWSCloudWatchLogGroupR\tlogGroups\"\xb9\x01\n" +
-	"\x15AWSCloudWatchLogGroup\x12?\n" +
-	"\x06events\x18\x01 \x01(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12@\n" +
-	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\x12\x1d\n" +
+	"log_groups\x18\x01 \x03(\v2*.accessgraph.v1alpha.AWSCloudWatchLogGroupR\tlogGroups\"\xe5\x01\n" +
+	"\x15AWSCloudWatchLogGroup\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06region\x18\x02 \x01(\tR\x06region\x12?\n" +
+	"\x06events\x18\x03 \x03(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12@\n" +
+	"\x06cursor\x18\x04 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"\x85\x01\n" +
+	"account_id\x18\x05 \x01(\tR\taccountId\"h\n" +
 	"\x12AWSCloudWatchEvent\x128\n" +
-	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1b\n" +
-	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xa4\x01\n" +
-	"\x13AWSCloudWatchCursor\x12\x16\n" +
-	"\x06region\x18\x01 \x01(\tR\x06region\x12\x1b\n" +
-	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x1d\n" +
+	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"o\n" +
+	"\x13AWSCloudWatchCursor\x12\x1d\n" +
 	"\n" +
 	"next_token\x18\x03 \x01(\tR\tnextToken\x129\n" +
 	"\n" +
