@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -47,6 +48,8 @@ type collectionHandler interface {
 // that the [Cache] supports.
 type collections struct {
 	byKind map[resourceKind]collectionHandler
+
+	recordingEncryption *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -76,11 +79,19 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
+		case types.KindRecordingEncryption:
+			recordingEncryption, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.byKind[resourceKind] = recordingEncryption
+			out.recordingEncryption = recordingEncryption
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
+
 		}
 
 	}

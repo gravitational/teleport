@@ -144,6 +144,7 @@ type testPack struct {
 	workloadIdentity        *local.WorkloadIdentityService
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              services.GitServers
+	recordingEncryption     *local.RecordingEncryptionService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -422,6 +423,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.recordingEncryption, err = local.NewRecordingEncryptionService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -478,6 +484,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		GitServers:              p.gitServers,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -890,6 +897,7 @@ func TestCompletenessInit(t *testing.T) {
 			AutoUpdateService:       p.autoUpdateService,
 			ProvisioningStates:      p.provisioningStates,
 			WorkloadIdentity:        p.workloadIdentity,
+			RecordingEncryption:     p.recordingEncryption,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			IdentityCenter:          p.identityCenter,
 			PluginStaticCredentials: p.pluginStaticCredentials,
@@ -979,6 +987,7 @@ func TestCompletenessReset(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
@@ -1192,6 +1201,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1290,6 +1300,7 @@ func initStrategy(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
@@ -3569,6 +3580,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
+		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
 	}
 
 	for name, cfg := range cases {
