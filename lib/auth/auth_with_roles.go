@@ -6514,8 +6514,12 @@ func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.Lis
 		return nil, false
 	})
 
+	limit := req.Limit
+	if limit == 0 {
+		limit = apidefaults.DefaultChunkSize
+	}
 	for desktopStream.Next() {
-		if len(resp.Desktops) == req.Limit {
+		if len(resp.Desktops) == limit {
 			desktopStream.Done()
 			break
 		}

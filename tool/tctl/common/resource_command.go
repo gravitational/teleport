@@ -2803,19 +2803,32 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &windowsDesktopCollection{desktops: desktops}, nil
 		}
 
-		resp, err := apiclient.GetAllUnifiedResources(ctx, client, &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindWindowsDesktop}})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		var collection windowsDesktopCollection
+		var startKey string
+		for {
+			resp, err := client.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{StartKey: startKey})
+			if err != nil {
+				// TODO(tross) DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
 
-		desktops := make([]types.WindowsDesktop, 0, len(resp))
-		for _, r := range resp {
-			if d, ok := r.ResourceWithLabels.(types.WindowsDesktop); ok {
-				desktops = append(desktops, d)
+					return &windowsDesktopCollection{desktops: desktops}, nil
+				}
+
+				return nil, trace.Wrap(err)
+			}
+
+			collection.desktops = append(collection.desktops, resp.Desktops...)
+			startKey = resp.NextKey
+			if resp.NextKey == "" {
+				break
 			}
 		}
 
-		return &windowsDesktopCollection{desktops: desktops}, nil
+		return &collection, nil
 	case types.KindDynamicWindowsDesktop:
 		dynamicDesktopClient := client.DynamicDesktopClient()
 		if rc.ref.Name != "" {
