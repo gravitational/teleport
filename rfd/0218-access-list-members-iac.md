@@ -146,6 +146,17 @@ teleport_access_list.crane_operation: Modifying... [id=crane-operation]
 ╵
 ```
 
+Trying to import non-static access_list member:
+
+```
+teleport_access_list_member.alice: Importing from ID "dynamic/alice"...
+╷
+│ Error: Error reading Member
+│
+│ member's access_list is not static type
+╵
+```
+
 #### Other tools
 
 - `tctl` - can modify members of the *static* *access_list* resources with the existing `acl users`
