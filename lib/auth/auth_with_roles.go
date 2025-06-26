@@ -6501,7 +6501,7 @@ func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.Lis
 	}
 
 	var resp types.ListWindowsDesktopsResponse
-	desktopStream := stream.FilterMap(a.authServer.streamWindowsDesktops(ctx, req.StartKey), func(d types.WindowsDesktop) (types.WindowsDesktop, bool) {
+	desktopStream := stream.FilterMap(a.authServer.streamWindowsDesktops(ctx, req), func(d types.WindowsDesktop) (types.WindowsDesktop, bool) {
 		if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
 			return d, true
 		}
