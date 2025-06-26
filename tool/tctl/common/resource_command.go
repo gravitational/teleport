@@ -2773,32 +2773,46 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &crownJewelCollection{items: rules}, nil
 	case types.KindWindowsDesktopService:
-		services, err := client.GetWindowsDesktopServices(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &windowsDesktopServiceCollection{services: services}, nil
-		}
-
-		var out []types.WindowsDesktopService
-		for _, service := range services {
-			if service.GetName() == rc.ref.Name {
-				out = append(out, service)
+		if rc.ref.Name != "" {
+			service, err := client.GetWindowsDesktopService(ctx, rc.ref.Name)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
+				}
+				return nil, trace.Wrap(err)
 			}
+
+			return &windowsDesktopServiceCollection{services: []types.WindowsDesktopService{service}}, nil
 		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
+
+		services, err := apiclient.GetAllResources[types.WindowsDesktopService](ctx, client, &proto.ListResourcesRequest{ResourceType: types.KindWindowsDesktopService})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return &windowsDesktopServiceCollection{services: out}, nil
+		return &windowsDesktopServiceCollection{services: services}, nil
 	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: rc.ref.Name})
+		if rc.ref.Name == "" {
+			desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: rc.ref.Name})
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			return &windowsDesktopCollection{desktops: desktops}, nil
+		}
+
+		resp, err := apiclient.GetAllUnifiedResources(ctx, client, &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindWindowsDesktop}})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if rc.ref.Name != "" && len(desktops) == 0 {
-			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
+		desktops := make([]types.WindowsDesktop, 0, len(resp))
+		for _, r := range resp {
+			if d, ok := r.ResourceWithLabels.(types.WindowsDesktop); ok {
+				desktops = append(desktops, d)
+			}
 		}
 
 		return &windowsDesktopCollection{desktops: desktops}, nil

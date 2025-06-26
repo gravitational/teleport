@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -31,9 +33,9 @@ type windowsDesktopServiceIndex string
 
 const windowsDesktopServiceNameIndex windowsDesktopServiceIndex = "name"
 
-func newWindowsDesktopServiceCollection(upstream services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
+func newWindowsDesktopServiceCollection(upstream services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter WindowsDesktops")
+		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
 	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
@@ -43,28 +45,21 @@ func newWindowsDesktopServiceCollection(upstream services.WindowsDesktops, w typ
 				windowsDesktopServiceNameIndex: types.WindowsDesktopService.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktopService, error) {
-			var start string
-			var out []types.WindowsDesktopService
-			for {
-				req := types.ListWindowsDesktopServicesRequest{
-					// A non zero limit is required by older versions.
-					Limit:    defaults.DefaultChunkSize,
-					StartKey: start,
-				}
-
-				resp, err := upstream.ListWindowsDesktopServices(ctx, req)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				out = append(out, resp.DesktopServices...)
-				start = resp.NextKey
-				if resp.NextKey == "" {
-					break
-				}
+			resources, err := client.GetResourcesWithFilters(ctx, upstream, proto.ListResourcesRequest{ResourceType: types.KindWindowsDesktopService})
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 
-			return out, nil
+			dbsvcs := make([]types.WindowsDesktopService, 0, len(resources))
+			for _, resource := range resources {
+				dbsvc, ok := resource.(types.WindowsDesktopService)
+				if !ok {
+					return nil, trace.BadParameter("unexpected resource %T", resource)
+				}
+				dbsvcs = append(dbsvcs, dbsvc)
+			}
+
+			return dbsvcs, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktopService {
 			return &types.WindowsDesktopServiceV3{
@@ -212,6 +207,12 @@ func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.Watc
 
 				resp, err := upstream.ListWindowsDesktops(ctx, req)
 				if err != nil {
+
+					// TODO(tross): DELETE in V21.0.0
+					if trace.IsNotImplemented(err) {
+						return upstream.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+					}
+
 					return nil, trace.Wrap(err)
 				}
 
