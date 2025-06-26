@@ -225,10 +225,9 @@ $ grep tsh /var/log/com.apple.xpc.launchd/launchd.log
 <TabItem label="Windows">
 To enable debug logs in VNet, first stop Teleport Connect. Then in the Start menu look for Command
 Prompt and from the right click menu select Run as administrator. The following command enables
-debug logs in VNet.
+debug logs in VNet and immediately closes the admin command prompt to prevent you from starting
+Teleport Connect as an admin by mistake.
 
-{/* `&& exit` at the end of the command is there on purpose so that the user doesn't start Connect
-from the admin command prompt. */}
 ```code
 $ reg.exe ADD HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /t REG_MULTI_SZ /d TELEPORT_DEBUG=1 /f && exit
 ```
