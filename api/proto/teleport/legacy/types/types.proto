@@ -1135,6 +1135,17 @@ message MCP {
   // RunAsHostUser is the host user account under which the command will be
   // executed. Required for stdio-based MCP servers.
   string run_as_host_user = 3;
+  // StatefulSession indicates that the MCP session maintains state across
+  // requests. Teleport uses this flag to apply specialized handling logic.
+  //
+  // On client side, "auto-reconnect" is enabled by default for `tsh mcp
+  // connect` if the MCP sessions are stateless. "auto-reconnect" automatically
+  // starts a new remote MCP session when the previous remote session is
+  // interrupted (by network issues, tsh session expiration, etc.), without
+  // breaking the MCP session with your AI tool. If StatefulSession is true,
+  // "auto-reconnect" will be disabled by default. "auto-connect" can be
+  // overwritten on the client side.
+  bool stateful_session = 4;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
