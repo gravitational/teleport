@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/url"
@@ -818,17 +819,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	var proxyArg string
 	muApp := utils.InitCLIParser("tsh", "")
 	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
-	muApp.Flag("check-update", "Check managed update").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
-	muApp.Parse(utils.FilterArguments(args, "proxy"))
-	// Check local update for specific proxy from configuration.
-	var err error
-	var name string
-	if proxyArg != "" {
-		name, err = utils.Host(proxyArg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	muApp.Flag("check-update", "Check managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+
+	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
+		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
+	// Check local update for specific proxy from configuration.
+	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
 	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
 	}
@@ -913,7 +910,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		StringVar(&cf.MlockMode)
 	app.HelpFlag.Short('h')
 	app.Flag("piv-slot", "Specify a PIV slot key to use for Hardware Key support instead of the default. Ex: \"9d\".").Envar("TELEPORT_PIV_SLOT").StringVar(&cf.PIVSlot)
-	app.Flag("check-update", "Check managed update").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
+	app.Flag("check-update", "Check managed update.").Envar(toolsCheckUpdateEnvVar).Hidden().BoolVar(&cf.checkManagedUpdates)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -1405,6 +1402,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
+	var err error
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -2124,7 +2122,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
-			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+			utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
@@ -2143,7 +2141,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
+		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
 
 			// The user has typed `tsh login`, if the running binary needs to
@@ -2176,7 +2174,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
+		case (cf.Proxy == "" || utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host)) && cf.SiteName != "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -2206,7 +2204,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
-		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
+		case (cf.Proxy == "" || utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -5473,17 +5471,6 @@ func getTshEnv() map[string]string {
 		}
 	}
 	return env
-}
-
-// host is a utility function that extracts
-// host from the host:port pair, in case of any error
-// returns the original value
-func host(in string) string {
-	out, err := utils.Host(in)
-	if err != nil {
-		return in
-	}
-	return out
 }
 
 func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req types.AccessRequest) (types.AccessRequest, error) {

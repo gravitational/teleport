@@ -565,14 +565,23 @@ func FormatAlert(alert types.ClusterAlert) string {
 }
 
 // FilterArguments finds specific argument and filter out others.
-func FilterArguments(args []string, arg string) []string {
-	for i := 0; i < len(args); i++ {
-		if strings.HasPrefix(args[i], fmt.Sprint("--", arg, "=")) {
-			return args[i : i+1]
-		}
-		if i+2 <= len(args) && strings.HasPrefix(args[i], fmt.Sprint("--", arg)) {
-			return args[i : i+2]
+func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
+	var result []string
+	for _, flag := range model.Flags {
+		for i := range len(args) {
+			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
+				result = append(result, args[i:i+1]...)
+				break
+			}
+			if args[i] == fmt.Sprint("--", flag.Name) {
+				if flag.IsBoolFlag() && i+1 <= len(args) {
+					result = append(result, args[i:i+1]...)
+				} else if i+2 <= len(args) {
+					result = append(result, args[i:i+2]...)
+				}
+				break
+			}
 		}
 	}
-	return nil
+	return result
 }

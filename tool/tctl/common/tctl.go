@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -100,7 +101,9 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
 	// should be performed only after managed updates are applied.
-	app.Parse(utils.FilterArguments(args, "auth-server"))
+	if _, err := app.Parse(utils.FilterArguments(args, app.Model())); err != nil {
+		slog.WarnContext(ctx, "can't identify current profile", "error", err)
+	}
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
@@ -113,11 +116,7 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 
 	var name string
 	if len(ccf.AuthServerAddr) != 0 {
-		var err error
-		name, err = utils.Host(ccf.AuthServerAddr[0])
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		name = utils.TryHost(strings.TrimPrefix(strings.ToLower(ccf.AuthServerAddr[0]), "https://"))
 	}
 	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
