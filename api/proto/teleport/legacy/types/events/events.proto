@@ -4960,6 +4960,9 @@ message Identity {
   // BotInstanceID indicates the name of the Machine ID bot instance this
   // identity was issued to, if any.
   string BotInstanceID = 29 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+  // JoinToken is the name of the join token used when a Machine ID bot joined,
+  // if any. It is not set for bots using the `token` join method.
+  string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.

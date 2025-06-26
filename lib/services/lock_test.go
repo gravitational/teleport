@@ -39,6 +39,8 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 			DeviceExtensions: tlsca.DeviceExtensions{
 				DeviceID: "trusted-device-id",
 			},
+			JoinToken:     "example",
+			BotInstanceID: "a-b-c-d",
 		}
 
 		// Test.
@@ -48,6 +50,8 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 			{User: identity.Username},
 			{MFADevice: identity.MFAVerified},
 			{Device: identity.DeviceExtensions.DeviceID},
+			{JoinToken: "example"},
+			{BotInstanceID: "a-b-c-d"},
 		}
 		// Insert roles at the start to match `got`s order.
 		// The test itself doesn't care about the order, it's just easier to test

@@ -607,6 +607,14 @@ func (a *Server) generateInitialBotCerts(
 		}
 	}
 
+	// Set the join token cert field for non-renewable identities. This is used
+	// for lock targeting; token name lock targets are particularly useful for
+	// token-joined bots and it's a secret value, so we don't bother setting it.
+	// (The renewable flag implies token joining.)
+	if !renewable {
+		certReq.joinToken = initialAuth.JoinToken
+	}
+
 	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

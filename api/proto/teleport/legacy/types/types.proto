@@ -6007,6 +6007,15 @@ message LockTarget {
 
   // ServerID is the host id of the Teleport instance.
   string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
+
+  // BotInstanceID is the bot instance ID if this is a bot identity and is
+  // ignored otherwise.
+  string BotInstanceID = 10 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // JoinToken is the name of the join token used when this identity originally
+  // joined. This is only valid for bot identities, and cannot be used to target
+  // `token`-joined bots.
+  string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
