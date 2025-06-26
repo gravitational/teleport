@@ -1065,6 +1065,10 @@ func TestDatabaseSpanner(t *testing.T) {
 	}
 }
 
+func TestDatabaseAlloyDB(t *testing.T) {
+	t.Error("TestDatabaseAlloyDB not implemented")
+}
+
 func TestDatabaseGCPCloudSQL(t *testing.T) {
 	t.Parallel()
 

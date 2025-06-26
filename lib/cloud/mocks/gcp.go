@@ -65,6 +65,13 @@ func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(_ context.Context, _ types
 	return g.EphemeralCert, nil
 }
 
+// TODO
+type GCPAlloyDBAdminClientMock struct{}
+
+func (g *GCPAlloyDBAdminClientMock) GenerateClientCertificate(ctx context.Context, db types.Database, certExpiry time.Time, pubKey crypto.PublicKey) ([]string, string, error) {
+	return nil, "", trace.NotImplemented("GCPAlloyDBAdminClientMock: GenerateClientCertificate not implemented")
+}
+
 // GKEClusterEntry is an entry in the GKEMock.Clusters list.
 type GKEClusterEntry struct {
 	gcp.ClusterDetails

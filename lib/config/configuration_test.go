@@ -2937,6 +2937,9 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			},
 		},
 		{
+			desc: "AlloyDB database (TODO)",
+		},
+		{
 			desc: "SQL Server",
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
