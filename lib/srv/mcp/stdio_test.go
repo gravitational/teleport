@@ -87,7 +87,7 @@ func Test_handleStdio(t *testing.T) {
 	defer close(handlerDoneCh)
 	go func() {
 		// Use mock server.
-		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeMockMCPServerRunner)
+		handlerErr := s.handleStdio(ctx, testCtx.SessionCtx, makeMockMCPServerRunner)
 		handlerDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
 	}()
@@ -310,7 +310,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			handlerDoneCh := make(chan struct{}, 1)
 			defer close(handlerDoneCh)
 			go func() {
-				handlerErr := s.HandleSession(handlerCtx, *testCtx.SessionCtx)
+				handlerErr := s.HandleSession(handlerCtx, testCtx.SessionCtx)
 				handlerDoneCh <- struct{}{}
 				tt.checkHandlerError(t, handlerErr)
 			}()

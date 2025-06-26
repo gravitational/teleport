@@ -60,7 +60,7 @@ func isInMemoryServerApp(app types.Application) bool {
 	return ok && value == "true"
 }
 
-func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx SessionCtx) error {
+func (s *Server) handleInMemoryServerSession(ctx context.Context, sessionCtx *SessionCtx) error {
 	s.cfg.Log.DebugContext(ctx, "Started in-memory server session")
 	defer s.cfg.Log.DebugContext(ctx, "Completed in-memory server session")
 

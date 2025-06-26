@@ -153,3 +153,13 @@ func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	}
 	return &listResult, nil
 }
+
+// GetInitializeResult assumes the result is for mcp.MethodInitialize and
+// returns the corresponding go object.
+func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
+	var result mcp.InitializeResult
+	if err := json.Unmarshal(r.Result, &result); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &result, nil
+}

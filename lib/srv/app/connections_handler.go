@@ -638,7 +638,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 			AuthCtx:    authCtx,
 			App:        app,
 		}
-		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, sessionCtx))
+		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
 		cleanup := func() {
