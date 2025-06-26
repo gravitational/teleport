@@ -28,7 +28,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: ryan/webassets-stats-bot
+          ref: main
 
       - name: Installing Go
         uses: actions/setup-go@v5
