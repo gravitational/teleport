@@ -107,6 +107,7 @@ func filterHandler(handle inventory.UpstreamHandle, now time.Time) (bool, string
 	return true, ""
 }
 
+// pass this function to inventory.AllHandles()
 func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	ok, reason := filterHandler(handle, ir.timestamp)
 	if !ok {
