@@ -886,7 +886,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos test-go-unit-clidocs
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -921,7 +921,7 @@ test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
-	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $$(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $$(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -930,14 +930,6 @@ test-go-unit:
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
-
-# Runs CLI reference doc generator unit tests
-.PHONY: test-go-unit-clidocs
-test-go-unit-clidocs: FLAGS ?= -shuffle on -tags docs -run 'TestUpdateAppUsageTemplate'
-test-go-unit-clidocs:
-	go test -json $(FLAGS) ./lib/utils/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
