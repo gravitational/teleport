@@ -1631,11 +1631,11 @@ message ListWindowsDesktopsRequest {
   // Labels is a label-based matcher if non-empty.
   map<string, string> labels = 3;
   // PredicateExpression defines boolean conditions that will be matched against the resource.
-  string predicate_expression = 5;
+  string predicate_expression = 4;
   // SearchKeywords is a list of search keywords to match against resource field values.
-  repeated string search_keywords = 6;
+  repeated string search_keywords = 5;
   // WindowsDesktopFilter specifies windows desktop specific filters.
-  types.WindowsDesktopFilter windows_desktop_filter = 7 [
+  types.WindowsDesktopFilter windows_desktop_filter = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
   ];
@@ -1643,7 +1643,7 @@ message ListWindowsDesktopsRequest {
 
 // ListWindowsDesktopsResponse contains a page of registered Windows desktop hosts.
 message ListWindowsDesktopsResponse {
-  // Servers is a list of Windows desktop hosts.
+  // Desktops is a list of Windows desktop hosts.
   repeated types.WindowsDesktopV3 desktops = 1;
   // NextKey is the key for the next page of SAML IdP service providers.
   string next_key = 2;
