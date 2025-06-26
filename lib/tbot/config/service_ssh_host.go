@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 )
 
 const SSHHostOutputType = "ssh_host"
@@ -99,7 +100,7 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 
 func (o *SSHHostOutput) MarshalYAML() (any, error) {
 	type raw SSHHostOutput
-	return withTypeHeader((*raw)(o), SSHHostOutputType)
+	return internal.WithTypeHeader((*raw)(o), SSHHostOutputType)
 }
 
 func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {

@@ -22,6 +22,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -122,7 +123,7 @@ func (dm *DestinationMemory) TryLock() (func() error, error) {
 
 func (dm *DestinationMemory) MarshalYAML() (any, error) {
 	type raw DestinationMemory
-	return withTypeHeader((*raw)(dm), DestinationMemoryType)
+	return internal.WithTypeHeader((*raw)(dm), DestinationMemoryType)
 }
 
 func (dm *DestinationMemory) IsPersistent() bool {

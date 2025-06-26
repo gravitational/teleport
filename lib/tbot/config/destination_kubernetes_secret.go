@@ -24,6 +24,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -285,7 +286,7 @@ func (dks *DestinationKubernetesSecret) String() string {
 
 func (dks *DestinationKubernetesSecret) MarshalYAML() (any, error) {
 	type raw DestinationKubernetesSecret
-	return withTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
+	return internal.WithTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
 }
 
 func (dks *DestinationKubernetesSecret) IsPersistent() bool {

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 )
 
 var (
@@ -106,7 +107,7 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 
 func (o *ApplicationOutput) MarshalYAML() (any, error) {
 	type raw ApplicationOutput
-	return withTypeHeader((*raw)(o), ApplicationOutputType)
+	return internal.WithTypeHeader((*raw)(o), ApplicationOutputType)
 }
 
 func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
