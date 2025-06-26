@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -6514,10 +6515,7 @@ func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.Lis
 		return nil, false
 	})
 
-	limit := req.Limit
-	if limit == 0 {
-		limit = apidefaults.DefaultChunkSize
-	}
+	limit := cmp.Or(req.Limit, apidefaults.DefaultChunkSize)
 	for desktopStream.Next() {
 		desktop := desktopStream.Item()
 		if len(resp.Desktops) == limit {
