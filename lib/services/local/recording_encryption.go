@@ -67,6 +67,7 @@ func (s *RecordingEncryptionService) CreateRecordingEncryption(ctx context.Conte
 		encryption.Metadata = &headerv1.Metadata{}
 	}
 	encryption.Metadata.Name = types.MetaNameRecordingEncryption
+	encryption.Kind = types.KindRecordingEncryption
 	created, err := s.encryption.CreateResource(ctx, encryption)
 	return created, trace.Wrap(err)
 }
@@ -77,6 +78,7 @@ func (s *RecordingEncryptionService) UpdateRecordingEncryption(ctx context.Conte
 		encryption.Metadata = &headerv1.Metadata{}
 	}
 	encryption.Metadata.Name = types.MetaNameRecordingEncryption
+	encryption.Kind = types.KindRecordingEncryption
 	updated, err := s.encryption.ConditionalUpdateResource(ctx, encryption)
 	return updated, trace.Wrap(err)
 }
