@@ -297,6 +297,11 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"type": {
+					Description: "type can be currently \"dynamic\" (the default if empty string) which denotes a regular Access List, \"scim\" which represents an Access List created from SCIM group or \"static\" for Access Lists managed by IaC tools.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 			}),
 			Description: "spec is the specification for the Access List.",
 			Optional:    true,
@@ -1195,6 +1200,23 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 										}
 									}
 								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["type"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AccessList.spec.type"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AccessList.spec.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Type = t
 							}
 						}
 					}
@@ -2712,6 +2734,28 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								v.Unknown = false
 								tf.Attrs["owner_grants"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["type"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AccessList.spec.type"})
+						} else {
+							v, ok := tf.Attrs["type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"AccessList.spec.type", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Type) == ""
+							}
+							v.Value = string(obj.Type)
+							v.Unknown = false
+							tf.Attrs["type"] = v
 						}
 					}
 				}

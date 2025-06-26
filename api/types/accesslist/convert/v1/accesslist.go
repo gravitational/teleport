@@ -37,6 +37,11 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.BadParameter("access list message is nil")
 	}
 
+	accessListType, err := accesslist.NewTypeFromString(msg.GetSpec().GetType())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if msg.Spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
@@ -91,6 +96,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
+		Type:        accessListType,
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
 		Owners:      owners,
@@ -160,6 +166,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	proto := &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
+			Type:        string(accessList.Spec.Type),
 			Title:       accessList.Spec.Title,
 			Description: accessList.Spec.Description,
 			Owners:      owners,
