@@ -44,7 +44,7 @@ export type AccessList = {
   id: string;
   title: string; // friendly name of id
   description?: string;
-  type?: AccessListType;
+  origin?: AccessListOrigin;
   audit: AccessListAudit;
   grants: AccessListGrant; // memberGrant
   ownerGrants: AccessListGrant;
@@ -186,7 +186,7 @@ export type ReviewAccessListRequest = {
  * AccessListType specifies the name of an integration
  * for which or from which the Access List was created.
  */
-export enum AccessListType {
+export enum AccessListOrigin {
   Unspecified = '',
   Okta = 'okta',
   AwsIdentityCenter = 'aws-identity-center',

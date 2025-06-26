@@ -6,7 +6,7 @@ import { Option } from 'shared/components/Select';
 
 import {
   AccessListMemberKind,
-  AccessListType,
+  AccessListOrigin,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -86,7 +86,7 @@ export const WithSparseAccessListOwner = () => {
 const mockAccessListFull: AccessListModified = {
   id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
   title: 'Interns',
-  type: AccessListType.Okta,
+  origin: AccessListOrigin.Okta,
   audit: {
     recurrence: {
       frequency: ReviewFrequency.OneYear,

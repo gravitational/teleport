@@ -13,7 +13,7 @@ import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
 import {
-  AccessListType,
+  AccessListOrigin,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
@@ -77,7 +77,7 @@ export function Specs({
     inheritedMemberRoles.length > MAX_DISPLAYED_INHERITED_ROLES_TRAITS ||
     inheritedMemberTraits.length > MAX_DISPLAYED_INHERITED_ROLES_TRAITS;
 
-  const isOktaList = accessList.type === AccessListType.Okta;
+  const isOktaList = accessList.origin === AccessListOrigin.Okta;
 
   return (
     <>

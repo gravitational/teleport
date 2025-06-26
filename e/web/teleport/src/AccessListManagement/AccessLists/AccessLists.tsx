@@ -61,7 +61,7 @@ import {
   AccessList,
   AccessListGrant,
   AccessListMemberKind,
-  AccessListType,
+  AccessListOrigin,
 } from 'e-teleport/services/accessmanagement';
 import useTeleport from 'e-teleport/useTeleportE';
 import {
@@ -225,8 +225,8 @@ function MainContent({
     () =>
       accessLists.some(
         a =>
-          a.type === AccessListType.Okta ||
-          a.type === AccessListType.AwsIdentityCenter
+          a.origin === AccessListOrigin.Okta ||
+          a.origin === AccessListOrigin.AwsIdentityCenter
       ),
     [accessLists]
   );
@@ -456,11 +456,11 @@ const AccessListTable = ({
 
     if (showListTypes) {
       cols.push({
-        headerText: 'Type',
-        key: 'type',
+        headerText: 'Origin',
+        key: 'origin',
         render: acl => (
           <Cell>
-            <Text>{friendlyListType(acl.type)}</Text>
+            <Text>{friendlyListOrigin(acl.origin)}</Text>
           </Cell>
         ),
       });
@@ -511,11 +511,11 @@ const AccessListTable = ({
         key: 'auditNextDate',
         onSort: (a, b) => {
           const aDate =
-            a.type === AccessListType.Okta && isOktaReadOnly
+            a.origin === AccessListOrigin.Okta && isOktaReadOnly
               ? null
               : a.audit?.nextDate;
           const bDate =
-            b.type === AccessListType.Okta && isOktaReadOnly
+            b.origin === AccessListOrigin.Okta && isOktaReadOnly
               ? null
               : b.audit?.nextDate;
 
@@ -569,11 +569,11 @@ const AccessListTable = ({
   );
 };
 
-const friendlyListType = (listType: string) => {
+const friendlyListOrigin = (listType: string) => {
   switch (listType) {
-    case AccessListType.Okta:
+    case AccessListOrigin.Okta:
       return 'Okta';
-    case AccessListType.AwsIdentityCenter:
+    case AccessListOrigin.AwsIdentityCenter:
       return 'AWS IAM Identity Center';
     default:
       return 'Teleport';
@@ -590,7 +590,7 @@ const TableAuditNextDateCell = ({
   isOktaReadOnly?: boolean;
 }) => {
   if (
-    (accessList.type === AccessListType.Okta && isOktaReadOnly) ||
+    (accessList.origin === AccessListOrigin.Okta && isOktaReadOnly) ||
     !accessList.audit?.nextDate
   ) {
     return <Cell></Cell>;

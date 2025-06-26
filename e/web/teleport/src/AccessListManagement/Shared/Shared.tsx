@@ -23,7 +23,7 @@ import {
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import {
   AccessListMemberKind,
-  AccessListType,
+  AccessListOrigin,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 import ResourceService, { type Role } from 'teleport/services/resources';
@@ -194,9 +194,10 @@ export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
           acl.grants.roles.some(role => role.toLowerCase().includes(term))
         ) ||
         // Type-specific matches
-        (trimmedSearch.includes('okta') && acl.type === AccessListType.Okta) ||
+        (trimmedSearch.includes('okta') &&
+          acl.origin === AccessListOrigin.Okta) ||
         (trimmedSearch.includes('aws') &&
-          acl.type === AccessListType.AwsIdentityCenter);
+          acl.origin === AccessListOrigin.AwsIdentityCenter);
 
       if (!matchesSearch) return false;
     }
@@ -205,11 +206,11 @@ export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
     if (hasSourceFilter) {
       const matchesSource =
         (filterValue.source.includes('okta') &&
-          acl.type === AccessListType.Okta) ||
+          acl.origin === AccessListOrigin.Okta) ||
         (filterValue.source.includes('aws-identity-center') &&
-          acl.type === AccessListType.AwsIdentityCenter) ||
+          acl.origin === AccessListOrigin.AwsIdentityCenter) ||
         (filterValue.source.includes('teleport') &&
-          acl.type === AccessListType.Unspecified);
+          acl.origin === AccessListOrigin.Unspecified);
 
       if (!matchesSource) return false;
     }

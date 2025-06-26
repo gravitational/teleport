@@ -7,7 +7,7 @@ import { User, UserList } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
-import { AccessListType } from 'e-teleport/services/accessmanagement';
+import { AccessListOrigin } from 'e-teleport/services/accessmanagement';
 
 import { TruncatingLabel } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
@@ -38,7 +38,7 @@ export function AccessCard({
     memberListCount,
     grants,
     needsReviewBy,
-    type,
+    origin: type,
   } = accessList;
   let truncatedDesc = description;
   // Roughly two lines worth of text.
@@ -60,7 +60,7 @@ export function AccessCard({
   const requiresReview =
     needsReviewBy &&
     !isMember &&
-    !(isOktaReadOnly && type === AccessListType.Okta);
+    !(isOktaReadOnly && type === AccessListOrigin.Okta);
   const isOverdue = requiresReview && needsReviewBy < new Date();
 
   return (
@@ -82,7 +82,7 @@ export function AccessCard({
           <SingleLineBox bold title={title} $requiresReview={requiresReview}>
             {title}
           </SingleLineBox>
-          {type !== AccessListType.Unspecified && <TypeBadge type={type} />}
+          {type !== AccessListOrigin.Unspecified && <TypeBadge type={type} />}
         </Flex>
         <Text typography="body4" color="text.muted" title={description}>
           {truncatedDesc}

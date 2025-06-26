@@ -10,7 +10,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
   AccessList,
-  AccessListType,
+  AccessListOrigin,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 
@@ -83,7 +83,7 @@ export function DeleteUserConfirmDialog({
           </Text>{' '}
           ?
         </P1>
-        {accessList.type === AccessListType.Okta && kind === 'Member' && (
+        {accessList.origin === AccessListOrigin.Okta && kind === 'Member' && (
           <Box mt={4}>
             <DeleteMemberWarning />
           </Box>

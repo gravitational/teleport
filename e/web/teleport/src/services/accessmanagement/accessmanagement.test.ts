@@ -10,7 +10,7 @@ import {
 import {
   AccessList,
   AccessListMemberKind,
-  AccessListType,
+  AccessListOrigin,
   IneligibleStatus,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -28,7 +28,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
   expect(response).toStrictEqual([
     {
       id: '',
-      type: '',
+      origin: '',
       title: '',
       description: '',
       owners: [],
@@ -88,7 +88,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
-    type: '',
+    origin: '',
     title: '',
   };
 
@@ -171,7 +171,7 @@ test('fetch an access list', async () => {
     await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual({
     id: 'some-id',
-    type: AccessListType.Okta,
+    origin: AccessListOrigin.Okta,
     title: 'some title',
     description: 'some description',
     audit: {

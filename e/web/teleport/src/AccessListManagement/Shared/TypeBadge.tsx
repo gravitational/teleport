@@ -1,22 +1,22 @@
 import { Flex, ResourceIcon, Text } from 'design';
 
-import { AccessListType } from 'e-teleport/services/accessmanagement';
+import { AccessListOrigin } from 'e-teleport/services/accessmanagement';
 
 /**
  * TypeBadge renders an icon and title of an integration for which
  * or from which the Access List was created.
  */
-export const TypeBadge = ({ type }: { type: AccessListType }) => {
-  if (type === AccessListType.Unspecified || !type) return null;
+export const TypeBadge = ({ type }: { type: AccessListOrigin }) => {
+  if (type === AccessListOrigin.Unspecified || !type) return null;
 
   function RenderBadge() {
     let iconName, title;
     switch (type) {
-      case AccessListType.AwsIdentityCenter:
+      case AccessListOrigin.AwsIdentityCenter:
         iconName = 'aws';
         title = 'AWS';
         break;
-      case AccessListType.Okta:
+      case AccessListOrigin.Okta:
         iconName = 'okta';
         title = 'Okta';
         break;

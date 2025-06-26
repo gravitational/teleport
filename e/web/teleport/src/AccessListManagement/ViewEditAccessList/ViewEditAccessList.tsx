@@ -20,7 +20,7 @@ import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
-  AccessListType,
+  AccessListOrigin,
   accessManagementService,
   type AccessList,
   type AccessListMember,
@@ -80,7 +80,7 @@ export function ViewEditAccessList() {
   const [perms, setPerms] = useState<Perms>(getPerms({}));
   const [showEditTitle, setShowEditTitle] = useState(false);
 
-  const isOktaList = accessList?.type === AccessListType.Okta;
+  const isOktaList = accessList?.origin === AccessListOrigin.Okta;
 
   // An Okta-synced Access List is read-only if bidirectional sync is 'false' or omitted.
   // In this case, updates to the members/owners must be made in Okta, and
@@ -292,7 +292,7 @@ export function ViewEditAccessList() {
       />
       {deleteConfirm && (
         <DeleteAccessListConfirmDialog
-          isOkta={accessList.type === AccessListType.Okta}
+          isOkta={accessList.origin === AccessListOrigin.Okta}
           accessListId={accessList.id}
           accessListName={accessList.title}
           onClose={() => setDeleteConfirm(false)}
@@ -330,8 +330,8 @@ const FeatureTitle = ({
         <Box>
           <Flex alignItems="center" mr={3} gap={1}>
             <H1>{accessList.title}</H1>
-            {accessList.type !== AccessListType.Unspecified && (
-              <TypeBadge type={accessList.type} />
+            {accessList.origin !== AccessListOrigin.Unspecified && (
+              <TypeBadge type={accessList.origin} />
             )}
             <HoverTooltip
               tipContent={

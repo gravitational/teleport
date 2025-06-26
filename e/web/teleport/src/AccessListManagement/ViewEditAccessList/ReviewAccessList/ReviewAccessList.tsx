@@ -25,8 +25,8 @@ import {
   AccessList,
   AccessListMember,
   AccessListMemberKind,
+  AccessListOrigin,
   AccessListRequires,
-  AccessListType,
   accessManagementService,
   ReviewAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
@@ -208,7 +208,7 @@ export function ReviewAccessList({
                 editedMembers={editedMembers}
                 onDeleteMember={handleRemoveMember}
                 originalMembers={accessList.members}
-                isOkta={accessList.type === AccessListType.Okta}
+                isOkta={accessList.origin === AccessListOrigin.Okta}
                 isReadOnlyOktaList={isReadOnlyOktaList}
               />
             </Box>

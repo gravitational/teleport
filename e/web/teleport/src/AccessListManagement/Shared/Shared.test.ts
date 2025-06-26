@@ -1,7 +1,7 @@
 import { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import {
   AccessListMemberKind,
-  AccessListType,
+  AccessListOrigin,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -308,7 +308,7 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
       },
-      type: AccessListType.Unspecified,
+      origin: AccessListOrigin.Unspecified,
       members: Array(15).fill({}),
     },
     {
@@ -327,7 +327,7 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180),
       },
-      type: AccessListType.Okta,
+      origin: AccessListOrigin.Okta,
       members: Array(65).fill({}),
     },
     {
@@ -346,7 +346,7 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
       },
-      type: AccessListType.Okta,
+      origin: AccessListOrigin.Okta,
       members: Array(25).fill({}),
     },
     {
@@ -365,7 +365,7 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
       },
-      type: AccessListType.AwsIdentityCenter,
+      origin: AccessListOrigin.AwsIdentityCenter,
       members: Array(1).fill({}),
     },
   ].map(list => {

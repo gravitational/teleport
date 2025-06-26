@@ -9,8 +9,8 @@ import {
   AccessList,
   AccessListCurrentUserAssignments,
   AccessListMember,
+  AccessListOrigin,
   AccessListOwner,
-  AccessListType,
   AddMembersToAccessListRequest,
   IneligibleStatus,
   ReviewAccessListRequest,
@@ -171,18 +171,18 @@ export function makeAccessLists(json: any): AccessList[] {
   return accesslists.map(makeAccessList);
 }
 
-function typeFromMetadataLabel(labels: object): AccessListType {
+function originFromMetadataLabel(labels: object): AccessListOrigin {
   if (Object.keys(labels).includes('okta/org')) {
-    return AccessListType.Okta;
+    return AccessListOrigin.Okta;
   }
 
   for (const [k, v] of Object.entries(labels)) {
     if (k === 'teleport.dev/origin' && v === 'aws-identity-center') {
-      return AccessListType.AwsIdentityCenter;
+      return AccessListOrigin.AwsIdentityCenter;
     }
   }
 
-  return AccessListType.Unspecified;
+  return AccessListOrigin.Unspecified;
 }
 
 function makeAccessList(json: any): AccessList {
@@ -191,7 +191,7 @@ function makeAccessList(json: any): AccessList {
 
   return {
     id: metadata?.name || '',
-    type: typeFromMetadataLabel(metadata?.labels || {}),
+    origin: originFromMetadataLabel(metadata?.labels || {}),
     title: spec.title || '',
     description: spec.description || '',
     owners: makeOwners(spec.owners),
