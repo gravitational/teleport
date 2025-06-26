@@ -65,22 +65,20 @@ func TestEncryptedIO(t *testing.T) {
 
 	require.Equal(t, msg, plaintext)
 
-	// creating an EncryptedIO without a SessionRecordingConfigGetter should be an error
+	// creating an EncryptedIO without a SessionRecordingConfigGetter or keyfinder should be an error
 	_, err = recordingencryption.NewEncryptedIO(nil, nil)
+	require.Error(t, err)
+	_, err = recordingencryption.NewEncryptedIO(srcGetter, nil)
 	require.Error(t, err)
 
 	// wrapping encryption when encryption is disabled should return an ErrEncryptionDisabled
 	srcGetter, err = newFakeSRCGetter(false, nil)
 	require.NoError(t, err)
-	encryptedIO, err = recordingencryption.NewEncryptedIO(srcGetter, nil)
+	encryptedIO, err = recordingencryption.NewEncryptedIO(srcGetter, keyFinder)
 	require.NoError(t, err)
 
 	_, err = encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})
 	require.ErrorIs(t, err, recordingencryption.ErrEncryptionDisabled)
-
-	// wrapping decryption with a nil keyFinder should return an ErrDecryptionDisabled
-	_, err = encryptedIO.WithDecryption(ctx, out)
-	require.ErrorIs(t, err, recordingencryption.ErrDecryptionDisabled)
 }
 
 type fakeSRCGetter struct {
