@@ -141,6 +141,7 @@ message WorkloadIdentitySPIFFEX509 {
   //
   // Defaults to 24 hours. The maximum this value can be set to is 14 days.
   google.protobuf.Duration maximum_ttl = 3;
+  bool kerberos_compatible = 4;
 }
 
 // Configuration specific to the issuance of JWT-SVIDs.

@@ -634,9 +634,10 @@ type WorkloadIdentitySPIFFEX509 struct {
 	// returned X509-SVID will have a TTL of this value.
 	//
 	// Defaults to 24 hours. The maximum this value can be set to is 14 days.
-	MaximumTtl    *durationpb.Duration `protobuf:"bytes,3,opt,name=maximum_ttl,json=maximumTtl,proto3" json:"maximum_ttl,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MaximumTtl         *durationpb.Duration `protobuf:"bytes,3,opt,name=maximum_ttl,json=maximumTtl,proto3" json:"maximum_ttl,omitempty"`
+	KerberosCompatible bool                 `protobuf:"varint,4,opt,name=kerberos_compatible,json=kerberosCompatible,proto3" json:"kerberos_compatible,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *WorkloadIdentitySPIFFEX509) Reset() {
@@ -688,6 +689,13 @@ func (x *WorkloadIdentitySPIFFEX509) GetMaximumTtl() *durationpb.Duration {
 		return x.MaximumTtl
 	}
 	return nil
+}
+
+func (x *WorkloadIdentitySPIFFEX509) GetKerberosCompatible() bool {
+	if x != nil {
+		return x.KerberosCompatible
+	}
+	return false
 }
 
 // Configuration specific to the issuance of JWT-SVIDs.
@@ -926,12 +934,13 @@ const file_teleport_workloadidentity_v1_resource_proto_rawDesc = "" +
 	"\vcommon_name\x18\x01 \x01(\tR\n" +
 	"commonName\x12\"\n" +
 	"\forganization\x18\x02 \x01(\tR\forganization\x12/\n" +
-	"\x13organizational_unit\x18\x03 \x01(\tR\x12organizationalUnit\"\xdb\x01\n" +
+	"\x13organizational_unit\x18\x03 \x01(\tR\x12organizationalUnit\"\x8c\x02\n" +
 	"\x1aWorkloadIdentitySPIFFEX509\x12\x19\n" +
 	"\bdns_sans\x18\x01 \x03(\tR\adnsSans\x12f\n" +
 	"\x10subject_template\x18\x02 \x01(\v2;.teleport.workloadidentity.v1.X509DistinguishedNameTemplateR\x0fsubjectTemplate\x12:\n" +
 	"\vmaximum_ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\n" +
-	"maximumTtl\"\x93\x01\n" +
+	"maximumTtl\x12/\n" +
+	"\x13kerberos_compatible\x18\x04 \x01(\bR\x12kerberosCompatible\"\x93\x01\n" +
 	"\x19WorkloadIdentitySPIFFEJWT\x12:\n" +
 	"\fextra_claims\x18\x01 \x01(\v2\x17.google.protobuf.StructR\vextraClaims\x12:\n" +
 	"\vmaximum_ttl\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\n" +

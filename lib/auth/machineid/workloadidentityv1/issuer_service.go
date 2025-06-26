@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1")
@@ -639,16 +640,43 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 	}
 	serialString := serialString(certSerial)
 
+	template := x509Template(
+		certSerial,
+		notBefore,
+		notAfter,
+		spiffeID,
+		params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
+		params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate(),
+	)
+	if params.workloadIdentity.GetSpec().GetSpiffe().GetX509().KerberosCompatible {
+		// Add key usage extensions that allow for
+		template.ExtraExtensions = append(template.ExtraExtensions,
+			// Active Directory requires two "unusual" key usage extensions
+			winpki.EnhancedKeyUsageExtension,
+			// TODO: Other Kerberos implementations will usually just use
+			// 1.3.6.1.5.2.3.4 - consider if we want to support these. Can we
+			// add both? Or do we need "Windows" mode and "Standard" mode?
+		)
+		// Add fields identifying the principal?
+		// TODO: Some Kerberos implementations support a more explicit mapping
+		// based on the subject of the certificate - but that will require
+		// manual configuration per principal.
+
+		const username = "examplesa"
+		const domain = "ad.ottr.sh"
+		otherNameSAN, err := winpki.SubjectAltNameExtension(username, domain)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating otherName SAN for Active Directory")
+		}
+		// For Active Directory, we set the otherName SAN to the UPN.
+		template.ExtraExtensions = append(template.ExtraExtensions,
+			otherNameSAN,
+		)
+	}
+
 	certBytes, err := x509.CreateCertificate(
 		rand.Reader,
-		x509Template(
-			certSerial,
-			notBefore,
-			notAfter,
-			spiffeID,
-			params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
-			params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate(),
-		),
+		template,
 		params.ca.Cert,
 		pubKey,
 		params.ca.Signer,
