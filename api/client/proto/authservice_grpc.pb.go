@@ -239,6 +239,7 @@ const (
 	AuthService_DeleteWindowsDesktopService_FullMethodName         = "/proto.AuthService/DeleteWindowsDesktopService"
 	AuthService_DeleteAllWindowsDesktopServices_FullMethodName     = "/proto.AuthService/DeleteAllWindowsDesktopServices"
 	AuthService_GetWindowsDesktops_FullMethodName                  = "/proto.AuthService/GetWindowsDesktops"
+	AuthService_ListWindowsDesktops_FullMethodName                 = "/proto.AuthService/ListWindowsDesktops"
 	AuthService_CreateWindowsDesktop_FullMethodName                = "/proto.AuthService/CreateWindowsDesktop"
 	AuthService_UpdateWindowsDesktop_FullMethodName                = "/proto.AuthService/UpdateWindowsDesktop"
 	AuthService_UpsertWindowsDesktop_FullMethodName                = "/proto.AuthService/UpsertWindowsDesktop"
@@ -823,6 +824,8 @@ type AuthServiceClient interface {
 	DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
+	// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+	ListWindowsDesktops(ctx context.Context, in *ListWindowsDesktopsRequest, opts ...grpc.CallOption) (*ListWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
@@ -3174,6 +3177,16 @@ func (c *authServiceClient) GetWindowsDesktops(ctx context.Context, in *types.Wi
 	return out, nil
 }
 
+func (c *authServiceClient) ListWindowsDesktops(ctx context.Context, in *ListWindowsDesktopsRequest, opts ...grpc.CallOption) (*ListWindowsDesktopsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWindowsDesktopsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListWindowsDesktops_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -4251,6 +4264,8 @@ type AuthServiceServer interface {
 	DeleteAllWindowsDesktopServices(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error)
+	// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+	ListWindowsDesktops(context.Context, *ListWindowsDesktopsRequest) (*ListWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
@@ -5038,6 +5053,9 @@ func (UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(context.Co
 }
 func (UnimplementedAuthServiceServer) GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktops not implemented")
+}
+func (UnimplementedAuthServiceServer) ListWindowsDesktops(context.Context, *ListWindowsDesktopsRequest) (*ListWindowsDesktopsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWindowsDesktops not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateWindowsDesktop not implemented")
@@ -8728,6 +8746,24 @@ func _AuthService_GetWindowsDesktops_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListWindowsDesktops_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWindowsDesktopsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListWindowsDesktops(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListWindowsDesktops_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListWindowsDesktops(ctx, req.(*ListWindowsDesktopsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateWindowsDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.WindowsDesktopV3)
 	if err := dec(in); err != nil {
@@ -10443,6 +10479,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWindowsDesktops",
 			Handler:    _AuthService_GetWindowsDesktops_Handler,
+		},
+		{
+			MethodName: "ListWindowsDesktops",
+			Handler:    _AuthService_ListWindowsDesktops_Handler,
 		},
 		{
 			MethodName: "CreateWindowsDesktop",
