@@ -21,7 +21,7 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-{{- EnvVarsToColumns .Args .Flags|FormatThreeColMarkdownTable}}
+{{- EnvVarsToRows .Args .Flags|FormatThreeColMarkdownTable}}
 
 {{end -}}
 
@@ -30,7 +30,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-{{- .Flags|FlagsToColumns|FormatThreeColMarkdownTable }}
+{{- .Flags|FlagsToRows|FormatThreeColMarkdownTable }}
 
 {{end -}}
 {{ if .Args -}}
@@ -38,7 +38,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-{{- .Args|ArgsToColumns|FormatThreeColMarkdownTable }}
+{{- .Args|ArgsToRows|FormatThreeColMarkdownTable }}
 
 {{end -}}
 {{end -}}
@@ -67,7 +67,7 @@ Global flags:
 
 |Flag|Default|Description|
 |---|---|---|
-{{- .Context.Flags|FlagsToColumns|FormatThreeColMarkdownTable}}
+{{- .Context.Flags|FlagsToRows|FormatThreeColMarkdownTable}}
 
 {{end -}}
 {{if AnyEnvVarsForCmd .Context.Args .Context.Flags -}}
@@ -75,7 +75,7 @@ Global environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-{{- EnvVarsToColumns .Context.Args .Context.Flags|FormatThreeColMarkdownTable}}
+{{- EnvVarsToRows .Context.Args .Context.Flags|FormatThreeColMarkdownTable}}
 
 {{end -}}
 {{if .Context.Args -}}
@@ -83,7 +83,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-{{- .Context.Args|ArgsToColumns|FormatThreeColMarkdownTable}}
+{{- .Context.Args|ArgsToRows|FormatThreeColMarkdownTable}}
 
 {{end -}}
 {{if .App.Commands -}}
