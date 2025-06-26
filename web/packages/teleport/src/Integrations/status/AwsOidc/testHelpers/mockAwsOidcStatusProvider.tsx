@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
 import React from 'react';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -42,25 +41,16 @@ export const MockAwsOidcStatusProvider = ({
   initialEntries?: string[];
 }) => {
   const ctx = createTeleportContext();
-  const history = createMemoryHistory({
-    initialEntries: initialEntries,
-    initialIndex: 0,
-  });
 
   return (
-    <Router history={history}>
+    <MemoryRouter initialEntries={initialEntries}>
       <ContextProvider ctx={ctx}>
         <InfoGuidePanelProvider>
           <awsOidcStatusContext.Provider value={value}>
-            <Route
-              path={path}
-              render={() => (
-                <span key={history.location.search}>{children}</span>
-              )}
-            />
+            <Route path={path} render={() => <>{children}</>} />
           </awsOidcStatusContext.Provider>
         </InfoGuidePanelProvider>
       </ContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 };
