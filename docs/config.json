@@ -557,7 +557,12 @@
     },
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/machine-workload-identity/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {
@@ -727,6 +732,11 @@
     {
       "source": "/admin-guides/access-controls/okta/user-sync/",
       "destination": "/identity-governance/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
       "permanent": true
     }
   ]

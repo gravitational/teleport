@@ -431,3 +431,171 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 		})
 	}
 }
+
+// TestSelfSubjectAccessReviewsAllowed tests that the SelfSubjectAccessReview
+// endpoint can be accessed even if not explicitly allowed by the role.
+func TestSelfSubjectAccessReviewsAllowed(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, testingkubemock.WithTeleportRoleCRD)
+
+	newTestUserV7 := newTestUserFactory(t, testCtx, "", types.V7)
+	newTestUserV8 := newTestUserFactory(t, testCtx, "", types.V8)
+
+	tests := []struct {
+		name    string
+		user    types.User
+		wantErr bool
+	}{
+		{
+			name:    "full default access v7",
+			user:    newTestUserV7(nil, nil),
+			wantErr: false,
+		},
+		{
+			name:    "full default access v8",
+			user:    newTestUserV8(nil, nil),
+			wantErr: false,
+		},
+		{
+			name: "namespace access v7",
+			user: newTestUserV7([]types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			wantErr: false,
+		},
+		{
+			name: "wildcard namespace access v8",
+			user: newTestUserV8([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			wantErr: false,
+		},
+		{
+			name: "single pod access v7",
+			user: newTestUserV7([]types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Name:      "pod-1",
+					Namespace: "default",
+					Verbs:     []string{"get"},
+				},
+			}, nil),
+			wantErr: false,
+		},
+		{
+			name: "single pod access v8",
+			user: newTestUserV8([]types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "pod-1",
+					Namespace: "default",
+					Verbs:     []string{"get"},
+					APIGroup:  "",
+				},
+			}, nil),
+			wantErr: false,
+		},
+		// NOTE: SelfSubjectAccessReview can't be explicitly denied in role v7.
+		{
+			name: "explicit deny v8",
+			user: newTestUserV8([]types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "pod-1",
+					Namespace: "default",
+					Verbs:     []string{"get"},
+					APIGroup:  "",
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:     "selfsubjectaccessreviews",
+					Name:     types.Wildcard,
+					Verbs:    []string{"create"},
+					APIGroup: "authorization.k8s.io",
+				},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "wildcard deny v7",
+			user: newTestUserV7([]types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Name:      "pod-1",
+					Namespace: "default",
+					Verbs:     []string{"get"},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "wildcard deny v8",
+			user: newTestUserV8([]types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "pod-1",
+					Namespace: "default",
+					Verbs:     []string{"get"},
+					APIGroup:  "",
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			client, _, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			// Create a SelfSubjectAccessReview object.
+			obj := &authv1.SelfSubjectAccessReview{
+				Spec: authv1.SelfSubjectAccessReviewSpec{
+					ResourceAttributes: &authv1.ResourceAttributes{
+						Resource: "nodes",
+						Verb:     "list",
+					},
+				},
+			}
+
+			// Call the SelfSubjectAccessReview endpoint.
+			_, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
+				context.TODO(),
+				obj,
+				metav1.CreateOptions{},
+			)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
