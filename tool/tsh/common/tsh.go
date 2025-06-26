@@ -1025,7 +1025,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for.").StringVar(&cf.DatabaseService)
-	proxyDB.Flag("insecure-listen-anywhere", "Allows the local proxy to listen on any address other than loopbacks. Use with caution.").BoolVar(&cf.InsecureListenAnywhere)
+	proxyDB.Flag("insecure-listen-anywhere", "Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.").BoolVar(&cf.InsecureListenAnywhere)
 	proxyDB.Flag("listen", "Specifies the source address used by proxy db listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").BoolVar(&cf.LocalProxyTunnel)
