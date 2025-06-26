@@ -3295,7 +3295,7 @@ service AuthService {
 
   // GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
   rpc GetWindowsDesktops(types.WindowsDesktopFilter) returns (GetWindowsDesktopsResponse);
-  // ListWindowsDesktopServices returns a page registered Windows desktop services.
+  // ListWindowsDesktops returns a page of registered Windows desktop hosts.
   rpc ListWindowsDesktops(ListWindowsDesktopsRequest) returns (ListWindowsDesktopsResponse);
   // CreateWindowsDesktop registers a new Windows desktop host.
   rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);

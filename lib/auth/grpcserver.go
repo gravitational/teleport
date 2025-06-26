@@ -4033,6 +4033,7 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.Windo
 	}, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
 func (g *GRPCServer) ListWindowsDesktops(ctx context.Context, req *authpb.ListWindowsDesktopsRequest) (*authpb.ListWindowsDesktopsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

@@ -3462,6 +3462,7 @@ func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.Database
 	return out, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
 func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	resp, err := c.grpc.ListWindowsDesktops(ctx, &proto.ListWindowsDesktopsRequest{
 		Limit:                int32(req.Limit),
@@ -3487,6 +3488,7 @@ func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsD
 	return out, nil
 }
 
+// ListWindowsDesktopServices returns a page of Windows desktop services.
 func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	resp, err := c.grpc.ListResources(ctx, &proto.ListResourcesRequest{
 		Limit:               int32(req.Limit),

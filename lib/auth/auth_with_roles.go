@@ -6495,6 +6495,7 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 	return filtered, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
 func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	if err := a.action(types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

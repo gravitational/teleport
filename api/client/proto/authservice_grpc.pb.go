@@ -824,7 +824,7 @@ type AuthServiceClient interface {
 	DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
-	// ListWindowsDesktopServices returns a page registered Windows desktop services.
+	// ListWindowsDesktops returns a page of registered Windows desktop hosts.
 	ListWindowsDesktops(ctx context.Context, in *ListWindowsDesktopsRequest, opts ...grpc.CallOption) (*ListWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -4264,7 +4264,7 @@ type AuthServiceServer interface {
 	DeleteAllWindowsDesktopServices(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error)
-	// ListWindowsDesktopServices returns a page registered Windows desktop services.
+	// ListWindowsDesktops returns a page of registered Windows desktop hosts.
 	ListWindowsDesktops(context.Context, *ListWindowsDesktopsRequest) (*ListWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
