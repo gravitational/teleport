@@ -69,10 +69,12 @@ message SummarizationInferencePolicy {
 // SummarizationInferencePolicySpec maps sessions to summarization models using
 // a filter.
 message SummarizationInferencePolicySpec {
+  // Kinds are session kinds, e.g., "ssh", "kube", "db"
+  repeated string kinds = 1;
   // Model is the name of the `SummarizationInferenceModel` resource to be used
   // for summarization.
-  string model = 1;
-  // Milter is an optional filter expression using Teleport Predicate Language
+  string model = 2;
+  // Filter is an optional filter expression using Teleport Predicate Language
   // to select sessions for summarization. If it's empty, all sessions will be
   // summarized using this model.
   string filter = 3;

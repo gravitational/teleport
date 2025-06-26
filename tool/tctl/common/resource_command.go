@@ -190,8 +190,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindSigstorePolicy:                     rc.createSigstorePolicy,
 		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
 		types.KindSummarizationInferenceModel:        rc.createSummarizationInferenceModel,
-		// types.KindSummarizationInferenceSecret:       rc.createSummarizationInferenceSecret,
-		// types.KindSummarizationInferencePolicy:       rc.createSummarizationInferencePolicy,
+		types.KindSummarizationInferenceSecret:       rc.createSummarizationInferenceSecret,
+		types.KindSummarizationInferencePolicy:       rc.createSummarizationInferencePolicy,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -219,6 +219,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindSigstorePolicy:                     rc.updateSigstorePolicy,
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 		types.KindSummarizationInferenceModel:        rc.updateSummarizationInferenceModel,
+		types.KindSummarizationInferenceSecret:       rc.updateSummarizationInferenceSecret,
+		types.KindSummarizationInferencePolicy:       rc.updateSummarizationInferencePolicy,
 	}
 	rc.config = config
 
@@ -2269,6 +2271,10 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
 	case types.KindSummarizationInferenceModel:
 		return trace.Wrap(rc.deleteSummarizationInferenceModel(ctx, client))
+	case types.KindSummarizationInferenceSecret:
+		return trace.Wrap(rc.deleteSummarizationInferenceSecret(ctx, client))
+	case types.KindSummarizationInferencePolicy:
+		return trace.Wrap(rc.deleteSummarizationInferencePolicy(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3714,6 +3720,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindSummarizationInferenceModel:
 		models, err := rc.getSummarizationInferenceModels(ctx, client)
 		return models, trace.Wrap(err)
+	case types.KindSummarizationInferenceSecret:
+		secrets, err := rc.getSummarizationInferenceSecrets(ctx, client)
+		return secrets, trace.Wrap(err)
+	case types.KindSummarizationInferencePolicy:
+		policies, err := rc.getSummarizationInferencePolicies(ctx, client)
+		return policies, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

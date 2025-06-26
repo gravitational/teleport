@@ -72,7 +72,6 @@ import (
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
-	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -111,7 +110,6 @@ import (
 	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
-	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -5447,16 +5445,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server,
 		stableUNIXUsersServiceServer,
 	)
-
-	summarizer, err := summarizerv1.NewSummarizerService(summarizerv1.SummarizerServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "summarizer"),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating summarizer service")
-	}
-	summarizerv1pb.RegisterSummarizerServiceServer(server, summarizer)
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
 		Authorizer: cfg.Authorizer,

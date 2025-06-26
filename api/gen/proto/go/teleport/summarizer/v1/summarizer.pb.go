@@ -451,10 +451,12 @@ func (x *SummarizationInferencePolicy) GetSpec() *SummarizationInferencePolicySp
 // a filter.
 type SummarizationInferencePolicySpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kinds are session kinds, e.g., "ssh", "kube", "db"
+	Kinds []string `protobuf:"bytes,1,rep,name=kinds,proto3" json:"kinds,omitempty"`
 	// Model is the name of the `SummarizationInferenceModel` resource to be used
 	// for summarization.
-	Model string `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
-	// Milter is an optional filter expression using Teleport Predicate Language
+	Model string `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	// Filter is an optional filter expression using Teleport Predicate Language
 	// to select sessions for summarization. If it's empty, all sessions will be
 	// summarized using this model.
 	Filter        string `protobuf:"bytes,3,opt,name=filter,proto3" json:"filter,omitempty"` // repeated string kinds = 1; // Session kinds, e.g., "ssh", "kube", "db"
@@ -490,6 +492,13 @@ func (x *SummarizationInferencePolicySpec) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SummarizationInferencePolicySpec.ProtoReflect.Descriptor instead.
 func (*SummarizationInferencePolicySpec) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *SummarizationInferencePolicySpec) GetKinds() []string {
+	if x != nil {
+		return x.Kinds
+	}
+	return nil
 }
 
 func (x *SummarizationInferencePolicySpec) GetModel() string {
@@ -539,9 +548,10 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
-	"\x04spec\x18\x05 \x01(\v28.teleport.summarizer.v1.SummarizationInferencePolicySpecR\x04spec\"P\n" +
+	"\x04spec\x18\x05 \x01(\v28.teleport.summarizer.v1.SummarizationInferencePolicySpecR\x04spec\"f\n" +
 	" SummarizationInferencePolicySpec\x12\x14\n" +
-	"\x05model\x18\x01 \x01(\tR\x05model\x12\x16\n" +
+	"\x05kinds\x18\x01 \x03(\tR\x05kinds\x12\x14\n" +
+	"\x05model\x18\x02 \x01(\tR\x05model\x12\x16\n" +
 	"\x06filter\x18\x03 \x01(\tR\x06filterBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
