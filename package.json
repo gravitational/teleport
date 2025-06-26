@@ -22,7 +22,7 @@
     "lint-fix": "pnpm eslint --fix && pnpm prettier-write",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
-    "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets -o web/packages/design/src/ResourceIcon/optimized",
+    "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
