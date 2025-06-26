@@ -50,16 +50,16 @@ func newWindowsDesktopServiceCollection(upstream services.Presence, w types.Watc
 				return nil, trace.Wrap(err)
 			}
 
-			dbsvcs := make([]types.WindowsDesktopService, 0, len(resources))
+			desktopSvcs := make([]types.WindowsDesktopService, 0, len(resources))
 			for _, resource := range resources {
-				dbsvc, ok := resource.(types.WindowsDesktopService)
+				desktopSvc, ok := resource.(types.WindowsDesktopService)
 				if !ok {
 					return nil, trace.BadParameter("unexpected resource %T", resource)
 				}
-				dbsvcs = append(dbsvcs, dbsvc)
+				desktopSvcs = append(desktopSvcs, desktopSvc)
 			}
 
-			return dbsvcs, nil
+			return desktopSvcs, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktopService {
 			return &types.WindowsDesktopServiceV3{
