@@ -215,7 +215,6 @@ func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.
 	if err := h.sampleCanaries(ctx, group, status); err != nil {
 		h.log.WarnContext(ctx, "Failed to sample canaries", "group", group.Name)
 	}
-	return
 }
 
 func (h *haltOnErrorStrategy) sampleCanaries(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
@@ -288,9 +287,9 @@ func (h *haltOnErrorStrategy) updateCanariesStatus(ctx context.Context, group *a
 				// Canary is not registered to our Auth Service.
 				// Note: One old canary instance might still be connected to the auth,
 				// be we are ignoring terminating instances.
-				h.log.DebugContext(ctx, "Node not connected", "group", group.Name, canaryLogInfo)
+				log.DebugContext(ctx, "Node not connected")
 			} else {
-				h.log.WarnContext(ctx, "Failed to lookup agent", "group", group.Name, canaryLogInfo)
+				h.log.WarnContext(ctx, "Failed to lookup agent")
 			}
 			continue
 		}
