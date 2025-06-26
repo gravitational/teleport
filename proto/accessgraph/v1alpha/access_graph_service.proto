@@ -103,6 +103,9 @@ service AccessGraphService {
   // 4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
   rpc AWSCloudTrailStream(stream AWSCloudTrailStreamRequest) returns (stream AWSCloudTrailStreamResponse);
 
+  // TODO (mvbrock): Add descriptive text
+  rpc AWSCloudWatchStream(stream AWSCloudWatchStreamRequest) returns (stream AWSCloudWatchStreamResponse);
+
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
   // The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -608,6 +611,81 @@ message AWSCloudTrailEventResource {
   // the resource types supported for a service, see Filtering CloudTrail Events
   // (https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events-console.html#filtering-cloudtrail-events).
   string type = 2;
+}
+
+// The AWS CloudWatch stream request represents the messages sent to the Access
+// Graph to initialize the CloudWatch stream:
+//   1. config - A proposed configuration if none exists in the Access Graph
+//   2. logs - The CloudWatch log data, sent once the Access Graph has returned
+//      the required configuration and cursor
+message AWSCloudWatchStreamRequest {
+  oneof action {
+    // Proposed configuration if none exists in the Access Graph
+    AWSCloudWatchConfig config = 1;
+    // CloudWatch results , sent once Access Graph has returned the required
+    // configuration
+    AWSCloudWatchResults results = 2;
+  }
+}
+
+// The AWS CloudWatch stream response represents the messages received from the
+// Access Graph to provide a required configuration and cursor
+message AWSCloudWatchStreamResponse {
+  oneof state {
+    // The configuration received from the Access Graph
+    AWSCloudWatchConfig config = 1;
+    // The cursor received from the Access Graph
+    AWSCloudWatchCursor cursor = 2;
+  }
+}
+
+// The CloudWatch configuration received from the Access Graph which provides
+// parameters for polling the log group
+message AWSCloudWatchConfig {
+  // The starting point for tailing the log
+  google.protobuf.Timestamp start_date = 1;
+  // The log groups from which to tail logs
+  repeated string log_groups = 2;
+  // The AWS account ID
+  string account_id = 3;
+}
+
+// The results from querying AWS CloudWatch
+message AWSCloudWatchResults {
+  // The log groups and the events in them
+  repeated AWSCloudWatchLogGroup log_groups = 1;
+}
+
+// AWS CloudWatch log group results, consisting of log data and the cursor for
+// querying and paging
+message AWSCloudWatchLogGroup {
+  // The name of the log group
+  string name = 1;
+  // The AWS region of the log group
+  string region = 2;
+  // The events as they arrive from the CloudWatch API
+  repeated AWSCloudWatchEvent events = 3;
+  // The cursors for each log group, for querying and paging
+  AWSCloudWatchCursor cursor = 4;
+  // The AWS account ID for this batch of logs
+  string account_id = 5;
+}
+
+// The AWS CloudWatch event as it arrives from the CloudWatch API
+message AWSCloudWatchEvent {
+  // The event timestamp
+  google.protobuf.Timestamp timestamp = 1;
+  // The event message
+  string message = 2;
+}
+
+// The CloudWatch cursor, providing both a next token and a start time for
+// paging through CloudWatch logs.
+message AWSCloudWatchCursor {
+  // The next token used for paging query results
+  string next_token = 3;
+  // The start time used for the query
+  google.protobuf.Timestamp start_time = 4;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
