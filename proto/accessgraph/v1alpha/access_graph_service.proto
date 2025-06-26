@@ -622,9 +622,9 @@ message AWSCloudWatchStreamRequest {
   oneof action {
     // Proposed configuration if none exists in the Access Graph
     AWSCloudWatchConfig config = 1;
-    // CloudWatch event data, sent once Access Graph has returned the required
+    // CloudWatch results , sent once Access Graph has returned the required
     // configuration
-    AWSCloudWatchEvents events = 2;
+    AWSCloudWatchResults results = 2;
   }
 }
 
@@ -650,13 +650,19 @@ message AWSCloudWatchConfig {
   string account_id = 3;
 }
 
-// The CloudWatch logs, consisting of log data and the cursor for querying
-// and paging
-message AWSCloudWatchEvents {
+// The results from querying AWS CloudWatch
+message AWSCloudWatchResults {
+  // The log groups and the events in them
+  repeated AWSCloudWatchLogGroup log_groups = 1;
+}
+
+// AWS CloudWatch log group results, consisting of log data and the cursor for
+// querying and paging
+message AWSCloudWatchLogGroup {
   // The events as they arrive from the CloudWatch API
-  repeated AWSCloudWatchEvent events = 1;
+  AWSCloudWatchEvent events = 1;
   // The cursors for each log group, for querying and paging
-  repeated AWSCloudWatchCursor cursors = 2;
+  AWSCloudWatchCursor cursor = 2;
   // The AWS account ID for this batch of logs
   string account_id = 3;
 }

@@ -2831,7 +2831,7 @@ type AWSCloudWatchStreamRequest struct {
 	// Types that are valid to be assigned to Action:
 	//
 	//	*AWSCloudWatchStreamRequest_Config
-	//	*AWSCloudWatchStreamRequest_Events
+	//	*AWSCloudWatchStreamRequest_Results
 	Action        isAWSCloudWatchStreamRequest_Action `protobuf_oneof:"action"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2883,10 +2883,10 @@ func (x *AWSCloudWatchStreamRequest) GetConfig() *AWSCloudWatchConfig {
 	return nil
 }
 
-func (x *AWSCloudWatchStreamRequest) GetEvents() *AWSCloudWatchEvents {
+func (x *AWSCloudWatchStreamRequest) GetResults() *AWSCloudWatchResults {
 	if x != nil {
-		if x, ok := x.Action.(*AWSCloudWatchStreamRequest_Events); ok {
-			return x.Events
+		if x, ok := x.Action.(*AWSCloudWatchStreamRequest_Results); ok {
+			return x.Results
 		}
 	}
 	return nil
@@ -2901,15 +2901,15 @@ type AWSCloudWatchStreamRequest_Config struct {
 	Config *AWSCloudWatchConfig `protobuf:"bytes,1,opt,name=config,proto3,oneof"`
 }
 
-type AWSCloudWatchStreamRequest_Events struct {
-	// CloudWatch event data, sent once Access Graph has returned the required
+type AWSCloudWatchStreamRequest_Results struct {
+	// CloudWatch results , sent once Access Graph has returned the required
 	// configuration
-	Events *AWSCloudWatchEvents `protobuf:"bytes,2,opt,name=events,proto3,oneof"`
+	Results *AWSCloudWatchResults `protobuf:"bytes,2,opt,name=results,proto3,oneof"`
 }
 
 func (*AWSCloudWatchStreamRequest_Config) isAWSCloudWatchStreamRequest_Action() {}
 
-func (*AWSCloudWatchStreamRequest_Events) isAWSCloudWatchStreamRequest_Action() {}
+func (*AWSCloudWatchStreamRequest_Results) isAWSCloudWatchStreamRequest_Action() {}
 
 // The AWS CloudWatch stream response represents the messages received from the
 // Access Graph to provide a required configuration and cursor
@@ -3062,34 +3062,29 @@ func (x *AWSCloudWatchConfig) GetAccountId() string {
 	return ""
 }
 
-// The CloudWatch logs, consisting of log data and the cursor for querying
-// and paging
-type AWSCloudWatchEvents struct {
+// The results from querying AWS CloudWatch
+type AWSCloudWatchResults struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The events as they arrive from the CloudWatch API
-	Events []*AWSCloudWatchEvent `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	// The cursors for each log group, for querying and paging
-	Cursors []*AWSCloudWatchCursor `protobuf:"bytes,2,rep,name=cursors,proto3" json:"cursors,omitempty"`
-	// The AWS account ID for this batch of logs
-	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// The log groups and the events in them
+	LogGroups     []*AWSCloudWatchLogGroup `protobuf:"bytes,1,rep,name=log_groups,json=logGroups,proto3" json:"log_groups,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AWSCloudWatchEvents) Reset() {
-	*x = AWSCloudWatchEvents{}
+func (x *AWSCloudWatchResults) Reset() {
+	*x = AWSCloudWatchResults{}
 	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AWSCloudWatchEvents) String() string {
+func (x *AWSCloudWatchResults) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AWSCloudWatchEvents) ProtoMessage() {}
+func (*AWSCloudWatchResults) ProtoMessage() {}
 
-func (x *AWSCloudWatchEvents) ProtoReflect() protoreflect.Message {
+func (x *AWSCloudWatchResults) ProtoReflect() protoreflect.Message {
 	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -3101,26 +3096,77 @@ func (x *AWSCloudWatchEvents) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudWatchEvents.ProtoReflect.Descriptor instead.
-func (*AWSCloudWatchEvents) Descriptor() ([]byte, []int) {
+// Deprecated: Use AWSCloudWatchResults.ProtoReflect.Descriptor instead.
+func (*AWSCloudWatchResults) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{45}
 }
 
-func (x *AWSCloudWatchEvents) GetEvents() []*AWSCloudWatchEvent {
+func (x *AWSCloudWatchResults) GetLogGroups() []*AWSCloudWatchLogGroup {
+	if x != nil {
+		return x.LogGroups
+	}
+	return nil
+}
+
+// AWS CloudWatch log group results, consisting of log data and the cursor for
+// querying and paging
+type AWSCloudWatchLogGroup struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The events as they arrive from the CloudWatch API
+	Events *AWSCloudWatchEvent `protobuf:"bytes,1,opt,name=events,proto3" json:"events,omitempty"`
+	// The cursors for each log group, for querying and paging
+	Cursor *AWSCloudWatchCursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// The AWS account ID for this batch of logs
+	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AWSCloudWatchLogGroup) Reset() {
+	*x = AWSCloudWatchLogGroup{}
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWSCloudWatchLogGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWSCloudWatchLogGroup) ProtoMessage() {}
+
+func (x *AWSCloudWatchLogGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AWSCloudWatchLogGroup.ProtoReflect.Descriptor instead.
+func (*AWSCloudWatchLogGroup) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *AWSCloudWatchLogGroup) GetEvents() *AWSCloudWatchEvent {
 	if x != nil {
 		return x.Events
 	}
 	return nil
 }
 
-func (x *AWSCloudWatchEvents) GetCursors() []*AWSCloudWatchCursor {
+func (x *AWSCloudWatchLogGroup) GetCursor() *AWSCloudWatchCursor {
 	if x != nil {
-		return x.Cursors
+		return x.Cursor
 	}
 	return nil
 }
 
-func (x *AWSCloudWatchEvents) GetAccountId() string {
+func (x *AWSCloudWatchLogGroup) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
@@ -3142,7 +3188,7 @@ type AWSCloudWatchEvent struct {
 
 func (x *AWSCloudWatchEvent) Reset() {
 	*x = AWSCloudWatchEvent{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3154,7 +3200,7 @@ func (x *AWSCloudWatchEvent) String() string {
 func (*AWSCloudWatchEvent) ProtoMessage() {}
 
 func (x *AWSCloudWatchEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[46]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3167,7 +3213,7 @@ func (x *AWSCloudWatchEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudWatchEvent.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchEvent) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *AWSCloudWatchEvent) GetTimestamp() *timestamppb.Timestamp {
@@ -3209,7 +3255,7 @@ type AWSCloudWatchCursor struct {
 
 func (x *AWSCloudWatchCursor) Reset() {
 	*x = AWSCloudWatchCursor{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3221,7 +3267,7 @@ func (x *AWSCloudWatchCursor) String() string {
 func (*AWSCloudWatchCursor) ProtoMessage() {}
 
 func (x *AWSCloudWatchCursor) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[47]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3234,7 +3280,7 @@ func (x *AWSCloudWatchCursor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSCloudWatchCursor.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchCursor) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *AWSCloudWatchCursor) GetRegion() string {
@@ -3280,7 +3326,7 @@ type GitHubAuditLogStreamRequest struct {
 
 func (x *GitHubAuditLogStreamRequest) Reset() {
 	*x = GitHubAuditLogStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3292,7 +3338,7 @@ func (x *GitHubAuditLogStreamRequest) String() string {
 func (*GitHubAuditLogStreamRequest) ProtoMessage() {}
 
 func (x *GitHubAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3305,7 +3351,7 @@ func (x *GitHubAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubAuditLogStreamRequest.ProtoReflect.Descriptor instead.
 func (*GitHubAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *GitHubAuditLogStreamRequest) GetOperation() isGitHubAuditLogStreamRequest_Operation {
@@ -3367,7 +3413,7 @@ type GitHubAuditLogStreamResponse struct {
 
 func (x *GitHubAuditLogStreamResponse) Reset() {
 	*x = GitHubAuditLogStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3379,7 +3425,7 @@ func (x *GitHubAuditLogStreamResponse) String() string {
 func (*GitHubAuditLogStreamResponse) ProtoMessage() {}
 
 func (x *GitHubAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3392,7 +3438,7 @@ func (x *GitHubAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubAuditLogStreamResponse.ProtoReflect.Descriptor instead.
 func (*GitHubAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{49}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GitHubAuditLogStreamResponse) GetState() isGitHubAuditLogStreamResponse_State {
@@ -3455,7 +3501,7 @@ type GitHubEventsStreamRequest struct {
 
 func (x *GitHubEventsStreamRequest) Reset() {
 	*x = GitHubEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3467,7 +3513,7 @@ func (x *GitHubEventsStreamRequest) String() string {
 func (*GitHubEventsStreamRequest) ProtoMessage() {}
 
 func (x *GitHubEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3480,7 +3526,7 @@ func (x *GitHubEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*GitHubEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{50}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GitHubEventsStreamRequest) GetOperation() isGitHubEventsStreamRequest_Operation {
@@ -3549,7 +3595,7 @@ type GitHubEventsStreamResponse struct {
 
 func (x *GitHubEventsStreamResponse) Reset() {
 	*x = GitHubEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3561,7 +3607,7 @@ func (x *GitHubEventsStreamResponse) String() string {
 func (*GitHubEventsStreamResponse) ProtoMessage() {}
 
 func (x *GitHubEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3574,7 +3620,7 @@ func (x *GitHubEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*GitHubEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{51}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{52}
 }
 
 // OktaAuditLogStreamRequest represents a client message in the OktaAuditLogStream,
@@ -3592,7 +3638,7 @@ type OktaAuditLogStreamRequest struct {
 
 func (x *OktaAuditLogStreamRequest) Reset() {
 	*x = OktaAuditLogStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3604,7 +3650,7 @@ func (x *OktaAuditLogStreamRequest) String() string {
 func (*OktaAuditLogStreamRequest) ProtoMessage() {}
 
 func (x *OktaAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3617,7 +3663,7 @@ func (x *OktaAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAuditLogStreamRequest.ProtoReflect.Descriptor instead.
 func (*OktaAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{52}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *OktaAuditLogStreamRequest) GetOperation() isOktaAuditLogStreamRequest_Operation {
@@ -3676,7 +3722,7 @@ type OktaAuditLogStreamResponse struct {
 
 func (x *OktaAuditLogStreamResponse) Reset() {
 	*x = OktaAuditLogStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3688,7 +3734,7 @@ func (x *OktaAuditLogStreamResponse) String() string {
 func (*OktaAuditLogStreamResponse) ProtoMessage() {}
 
 func (x *OktaAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3701,7 +3747,7 @@ func (x *OktaAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAuditLogStreamResponse.ProtoReflect.Descriptor instead.
 func (*OktaAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{53}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *OktaAuditLogStreamResponse) GetState() isOktaAuditLogStreamResponse_State {
@@ -3761,7 +3807,7 @@ type OktaEventsStreamRequest struct {
 
 func (x *OktaEventsStreamRequest) Reset() {
 	*x = OktaEventsStreamRequest{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3773,7 +3819,7 @@ func (x *OktaEventsStreamRequest) String() string {
 func (*OktaEventsStreamRequest) ProtoMessage() {}
 
 func (x *OktaEventsStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3786,7 +3832,7 @@ func (x *OktaEventsStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaEventsStreamRequest.ProtoReflect.Descriptor instead.
 func (*OktaEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{54}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *OktaEventsStreamRequest) GetOperation() isOktaEventsStreamRequest_Operation {
@@ -3855,7 +3901,7 @@ type OktaEventsStreamResponse struct {
 
 func (x *OktaEventsStreamResponse) Reset() {
 	*x = OktaEventsStreamResponse{}
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3867,7 +3913,7 @@ func (x *OktaEventsStreamResponse) String() string {
 func (*OktaEventsStreamResponse) ProtoMessage() {}
 
 func (x *OktaEventsStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55]
+	mi := &file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3880,7 +3926,7 @@ func (x *OktaEventsStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaEventsStreamResponse.ProtoReflect.Descriptor instead.
 func (*OktaEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{55}
+	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{56}
 }
 
 var File_accessgraph_v1alpha_access_graph_service_proto protoreflect.FileDescriptor
@@ -4016,10 +4062,10 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x18AWSCloudTrailResumeState\"D\n" +
 	"\x1aAWSCloudTrailEventResource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\"\xae\x01\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"\xb1\x01\n" +
 	"\x1aAWSCloudWatchStreamRequest\x12B\n" +
-	"\x06config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigH\x00R\x06config\x12B\n" +
-	"\x06events\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchEventsH\x00R\x06eventsB\b\n" +
+	"\x06config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigH\x00R\x06config\x12E\n" +
+	"\aresults\x18\x02 \x01(\v2).accessgraph.v1alpha.AWSCloudWatchResultsH\x00R\aresultsB\b\n" +
 	"\x06action\"\xae\x01\n" +
 	"\x1bAWSCloudWatchStreamResponse\x12B\n" +
 	"\x06config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigH\x00R\x06config\x12B\n" +
@@ -4031,10 +4077,13 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\n" +
 	"log_groups\x18\x02 \x03(\tR\tlogGroups\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"\xb9\x01\n" +
-	"\x13AWSCloudWatchEvents\x12?\n" +
-	"\x06events\x18\x01 \x03(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12B\n" +
-	"\acursors\x18\x02 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\acursors\x12\x1d\n" +
+	"account_id\x18\x03 \x01(\tR\taccountId\"a\n" +
+	"\x14AWSCloudWatchResults\x12I\n" +
+	"\n" +
+	"log_groups\x18\x01 \x03(\v2*.accessgraph.v1alpha.AWSCloudWatchLogGroupR\tlogGroups\"\xb9\x01\n" +
+	"\x15AWSCloudWatchLogGroup\x12?\n" +
+	"\x06events\x18\x01 \x01(\v2'.accessgraph.v1alpha.AWSCloudWatchEventR\x06events\x12@\n" +
+	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\"\x85\x01\n" +
 	"\x12AWSCloudWatchEvent\x128\n" +
@@ -4109,7 +4158,7 @@ func file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP() []byte {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescData
 }
 
-var file_accessgraph_v1alpha_access_graph_service_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
+var file_accessgraph_v1alpha_access_graph_service_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_accessgraph_v1alpha_access_graph_service_proto_goTypes = []any{
 	(*QueryRequest)(nil),                 // 0: accessgraph.v1alpha.QueryRequest
 	(*QueryResponse)(nil),                // 1: accessgraph.v1alpha.QueryResponse
@@ -4156,161 +4205,163 @@ var file_accessgraph_v1alpha_access_graph_service_proto_goTypes = []any{
 	(*AWSCloudWatchStreamRequest)(nil),   // 42: accessgraph.v1alpha.AWSCloudWatchStreamRequest
 	(*AWSCloudWatchStreamResponse)(nil),  // 43: accessgraph.v1alpha.AWSCloudWatchStreamResponse
 	(*AWSCloudWatchConfig)(nil),          // 44: accessgraph.v1alpha.AWSCloudWatchConfig
-	(*AWSCloudWatchEvents)(nil),          // 45: accessgraph.v1alpha.AWSCloudWatchEvents
-	(*AWSCloudWatchEvent)(nil),           // 46: accessgraph.v1alpha.AWSCloudWatchEvent
-	(*AWSCloudWatchCursor)(nil),          // 47: accessgraph.v1alpha.AWSCloudWatchCursor
-	(*GitHubAuditLogStreamRequest)(nil),  // 48: accessgraph.v1alpha.GitHubAuditLogStreamRequest
-	(*GitHubAuditLogStreamResponse)(nil), // 49: accessgraph.v1alpha.GitHubAuditLogStreamResponse
-	(*GitHubEventsStreamRequest)(nil),    // 50: accessgraph.v1alpha.GitHubEventsStreamRequest
-	(*GitHubEventsStreamResponse)(nil),   // 51: accessgraph.v1alpha.GitHubEventsStreamResponse
-	(*OktaAuditLogStreamRequest)(nil),    // 52: accessgraph.v1alpha.OktaAuditLogStreamRequest
-	(*OktaAuditLogStreamResponse)(nil),   // 53: accessgraph.v1alpha.OktaAuditLogStreamResponse
-	(*OktaEventsStreamRequest)(nil),      // 54: accessgraph.v1alpha.OktaEventsStreamRequest
-	(*OktaEventsStreamResponse)(nil),     // 55: accessgraph.v1alpha.OktaEventsStreamResponse
-	nil,                                  // 56: accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
-	(*Node)(nil),                         // 57: accessgraph.v1alpha.Node
-	(*Edge)(nil),                         // 58: accessgraph.v1alpha.Edge
-	(*ResourceList)(nil),                 // 59: accessgraph.v1alpha.ResourceList
-	(*ResourceHeaderList)(nil),           // 60: accessgraph.v1alpha.ResourceHeaderList
-	(*AccessListsMembers)(nil),           // 61: accessgraph.v1alpha.AccessListsMembers
-	(*ExcludeAccessListsMembers)(nil),    // 62: accessgraph.v1alpha.ExcludeAccessListsMembers
-	(*AccessPathChanged)(nil),            // 63: accessgraph.v1alpha.AccessPathChanged
-	(*timestamppb.Timestamp)(nil),        // 64: google.protobuf.Timestamp
-	(*v1.EventUnstructured)(nil),         // 65: teleport.auditlog.v1.EventUnstructured
-	(*emptypb.Empty)(nil),                // 66: google.protobuf.Empty
-	(*AWSResourceList)(nil),              // 67: accessgraph.v1alpha.AWSResourceList
-	(*GitlabSyncOperation)(nil),          // 68: accessgraph.v1alpha.GitlabSyncOperation
-	(*GitlabResourceList)(nil),           // 69: accessgraph.v1alpha.GitlabResourceList
-	(*EntraSyncOperation)(nil),           // 70: accessgraph.v1alpha.EntraSyncOperation
-	(*EntraResourceList)(nil),            // 71: accessgraph.v1alpha.EntraResourceList
-	(*AzureResourceList)(nil),            // 72: accessgraph.v1alpha.AzureResourceList
-	(*NetIQResourceList)(nil),            // 73: accessgraph.v1alpha.NetIQResourceList
-	(*GitHubConfigV1)(nil),               // 74: accessgraph.v1alpha.GitHubConfigV1
-	(*GitHubAuditLogV1)(nil),             // 75: accessgraph.v1alpha.GitHubAuditLogV1
-	(*GitHubAuditLogV1Cursor)(nil),       // 76: accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	(*GithubResourceList)(nil),           // 77: accessgraph.v1alpha.GithubResourceList
-	(*GithubSync)(nil),                   // 78: accessgraph.v1alpha.GithubSync
-	(*OktaConfigV1)(nil),                 // 79: accessgraph.v1alpha.OktaConfigV1
-	(*OktaAuditLogV1)(nil),               // 80: accessgraph.v1alpha.OktaAuditLogV1
-	(*OktaAuditLogV1Cursor)(nil),         // 81: accessgraph.v1alpha.OktaAuditLogV1Cursor
-	(*OktaResourceList)(nil),             // 82: accessgraph.v1alpha.OktaResourceList
-	(*OktaSync)(nil),                     // 83: accessgraph.v1alpha.OktaSync
+	(*AWSCloudWatchResults)(nil),         // 45: accessgraph.v1alpha.AWSCloudWatchResults
+	(*AWSCloudWatchLogGroup)(nil),        // 46: accessgraph.v1alpha.AWSCloudWatchLogGroup
+	(*AWSCloudWatchEvent)(nil),           // 47: accessgraph.v1alpha.AWSCloudWatchEvent
+	(*AWSCloudWatchCursor)(nil),          // 48: accessgraph.v1alpha.AWSCloudWatchCursor
+	(*GitHubAuditLogStreamRequest)(nil),  // 49: accessgraph.v1alpha.GitHubAuditLogStreamRequest
+	(*GitHubAuditLogStreamResponse)(nil), // 50: accessgraph.v1alpha.GitHubAuditLogStreamResponse
+	(*GitHubEventsStreamRequest)(nil),    // 51: accessgraph.v1alpha.GitHubEventsStreamRequest
+	(*GitHubEventsStreamResponse)(nil),   // 52: accessgraph.v1alpha.GitHubEventsStreamResponse
+	(*OktaAuditLogStreamRequest)(nil),    // 53: accessgraph.v1alpha.OktaAuditLogStreamRequest
+	(*OktaAuditLogStreamResponse)(nil),   // 54: accessgraph.v1alpha.OktaAuditLogStreamResponse
+	(*OktaEventsStreamRequest)(nil),      // 55: accessgraph.v1alpha.OktaEventsStreamRequest
+	(*OktaEventsStreamResponse)(nil),     // 56: accessgraph.v1alpha.OktaEventsStreamResponse
+	nil,                                  // 57: accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
+	(*Node)(nil),                         // 58: accessgraph.v1alpha.Node
+	(*Edge)(nil),                         // 59: accessgraph.v1alpha.Edge
+	(*ResourceList)(nil),                 // 60: accessgraph.v1alpha.ResourceList
+	(*ResourceHeaderList)(nil),           // 61: accessgraph.v1alpha.ResourceHeaderList
+	(*AccessListsMembers)(nil),           // 62: accessgraph.v1alpha.AccessListsMembers
+	(*ExcludeAccessListsMembers)(nil),    // 63: accessgraph.v1alpha.ExcludeAccessListsMembers
+	(*AccessPathChanged)(nil),            // 64: accessgraph.v1alpha.AccessPathChanged
+	(*timestamppb.Timestamp)(nil),        // 65: google.protobuf.Timestamp
+	(*v1.EventUnstructured)(nil),         // 66: teleport.auditlog.v1.EventUnstructured
+	(*emptypb.Empty)(nil),                // 67: google.protobuf.Empty
+	(*AWSResourceList)(nil),              // 68: accessgraph.v1alpha.AWSResourceList
+	(*GitlabSyncOperation)(nil),          // 69: accessgraph.v1alpha.GitlabSyncOperation
+	(*GitlabResourceList)(nil),           // 70: accessgraph.v1alpha.GitlabResourceList
+	(*EntraSyncOperation)(nil),           // 71: accessgraph.v1alpha.EntraSyncOperation
+	(*EntraResourceList)(nil),            // 72: accessgraph.v1alpha.EntraResourceList
+	(*AzureResourceList)(nil),            // 73: accessgraph.v1alpha.AzureResourceList
+	(*NetIQResourceList)(nil),            // 74: accessgraph.v1alpha.NetIQResourceList
+	(*GitHubConfigV1)(nil),               // 75: accessgraph.v1alpha.GitHubConfigV1
+	(*GitHubAuditLogV1)(nil),             // 76: accessgraph.v1alpha.GitHubAuditLogV1
+	(*GitHubAuditLogV1Cursor)(nil),       // 77: accessgraph.v1alpha.GitHubAuditLogV1Cursor
+	(*GithubResourceList)(nil),           // 78: accessgraph.v1alpha.GithubResourceList
+	(*GithubSync)(nil),                   // 79: accessgraph.v1alpha.GithubSync
+	(*OktaConfigV1)(nil),                 // 80: accessgraph.v1alpha.OktaConfigV1
+	(*OktaAuditLogV1)(nil),               // 81: accessgraph.v1alpha.OktaAuditLogV1
+	(*OktaAuditLogV1Cursor)(nil),         // 82: accessgraph.v1alpha.OktaAuditLogV1Cursor
+	(*OktaResourceList)(nil),             // 83: accessgraph.v1alpha.OktaResourceList
+	(*OktaSync)(nil),                     // 84: accessgraph.v1alpha.OktaSync
 }
 var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
-	57, // 0: accessgraph.v1alpha.QueryResponse.nodes:type_name -> accessgraph.v1alpha.Node
-	58, // 1: accessgraph.v1alpha.QueryResponse.edges:type_name -> accessgraph.v1alpha.Edge
+	58, // 0: accessgraph.v1alpha.QueryResponse.nodes:type_name -> accessgraph.v1alpha.Node
+	59, // 1: accessgraph.v1alpha.QueryResponse.edges:type_name -> accessgraph.v1alpha.Edge
 	6,  // 2: accessgraph.v1alpha.EventsStreamRequest.sync:type_name -> accessgraph.v1alpha.SyncOperation
-	59, // 3: accessgraph.v1alpha.EventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.ResourceList
-	60, // 4: accessgraph.v1alpha.EventsStreamRequest.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
-	61, // 5: accessgraph.v1alpha.EventsStreamRequest.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
-	62, // 6: accessgraph.v1alpha.EventsStreamRequest.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
+	60, // 3: accessgraph.v1alpha.EventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.ResourceList
+	61, // 4: accessgraph.v1alpha.EventsStreamRequest.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
+	62, // 5: accessgraph.v1alpha.EventsStreamRequest.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
+	63, // 6: accessgraph.v1alpha.EventsStreamRequest.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
 	6,  // 7: accessgraph.v1alpha.EventsStreamV2Request.sync:type_name -> accessgraph.v1alpha.SyncOperation
-	59, // 8: accessgraph.v1alpha.EventsStreamV2Request.upsert:type_name -> accessgraph.v1alpha.ResourceList
-	60, // 9: accessgraph.v1alpha.EventsStreamV2Request.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
-	61, // 10: accessgraph.v1alpha.EventsStreamV2Request.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
-	62, // 11: accessgraph.v1alpha.EventsStreamV2Request.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
+	60, // 8: accessgraph.v1alpha.EventsStreamV2Request.upsert:type_name -> accessgraph.v1alpha.ResourceList
+	61, // 9: accessgraph.v1alpha.EventsStreamV2Request.delete:type_name -> accessgraph.v1alpha.ResourceHeaderList
+	62, // 10: accessgraph.v1alpha.EventsStreamV2Request.access_lists_members:type_name -> accessgraph.v1alpha.AccessListsMembers
+	63, // 11: accessgraph.v1alpha.EventsStreamV2Request.exclude_access_list_members:type_name -> accessgraph.v1alpha.ExcludeAccessListsMembers
 	9,  // 12: accessgraph.v1alpha.EventsStreamV2Response.event:type_name -> accessgraph.v1alpha.AuditEvent
-	63, // 13: accessgraph.v1alpha.AuditEvent.access_path_changed:type_name -> accessgraph.v1alpha.AccessPathChanged
+	64, // 13: accessgraph.v1alpha.AuditEvent.access_path_changed:type_name -> accessgraph.v1alpha.AccessPathChanged
 	11, // 14: accessgraph.v1alpha.AuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.AuditLogConfig
 	12, // 15: accessgraph.v1alpha.AuditLogStreamRequest.events:type_name -> accessgraph.v1alpha.AuditLogEvents
 	15, // 16: accessgraph.v1alpha.AuditLogStreamRequest.bulk_sync:type_name -> accessgraph.v1alpha.BulkResumeStateSync
-	64, // 17: accessgraph.v1alpha.AuditLogConfig.start_date:type_name -> google.protobuf.Timestamp
-	65, // 18: accessgraph.v1alpha.AuditLogEvents.events:type_name -> teleport.auditlog.v1.EventUnstructured
+	65, // 17: accessgraph.v1alpha.AuditLogConfig.start_date:type_name -> google.protobuf.Timestamp
+	66, // 18: accessgraph.v1alpha.AuditLogEvents.events:type_name -> teleport.auditlog.v1.EventUnstructured
 	13, // 19: accessgraph.v1alpha.AuditLogEvents.search_resume_state:type_name -> accessgraph.v1alpha.SearchResumeState
 	14, // 20: accessgraph.v1alpha.AuditLogEvents.bulk_resume_state_update:type_name -> accessgraph.v1alpha.BulkResumeStateUpdate
-	64, // 21: accessgraph.v1alpha.SearchResumeState.last_event_time:type_name -> google.protobuf.Timestamp
-	64, // 22: accessgraph.v1alpha.BulkResumeStateUpdate.date:type_name -> google.protobuf.Timestamp
-	64, // 23: accessgraph.v1alpha.BulkResumeStateSync.active_dates:type_name -> google.protobuf.Timestamp
+	65, // 21: accessgraph.v1alpha.SearchResumeState.last_event_time:type_name -> google.protobuf.Timestamp
+	65, // 22: accessgraph.v1alpha.BulkResumeStateUpdate.date:type_name -> google.protobuf.Timestamp
+	65, // 23: accessgraph.v1alpha.BulkResumeStateSync.active_dates:type_name -> google.protobuf.Timestamp
 	11, // 24: accessgraph.v1alpha.AuditLogStreamResponse.audit_log_config:type_name -> accessgraph.v1alpha.AuditLogConfig
-	66, // 25: accessgraph.v1alpha.AuditLogStreamResponse.no_resume_state:type_name -> google.protobuf.Empty
+	67, // 25: accessgraph.v1alpha.AuditLogStreamResponse.no_resume_state:type_name -> google.protobuf.Empty
 	13, // 26: accessgraph.v1alpha.AuditLogStreamResponse.search_resume_state:type_name -> accessgraph.v1alpha.SearchResumeState
 	17, // 27: accessgraph.v1alpha.AuditLogStreamResponse.bulk_resume_state:type_name -> accessgraph.v1alpha.BulkResumeState
 	18, // 28: accessgraph.v1alpha.BulkResumeState.dates:type_name -> accessgraph.v1alpha.BulkResumeDate
-	64, // 29: accessgraph.v1alpha.BulkResumeDate.date:type_name -> google.protobuf.Timestamp
-	56, // 30: accessgraph.v1alpha.BulkResumeDate.chunk_cursors:type_name -> accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
+	65, // 29: accessgraph.v1alpha.BulkResumeDate.date:type_name -> google.protobuf.Timestamp
+	57, // 30: accessgraph.v1alpha.BulkResumeDate.chunk_cursors:type_name -> accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntry
 	24, // 31: accessgraph.v1alpha.AWSEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.AWSSyncOperation
-	67, // 32: accessgraph.v1alpha.AWSEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AWSResourceList
-	67, // 33: accessgraph.v1alpha.AWSEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AWSResourceList
-	68, // 34: accessgraph.v1alpha.GitlabEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GitlabSyncOperation
-	69, // 35: accessgraph.v1alpha.GitlabEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GitlabResourceList
-	69, // 36: accessgraph.v1alpha.GitlabEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GitlabResourceList
-	70, // 37: accessgraph.v1alpha.EntraEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.EntraSyncOperation
-	71, // 38: accessgraph.v1alpha.EntraEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.EntraResourceList
-	71, // 39: accessgraph.v1alpha.EntraEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.EntraResourceList
+	68, // 32: accessgraph.v1alpha.AWSEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AWSResourceList
+	68, // 33: accessgraph.v1alpha.AWSEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AWSResourceList
+	69, // 34: accessgraph.v1alpha.GitlabEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GitlabSyncOperation
+	70, // 35: accessgraph.v1alpha.GitlabEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GitlabResourceList
+	70, // 36: accessgraph.v1alpha.GitlabEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GitlabResourceList
+	71, // 37: accessgraph.v1alpha.EntraEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.EntraSyncOperation
+	72, // 38: accessgraph.v1alpha.EntraEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.EntraResourceList
+	72, // 39: accessgraph.v1alpha.EntraEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.EntraResourceList
 	31, // 40: accessgraph.v1alpha.AzureEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.AzureSyncOperation
-	72, // 41: accessgraph.v1alpha.AzureEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AzureResourceList
-	72, // 42: accessgraph.v1alpha.AzureEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AzureResourceList
+	73, // 41: accessgraph.v1alpha.AzureEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.AzureResourceList
+	73, // 42: accessgraph.v1alpha.AzureEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.AzureResourceList
 	34, // 43: accessgraph.v1alpha.NetIQEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.NetIQSyncOperation
-	73, // 44: accessgraph.v1alpha.NetIQEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.NetIQResourceList
-	73, // 45: accessgraph.v1alpha.NetIQEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.NetIQResourceList
+	74, // 44: accessgraph.v1alpha.NetIQEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.NetIQResourceList
+	74, // 45: accessgraph.v1alpha.NetIQEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.NetIQResourceList
 	38, // 46: accessgraph.v1alpha.AWSCloudTrailStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
 	37, // 47: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events_file:type_name -> accessgraph.v1alpha.AWSCloudTrailEventsFile
 	38, // 48: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
 	40, // 49: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
 	44, // 50: accessgraph.v1alpha.AWSCloudWatchStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudWatchConfig
-	45, // 51: accessgraph.v1alpha.AWSCloudWatchStreamRequest.events:type_name -> accessgraph.v1alpha.AWSCloudWatchEvents
+	45, // 51: accessgraph.v1alpha.AWSCloudWatchStreamRequest.results:type_name -> accessgraph.v1alpha.AWSCloudWatchResults
 	44, // 52: accessgraph.v1alpha.AWSCloudWatchStreamResponse.config:type_name -> accessgraph.v1alpha.AWSCloudWatchConfig
-	47, // 53: accessgraph.v1alpha.AWSCloudWatchStreamResponse.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
-	64, // 54: accessgraph.v1alpha.AWSCloudWatchConfig.start_date:type_name -> google.protobuf.Timestamp
-	46, // 55: accessgraph.v1alpha.AWSCloudWatchEvents.events:type_name -> accessgraph.v1alpha.AWSCloudWatchEvent
-	47, // 56: accessgraph.v1alpha.AWSCloudWatchEvents.cursors:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
-	64, // 57: accessgraph.v1alpha.AWSCloudWatchEvent.timestamp:type_name -> google.protobuf.Timestamp
-	64, // 58: accessgraph.v1alpha.AWSCloudWatchCursor.start_time:type_name -> google.protobuf.Timestamp
-	74, // 59: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	75, // 60: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
-	74, // 61: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	76, // 62: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	77, // 63: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
-	77, // 64: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
-	78, // 65: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync
-	79, // 66: accessgraph.v1alpha.OktaAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.OktaConfigV1
-	80, // 67: accessgraph.v1alpha.OktaAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.OktaAuditLogV1
-	79, // 68: accessgraph.v1alpha.OktaAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.OktaConfigV1
-	81, // 69: accessgraph.v1alpha.OktaAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.OktaAuditLogV1Cursor
-	82, // 70: accessgraph.v1alpha.OktaEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.OktaResourceList
-	82, // 71: accessgraph.v1alpha.OktaEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.OktaResourceList
-	83, // 72: accessgraph.v1alpha.OktaEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.OktaSync
-	0,  // 73: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
-	2,  // 74: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
-	4,  // 75: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
-	5,  // 76: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
-	10, // 77: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
-	36, // 78: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
-	42, // 79: accessgraph.v1alpha.AccessGraphService.AWSCloudWatchStream:input_type -> accessgraph.v1alpha.AWSCloudWatchStreamRequest
-	19, // 80: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
-	21, // 81: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
-	23, // 82: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
-	26, // 83: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
-	28, // 84: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
-	30, // 85: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
-	33, // 86: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
-	48, // 87: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:input_type -> accessgraph.v1alpha.GitHubAuditLogStreamRequest
-	50, // 88: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:input_type -> accessgraph.v1alpha.GitHubEventsStreamRequest
-	52, // 89: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:input_type -> accessgraph.v1alpha.OktaAuditLogStreamRequest
-	54, // 90: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:input_type -> accessgraph.v1alpha.OktaEventsStreamRequest
-	1,  // 91: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
-	3,  // 92: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
-	7,  // 93: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
-	8,  // 94: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
-	16, // 95: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
-	39, // 96: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
-	43, // 97: accessgraph.v1alpha.AccessGraphService.AWSCloudWatchStream:output_type -> accessgraph.v1alpha.AWSCloudWatchStreamResponse
-	20, // 98: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
-	22, // 99: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
-	25, // 100: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
-	27, // 101: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
-	29, // 102: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
-	32, // 103: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
-	35, // 104: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
-	49, // 105: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:output_type -> accessgraph.v1alpha.GitHubAuditLogStreamResponse
-	51, // 106: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:output_type -> accessgraph.v1alpha.GitHubEventsStreamResponse
-	53, // 107: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:output_type -> accessgraph.v1alpha.OktaAuditLogStreamResponse
-	55, // 108: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:output_type -> accessgraph.v1alpha.OktaEventsStreamResponse
-	91, // [91:109] is the sub-list for method output_type
-	73, // [73:91] is the sub-list for method input_type
-	73, // [73:73] is the sub-list for extension type_name
-	73, // [73:73] is the sub-list for extension extendee
-	0,  // [0:73] is the sub-list for field type_name
+	48, // 53: accessgraph.v1alpha.AWSCloudWatchStreamResponse.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
+	65, // 54: accessgraph.v1alpha.AWSCloudWatchConfig.start_date:type_name -> google.protobuf.Timestamp
+	46, // 55: accessgraph.v1alpha.AWSCloudWatchResults.log_groups:type_name -> accessgraph.v1alpha.AWSCloudWatchLogGroup
+	47, // 56: accessgraph.v1alpha.AWSCloudWatchLogGroup.events:type_name -> accessgraph.v1alpha.AWSCloudWatchEvent
+	48, // 57: accessgraph.v1alpha.AWSCloudWatchLogGroup.cursor:type_name -> accessgraph.v1alpha.AWSCloudWatchCursor
+	65, // 58: accessgraph.v1alpha.AWSCloudWatchEvent.timestamp:type_name -> google.protobuf.Timestamp
+	65, // 59: accessgraph.v1alpha.AWSCloudWatchCursor.start_time:type_name -> google.protobuf.Timestamp
+	75, // 60: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	76, // 61: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
+	75, // 62: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	77, // 63: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
+	78, // 64: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
+	78, // 65: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
+	79, // 66: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync
+	80, // 67: accessgraph.v1alpha.OktaAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.OktaConfigV1
+	81, // 68: accessgraph.v1alpha.OktaAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.OktaAuditLogV1
+	80, // 69: accessgraph.v1alpha.OktaAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.OktaConfigV1
+	82, // 70: accessgraph.v1alpha.OktaAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.OktaAuditLogV1Cursor
+	83, // 71: accessgraph.v1alpha.OktaEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.OktaResourceList
+	83, // 72: accessgraph.v1alpha.OktaEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.OktaResourceList
+	84, // 73: accessgraph.v1alpha.OktaEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.OktaSync
+	0,  // 74: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
+	2,  // 75: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
+	4,  // 76: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
+	5,  // 77: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
+	10, // 78: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
+	36, // 79: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
+	42, // 80: accessgraph.v1alpha.AccessGraphService.AWSCloudWatchStream:input_type -> accessgraph.v1alpha.AWSCloudWatchStreamRequest
+	19, // 81: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
+	21, // 82: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
+	23, // 83: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
+	26, // 84: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
+	28, // 85: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
+	30, // 86: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
+	33, // 87: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
+	49, // 88: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:input_type -> accessgraph.v1alpha.GitHubAuditLogStreamRequest
+	51, // 89: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:input_type -> accessgraph.v1alpha.GitHubEventsStreamRequest
+	53, // 90: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:input_type -> accessgraph.v1alpha.OktaAuditLogStreamRequest
+	55, // 91: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:input_type -> accessgraph.v1alpha.OktaEventsStreamRequest
+	1,  // 92: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
+	3,  // 93: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
+	7,  // 94: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
+	8,  // 95: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
+	16, // 96: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
+	39, // 97: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
+	43, // 98: accessgraph.v1alpha.AccessGraphService.AWSCloudWatchStream:output_type -> accessgraph.v1alpha.AWSCloudWatchStreamResponse
+	20, // 99: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
+	22, // 100: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
+	25, // 101: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
+	27, // 102: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
+	29, // 103: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
+	32, // 104: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
+	35, // 105: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
+	50, // 106: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:output_type -> accessgraph.v1alpha.GitHubAuditLogStreamResponse
+	52, // 107: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:output_type -> accessgraph.v1alpha.GitHubEventsStreamResponse
+	54, // 108: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:output_type -> accessgraph.v1alpha.OktaAuditLogStreamResponse
+	56, // 109: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:output_type -> accessgraph.v1alpha.OktaEventsStreamResponse
+	92, // [92:110] is the sub-list for method output_type
+	74, // [74:92] is the sub-list for method input_type
+	74, // [74:74] is the sub-list for extension type_name
+	74, // [74:74] is the sub-list for extension extendee
+	0,  // [0:74] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_access_graph_service_proto_init() }
@@ -4398,34 +4449,34 @@ func file_accessgraph_v1alpha_access_graph_service_proto_init() {
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42].OneofWrappers = []any{
 		(*AWSCloudWatchStreamRequest_Config)(nil),
-		(*AWSCloudWatchStreamRequest_Events)(nil),
+		(*AWSCloudWatchStreamRequest_Results)(nil),
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43].OneofWrappers = []any{
 		(*AWSCloudWatchStreamResponse_Config)(nil),
 		(*AWSCloudWatchStreamResponse_Cursor)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49].OneofWrappers = []any{
 		(*GitHubAuditLogStreamRequest_Config)(nil),
 		(*GitHubAuditLogStreamRequest_AuditLog)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[49].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50].OneofWrappers = []any{
 		(*GitHubAuditLogStreamResponse_GithubConfig)(nil),
 		(*GitHubAuditLogStreamResponse_AuditLogResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51].OneofWrappers = []any{
 		(*GitHubEventsStreamRequest_Upsert)(nil),
 		(*GitHubEventsStreamRequest_Delete)(nil),
 		(*GitHubEventsStreamRequest_Sync)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53].OneofWrappers = []any{
 		(*OktaAuditLogStreamRequest_Config)(nil),
 		(*OktaAuditLogStreamRequest_AuditLog)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[53].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54].OneofWrappers = []any{
 		(*OktaAuditLogStreamResponse_Config)(nil),
 		(*OktaAuditLogStreamResponse_AuditLogResumeState)(nil),
 	}
-	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54].OneofWrappers = []any{
+	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55].OneofWrappers = []any{
 		(*OktaEventsStreamRequest_Upsert)(nil),
 		(*OktaEventsStreamRequest_Delete)(nil),
 		(*OktaEventsStreamRequest_Sync)(nil),
@@ -4436,7 +4487,7 @@ func file_accessgraph_v1alpha_access_graph_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_access_graph_service_proto_rawDesc), len(file_accessgraph_v1alpha_access_graph_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   57,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
