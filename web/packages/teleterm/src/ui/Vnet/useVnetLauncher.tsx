@@ -18,7 +18,9 @@
 
 import { useCallback, useMemo } from 'react';
 
-import { isTshdRpcError } from 'teleterm/services/tshd';
+import { GetServiceInfoResponse } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { ensureError } from 'shared/utils/error';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { VnetLauncherArgs } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
@@ -132,20 +134,22 @@ export const useVnetLauncher = (): {
       const msg = msgParts.join(' ') + '.';
 
       if (isServer) {
+        let serviceInfo: GetServiceInfoResponse;
         try {
-          const serviceInfo = await currentServiceInfo();
-          if (!serviceInfo.sshConfigured) {
-            openSSHConfigurationModal({
-              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
-              host: addrToCopy,
-              onSuccess: () => notificationsService.notifyInfo(msg),
-            });
-            return;
-          }
+          serviceInfo = await currentServiceInfo();
         } catch (err) {
           notificationsService.notifyError({
-            title: isTshdRpcError(err) ? err.message : String(err),
-            isAutoRemovable: true,
+            title:
+              'Could not establish whether SSH clients are configured for VNet',
+            description: ensureError(err).message,
+          });
+          return;
+        }
+        if (!serviceInfo.sshConfigured) {
+          openSSHConfigurationModal({
+            vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            host: addrToCopy,
+            onSuccess: () => notificationsService.notifyInfo(msg),
           });
           return;
         }
