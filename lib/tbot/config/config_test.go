@@ -63,7 +63,7 @@ func TestConfigFile(t *testing.T) {
 	require.True(t, ok)
 
 	destImpl := identOutput.GetDestination()
-	destImplReal, ok := destImpl.(*DestinationDirectory)
+	destImplReal, ok := destImpl.(*destination.Directory)
 	require.True(t, ok)
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
 
@@ -112,31 +112,31 @@ func TestDestinationFromURI(t *testing.T) {
 	}{
 		{
 			in: "/absolute/dir",
-			want: &DestinationDirectory{
+			want: &destination.Directory{
 				Path: "/absolute/dir",
 			},
 		},
 		{
 			in: "relative/dir",
-			want: &DestinationDirectory{
+			want: &destination.Directory{
 				Path: "relative/dir",
 			},
 		},
 		{
 			in: "./relative/dir",
-			want: &DestinationDirectory{
+			want: &destination.Directory{
 				Path: "./relative/dir",
 			},
 		},
 		{
 			in: "file:///absolute/dir",
-			want: &DestinationDirectory{
+			want: &destination.Directory{
 				Path: "/absolute/dir",
 			},
 		},
 		{
 			in: "file:/absolute/dir",
-			want: &DestinationDirectory{
+			want: &destination.Directory{
 				Path: "/absolute/dir",
 			},
 		},
@@ -194,7 +194,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			in: BotConfig{
 				Version: V2,
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/bot/storage",
 						ACLs:     botfs.ACLTry,
 						Symlinks: botfs.SymlinksSecure,
@@ -218,7 +218,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/bot/output",
 						},
 						Roles:   []string{"editor"},
@@ -275,7 +275,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Message: "llama",
 					},
 					&SSHMultiplexerService{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/bot/output",
 						},
 						CredentialLifetime: bot.CredentialLifetime{
@@ -293,7 +293,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						},
 					},
 					&WorkloadIdentityX509Service{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
 						Selector: bot.WorkloadIdentitySelector{
@@ -315,7 +315,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						},
 					},
 					&WorkloadIdentityJWTService{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},
 						Selector: bot.WorkloadIdentitySelector{

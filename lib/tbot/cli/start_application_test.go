@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -51,7 +52,7 @@ func TestApplicationCommand(t *testing.T) {
 				require.Equal(t, "foo", appSvc.AppName)
 				require.True(t, appSvc.SpecificTLSExtensions)
 
-				dir, ok := appSvc.Destination.(*config.DestinationDirectory)
+				dir, ok := appSvc.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 			},

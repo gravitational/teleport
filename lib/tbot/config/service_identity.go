@@ -122,7 +122,7 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if _, ok := o.Destination.(*DestinationDirectory); !ok {
+	if _, ok := o.Destination.(*destination.Directory); !ok {
 		// If destDir is unset, we're not using a filesystem destination and
 		// ssh_config will not be sensible. Log a note and bail early without
 		// writing ssh_config. (Future users of k8s secrets will need to bring
@@ -165,7 +165,7 @@ func (o *IdentityOutput) Describe() []FileDescription {
 		fds = append(fds, FileDescription{
 			Name: ssh.KnownHostsName,
 		})
-		if _, ok := o.Destination.(*DestinationDirectory); ok {
+		if _, ok := o.Destination.(*destination.Directory); ok {
 			fds = append(fds, FileDescription{
 				Name: ssh.ConfigName,
 			})

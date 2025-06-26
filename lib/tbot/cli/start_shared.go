@@ -281,7 +281,7 @@ func (s *sharedDestinationArgs) BuildDestination() (destination.Destination, err
 		// These flags are only supported on directory destinations, so ensure
 		// that's what was built.
 
-		dd, ok := dest.(*config.DestinationDirectory)
+		dd, ok := dest.(*destination.Directory)
 		if !ok {
 			return nil, trace.BadParameter("--reader-user and --reader-group are only compatible with file destinations")
 		}

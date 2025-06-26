@@ -31,8 +31,8 @@ import (
 )
 
 type destinationMixinV1 struct {
-	Directory *DestinationDirectory `yaml:"directory"`
-	Memory    *DestinationMemory    `yaml:"memory"`
+	Directory *destination.Directory `yaml:"directory"`
+	Memory    *DestinationMemory     `yaml:"memory"`
 }
 
 func (c *destinationMixinV1) migrate() (destination.Destination, error) {

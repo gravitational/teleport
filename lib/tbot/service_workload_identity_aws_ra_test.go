@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -305,7 +306,7 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: workloadIdentity.GetMetadata().GetName(),
 					},
-					Destination: &config.DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: tmpDir,
 					},
 					RoleARN:                roleArn,

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
@@ -77,7 +78,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -92,7 +93,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
-				Destination: &DestinationDirectory{
+				Destination: &destination.Directory{
 					Path:     "/opt/machine-id",
 					ACLs:     botfs.ACLOff,
 					Symlinks: botfs.SymlinksInsecure,
@@ -114,7 +115,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -133,7 +134,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: bot.WorkloadIdentitySelector{},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -156,7 +157,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -192,7 +193,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -211,7 +212,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -230,7 +231,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -249,7 +250,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -269,7 +270,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -289,7 +290,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -309,7 +310,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,

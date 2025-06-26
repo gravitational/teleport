@@ -276,7 +276,7 @@ func renderSSHConfig(
 	}
 
 	// We only want to proceed further if we have a directory destination
-	destDirectory, ok := dest.(*config.DestinationDirectory)
+	destDirectory, ok := dest.(*destination.Directory)
 	if !ok {
 		return nil
 	}

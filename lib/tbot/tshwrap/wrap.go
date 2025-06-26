@@ -133,9 +133,9 @@ type destinationHolder interface {
 // GetDestinationDirectory attempts to select an unambiguous destination, either
 // from CLI or YAML config. It returns an error if the selected destination is
 // invalid. Note that CLI destinations will not be validated.
-func GetDestinationDirectory(cliDestinationPath string, botConfig *config.BotConfig) (*config.DestinationDirectory, error) {
+func GetDestinationDirectory(cliDestinationPath string, botConfig *config.BotConfig) (*destination.Directory, error) {
 	if cliDestinationPath != "" {
-		d := &config.DestinationDirectory{
+		d := &destination.Directory{
 			Path: cliDestinationPath,
 		}
 		if err := d.CheckAndSetDefaults(); err != nil {
@@ -157,10 +157,10 @@ func GetDestinationDirectory(cliDestinationPath string, botConfig *config.BotCon
 	} else if len(destinationHolders) > 1 {
 		return nil, trace.BadParameter("the config file contains multiple outputs and services; a --destination-dir must be specified")
 	}
-	destination := destinationHolders[0].GetDestination()
-	destinationDir, ok := destination.(*config.DestinationDirectory)
+	dst := destinationHolders[0].GetDestination()
+	destinationDir, ok := dst.(*destination.Directory)
 	if !ok {
-		return nil, trace.BadParameter("destination %s must be a directory", destination)
+		return nil, trace.BadParameter("destination %s must be a directory", dst)
 	}
 
 	return destinationDir, nil

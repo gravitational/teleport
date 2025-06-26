@@ -337,15 +337,15 @@ func TestBot(t *testing.T) {
 		Username:    databaseUsername,
 	}
 	kubeOutput := &config.KubernetesOutput{
-		// DestinationDirectory required or output will fail.
-		Destination: &config.DestinationDirectory{
+		// Directory required or output will fail.
+		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterName,
 	}
 	kubeDiscoveredNameOutput := &config.KubernetesOutput{
-		// DestinationDirectory required or output will fail.
-		Destination: &config.DestinationDirectory{
+		// Directory required or output will fail.
+		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterDiscoveredName,
@@ -576,7 +576,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
-	directoryDest := &config.DestinationDirectory{
+	directoryDest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -643,7 +643,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 		defaultBotConfigOpts{insecure: true},
 	)
 
-	dest := &config.DestinationDirectory{
+	dest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -847,7 +847,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	)
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
-	directoryDest := &config.DestinationDirectory{
+	directoryDest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -1146,7 +1146,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
 			&config.SSHMultiplexerService{
-				Destination: &config.DestinationDirectory{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 			},

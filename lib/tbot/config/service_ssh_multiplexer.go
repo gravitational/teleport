@@ -33,7 +33,7 @@ const SSHMultiplexerServiceType = "ssh-multiplexer"
 // SSHMultiplexerService is the configuration for the `ssh-proxy` service
 type SSHMultiplexerService struct {
 	// Destination is where the config and tunnel should be written to. It
-	// should be a DestinationDirectory.
+	// should be a Directory.
 	Destination destination.Destination `yaml:"destination"`
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
@@ -90,7 +90,7 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}
-	_, ok := s.Destination.(*DestinationDirectory)
+	_, ok := s.Destination.(*destination.Directory)
 	if !ok {
 		return trace.BadParameter("destination: must be of type `directory`")
 	}

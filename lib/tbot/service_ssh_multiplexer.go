@@ -158,7 +158,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	proxyHost string,
 	authClient *apiclient.Client,
 ) error {
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	dest := s.cfg.Destination.(*destination.Directory)
 
 	clusterNames, err := getClusterNames(ctx, authClient, s.identity.Get().ClusterName)
 	if err != nil {
@@ -434,7 +434,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	}
 	defer authClient.Close()
 
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	dest := s.cfg.Destination.(*destination.Directory)
 	absPath, err := filepath.Abs(dest.Path)
 	if err != nil {
 		return trace.Wrap(err, "determining absolute path for destination")

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
@@ -125,7 +126,7 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/path/storage",
 						ACLs:     botfs.ACLRequired,
 						Symlinks: botfs.SymlinksSecure,
@@ -133,7 +134,7 @@ destinations:
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/destination",
 						},
 						Roles: []string{"foo"},
@@ -213,7 +214,7 @@ destinations:
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
@@ -254,7 +255,7 @@ destinations:
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
@@ -296,7 +297,7 @@ destinations:
 				},
 				Services: ServiceConfigs{
 					&ApplicationOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
@@ -332,13 +333,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 					},
@@ -375,13 +376,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Service:  "example-server",
@@ -425,13 +426,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Format:   MongoDatabaseFormat,
@@ -475,13 +476,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Format:   CockroachDatabaseFormat,
@@ -525,13 +526,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Format:   TLSDatabaseFormat,
@@ -580,7 +581,7 @@ oneshot: false
 				},
 				CredentialLifetime: bot.DefaultCredentialLifetime,
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/var/lib/teleport/bot",
 						Symlinks: "secure",
 						ACLs:     "try",
@@ -588,7 +589,7 @@ oneshot: false
 				},
 				Services: ServiceConfigs{
 					&SSHHostOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Principals: []string{"nodename.my.domain.com"},
@@ -622,13 +623,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&ApplicationOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						AppName: "grafana-example",
@@ -665,13 +666,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&ApplicationOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						AppName:               "grafana-example",
@@ -706,13 +707,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						KubernetesCluster: "example-k8s-cluster",
@@ -773,7 +774,7 @@ destinations:
 					TokenValue: "iam-token-kube",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/var/lib/teleport/bot",
 						Symlinks: botfs.SymlinksInsecure,
 						ACLs:     botfs.ACLOff,
@@ -782,14 +783,14 @@ destinations:
 				Debug: true,
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/opt/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
 							ACLs:     botfs.ACLOff,
 						},
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/opt/machine-id/tools",
 							Symlinks: botfs.SymlinksInsecure,
 							ACLs:     botfs.ACLOff,
@@ -815,14 +816,14 @@ destinations:
 			wantOutput: &BotConfig{
 				Version: V2,
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/var/tmp/teleport/bot",
 						Symlinks: botfs.SymlinksInsecure,
 					},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path:     "/var/tmp/machine-id",
 							Symlinks: botfs.SymlinksInsecure,
 						},
@@ -855,13 +856,13 @@ destinations:
 					TokenValue: "redacted",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&DatabaseOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						Roles:    []string{"access"},
@@ -898,13 +899,13 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},
 						KubernetesCluster: "devops",
@@ -956,41 +957,41 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/bot",
 					},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-global",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-global",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-au",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-au",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-eu2",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-eu2",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-ca",
 							ACLs: botfs.ACLOff,
 						},
 						KubernetesCluster: "redacted-prod-ca",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/mount/redacted-prod-us",
 							ACLs: botfs.ACLOff,
 						},
@@ -1036,27 +1037,27 @@ destinations:
 					JoinMethod: types.JoinMethodToken,
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path: "/var/lib/teleport/tbot",
 					},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/to/role1_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role1"},
 					},
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/to/role2_creds",
 							ACLs: botfs.ACLRequired,
 						},
 						Roles: []string{"role2"},
 					},
 					&IdentityOutput{
-						Destination: &DestinationDirectory{
+						Destination: &destination.Directory{
 							Path: "/path/to/roleN_creds",
 							ACLs: botfs.ACLRequired,
 						},

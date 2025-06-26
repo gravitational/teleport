@@ -39,7 +39,7 @@ type StorageConfig struct {
 
 func (sc *StorageConfig) CheckAndSetDefaults() error {
 	if sc.Destination == nil {
-		sc.Destination = &DestinationDirectory{
+		sc.Destination = &destination.Directory{
 			Path: defaultStoragePath,
 		}
 	}

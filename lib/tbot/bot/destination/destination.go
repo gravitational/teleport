@@ -21,6 +21,16 @@ package destination
 import (
 	"context"
 	"fmt"
+
+	"go.opentelemetry.io/otel"
+
+	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+var (
+	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/bot/destination")
 )
 
 // Destination can persist renewable certificates.

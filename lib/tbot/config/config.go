@@ -183,7 +183,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	destinationPaths := map[string]int{}
 	addDestinationToKnownPaths := func(d destination.Destination) {
 		switch d := d.(type) {
-		case *DestinationDirectory:
+		case *destination.Directory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
 		case *DestinationKubernetesSecret:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
@@ -409,8 +409,8 @@ func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
-	case DestinationDirectoryType:
-		v := &DestinationDirectory{}
+	case destination.DirectoryType:
+		v := &destination.Directory{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -460,7 +460,7 @@ func DestinationFromURI(uriString string) (destination.Destination, error) {
 		}
 		// TODO(strideynet): eventually we can allow for URI query parameters
 		// to be used to configure symlinks/acl protection.
-		return &DestinationDirectory{
+		return &destination.Directory{
 			Path: uri.Path,
 		}, nil
 	case "memory":
