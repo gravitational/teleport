@@ -26,8 +26,9 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/loop"
 )
 
 // ClientCredentialOutputService produces credentials which can be used to
@@ -42,7 +43,7 @@ type ClientCredentialOutputService struct {
 	cfg                *config.UnstableClientCredentialOutput
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	identityGenerator  *identity.Generator
 }
 
@@ -55,7 +56,7 @@ func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	err := loop.Run(ctx, loop.Config{

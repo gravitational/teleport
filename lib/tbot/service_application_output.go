@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 )
 
@@ -45,7 +46,7 @@ type ApplicationOutputService struct {
 	cfg                *config.ApplicationOutput
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
 }
@@ -59,7 +60,7 @@ func (s *ApplicationOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *ApplicationOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	err := loop.Run(ctx, loop.Config{

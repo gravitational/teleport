@@ -136,34 +136,3 @@ func Test_filterCAEvent(t *testing.T) {
 		})
 	}
 }
-
-func TestChannelBroadcaster(t *testing.T) {
-	cb := channelBroadcaster{chanSet: map[chan struct{}]struct{}{}}
-	sub1, unsubscribe1 := cb.subscribe()
-	t.Cleanup(unsubscribe1)
-	sub2, unsubscribe2 := cb.subscribe()
-	t.Cleanup(unsubscribe2)
-
-	cb.broadcast()
-	require.NotEmpty(t, sub1)
-	require.NotEmpty(t, sub2)
-
-	// remove value from sub1 to check that if sub2 is full broadcasting still
-	// works
-	<-sub1
-	cb.broadcast()
-	require.NotEmpty(t, sub1)
-
-	// empty out both channels and ensure unsubscribing means they no longer
-	// receive values
-	<-sub1
-	<-sub2
-	unsubscribe1()
-	unsubscribe2()
-	cb.broadcast()
-	require.Empty(t, sub1)
-	require.Empty(t, sub2)
-
-	// ensure unsubscribing twice doesn't cause panic
-	unsubscribe1()
-}

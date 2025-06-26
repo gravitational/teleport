@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
@@ -51,7 +52,7 @@ type WorkloadIdentityAWSRAService struct {
 	cfg                *config.WorkloadIdentityAWSRAService
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
 }
@@ -70,7 +71,7 @@ func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
 // Run runs the service in a loop, generating the output and writing it to the
 // destination at regular intervals.
 func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	err := loop.Run(ctx, loop.Config{

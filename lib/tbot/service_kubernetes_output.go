@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -62,7 +63,7 @@ type KubernetesOutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPinger        connection.ProxyPinger
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
@@ -80,7 +81,7 @@ func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *KubernetesOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	err := loop.Run(ctx, loop.Config{
