@@ -780,6 +780,16 @@ func TestGetMCPServerTransportType(t *testing.T) {
 			uri:  "http://localhost",
 			want: "",
 		},
+		{
+			name: "SSE HTTP",
+			uri:  "mcp+sse+http://127.0.0.1:12345",
+			want: MCPTransportSSE,
+		},
+		{
+			name: "SSE HTTPS",
+			uri:  "mcp+sse+httpS://some-domain:443",
+			want: MCPTransportSSE,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

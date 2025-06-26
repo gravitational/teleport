@@ -424,7 +424,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		case a.Spec.Cloud != "":
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
 		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
-			a.Spec.URI = SchemaMCPStdio
+			a.Spec.URI = SchemaMCPStdio + "://"
 		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
@@ -673,11 +673,15 @@ func (p *PortRange) String() string {
 // the URI. If no MCP transport type can be determined from the URI, an empty
 // string is returned.
 func GetMCPServerTransportType(uri string) string {
-	switch {
-	case strings.HasPrefix(uri, SchemaMCPStdio):
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+
+	switch parsed.Scheme {
+	case SchemaMCPStdio:
 		return MCPTransportStdio
-	case strings.HasPrefix(uri, SchemaMCPSSEHTTP),
-		strings.HasPrefix(uri, SchemaMCPSSEHTTPS):
+	case SchemaMCPSSEHTTP, SchemaMCPSSEHTTPS:
 		return MCPTransportSSE
 	default:
 		return ""

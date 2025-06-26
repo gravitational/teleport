@@ -938,15 +938,15 @@ const (
 	CloudGCP = "GCP"
 
 	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
-	SchemaMCPStdio = "mcp+stdio://"
+	SchemaMCPStdio = "mcp+stdio"
 	// MCPTransportStdio indicates the MCP server uses stdio transport.
 	MCPTransportStdio = "stdio"
 	// SchemaMCPSSEHTTP is a URI schema for MCP servers using HTTP with SSE
 	// transport.
-	SchemaMCPSSEHTTP = "mcp+sse+http://"
+	SchemaMCPSSEHTTP = "mcp+sse+http"
 	// SchemaMCPSSEHTTPS is a URI schema for MCP servers using HTTPS with SSE
 	// transport.
-	SchemaMCPSSEHTTPS = "mcp+sse+https://"
+	SchemaMCPSSEHTTPS = "mcp+sse+https"
 	// MCPTransportSSE indicates the MCP server uses SSE transport.
 	MCPTransportSSE = "SSE"
 

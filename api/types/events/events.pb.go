@@ -16975,7 +16975,7 @@ type MCPSessionStart struct {
 	AppMetadata `protobuf:"bytes,6,opt,name=App,proto3,embedded=App" json:""`
 	// McpSessionId is the session ID tracked by remote MCP servers.
 	McpSessionId string `protobuf:"bytes,7,opt,name=mcp_session_id,json=mcpSessionId,proto3" json:"mcp_session_id,omitempty"`
-	// ClientInfo reports the client agent information, e.g. "claude-ai/0.1.0".
+	// ClientInfo stores reported client agent information, e.g. "claude-ai/0.1.0".
 	ClientInfo           string   `protobuf:"bytes,8,opt,name=client_info,json=clientInfo,proto3" json:"client_info,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
