@@ -48,18 +48,21 @@ func ToResourceHeaderProto(resourceHeader header.ResourceHeader) *headerv1.Resou
 
 // FromMetadataProto converts v1 metadata into an internal metadata object.
 func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
+	if msg == nil {
+		return header.Metadata{}
+	}
 	// We map the zero protobuf time (nil) to the zero go time.
 	var expires time.Time
-	if msg.Expires != nil {
-		expires = msg.Expires.AsTime()
+	if msg.GetExpires() != nil {
+		expires = msg.GetExpires().AsTime()
 	}
 
 	return header.Metadata{
-		Name:        msg.Name,
-		Description: msg.Description,
-		Labels:      msg.Labels,
+		Name:        msg.GetName(),
+		Description: msg.GetDescription(),
+		Labels:      msg.GetLabels(),
 		Expires:     expires,
-		Revision:    msg.Revision,
+		Revision:    msg.GetRevision(),
 	}
 }
 
