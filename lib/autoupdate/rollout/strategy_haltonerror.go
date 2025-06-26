@@ -194,12 +194,16 @@ const (
 	canaryThreshold = 20
 )
 
+func shouldUseCanaries(currentCount int) bool {
+	// in the future we might change this logic to be a multiple of the required canary count
+	// and make the canary count dynamic
+	return currentCount >= canaryThreshold
+}
+
 func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int, status *autoupdate.AutoUpdateAgentRolloutStatus) {
 	group.InitialCount = uint64(agentCount)
 
-	// TODO: compute if we should use canaries (group is large enough + config enabled?)
-	useCanary := agentCount >= canaryThreshold
-	if !useCanary {
+	if !shouldUseCanaries(agentCount) {
 		h.log.DebugContext(ctx, "Skipping canary rollout, transitioning directly to the active state", "group", group.Name)
 		setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
 		return

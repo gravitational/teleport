@@ -70,6 +70,10 @@ func (f fakeControlStream) Done() <-chan struct{} {
 	return f.doneChan
 }
 
+func (f fakeControlStream) Send(ctx context.Context, msg proto.DownstreamInventoryMessage) error {
+	return nil
+}
+
 func (f fakeControlStream) fakeMsg(msg proto.UpstreamInventoryMessage) {
 	f.msgChan <- msg
 }

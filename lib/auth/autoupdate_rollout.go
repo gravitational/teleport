@@ -119,7 +119,6 @@ func (h *handleSampler) Sampled() []inventory.UpstreamHandle {
 	return h.sample
 }
 
-// TODO: write tests for this
 func (a *Server) LookupAgentInInventory(ctx context.Context, hostID string) ([]*proto.UpstreamInventoryHello, error) {
 	handles, ok := a.inventory.GetAllControlStreams(hostID)
 	if !ok {

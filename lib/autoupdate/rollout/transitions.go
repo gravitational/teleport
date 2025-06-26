@@ -119,8 +119,7 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 		switch desiredState {
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED:
 			// TODO make startGroup a function and call it instead of duplicating the logic
-			useCanary := initialCount >= canaryThreshold
-			if useCanary {
+			if shouldUseCanaries(initialCount) {
 				desiredState = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY
 			} else {
 				desiredState = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE
