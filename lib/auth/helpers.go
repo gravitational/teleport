@@ -552,6 +552,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
+		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)
