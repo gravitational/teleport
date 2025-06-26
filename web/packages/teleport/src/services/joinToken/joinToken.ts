@@ -36,7 +36,8 @@ class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinTokenV2(
     req: JoinTokenRequest,
-    signal: AbortSignal = null
+    signal: AbortSignal = null,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
     return (
       api
@@ -51,7 +52,8 @@ class JoinTokenService {
             ),
             suggested_labels: makeLabelMapOfStrArrs(req.suggestedLabels),
           },
-          signal
+          signal,
+          mfaResponse
         )
         .then(makeJoinToken)
         // TODO(kimlisa): DELETE IN 19.0
@@ -63,7 +65,8 @@ class JoinTokenService {
   // replaced by fetchJoinTokenV2 that accepts labels.
   fetchJoinToken(
     req: Omit<JoinTokenRequest, 'suggestedLabels'>,
-    signal: AbortSignal = null
+    signal: AbortSignal = null,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
     return api
       .post(
@@ -76,7 +79,8 @@ class JoinTokenService {
             req.suggestedAgentMatcherLabels
           ),
         },
-        signal
+        signal,
+        mfaResponse
       )
       .then(makeJoinToken);
   }
