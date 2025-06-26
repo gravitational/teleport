@@ -228,7 +228,6 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 
 // TestDateExporterResume verifies non-trivial exporter resumption behavior, with and without
 // random flake.
-
 func TestDateExporterResume(t *testing.T) {
 	t.Parallel()
 	for _, randomFlake := range []bool{false, true} {
@@ -331,8 +330,6 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 
 	// get the final state of the exporter
 	state := exporter.GetState()
-
-	fmt.Printf("cursors=%+v\n", state.Cursors)
 
 	// recreate exporter with state from previous run
 	exporter, err = NewDateExporter(DateExporterConfig{

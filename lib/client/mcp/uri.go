@@ -69,8 +69,39 @@ func ParseResourceURI(uri string) (*ResourceURI, error) {
 	return &ResourceURI{url: *parsedURL}, nil
 }
 
-// NewDatabaseResourceURI creates a new database resource URI.
-func NewDatabaseResourceURI(cluster, databaseName string) ResourceURI {
+// databaseParams represents the connect params for the database resource.
+type databaseParams struct {
+	// user is the user to log in as.
+	user string
+	// name is the name to log in to.
+	name string
+}
+
+// databaseParam is a param function used for setting database connect params.
+type databaseParam func(*databaseParams)
+
+// WithDatabaseUser configures database params with database user.
+func WithDatabaseUser(user string) databaseParam {
+	return func(dp *databaseParams) {
+		dp.user = user
+	}
+}
+
+// WithDatabaseUser configures database params with database name.
+func WithDatabaseName(name string) databaseParam {
+	return func(dp *databaseParams) {
+		dp.name = name
+	}
+}
+
+// NewDatabaseResourceURI creates a new database resource URI with connect
+// params.
+func NewDatabaseResourceURI(cluster string, databaseName string, opts ...databaseParam) ResourceURI {
+	params := &databaseParams{}
+	for _, opt := range opts {
+		opt(params)
+	}
+
 	pathWithHost, _ := databaseURITemplate.Build(urlpath.Match{
 		Params: map[string]string{
 			"cluster": cluster,
@@ -78,10 +109,19 @@ func NewDatabaseResourceURI(cluster, databaseName string) ResourceURI {
 		},
 	})
 
+	values := url.Values{}
+	if params.user != "" {
+		values.Add(databaseUserQueryParamName, params.user)
+	}
+	if params.name != "" {
+		values.Add(databaseNameQueryParamName, params.name)
+	}
+
 	return ResourceURI{
 		url: url.URL{
-			Scheme: resourceScheme,
-			Path:   strings.TrimPrefix(pathWithHost, "/"),
+			Scheme:   resourceScheme,
+			Path:     strings.TrimPrefix(pathWithHost, "/"),
+			RawQuery: values.Encode(),
 		},
 	}
 }
@@ -122,12 +162,21 @@ func (u ResourceURI) IsDatabase() bool {
 	return u.GetDatabaseServiceName() != ""
 }
 
-// String returns the string representation of the resource URI (excluding the
-// query params).
+// String returns the string representation of the resource URI.
 func (u ResourceURI) String() string {
-	c := u.url
-	c.RawQuery = ""
-	return c.String()
+	return u.url.String()
+}
+
+// WithoutParams returns a copy of the resource without additional parameters.
+func (u ResourceURI) WithoutParams() ResourceURI {
+	copyURL := u.url
+	copyURL.RawQuery = ""
+	return ResourceURI{url: copyURL}
+}
+
+// Equal returns true if both resources represent the same Teleport resource.
+func (u ResourceURI) Equal(b ResourceURI) bool {
+	return u.String() == b.String()
 }
 
 // path returns the resource URI full path. We must include the hostname as the

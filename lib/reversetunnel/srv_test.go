@@ -365,7 +365,6 @@ func TestOnlyAuthDial(t *testing.T) {
 		"RemoteAuthServer": constants.RemoteAuthServer,
 		"ArbitraryDial":    badListenerAddr,
 	} {
-		addr := addr
 		t.Run(name, func(t *testing.T) {
 			ch, reqC, err := clientConn.conn.OpenChannel(constants.ChanTransport, nil)
 			require.NoError(t, err)

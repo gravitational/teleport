@@ -138,7 +138,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	// on the download that the first one started
 	streams := 2
 	errors := make(chan error, streams)
-	for i := 0; i < streams; i++ {
+	for range streams {
 		go func() {
 			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
 			for {
@@ -157,7 +157,7 @@ func TestConcurrentStreaming(t *testing.T) {
 
 	// This test just verifies that the streamer does not panic when multiple
 	// concurrent streams are waiting on the same download to complete.
-	for i := 0; i < streams; i++ {
+	for range streams {
 		<-errors
 	}
 }

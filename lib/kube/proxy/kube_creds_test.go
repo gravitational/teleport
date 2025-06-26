@@ -377,7 +377,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatalf("timeout waiting for cluster to be ready")
 			}
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				require.Equal(t, got.getKubeRestConfig().CAData, []byte(fixtures.TLSCACertPEM))
 				require.NoError(t, tt.args.validateBearerToken(got.getKubeRestConfig().BearerToken))
 				require.Equal(t, tt.wantAddr, got.getTargetAddr())
