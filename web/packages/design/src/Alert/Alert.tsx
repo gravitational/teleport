@@ -197,7 +197,7 @@ export const Alert = ({
   }
 
   return (
-    <OuterContainer bg={bg} kind={kind} vertical={vertical} {...otherProps}>
+    <OuterContainer bg={bg} kind={kind} {...otherProps}>
       <InnerContainer kind={kind} alignItems={alignItems} vertical={vertical}>
         <IconContainer kind={kind} vertical={vertical}>
           <StatusIcon
@@ -227,6 +227,7 @@ export const Alert = ({
           dismissible={dismissible}
           dismissed={dismissed}
           onDismiss={onDismissClick}
+          vertical={vertical}
         />
       </InnerContainer>
     </OuterContainer>
@@ -240,8 +241,6 @@ const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
 
   border: ${p => p.theme.borders[2]};
   border-radius: ${p => p.theme.radii[3]}px;
-
-  ${p => p.vertical && `flex-wrap: wrap; gap: ${p.theme.space[2]}px;`}
 
   ${space}
   ${width}
@@ -269,6 +268,7 @@ const InnerContainer = styled.div<
   display: flex;
   align-items: ${p => p.alignItems};
   gap: ${p => (p.vertical ? p.theme.space[3] : 0)}px;
+  flex-wrap: ${p => (p.vertical ? 'wrap' : 'initial')};
 
   ${backgroundColor}
 `;
@@ -364,7 +364,7 @@ const ActionButtons = ({
   if (!(primaryAction || secondaryAction || dismissible)) return;
 
   return (
-    <Flex ml={vertical ? 0 : 5} gap={2} flexBasis={vertical ? '100%' : 'auto'}>
+    <Flex ml={vertical ? 7 : 5} gap={2} flexBasis={vertical ? '100%' : 'auto'}>
       {primaryAction && (
         <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
       )}
