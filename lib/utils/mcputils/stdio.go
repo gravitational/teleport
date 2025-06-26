@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // StderrLogWriter implements io.Writer and logs the content at configured log

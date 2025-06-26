@@ -89,7 +89,7 @@ func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
 }
 
 func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
-	e := &apievents.MCPSessionStart{
+	a.emitEvent(ctx, &apievents.MCPSessionStart{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionStartEvent,
 			events.MCPSessionStartCode,
@@ -99,11 +99,8 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
-	}
-	if mcpSessionID := a.sessionCtx.mcpSessionID.Load(); mcpSessionID != nil {
-		e.McpSessionId = *mcpSessionID
-	}
-	a.emitEvent(ctx, e)
+		McpSessionId:       a.sessionCtx.mcpSessionID.String(),
+	})
 }
 
 func (a *sessionAuditor) emitEndEvent(ctx context.Context) {

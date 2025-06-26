@@ -58,7 +58,7 @@ type SessionCtx struct {
 	sessionID session.ID
 
 	// mcpSessionID is the MCP session ID tracked by remote MCP server.
-	mcpSessionID atomic.Pointer[string]
+	mcpSessionID atomicString
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {
@@ -274,4 +274,16 @@ func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) m
 		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
 		authErr,
 	)
+}
+
+type atomicString struct {
+	atomic.Pointer[string]
+}
+
+// String loads the atomic string value. If the point is nil, empty is returned.
+func (s *atomicString) String() string {
+	if loaded := s.Load(); loaded != nil {
+		return *loaded
+	}
+	return ""
 }

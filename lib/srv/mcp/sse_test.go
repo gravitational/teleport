@@ -56,7 +56,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 	handleDoneCh := make(chan struct{}, 1)
 	defer close(handleDoneCh)
 	go func() {
-		handlerErr := s.HandleSession(ctx, *testCtx.SessionCtx)
+		handlerErr := s.HandleSession(ctx, testCtx.SessionCtx)
 		handleDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
 	}()

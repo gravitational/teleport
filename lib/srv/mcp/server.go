@@ -100,19 +100,19 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 }
 
 // HandleSession handles an authorized client connection.
-func (s *Server) HandleSession(ctx context.Context, sessionCtx SessionCtx) error {
+func (s *Server) HandleSession(ctx context.Context, sessionCtx *SessionCtx) error {
 	if err := sessionCtx.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	if s.cfg.EnableDemoServer && isDemoServerApp(sessionCtx.App) {
-		return trace.Wrap(s.handleStdio(ctx, &sessionCtx, makeDemoServerRunner))
+		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeDemoServerRunner))
 	}
 	transportType := types.GetMCPServerTransportType(sessionCtx.App.GetURI())
 	switch transportType {
 	case types.MCPTransportStdio:
-		return trace.Wrap(s.handleStdio(ctx, &sessionCtx, makeExecServerRunner))
+		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 	case types.MCPTransportSSE:
-		return trace.Wrap(s.handleStdioToSSE(ctx, &sessionCtx))
+		return trace.Wrap(s.handleStdioToSSE(ctx, sessionCtx))
 	default:
 		return trace.BadParameter("unknown transport type: %v", transportType)
 	}

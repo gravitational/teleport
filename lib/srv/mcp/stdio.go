@@ -57,7 +57,7 @@ func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, au
 			errMsg.ID = req.ID
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
-		OnParseError: func(ctx context.Context, _ *mcp.JSONRPCError) error {
+		OnParseError: func(ctx context.Context, _ mcp.RequestId, _ error) error {
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
 		OnNotification: func(ctx context.Context, _ *mcputils.JSONRPCNotification) error {
