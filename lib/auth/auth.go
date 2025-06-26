@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -225,6 +226,57 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.ClusterConfiguration = clusterConfig
+	}
+	if cfg.KeyStore == nil {
+		keystoreOpts := &keystore.Options{
+			HostUUID:             cfg.HostUUID,
+			ClusterName:          cfg.ClusterName,
+			AuthPreferenceGetter: cfg.ClusterConfiguration,
+			FIPS:                 cfg.FIPS,
+		}
+		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		} else if cfg.KeyStoreConfig.AWSKMS != nil {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		}
+		cfg.KeyStore, err = keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.RecordingEncryption == nil {
+		localRecordingEncryption, err := local.NewRecordingEncryptionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+			Backend:       localRecordingEncryption,
+			ClusterConfig: cfg.ClusterConfiguration,
+			KeyStore:      cfg.KeyStore,
+			Logger:        cfg.Logger,
+			LockConfig: backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:            cfg.Backend,
+					TTL:                time.Second * 30,
+					LockNameComponents: []string{"recording_encryption"},
+				},
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.RecordingEncryption = recordingEncryptionManager
+		cfg.ClusterConfiguration = recordingEncryptionManager
 	}
 	if cfg.AutoUpdateService == nil {
 		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
@@ -479,30 +531,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
-	keystoreOpts := &keystore.Options{
-		HostUUID:             cfg.HostUUID,
-		ClusterName:          cfg.ClusterName,
-		AuthPreferenceGetter: cfg.ClusterConfiguration,
-		FIPS:                 cfg.FIPS,
-	}
-	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.AWSKMS != nil {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	}
-	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if cfg.KubeWaitingContainers == nil {
 		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
 		if err != nil {
@@ -582,6 +610,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		VnetConfigService:               cfg.VnetConfigService,
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		RecordingEncryptionManager:      cfg.RecordingEncryption,
 	}
 
 	as := Server{
@@ -598,7 +627,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:                  services,
 		Cache:                     services,
-		keyStore:                  keyStore,
+		keyStore:                  cfg.KeyStore,
 		traceClient:               cfg.TraceClient,
 		fips:                      cfg.FIPS,
 		loadAllCAs:                cfg.LoadAllCAs,
@@ -827,6 +856,7 @@ type Services struct {
 	services.VnetConfigService
 	events.MultipartHandler
 	services.Summarizer
+	RecordingEncryptionManager
 }
 
 // GetWebSession returns existing web session described by req.

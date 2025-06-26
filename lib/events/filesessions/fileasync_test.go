@@ -669,7 +669,7 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	var reader *events.ProtoReader
 	for i, part := range parts {
 		if i == 0 {
-			reader = events.NewProtoReader(bytes.NewReader(part))
+			reader = events.NewProtoReader(bytes.NewReader(part), nil)
 		} else {
 			err := reader.Reset(bytes.NewReader(part))
 			require.NoError(t, err)
