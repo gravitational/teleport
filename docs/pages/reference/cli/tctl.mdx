@@ -1,4 +1,4 @@
----
+=---
 title: tctl CLI reference
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
 ---
@@ -150,6 +150,83 @@ Removes a user from an Access List.
 
 ```code
 $ tctl acl users rm <access-list-name> <user>
+```
+
+## tctl lock
+
+You can create a new lock with the `tctl lock` command. Specify the lock target with one of the following options:
+
+```code
+$ tctl lock [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| --- | --- | --- | --- |
+| `--user` | none | string | Target a specific user by username. |
+| `--role` | none | string | Target a specific role by name. |
+| `--login` | none | string | Target a specific server login. |
+| `--server-id` | none | string | Target a specific node by name or UUID. |
+| `--mfa-device` | none | string | Target a specific MFA device by UUID. |
+| `--windows-desktop` | none | string | Target a specific Windows desktop by name. |
+| `--access-request` | none | string | Target a specific access request by ID. |
+| `--device` | none | string | Target a specific trusted device by ID. |
+| `--message` | none | string | Optional message explaining the reason for the lock. |
+| `--expires` | never | timestamp | When the lock should automatically expire (e.g. "2025-06-26T08:04:29.904431Z"). |
+| `--ttl` | none | duration | Time-to-live for the lock (alternative to --expires). |
+
+### Examples
+
+```code
+# Lock a specific user
+$ tctl lock --user alice --message "Security incident investigation"
+Created a lock with name "12345".
+
+# Lock a role with expiration
+$ tctl lock --role developers --expires "2025-06-26T00:20:47.16109Z" --message "Emergency maintenance"
+Created a lock with name "678910".
+
+# Lock a specific node
+$ tctl lock --server-id web-server-01 --message "Suspected compromise"
+Created a lock with name "abcde".
+
+# Lock multiple targets (user and access-request combination)
+$ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h --access-request=1234
+Created a lock with name "fghij".
+
+# Lock with TTL instead of specific expiration time
+$ tctl lock --role admins --ttl 30m --message "Scheduled security review"
+Created a lock with name "klmno".
+```
+
+## tctl get locks
+
+Use `tctl get` command to list all active locks:
+
+```code
+% tctl get locks
+kind: lock
+metadata:
+  name: cc015442-efad-4414-936f-d1cbe4dee8d5
+  revision: 868edc8d-47d6-437a-868a-b65aa10bf65b
+spec:
+  created_at: "2025-06-25T23:46:32.732350567Z"
+  created_by: security.admin@foo.com
+  message: Privilege escalation detected
+  target:
+    login: root
+    user: bob
+version: v2
+```
+
+## tctl rm
+
+Delete a lock resource:
+
+```code
+% tctl rm locks/93e817ae-c726-4239-998a-4c7531e23e2a
+lock "93e817ae-c726-4239-998a-4c7531e23e2a" has been deleted
 ```
 
 ## tctl notifications create
