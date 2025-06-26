@@ -260,6 +260,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
 			Backend:       localRecordingEncryption,
+			Cache:         localRecordingEncryption,
 			ClusterConfig: cfg.ClusterConfiguration,
 			KeyStore:      cfg.KeyStore,
 			Logger:        cfg.Logger,
