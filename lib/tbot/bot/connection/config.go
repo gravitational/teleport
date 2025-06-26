@@ -35,6 +35,13 @@ type Config struct {
 	// given as an auth server address.
 	AuthServerAddressMode AuthServerAddressMode
 
+	// StaticProxyAddress means the given proxy address will be used as-is
+	// rather than using an address discovered by pinging the proxy or auth
+	// server.
+	//
+	// In tbot, it is controlled using the `TBOT_USE_PROXY_ADDR` env var.
+	StaticProxyAddress bool
+
 	// Insecure allows the bot to trust the auth server or proxy certificate on
 	// first connection without verifying them. It is not recommended for use in
 	// production.
@@ -57,6 +64,10 @@ func (cfg *Config) Validate() error {
 	case AllowProxyAsAuthServer, WarnIfAuthServerIsProxy, AuthServerMustBeAuthServer:
 	default:
 		return trace.BadParameter("unsupported auth server address mode: %d", cfg.AuthServerAddressMode)
+	}
+
+	if cfg.StaticProxyAddress && cfg.AddressKind != AddressKindProxy {
+		return trace.BadParameter("static proxy address requested (e.g. via the TBOT_USE_PROXY_ADDR environment variable) but no explicit proxy address was configured")
 	}
 
 	return nil

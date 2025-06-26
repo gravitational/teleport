@@ -97,8 +97,8 @@ func (c *CachingProxyPinger) Ping(ctx context.Context) (*connection.ProxyPong, e
 	c.logger.DebugContext(ctx, "Successfully pinged proxy", "pong", res)
 
 	c.cachedValue = &connection.ProxyPong{PingResponse: res}
-	if c.connCfg.AddressKind == connection.AddressKindProxy {
-		c.cachedValue.UserConfiguredProxyAddress = addr
+	if c.connCfg.AddressKind == connection.AddressKindProxy && c.connCfg.StaticProxyAddress {
+		c.cachedValue.StaticProxyAddress = addr
 	}
 	return c.cachedValue, nil
 }

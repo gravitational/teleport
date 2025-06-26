@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -96,6 +97,7 @@ func (conf *BotConfig) ConnectionConfig() connection.Config {
 	cc := connection.Config{
 		Insecure:              conf.Insecure,
 		AuthServerAddressMode: conf.AuthServerAddressMode,
+		StaticProxyAddress:    shouldUseProxyAddr(),
 	}
 
 	switch {
@@ -110,6 +112,21 @@ func (conf *BotConfig) ConnectionConfig() connection.Config {
 	return cc
 }
 
+// useProxyAddrEnv is an environment variable which can be set to
+// force `tbot` to prefer using the proxy address explicitly provided by the
+// user over the one fetched from the proxy ping. This is only intended to work
+// in cases where TLS routing is enabled, and is intended to support cases where
+// the Proxy is accessible from multiple addresses, and the one included in the
+// ProxyPing is incorrect.
+const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
+
+// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
+// variable is set to "yes". More generally, this indicates that the user wishes
+// for tbot to prefer using the proxy address that has been explicitly provided
+// by the user rather than the one fetched via a discovery process (e.g ping).
+func shouldUseProxyAddr() bool {
+	return os.Getenv(useProxyAddrEnv) == "yes"
+}
 
 func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Wrap conf in an anonymous struct to avoid having the deprecated field on

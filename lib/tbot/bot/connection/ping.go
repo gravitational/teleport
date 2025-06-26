@@ -21,7 +21,6 @@ package connection
 import (
 	"context"
 	"net"
-	"os"
 
 	"github.com/gravitational/trace"
 
@@ -39,8 +38,10 @@ type ProxyPinger interface {
 type ProxyPong struct {
 	*webclient.PingResponse
 
-	// UserConfiguredProxyAddress is the user-configured proxy address.
-	UserConfiguredProxyAddress string
+	// StaticProxyAddress is the user-configured proxy address when the user
+	// requests their given address is preferred over pinging the proxy or auth
+	// server.
+	StaticProxyAddress string
 }
 
 // ProxyWebAddr returns the address to use to connect to the proxy web port.
@@ -49,11 +50,8 @@ type ProxyPong struct {
 // variable, which can be used to force the use of the proxy address explicitly
 // provided by the user rather than use the one fetched from the proxy ping.
 func (p *ProxyPong) ProxyWebAddr() (string, error) {
-	if shouldUseProxyAddr() {
-		if p.UserConfiguredProxyAddress == "" {
-			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
-		}
-		return p.UserConfiguredProxyAddress, nil
+	if p.StaticProxyAddress != "" {
+		return p.StaticProxyAddress, nil
 	}
 	return p.Proxy.SSH.PublicAddr, nil
 }
@@ -61,13 +59,8 @@ func (p *ProxyPong) ProxyWebAddr() (string, error) {
 // ProxySSHAddr returns the address to use to connect to the proxy SSH service.
 // Includes potential override via TBOT_USE_PROXY_ADDR.
 func (p *ProxyPong) ProxySSHAddr() (string, error) {
-	if p.Proxy.TLSRoutingEnabled && shouldUseProxyAddr() {
-		// If using TLS routing, we should use the manually overridden address
-		// for the proxy web port.
-		if p.UserConfiguredProxyAddress == "" {
-			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
-		}
-		return p.UserConfiguredProxyAddress, nil
+	if p.Proxy.TLSRoutingEnabled && p.StaticProxyAddress != "" {
+		return p.StaticProxyAddress, nil
 	}
 	// SSHProxyHostPort returns the host and port to use to connect to the
 	// proxy's SSH service. If TLS routing is enabled, this will return the
@@ -77,20 +70,4 @@ func (p *ProxyPong) ProxySSHAddr() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return net.JoinHostPort(host, port), nil
-}
-
-// useProxyAddrEnv is an environment variable which can be set to
-// force `tbot` to prefer using the proxy address explicitly provided by the
-// user over the one fetched from the proxy ping. This is only intended to work
-// in cases where TLS routing is enabled, and is intended to support cases where
-// the Proxy is accessible from multiple addresses, and the one included in the
-// ProxyPing is incorrect.
-const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
-
-// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
-// variable is set to "yes". More generally, this indicates that the user wishes
-// for tbot to prefer using the proxy address that has been explicitly provided
-// by the user rather than the one fetched via a discovery process (e.g ping).
-func shouldUseProxyAddr() bool {
-	return os.Getenv(useProxyAddrEnv) == "yes"
 }
