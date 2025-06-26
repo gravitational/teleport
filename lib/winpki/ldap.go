@@ -78,7 +78,9 @@ type LDAPConfig struct {
 }
 
 // CheckAndSetDefaults verifies this LDAPConfig
-func (cfg LDAPConfig) CheckAndSetDefaults() error {
+func (cfg *LDAPConfig) CheckAndSetDefaults() error {
+	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
+
 	if cfg.Addr == "" && !cfg.LocateServer {
 		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
 	}
@@ -92,7 +94,6 @@ func (cfg LDAPConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Username in LDAPConfig")
 	}
 
-	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 	return nil
 }
 
