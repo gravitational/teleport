@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
 
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM docker.io/debian:12 as builder
+FROM --platform=$BUILDPLATFORM docker.io/debian:12@sha256:0d8498a0e9e6a60011df39aab78534cfe940785e7c59d19dfae1eb53ea59babe as builder
 ARG BUILDARCH
 
 ## Install dependencies.

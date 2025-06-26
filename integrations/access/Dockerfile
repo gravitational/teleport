@@ -2,7 +2,7 @@ ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 
 # BUILDPLATFORM is provided by Docker/buildx
 # Extract the built tarball to reduce the final image size
-FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
+FROM --platform=${BUILDPLATFORM} alpine:3.20.0@sha256:77726ef6b57ddf65bb551896826ec38bc3e53f75cdde31354fbffb4f25238ebd as extractor
 
 ARG TARGETARCH
 ARG TARGETOS

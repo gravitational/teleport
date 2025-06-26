@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
 
-FROM debian:12 AS teleport
+FROM debian:12@sha256:0d8498a0e9e6a60011df39aab78534cfe940785e7c59d19dfae1eb53ea59babe AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note
 # that we cannot simply pass a ready-made package filename in as a build-arg, as
 # this dockerfile is used for a multiarch build and any build-args will be
