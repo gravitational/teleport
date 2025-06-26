@@ -1921,3 +1921,9 @@ dump-preset-roles:
 .PHONY: test-e2e
 test-e2e: ensure-webassets
 	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
+
+.PHONY: gen-docs
+gen-docs:
+	$(MAKE) -C integrations/terraform docs
+	$(MAKE) -C integrations/operator crd-docs
+	$(MAKE) -C examples/chart render-chart-ref
