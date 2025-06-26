@@ -70,9 +70,9 @@ func TestSSHConfigurator(t *testing.T) {
 	// test that it actually produces output that looks like this.
 	expectedConfigFile := func(expectedHosts string) string {
 		if expectedHosts == "" {
-			return "# No active clusters\n"
+			return generatedFileHeader + "# VNet currently detects no logged-in clusters, log in to start using VNet\n"
 		}
-		return fmt.Sprintf(`Host %s
+		return generatedFileHeader + fmt.Sprintf(`Host %s
     IdentityFile "%s/id_vnet"
     GlobalKnownHostsFile "%s/vnet_known_hosts"
     UserKnownHostsFile /dev/null
