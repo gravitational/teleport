@@ -91,13 +91,30 @@ describe('Markdown', () => {
       );
     });
 
-    it('renders links with inline formatting in text', () => {
+    it('renders links with correct formatting in text', () => {
       renderMarkdown(`[**bold** link](https://example.com)`);
 
-      const link = screen.getByRole('link', { name: '**bold** link' });
+      const link = screen.getByRole('link', { name: 'bold link' });
 
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute('href', 'https://example.com');
+      expect(link.innerHTML).toContain('<strong>bold</strong> link');
+    });
+
+    it('renders links with code block in text', () => {
+      renderMarkdown(
+        '[`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/)'
+      );
+
+      const link = screen.getByRole('link', { name: 'teleport-kube-agent' });
+
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute(
+        'href',
+        'https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/'
+      );
+      expect(link.tagName).toBe('A');
+      expect(link.innerHTML).toContain('<code>teleport-kube-agent</code>');
     });
   });
 

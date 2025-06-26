@@ -50,7 +50,7 @@ const parsers: MarkdownParser[] = [
     pattern: /\[(?<content>[^\]]*)](?:\((?<url>https?:\/\/[^)]+|[^:)]+)\))?/,
     render: (content, key, url) => (
       <StyledLink key={key} href={url}>
-        {content}
+        {parseLine(content)}
       </StyledLink>
     ),
   },
