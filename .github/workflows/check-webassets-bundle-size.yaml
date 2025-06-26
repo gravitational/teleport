@@ -51,7 +51,13 @@ jobs:
         run: VITE_OUTPUT_STATS=1 pnpm build-ui-oss
 
       - name: Store base
-        run: cp webassets/teleport/stats.json /tmp/stats-before.json
+        run: |
+          if [ -f webassets/teleport/stats.json ]; then
+            cp webassets/teleport/stats.json /tmp/stats-before.json
+          else
+            echo "Base branch does not have the Vite stats plugin"
+            touch /tmp/no-base-stats
+          fi
 
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -72,4 +78,9 @@ jobs:
         run: cp webassets/teleport/stats.json /tmp/stats-after.json
 
       - name: Compare the bundle sizes
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=webassets -token="${{ secrets.GITHUB_TOKEN }}" --stats /tmp/stats-before.json,/tmp/stats-after.json  -reviewers="${{ secrets.reviewers }}"
+        run: |
+          if [ -f /tmp/no-base-stats ]; then
+            echo "Skipping bundle size comparison - base branch does not have stats"
+            exit 0
+          fi
+          cd .github/shared-workflows/bot && go run main.go -workflow=webassets -token="${{ secrets.GITHUB_TOKEN }}" --stats /tmp/stats-before.json,/tmp/stats-after.json  -reviewers="${{ secrets.reviewers }}"
