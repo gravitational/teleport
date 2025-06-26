@@ -74,7 +74,7 @@ func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequ
 		contents, err := encodeDatabaseResource(db)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "error while list databases", "error", err)
-			return mcp.NewToolResultError(FormatErrorMessage(nil, err).Error()), nil
+			return mcp.NewToolResultError(FormatErrorMessage(err).Error()), nil
 		}
 		res = append(res, mcp.EmbeddedResource{Type: "resource", Resource: contents})
 	}
