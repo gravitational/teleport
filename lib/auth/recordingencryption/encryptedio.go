@@ -41,20 +41,19 @@ type EncryptedIO struct {
 
 // NewEncryptedIO returns an EncryptedIO configured with the given SessionRecordingConfigGetter and
 // recordingencryption.DecryptionKeyFinder
-func NewEncryptedIO(srcgetter SessionRecordingConfigGetter, decryptionKeyGetter DecryptionKeyFinder) *EncryptedIO {
-	return &EncryptedIO{
-		srcGetter: srcgetter,
-		keyFinder: decryptionKeyGetter,
+func NewEncryptedIO(srcGetter SessionRecordingConfigGetter, decryptionKeyGetter DecryptionKeyFinder) (*EncryptedIO, error) {
+	if srcGetter == nil {
+		return nil, trace.BadParameter("SessionRecordingConfigGetter is required for EncryptedIO")
 	}
+	return &EncryptedIO{
+		srcGetter: srcGetter,
+		keyFinder: decryptionKeyGetter,
+	}, nil
 }
 
 // WithEncryption wraps the given io.WriteCloser with encryption using the keys present in the
 // retrieved types.SessionRecordingConfig
 func (e *EncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
-	if e.srcGetter == nil {
-		return writer, nil
-	}
-
 	src, err := e.srcGetter.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,11 +94,14 @@ func NewEncryptionWrapper(sessionRecordingConfig types.SessionRecordingConfig) *
 	}
 }
 
+// ErrEncryptionDisabled signals that the [types.SessionRecordingConfig] does not enable encryption.
+var ErrEncryptionDisabled = &trace.BadParameterError{Message: "session_recording_config does not enable encryption"}
+
 // WithEncryption wraps the given io.WriteCloser with encryption using the keys present in the
 // configured types.SessionRecordingConfig
 func (s *EncryptionWrapper) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
 	if !s.config.GetEncrypted() {
-		return writer, nil
+		return nil, ErrEncryptionDisabled
 	}
 
 	var recipients []age.Recipient

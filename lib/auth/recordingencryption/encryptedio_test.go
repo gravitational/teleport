@@ -30,7 +30,7 @@ import (
 )
 
 func TestEncryptedIO(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	keyFinder := newFakeKeyFinder()
 	ident, err := keyFinder.generateIdentity()
 	require.NoError(t, err)
@@ -42,7 +42,8 @@ func TestEncryptedIO(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	encryptedIO := recordingencryption.NewEncryptedIO(srcGetter, keyFinder)
+	encryptedIO, err := recordingencryption.NewEncryptedIO(srcGetter, keyFinder)
+	require.NoError(t, err)
 
 	out := bytes.NewBuffer(nil)
 	writer, err := encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})
@@ -63,6 +64,19 @@ func TestEncryptedIO(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, msg, plaintext)
+
+	// creating an EncryptedIO without a SessionRecordingConfigGetter should be an error
+	_, err = recordingencryption.NewEncryptedIO(nil, nil)
+	require.Error(t, err)
+
+	// wrapping encryption when encryption is disabled should return an ErrEncryptionDisabled
+	srcGetter, err = newFakeSRCGetter(false, nil)
+	require.NoError(t, err)
+	encryptedIO, err = recordingencryption.NewEncryptedIO(srcGetter, nil)
+	require.NoError(t, err)
+
+	_, err = encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})
+	require.ErrorIs(t, err, recordingencryption.ErrEncryptionDisabled)
 }
 
 type fakeSRCGetter struct {
@@ -72,7 +86,7 @@ type fakeSRCGetter struct {
 func newFakeSRCGetter(encrypted bool, keys []*types.AgeEncryptionKey) (*fakeSRCGetter, error) {
 	spec := types.SessionRecordingConfigSpecV2{
 		Encryption: &types.SessionRecordingEncryptionConfig{
-			Enabled: true,
+			Enabled: encrypted,
 		},
 	}
 

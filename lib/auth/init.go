@@ -108,8 +108,8 @@ type InitConfig struct {
 	// keys that may be held in an HSM.
 	KeyStoreConfig servicecfg.KeystoreConfig
 
-	// KeyStore which handles private CA keys and encryption keys that may be
-	// held in an HSM.
+	// KeyStore handles private CA keys and encryption keys that may be held
+	// in an HSM.
 	KeyStore *keystore.Manager
 
 	// HostUUID is a UUID of this host

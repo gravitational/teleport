@@ -36,6 +36,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -696,11 +697,15 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 	if w.encrypter != nil {
 		// we want to encrypt after compression, so gzip needs to be the outermost layer
 		encryptedWriter, err := w.encrypter.WithEncryption(w.proto.completeCtx, writer)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		switch {
+		case err == nil:
+			encrypted = true
+			writer = encryptedWriter
+		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
+			// if encryption isn't enabled, do nothing
+		default:
+			return nil, trace.Wrap(err, "fetching recording encrypter")
 		}
-		encrypted = writer != encryptedWriter
-		writer = encryptedWriter
 	}
 
 	// reserve bytes for version header
