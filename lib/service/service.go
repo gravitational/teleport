@@ -2152,6 +2152,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
 		Backend:       localRecordingEncryption,
+		Cache:         localRecordingEncryption,
 		KeyStore:      keyStore,
 		Logger:        logger,
 		ClusterConfig: clusterConfig,
@@ -2354,6 +2355,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return trace.Wrap(err)
 			}
 			as.Cache = cache
+			recordingEncryptionManager.SetCache(cache)
 
 			return nil
 		})
@@ -2825,6 +2827,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.HealthCheckConfig = services.HealthCheckConfig
 	cfg.BotInstance = services.BotInstance
 	cfg.Plugin = services.Plugins
+	cfg.RecordingEncryption = services.RecordingEncryptionManager
 
 	return accesspoint.NewCache(cfg)
 }

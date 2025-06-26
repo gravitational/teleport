@@ -113,6 +113,7 @@ type Config struct {
 	GitServers              services.GitServers
 	HealthCheckConfig       services.HealthCheckConfigReader
 	Plugin                  services.Plugins
+	RecordingEncryption     services.RecordingEncryption
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -198,6 +199,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		HealthCheckConfig:       cfg.HealthCheckConfig,
 		BotInstanceService:      cfg.BotInstance,
 		Plugin:                  cfg.Plugin,
+		RecordingEncryption:     cfg.RecordingEncryption,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))
