@@ -277,7 +277,7 @@ func getItemsUsingReflection(obj runtime.Object) (getItemsUsingReflectionOutput,
 func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, items []kubeObjectInterface) {
 	// make a new slice of the same type as the original one.
 	slice := reflect.MakeSlice(itemsR.Type(), len(items), len(items))
-	for i := 0; i < len(items); i++ {
+	for i := range items {
 		item := items[i]
 		// convert the item to the underlying type of the slice.
 		// this is needed because items is a slice of pointers that

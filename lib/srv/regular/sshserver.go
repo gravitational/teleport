@@ -1075,9 +1075,7 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 // getAllLabels return a combination of static and dynamic labels.
 func (s *Server) getAllLabels() map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.getStaticLabels() {
-		lmap[key] = value
-	}
+	maps.Copy(lmap, s.getStaticLabels())
 	for key, cmd := range s.getDynamicLabels() {
 		lmap[key] = cmd.Result
 	}

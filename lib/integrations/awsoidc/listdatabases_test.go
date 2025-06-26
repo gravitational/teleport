@@ -117,7 +117,7 @@ func TestListDatabases(t *testing.T) {
 
 		allInstances := make([]rdsTypes.DBInstance, 0, totalDBs)
 		for i, vpcID := range vpcIDs {
-			for j := 0; j < databasesPerVPC; j++ {
+			for j := range databasesPerVPC {
 				allInstances = append(allInstances, rdsTypes.DBInstance{
 					DBInstanceStatus:     stringPointer("available"),
 					DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i*databasesPerVPC+j)),

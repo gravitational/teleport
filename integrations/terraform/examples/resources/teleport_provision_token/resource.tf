@@ -1,6 +1,7 @@
 # Teleport Provision Token resource
 
 resource "teleport_provision_token" "example" {
+  version = "v2"
   metadata = {
     expires     = "2022-10-12T07:20:51Z"
     description = "Example token"
@@ -17,6 +18,7 @@ resource "teleport_provision_token" "example" {
 }
 
 resource "teleport_provision_token" "iam-token" {
+  version = "v2"
   metadata = {
     name = "iam-token"
   }

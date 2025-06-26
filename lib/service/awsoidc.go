@@ -219,7 +219,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	// for AWS OIDC deploy services to update. In order to reduce the number of api
 	// calls, the aws regions are first reduced to only the regions containing
 	// an RDS database.
-	awsRegions := make(map[string]interface{})
+	awsRegions := make(map[string]any)
 	for _, database := range databases {
 		if database.IsAWSHosted() && database.IsRDS() {
 			awsRegions[database.GetAWS().Region] = nil

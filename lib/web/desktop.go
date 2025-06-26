@@ -25,6 +25,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -40,6 +41,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -384,21 +386,42 @@ func (h *Handler) performSessionMFACeremony(
 		span.End()
 	}()
 
-	mfaCeremony := &mfa.Ceremony{
-		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
-			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				codec := tdpMFACodec{}
+	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
+	channelID := uuid.NewString()
 
-				if chal.WebauthnChallenge == nil {
-					return nil, trace.AccessDenied("Desktop access requires WebAuthn MFA, please register a WebAuthn device to connect")
+	mfaCeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
+		SSOMFACeremonyConstructor: func(_ context.Context) (mfa.SSOMFACeremony, error) {
+			u, err := url.Parse(sso.WebMFARedirect)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
+			return &sso.MFACeremony{
+				ClientCallbackURL: u.String(),
+				ProxyAddress:      h.PublicProxyAddr(),
+			}, nil
+		},
+		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				// Convert from proto to JSON types.
+				var challenge client.MFAAuthenticateChallenge
+				if chal.WebauthnChallenge != nil {
+					challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
 				}
+
+				if chal.SSOChallenge != nil {
+					challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+					challenge.SSOChallenge.ChannelID = channelID
+				}
+
+				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+					return nil, trace.AccessDenied("Only WebAuthn and SSO MFA methods are supported on the web, please register a supported MFA method to connect to this desktop")
+				}
+
 				// Send the challenge over the socket.
-				msg, err := codec.Encode(
-					&client.MFAAuthenticateChallenge{
-						WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
-					},
-					defaults.WebsocketMFAChallenge,
-				)
+				var codec tdpMFACodec
+				msg, err := codec.Encode(&challenge, defaults.WebsocketMFAChallenge)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -457,7 +480,6 @@ func (h *Handler) performSessionMFACeremony(
 				return assertion, nil
 			})
 		},
-		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 	}
 
 	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
@@ -552,7 +574,6 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				log.DebugContext(ctx, "sending latency stats", "client", stats.Client, "server", stats.Server)
 				return trace.Wrap(tdpConnProxy.SendToClient(tdp.LatencyStats{
 					ClientLatency: uint32(stats.Client),
 					ServerLatency: uint32(stats.Server),

@@ -619,8 +619,6 @@ func TestListResources(t *testing.T) {
 	}
 
 	for testName, test := range tests {
-		testName := testName
-		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			backend, err := lite.NewWithConfig(ctx, lite.Config{
@@ -648,13 +646,13 @@ func TestListResources(t *testing.T) {
 			totalResources := totalWithLabels + totalWithoutLabels
 
 			// with labels
-			for i := 0; i < totalWithLabels; i++ {
+			for i := range totalWithLabels {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
 			// without labels
-			for i := 0; i < totalWithoutLabels; i++ {
+			for i := range totalWithoutLabels {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
 				require.NoError(t, err)
 			}
@@ -806,7 +804,6 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        5,
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -819,7 +816,7 @@ func TestListResources_Helpers(t *testing.T) {
 	})
 
 	// Add some test servers.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -837,7 +834,6 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        -1,
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := tc.fetch(req)
@@ -853,7 +849,6 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        int32(len(nodes)),
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -869,7 +864,6 @@ func TestListResources_Helpers(t *testing.T) {
 
 	t.Run("test first, middle, last fetching", func(t *testing.T) {
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				// First fetch.
@@ -929,7 +923,6 @@ func TestListResources_Helpers(t *testing.T) {
 			SearchKeywords: []string{targetVal},
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -968,7 +961,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some test servers.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1007,7 +1000,6 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		}
 
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				req := FakePaginateParams{
@@ -1113,13 +1105,12 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
 	for _, l := range leases {
-		l := l
 		go func() {
 			errCh <- presence.CancelSemaphoreLease(ctx, *l)
 		}()
 	}
 
-	for i := 0; i < maxLeases; i++ {
+	for range maxLeases {
 		err := <-errCh
 		require.NoError(t, err)
 	}
@@ -1167,7 +1158,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -1194,7 +1185,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -1217,7 +1208,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
@@ -1356,7 +1347,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
 		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
@@ -1373,7 +1364,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.ReverseTunnel{}
 	pageToken = ""
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		var got []types.ReverseTunnel
 		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
 		require.NoError(t, err)

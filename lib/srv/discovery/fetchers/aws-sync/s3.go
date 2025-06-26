@@ -90,7 +90,6 @@ func (a *Fetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWS
 
 	// Iterate over the buckets and fetch their inline and attached policies.
 	for _, bucket := range buckets {
-		bucket := bucket
 		eG.Go(func() error {
 			var failedReqs failedRequests
 			var errs []error

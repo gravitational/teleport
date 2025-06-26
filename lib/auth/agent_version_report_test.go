@@ -257,6 +257,14 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 					UpdaterInfo:      &types.UpdaterV2Info{UpdaterStatus: status, UpdateGroup: fixture.updateGroup},
 				})
 				if fixture.goodbye != nil {
+					// Sending the message twice is a little hack to make sure that the auth received the goodbye at
+					// least once. Else, the auth might still be in the small frame when it received the message
+					// over the channel but has not stored it yet. When this happens the test becomes flaky.
+					// Ideally we would peek into the inventory internals and wait for the goodbye to be stored,
+					// but we don't have access to inventory's private field.
+					// Because the channel is not buffered and a single go routine is reading on the other side, we know
+					// that the routine is done processing the first messages if we can send the second.
+					stream.fakeMsg(fixture.goodbye)
 					stream.fakeMsg(fixture.goodbye)
 				}
 				t.Cleanup(stream.close)

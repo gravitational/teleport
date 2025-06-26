@@ -216,7 +216,7 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 func (h *Handler) partsToObjects(upload events.StreamUpload, parts []events.StreamPart) []*storage.ObjectHandle {
 	objects := make([]*storage.ObjectHandle, len(parts))
 	bucket := h.gcsClient.Bucket(h.Config.Bucket)
-	for i := 0; i < len(parts); i++ {
+	for i := range parts {
 		objects[i] = bucket.Object(h.partPath(upload, parts[i].Number))
 	}
 	return objects

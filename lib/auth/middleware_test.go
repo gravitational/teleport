@@ -273,7 +273,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 			// Validate two unsupported clients in parallel to verify that concurrent attempts
 			// to create an alert are prevented.
 			var wg sync.WaitGroup
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()

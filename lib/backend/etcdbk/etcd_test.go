@@ -207,8 +207,7 @@ func TestLeaseBucketing(t *testing.T) {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	var opts []Option
 	opts = append(opts, commonEtcdOptions...)
@@ -219,11 +218,11 @@ func TestLeaseBucketing(t *testing.T) {
 	defer bk.Close()
 
 	buckets := make(map[int64]struct{})
-	for i := 0; i < count; i++ {
+	for i := range count {
 		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
-			Value:   []byte(fmt.Sprintf("val-%d", i)),
+			Value:   fmt.Appendf(nil, "val-%d", i),
 			Expires: time.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)

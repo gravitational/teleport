@@ -30,6 +30,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -119,7 +120,7 @@ func (p *ProxyLine) Bytes() ([]byte, error) {
 	b := &bytes.Buffer{}
 	header := proxyV2Header{VersionCommand: (Version2 << 4) | ProxyCommand}
 	copy(header.Signature[:], ProxyV2Prefix)
-	var addr interface{}
+	var addr any
 	if p.Source.Port < 0 || p.Destination.Port < 0 ||
 		p.Source.Port > math.MaxUint16 || p.Destination.Port > math.MaxUint16 {
 		return nil, trace.BadParameter("source or destination port (%q,%q) is out of range 0-65535", p.Source.Port, p.Destination.Port)
@@ -596,7 +597,7 @@ func getTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = append([]byte{}, pair.Cert...)
+		out[i] = slices.Clone(pair.Cert)
 	}
 	return out
 }

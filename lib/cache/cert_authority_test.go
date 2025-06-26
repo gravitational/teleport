@@ -216,7 +216,6 @@ func TestCAWatcherFilters(t *testing.T) {
 
 	const fetchTimeout = time.Second
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			event := fetchEvent(t, test.watcher, fetchTimeout)

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package testing
+package protocoltest
 
 import (
 	"context"
@@ -197,10 +197,10 @@ func NewTestServer(config common.TestServerConfig) (tsrv *TestServer, err error)
 func unaryAuthInterceptor(c credentialChecker) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req interface{},
+		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (interface{}, error) {
+	) (any, error) {
 		if err := c.check(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -210,7 +210,7 @@ func unaryAuthInterceptor(c credentialChecker) grpc.UnaryServerInterceptor {
 
 func streamingAuthInterceptor(c credentialChecker) grpc.StreamServerInterceptor {
 	return func(
-		srv interface{},
+		srv any,
 		stream grpc.ServerStream,
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
@@ -260,7 +260,7 @@ func (s *TestServer) BatchCreateSessions(ctx context.Context, req *spannerpb.Bat
 		tpl = &spannerpb.Session{CreatorRole: "test"}
 	}
 	var sessions []*spannerpb.Session
-	for i := 0; i < int(req.SessionCount); i++ {
+	for range int(req.SessionCount) {
 		name := req.GetDatabase() + "/sessions/" + uuid.NewString()
 		sessions = append(sessions, &spannerpb.Session{
 			Name:        name,

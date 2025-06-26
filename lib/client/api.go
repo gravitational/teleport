@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -112,10 +113,8 @@ var AllAddKeysOptions = []string{AddKeysToAgentAuto, AddKeysToAgentNo, AddKeysTo
 
 // ValidateAgentKeyOption validates that a string is a valid option for the AddKeysToAgent parameter.
 func ValidateAgentKeyOption(supplied string) error {
-	for _, option := range AllAddKeysOptions {
-		if supplied == option {
-			return nil
-		}
+	if slices.Contains(AllAddKeysOptions, supplied) {
+		return nil
 	}
 
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
@@ -2059,7 +2058,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	}()
 
 	var directErr, mfaErr error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			mfaCancel()
@@ -2971,7 +2970,6 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	}
 
 	for _, node := range nodes {
-		node := node
 		g.Go(func() error {
 			ctx, span := tc.Tracer.Start(
 				gctx,
@@ -3093,9 +3091,7 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 		env[sshutils.SessionEnvVar] = tc.SessionID
 	}
 
-	for key, val := range tc.ExtraEnvs {
-		env[key] = val
-	}
+	maps.Copy(env, tc.ExtraEnvs)
 	return env
 }
 
@@ -3247,7 +3243,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}
 
 	hostKeyCallback := tc.HostKeyCallback
-	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
+	authMethods := slices.Clone(tc.Config.AuthMethods)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
