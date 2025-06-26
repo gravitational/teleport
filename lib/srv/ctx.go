@@ -264,7 +264,8 @@ type IdentityContext struct {
 	BotInstanceID string
 
 	// JoinToken is the name of the join token used to join this bot identity,
-	// if any.
+	// if any, and will not be set for bot instances that joined using the
+	// `token` join method.
 	JoinToken string
 
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this

@@ -15246,11 +15246,11 @@ type LockTarget struct {
 	Device string `protobuf:"bytes,8,opt,name=Device,proto3" json:"device,omitempty"`
 	// ServerID is the host id of the Teleport instance.
 	ServerID string `protobuf:"bytes,9,opt,name=ServerID,proto3" json:"server_id,omitempty"`
-	// BotInstanceID is the bot instance ID if this is a bot identity; it is
+	// BotInstanceID is the bot instance ID if this is a bot identity and is
 	// ignored otherwise.
 	BotInstanceID string `protobuf:"bytes,10,opt,name=BotInstanceID,proto3" json:"bot_instance_id,omitempty"`
 	// JoinToken is the name of the join token used when this identity originally
-	// joined. This is ignored for bot identities, and cannot be used to target
+	// joined. This is only valid for bot identities, and cannot be used to target
 	// `token`-joined bots.
 	JoinToken            string   `protobuf:"bytes,11,opt,name=JoinToken,proto3" json:"join_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
