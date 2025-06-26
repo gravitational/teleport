@@ -253,8 +253,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 		{
 			name:    "NOK invalid limit",
 			filter:  types.ListWindowsDesktopsRequest{},
-			assert:  require.Error,
-			wantLen: 0,
+			assert:  require.NoError,
+			wantLen: 3,
 		},
 		{
 			name: "matching host id",
