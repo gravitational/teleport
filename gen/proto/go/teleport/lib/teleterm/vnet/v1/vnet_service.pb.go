@@ -296,8 +296,11 @@ type GetServiceInfoResponse struct {
 	// ssh_configured is true if the user's SSH config file includes VNet's
 	// generated SSH config necessary for SSH access.
 	SshConfigured bool `protobuf:"varint,3,opt,name=ssh_configured,json=sshConfigured,proto3" json:"ssh_configured,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// vnet_ssh_config_path is the path of VNet's generated OpenSSH-compatible
+	// config file.
+	VnetSshConfigPath string `protobuf:"bytes,4,opt,name=vnet_ssh_config_path,json=vnetSshConfigPath,proto3" json:"vnet_ssh_config_path,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetServiceInfoResponse) Reset() {
@@ -349,6 +352,13 @@ func (x *GetServiceInfoResponse) GetSshConfigured() bool {
 		return x.SshConfigured
 	}
 	return false
+}
+
+func (x *GetServiceInfoResponse) GetVnetSshConfigPath() string {
+	if x != nil {
+		return x.VnetSshConfigPath
+	}
+	return ""
 }
 
 // Request for GetBackgroundItemStatus.
@@ -515,6 +525,80 @@ func (x *RunDiagnosticsResponse) GetReport() *v1.Report {
 	return nil
 }
 
+// Request for AutoConfigureSSH.
+type AutoConfigureSSHRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutoConfigureSSHRequest) Reset() {
+	*x = AutoConfigureSSHRequest{}
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutoConfigureSSHRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutoConfigureSSHRequest) ProtoMessage() {}
+
+func (x *AutoConfigureSSHRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutoConfigureSSHRequest.ProtoReflect.Descriptor instead.
+func (*AutoConfigureSSHRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{10}
+}
+
+// Response for AutoConfigureSSH.
+type AutoConfigureSSHResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutoConfigureSSHResponse) Reset() {
+	*x = AutoConfigureSSHResponse{}
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutoConfigureSSHResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutoConfigureSSHResponse) ProtoMessage() {}
+
+func (x *AutoConfigureSSHResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutoConfigureSSHResponse.ProtoReflect.Descriptor instead.
+func (*AutoConfigureSSHResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{11}
+}
+
 var File_teleport_lib_teleterm_vnet_v1_vnet_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
@@ -524,30 +608,34 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\rStartResponse\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
 	"\fStopResponse\"\x17\n" +
-	"\x15GetServiceInfoRequest\"\x7f\n" +
+	"\x15GetServiceInfoRequest\"\xb0\x01\n" +
 	"\x16GetServiceInfoResponse\x12\"\n" +
 	"\rapp_dns_zones\x18\x01 \x03(\tR\vappDnsZones\x12\x1a\n" +
 	"\bclusters\x18\x02 \x03(\tR\bclusters\x12%\n" +
-	"\x0essh_configured\x18\x03 \x01(\bR\rsshConfigured\" \n" +
+	"\x0essh_configured\x18\x03 \x01(\bR\rsshConfigured\x12/\n" +
+	"\x14vnet_ssh_config_path\x18\x04 \x01(\tR\x11vnetSshConfigPath\" \n" +
 	"\x1eGetBackgroundItemStatusRequest\"n\n" +
 	"\x1fGetBackgroundItemStatusResponse\x12K\n" +
 	"\x06status\x18\x01 \x01(\x0e23.teleport.lib.teleterm.vnet.v1.BackgroundItemStatusR\x06status\"\x17\n" +
 	"\x15RunDiagnosticsRequest\"S\n" +
 	"\x16RunDiagnosticsResponse\x129\n" +
-	"\x06report\x18\x01 \x01(\v2!.teleport.lib.vnet.diag.v1.ReportR\x06report*\x8b\x02\n" +
+	"\x06report\x18\x01 \x01(\v2!.teleport.lib.vnet.diag.v1.ReportR\x06report\"\x19\n" +
+	"\x17AutoConfigureSSHRequest\"\x1a\n" +
+	"\x18AutoConfigureSSHResponse*\x8b\x02\n" +
 	"\x14BackgroundItemStatus\x12&\n" +
 	"\"BACKGROUND_ITEM_STATUS_UNSPECIFIED\x10\x00\x12)\n" +
 	"%BACKGROUND_ITEM_STATUS_NOT_REGISTERED\x10\x01\x12\"\n" +
 	"\x1eBACKGROUND_ITEM_STATUS_ENABLED\x10\x02\x12,\n" +
 	"(BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL\x10\x03\x12$\n" +
 	" BACKGROUND_ITEM_STATUS_NOT_FOUND\x10\x04\x12(\n" +
-	"$BACKGROUND_ITEM_STATUS_NOT_SUPPORTED\x10\x052\xeb\x04\n" +
+	"$BACKGROUND_ITEM_STATUS_NOT_SUPPORTED\x10\x052\xf1\x05\n" +
 	"\vVnetService\x12b\n" +
 	"\x05Start\x12+.teleport.lib.teleterm.vnet.v1.StartRequest\x1a,.teleport.lib.teleterm.vnet.v1.StartResponse\x12_\n" +
 	"\x04Stop\x12*.teleport.lib.teleterm.vnet.v1.StopRequest\x1a+.teleport.lib.teleterm.vnet.v1.StopResponse\x12}\n" +
 	"\x0eGetServiceInfo\x124.teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest\x1a5.teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse\x12\x98\x01\n" +
 	"\x17GetBackgroundItemStatus\x12=.teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest\x1a>.teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse\x12}\n" +
-	"\x0eRunDiagnostics\x124.teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest\x1a5.teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponseBUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
+	"\x0eRunDiagnostics\x124.teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest\x1a5.teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse\x12\x83\x01\n" +
+	"\x10AutoConfigureSSH\x126.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest\x1a7.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponseBUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescOnce sync.Once
@@ -562,7 +650,7 @@ func file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP() []byte 
 }
 
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_goTypes = []any{
 	(BackgroundItemStatus)(0),               // 0: teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
 	(*StartRequest)(nil),                    // 1: teleport.lib.teleterm.vnet.v1.StartRequest
@@ -575,23 +663,27 @@ var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_goTypes = []any{
 	(*GetBackgroundItemStatusResponse)(nil), // 8: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
 	(*RunDiagnosticsRequest)(nil),           // 9: teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
 	(*RunDiagnosticsResponse)(nil),          // 10: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
-	(*v1.Report)(nil),                       // 11: teleport.lib.vnet.diag.v1.Report
+	(*AutoConfigureSSHRequest)(nil),         // 11: teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+	(*AutoConfigureSSHResponse)(nil),        // 12: teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+	(*v1.Report)(nil),                       // 13: teleport.lib.vnet.diag.v1.Report
 }
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_depIdxs = []int32{
 	0,  // 0: teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse.status:type_name -> teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
-	11, // 1: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
+	13, // 1: teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse.report:type_name -> teleport.lib.vnet.diag.v1.Report
 	1,  // 2: teleport.lib.teleterm.vnet.v1.VnetService.Start:input_type -> teleport.lib.teleterm.vnet.v1.StartRequest
 	3,  // 3: teleport.lib.teleterm.vnet.v1.VnetService.Stop:input_type -> teleport.lib.teleterm.vnet.v1.StopRequest
 	5,  // 4: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:input_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest
 	7,  // 5: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:input_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
 	9,  // 6: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:input_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
-	2,  // 7: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
-	4,  // 8: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
-	6,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
-	8,  // 10: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
-	10, // 11: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
-	7,  // [7:12] is the sub-list for method output_type
-	2,  // [2:7] is the sub-list for method input_type
+	11, // 7: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:input_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+	2,  // 8: teleport.lib.teleterm.vnet.v1.VnetService.Start:output_type -> teleport.lib.teleterm.vnet.v1.StartResponse
+	4,  // 9: teleport.lib.teleterm.vnet.v1.VnetService.Stop:output_type -> teleport.lib.teleterm.vnet.v1.StopResponse
+	6,  // 10: teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo:output_type -> teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse
+	8,  // 11: teleport.lib.teleterm.vnet.v1.VnetService.GetBackgroundItemStatus:output_type -> teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
+	10, // 12: teleport.lib.teleterm.vnet.v1.VnetService.RunDiagnostics:output_type -> teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+	12, // 13: teleport.lib.teleterm.vnet.v1.VnetService.AutoConfigureSSH:output_type -> teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+	8,  // [8:14] is the sub-list for method output_type
+	2,  // [2:8] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -608,7 +700,7 @@ func file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc), len(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
