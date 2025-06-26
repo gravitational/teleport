@@ -236,8 +236,9 @@ export function DocumentVnetInfo(props: {
         <UseCaseSection>
           <TitleAndLearnMoreContainer>
             <H2>SSH Servers With 3rd-Party SSH Clients</H2>
-            {/* TODO(nklaassen): link to new VNet SSH docs */}
-            <LearnMoreButton href="#">Learn More</LearnMoreButton>
+            <LearnMoreButton href="https://goteleport.com/docs/connect-your-client/vnet/#step-33-connect-to-an-ssh-server">
+              Learn More
+            </LearnMoreButton>
           </TitleAndLearnMoreContainer>
 
           <ComparisonOption>
