@@ -140,42 +140,42 @@ destinations:
 						Roles: []string{"foo"},
 					},
 					&ApplicationOutput{
-						Destination:           &DestinationMemory{},
+						Destination:           &destination.Memory{},
 						AppName:               "my-app",
 						SpecificTLSExtensions: true,
 					},
 					&ApplicationOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						AppName:     "my-app",
 					},
 					&KubernetesOutput{
-						Destination:       &DestinationMemory{},
+						Destination:       &destination.Memory{},
 						KubernetesCluster: "my-kubernetes-cluster",
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Database:    "the-db",
 						Username:    "alice",
 						Format:      UnspecifiedDatabaseFormat,
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Format:      MongoDatabaseFormat,
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Format:      TLSDatabaseFormat,
 					},
 					&DatabaseOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Service:     "my-db-service",
 						Format:      CockroachDatabaseFormat,
 					},
 					&SSHHostOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 						Roles:       []string{"foo"},
 						Principals:  []string{"example.com", "second.example.com"},
 					},
@@ -210,7 +210,7 @@ destinations:
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
 					&IdentityOutput{
@@ -251,7 +251,7 @@ destinations:
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
 					&KubernetesOutput{
@@ -293,7 +293,7 @@ destinations:
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				},
 				Services: ServiceConfigs{
 					&ApplicationOutput{

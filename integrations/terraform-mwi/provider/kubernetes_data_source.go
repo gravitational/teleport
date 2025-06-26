@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -181,7 +182,7 @@ func (d *KubernetesDataSource) Read(
 		return
 	}
 
-	dest := &config.DestinationMemory{}
+	dest := &destination.Memory{}
 	if err := dest.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting up memory destination",

@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[SPIFFESVIDOutput]{
 		{
 			name: "full",

@@ -163,7 +163,7 @@ func defaultBotConfig(
 		AuthServerAddressMode: connection.WarnIfAuthServerIsProxy,
 		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
-			Destination: &config.DestinationMemory{},
+			Destination: &destination.Memory{},
 		},
 		Oneshot: true,
 		// Set insecure so the bot will trust the Proxy's webapi default signed
@@ -310,28 +310,28 @@ func TestBot(t *testing.T) {
 	)
 
 	identityOutput := &config.IdentityOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 	}
 	identityOutputWithRoles := &config.IdentityOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Roles:       []string{mainRole},
 	}
 	identityOutputWithReissue := &config.IdentityOutput{
-		Destination:  &config.DestinationMemory{},
+		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
 	appOutput := &config.ApplicationOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
 	dbOutput := &config.DatabaseOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Service:     databaseServiceName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
 	dbDiscoveredNameOutput := &config.DatabaseOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Service:     databaseServiceDiscoveredName,
 		Database:    databaseName,
 		Username:    databaseUsername,
@@ -351,7 +351,7 @@ func TestBot(t *testing.T) {
 		KubernetesCluster: kubeClusterDiscoveredName,
 	}
 	sshHostOutput := &config.SSHHostOutput{
-		Destination: &config.DestinationMemory{},
+		Destination: &destination.Memory{},
 		Principals:  []string{hostPrincipal},
 	}
 	botConfig := defaultBotConfig(
@@ -677,7 +677,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	// Run it again in long-running mode, and it should eventually succeed once
 	// the network partition has healed.
 	botConfig.Oneshot = false
-	outputDest := newWriteNotifier(&config.DestinationMemory{})
+	outputDest := newWriteNotifier(&destination.Memory{})
 	require.NoError(t, outputDest.CheckAndSetDefaults())
 	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
 		Destination: outputDest,

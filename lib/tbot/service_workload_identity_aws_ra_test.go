@@ -112,7 +112,7 @@ aws_session_token=existing
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dest := &config.DestinationMemory{}
+			dest := &destination.Memory{}
 			require.NoError(t, dest.CheckAndSetDefaults())
 			require.NoError(t, dest.Init(ctx, []string{}))
 

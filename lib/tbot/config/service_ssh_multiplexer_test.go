@@ -79,7 +79,7 @@ func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 			name: "wrong destination type",
 			in: func() *SSHMultiplexerService {
 				return &SSHMultiplexerService{
-					Destination: &DestinationMemory{},
+					Destination: &destination.Memory{},
 				}
 			},
 			wantErr: "destination: must be of type `directory`",

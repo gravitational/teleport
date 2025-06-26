@@ -28,7 +28,7 @@ import (
 func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityJWTService]{
 		{
 			name: "full",

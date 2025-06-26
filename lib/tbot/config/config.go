@@ -403,8 +403,8 @@ func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 	}
 
 	switch header.Type {
-	case DestinationMemoryType:
-		v := &DestinationMemory{}
+	case destination.MemoryType:
+		v := &destination.Memory{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -469,7 +469,7 @@ func DestinationFromURI(uriString string) (destination.Destination, error) {
 				"memory-backed data storage should not have host or path specified",
 			)
 		}
-		return &DestinationMemory{}, nil
+		return &destination.Memory{}, nil
 	case "kubernetes-secret":
 		if uri.Host != "" {
 			return nil, trace.BadParameter(

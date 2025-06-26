@@ -42,7 +42,9 @@ type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 }
 
 func memoryDestForTest() destination.Destination {
-	return &DestinationMemory{store: map[string][]byte{}}
+	memory := &destination.Memory{}
+	memory.CheckAndSetDefaults()
+	return memory
 }
 
 func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testCheckAndSetDefaultsCase[T]) {

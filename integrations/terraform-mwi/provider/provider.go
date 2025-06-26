@@ -32,6 +32,7 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
@@ -110,7 +111,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 	}
 
 	// Shared internal store for the bot.
-	botInternalStore := config.DestinationMemory{}
+	botInternalStore := destination.Memory{}
 	if err := botInternalStore.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.AddError(
 			"Error setting defaults for bot internal store",

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -307,7 +308,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		Storage:            &config.StorageConfig{Destination: &config.DestinationMemory{}},
+		Storage:            &config.StorageConfig{Destination: &destination.Memory{}},
 		Services:           config.ServiceConfigs{credential},
 		CredentialLifetime: config.CredentialLifetime{TTL: c.botTTL},
 		Oneshot:            true,

@@ -28,7 +28,7 @@ import (
 func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityX509Service]{
 		{
 			name: "full",

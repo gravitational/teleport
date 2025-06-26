@@ -28,7 +28,7 @@ import (
 func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityAWSRAService]{
 		{
 			name: "full",

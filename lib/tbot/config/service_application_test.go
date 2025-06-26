@@ -23,10 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestApplicationOutput_YAML(t *testing.T) {
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[ApplicationOutput]{
 		{
 			name: "full",

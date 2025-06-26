@@ -54,7 +54,7 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
-	_, ok := cfg.Storage.Destination.(*DestinationMemory)
+	_, ok := cfg.Storage.Destination.(*destination.Memory)
 	require.True(t, ok)
 
 	require.Len(t, cfg.Services, 1)
@@ -146,7 +146,7 @@ func TestDestinationFromURI(t *testing.T) {
 		},
 		{
 			in:   "memory://",
-			want: &DestinationMemory{},
+			want: &destination.Memory{},
 		},
 		{
 			in:      "memory://foo/bar",
@@ -225,7 +225,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Cluster: "example.teleport.sh",
 					},
 					&IdentityOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 					},
 					&IdentityOutput{
 						Destination: &DestinationKubernetesSecret{
@@ -337,7 +337,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 					},
 				},
 			},
@@ -353,7 +353,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
-						Destination: &DestinationMemory{},
+						Destination: &destination.Memory{},
 					},
 				},
 			},
@@ -436,7 +436,7 @@ func TestBotConfig_ServicePartialCredentialLifetime(t *testing.T) {
 		Services: []ServiceConfig{
 			&IdentityOutput{
 				CredentialLifetime: bot.CredentialLifetime{TTL: 5 * time.Minute},
-				Destination:        &DestinationMemory{},
+				Destination:        &destination.Memory{},
 			},
 		},
 	}
@@ -450,7 +450,7 @@ func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
 		Services: []ServiceConfig{
 			&IdentityOutput{
 				CredentialLifetime: bot.CredentialLifetime{TTL: 5 * time.Minute},
-				Destination:        &DestinationMemory{},
+				Destination:        &destination.Memory{},
 			},
 		},
 	}
