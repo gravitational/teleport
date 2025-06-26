@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -91,7 +92,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1998,6 +2001,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 func (process *TeleportProcess) initAuthService() error {
 	var err error
 	cfg := process.Config
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
@@ -2006,10 +2010,86 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.backend = b
 
+	clusterName := cfg.Auth.ClusterName.GetClusterName()
+	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if ident != nil {
+		clusterName = ident.ClusterName
+	}
+
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+	})
+
+	clusterConfig := cfg.ClusterConfiguration
+	if clusterConfig == nil {
+		clusterConfig, err = local.NewClusterConfigurationService(b)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// create keystore
+	keystoreOpts := &keystore.Options{
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cn,
+		AuthPreferenceGetter: clusterConfig,
+		FIPS:                 cfg.FIPS,
+	}
+
+	switch {
+	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	case cfg.Auth.KeyStore.AWSKMS != nil:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	}
+
+	keyStore, err := keystore.NewManager(process.GracefulExitContext(), &cfg.Auth.KeyStore, keystoreOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localRecordingEncryption, err := local.NewRecordingEncryptionService(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+		Backend:       localRecordingEncryption,
+		KeyStore:      keyStore,
+		Logger:        logger,
+		ClusterConfig: clusterConfig,
+		LockConfig: backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            process.backend,
+				TTL:                time.Second * 30,
+				LockNameComponents: []string{"recording_encryption"},
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterConfig = recordingEncryptionManager
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
+	encryptedIO, err := recordingencryption.NewEncryptedIO(clusterConfig, recordingEncryptionManager)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2048,7 +2128,8 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader: uploadHandler,
+			Uploader:  uploadHandler,
+			Encrypter: encryptedIO,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2069,6 +2150,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:      cfg.HostUUID,
 			UploadHandler: uploadHandler,
 			ExternalLog:   externalLog,
+			Decrypter:     encryptedIO,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2088,15 +2170,6 @@ func (process *TeleportProcess) initAuthService() error {
 		} else {
 			emitter = localLog
 		}
-	}
-
-	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if ident != nil {
-		clusterName = ident.ClusterName
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
@@ -2124,19 +2197,11 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: clusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	cloudClients, err := cloud.NewClients()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 	// Environment variable for disabling the check major version upgrade check and overrides
 	// latest known version in backend.
 	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
@@ -2149,7 +2214,7 @@ func (process *TeleportProcess) initAuthService() error {
 			VersionStorage:          process.storage,
 			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
-			ClusterConfiguration:    cfg.ClusterConfiguration,
+			ClusterConfiguration:    clusterConfig,
 			AutoUpdateService:       cfg.AutoUpdateService,
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,
 			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
@@ -2175,6 +2240,7 @@ func (process *TeleportProcess) initAuthService() error {
 			OIDCConnectors:          cfg.OIDCConnectors,
 			AuditLog:                process.auditLog,
 			CipherSuites:            cfg.CipherSuites,
+			KeyStore:                keyStore,
 			KeyStoreConfig:          cfg.Auth.KeyStore,
 			Emitter:                 checkingEmitter,
 			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
@@ -2184,6 +2250,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+			RecordingEncryption:     recordingEncryptionManager,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			CloudClients:            cloudClients,
 			Logger:                  logger,
@@ -2556,6 +2623,10 @@ func (process *TeleportProcess) initAuthService() error {
 			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
 		}
 		return trace.Wrap(err)
+	})
+
+	process.RegisterFunc("auth.recording_encryption_resolver", func() error {
+		return trace.Wrap(recordingEncryptionManager.Watch(process.GracefulExitContext(), authServer.Services))
 	})
 
 	// execute this when process is asked to exit:
