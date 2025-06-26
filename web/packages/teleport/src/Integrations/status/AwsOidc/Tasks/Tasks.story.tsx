@@ -174,10 +174,10 @@ If the document is changed or removed, it might no longer work.
                 name: 'eks-detail',
                 taskType: 'discover-eks',
                 state: TaskState.Open,
-                issueType: 'esk-agent-not-connecting',
+                issueType: 'eks-agent-not-connecting',
                 integration: integrationName,
                 lastStateChange: '2025-02-11T20:32:13.61608091Z',
-                title: 'esk-agent-not-connecting',
+                title: 'eks-agent-not-connecting',
                 // lib/usertasks/descriptions/eks-agent-not-connecting.md
                 description: `
                 # Teleport Agent not connecting
