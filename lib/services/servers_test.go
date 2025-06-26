@@ -140,6 +140,91 @@ func TestServersCompare(t *testing.T) {
 	})
 }
 
+func TestCompareTargetHealth(t *testing.T) {
+	now := time.Now()
+	later := now.Add(time.Minute)
+	tests := []struct {
+		name     string
+		a        types.TargetHealth
+		b        types.TargetHealth
+		expected int
+	}{
+		{
+			name:     "equal values",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg"),
+			b:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg"),
+			expected: Equal,
+		},
+		{
+			name:     "different timestamps only",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg"),
+			b:        makeHealth("addr", "tcp", "healthy", &later, "reason", "", "msg"),
+			expected: OnlyTimestampsDifferent,
+		},
+		{
+			name:     "different address",
+			a:        makeHealth("addr1", "tcp", "healthy", &now, "reason", "", "msg"),
+			b:        makeHealth("addr2", "tcp", "healthy", &now, "reason", "", "msg"),
+			expected: Different,
+		},
+		{
+			name:     "different protocol",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg"),
+			b:        makeHealth("addr", "udp", "healthy", &now, "reason", "", "msg"),
+			expected: Different,
+		},
+		{
+			name:     "different status",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg"),
+			b:        makeHealth("addr", "tcp", "unhealthy", &now, "reason", "", "msg"),
+			expected: Different,
+		},
+		{
+			name:     "different reason",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason1", "", "msg"),
+			b:        makeHealth("addr", "tcp", "healthy", &now, "reason2", "", "msg"),
+			expected: Different,
+		},
+		{
+			name:     "different error",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason", "err1", "msg"),
+			b:        makeHealth("addr", "tcp", "healthy", &now, "reason", "err2", "msg"),
+			expected: Different,
+		},
+		{
+			name:     "different message",
+			a:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg1"),
+			b:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg2"),
+			expected: Different,
+		},
+		{
+			name:     "nil timestamp",
+			a:        makeHealth("addr", "tcp", "healthy", nil, "reason", "", "msg"),
+			b:        makeHealth("addr", "tcp", "healthy", &now, "reason", "", "msg"),
+			expected: OnlyTimestampsDifferent,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareTargetHealth(tt.a, tt.b)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func makeHealth(addr, proto, status string, ts *time.Time, reason, err, msg string) types.TargetHealth {
+	return types.TargetHealth{
+		Address:             addr,
+		Protocol:            proto,
+		Status:              status,
+		TransitionTimestamp: ts,
+		TransitionReason:    reason,
+		TransitionError:     err,
+		Message:             msg,
+	}
+}
+
 // TestGuessProxyHostAndVersion checks that the GuessProxyHostAndVersion
 // correctly guesses the public address of the proxy (Teleport Cluster).
 func TestGuessProxyHostAndVersion(t *testing.T) {
