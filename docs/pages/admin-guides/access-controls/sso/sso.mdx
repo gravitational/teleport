@@ -615,6 +615,53 @@ If something is not working, we recommend to:
 
 - Double-check the host names, tokens and TCP ports in a connector definition.
 
+### Identifier-first login
+
+Identifier-first login can improve SSO user experience in the Web UI by allowing Teleport administrators to map
+auth connectors to specific users or groups of users via their username. When enabled, users viewing the login page on the Web UI will only
+see auth connectors that have been mapped to them. Users will also be locally remembered the next time they visit the login page and see their
+auth connectors without needing to enter their username again.
+
+An auth connector can be configured for identifier-first login by specifying the `spec.user_matchers` field on any auth connector(s) with a set of one or more user
+matchers for usernames. A user matcher is a string matcher that can either be a specific username to match, or a dynamic matcher using wildcard characters (`*`). An
+auth connector will be mapped to a user if one or more of its `user_matchers` matches their username. This field can be configured on any SAML, OIDC, or GitHub auth connector.
+
+Identifier-first login is enabled on the cluster when any one or more auth connectors has a defined `spec.user_matchers` field. Once enabled, any users without no auth connector mapped to
+them will not be able to see any auth connectors on the login page. For this reason, it is recommended to configure one or more fallback auth connectors for users who weren't matched
+to any other auth connectors, this can be done by including a universal wildcard matcher `'*'` in its `user_matchers`.
+
+#### Examples
+
+##### Match users with a username that ends in "@foo.com"
+
+```yaml
+kind: saml
+version: v2
+metadata:
+  name: okta
+spec:
+  user_matchers: ['*@foo.com']
+```
+
+##### Match users with a username that ends in "@foo.com" and also match "alice"
+
+```yaml
+user_matchers: ['*@foo.com', 'alice']
+```
+
+##### Match only users that weren't matched to any other auth connectors.
+
+```yaml
+user_matchers: ['*']
+```
+
+##### Match users that weren't matched to any other connectors, as well as any user with a username that ends in "@foo.com", even if they also match other auth connectors.
+
+```yaml
+user_matchers: ['*', '*@foo.com']
+```
+
+
 ### Using the Web UI
 
 If you get "access denied" or other login errors, the number one place to check is the Audit
