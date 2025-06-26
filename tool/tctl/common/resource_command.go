@@ -2792,24 +2792,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &windowsDesktopServiceCollection{services: out}, nil
 	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: rc.ref.Name})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if rc.ref.Name == "" {
-			return &windowsDesktopCollection{desktops: desktops}, nil
-		}
 
-		var out []types.WindowsDesktop
-		for _, desktop := range desktops {
-			if desktop.GetName() == rc.ref.Name {
-				out = append(out, desktop)
-			}
-		}
-		if len(out) == 0 {
+		if rc.ref.Name != "" && len(desktops) == 0 {
 			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
 		}
-		return &windowsDesktopCollection{desktops: out}, nil
+
+		return &windowsDesktopCollection{desktops: desktops}, nil
 	case types.KindDynamicWindowsDesktop:
 		dynamicDesktopClient := client.DynamicDesktopClient()
 		if rc.ref.Name != "" {

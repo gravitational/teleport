@@ -87,9 +87,19 @@ func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
 func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Client) error {
-	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	if err != nil {
-		return trace.Wrap(err)
+	var req types.ListWindowsDesktopsRequest
+	var desktops []types.WindowsDesktop
+	for {
+		resp, err := client.ListWindowsDesktops(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		desktops = append(desktops, resp.Desktops...)
+		req.StartKey = resp.NextKey
+		if resp.NextKey == "" {
+			break
+		}
 	}
 	coll := windowsDesktopCollection{
 		desktops: desktops,

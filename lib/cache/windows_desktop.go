@@ -31,9 +31,9 @@ type windowsDesktopServiceIndex string
 
 const windowsDesktopServiceNameIndex windowsDesktopServiceIndex = "name"
 
-func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
-	if p == nil {
-		return nil, trace.BadParameter("missing parameter Presence")
+func newWindowsDesktopServiceCollection(upstream services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter WindowsDesktops")
 	}
 
 	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
@@ -43,7 +43,21 @@ func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) 
 				windowsDesktopServiceNameIndex: types.WindowsDesktopService.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktopService, error) {
-			return p.GetWindowsDesktopServices(ctx)
+			var req types.ListWindowsDesktopServicesRequest
+			var out []types.WindowsDesktopService
+			for {
+				resp, err := upstream.ListWindowsDesktopServices(ctx, req)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out = append(out, resp.DesktopServices...)
+				req.StartKey = resp.NextKey
+				if resp.NextKey == "" {
+					break
+				}
+			}
+			return out, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktopService {
 			return &types.WindowsDesktopServiceV3{
@@ -151,7 +165,12 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 			break
 		}
 
-		resp.DesktopServices = append(resp.DesktopServices, svc.Clone())
+		switch match, err := services.MatchResourceByFilters(svc, filter, nil /* ignore dup matches */); {
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case match:
+			resp.DesktopServices = append(resp.DesktopServices, svc.Clone())
+		}
 	}
 
 	return &resp, nil
@@ -161,9 +180,9 @@ type windowsDesktopIndex string
 
 const windowsDesktopNameIndex windowsDesktopIndex = "name"
 
-func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex], error) {
-	if d == nil {
-		return nil, trace.BadParameter("missing parameter Apps")
+func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter WindowsDesktops")
 	}
 
 	return &collection[types.WindowsDesktop, windowsDesktopIndex]{
@@ -175,7 +194,22 @@ func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) 
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktop, error) {
-			return d.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+			var req types.ListWindowsDesktopsRequest
+			var out []types.WindowsDesktop
+			for {
+				resp, err := upstream.ListWindowsDesktops(ctx, req)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out = append(out, resp.Desktops...)
+				req.StartKey = resp.NextKey
+				if resp.NextKey == "" {
+					break
+				}
+			}
+
+			return out, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktop {
 			return &types.WindowsDesktopV3{

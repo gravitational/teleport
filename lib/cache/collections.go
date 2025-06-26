@@ -314,7 +314,7 @@ func setupCollections(c Config) (*collections, error) {
 			out.windowsDesktops = collect
 			out.byKind[resourceKind] = out.windowsDesktops
 		case types.KindWindowsDesktopService:
-			collect, err := newWindowsDesktopServiceCollection(c.Presence, watch)
+			collect, err := newWindowsDesktopServiceCollection(c.WindowsDesktops, watch)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
