@@ -255,9 +255,17 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-
 		desktops, err := c.Config.WindowsDesktops.GetWindowsDesktops(ctx, filter)
 		return desktops, trace.Wrap(err)
+	}
+
+	if filter.HostID != "" && filter.Name != "" {
+		match, err := rg.store.get(windowsDesktopNameIndex, filter.HostID+"/"+filter.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return []types.WindowsDesktop{match}, nil
 	}
 
 	out := make([]types.WindowsDesktop, 0, rg.store.len())
