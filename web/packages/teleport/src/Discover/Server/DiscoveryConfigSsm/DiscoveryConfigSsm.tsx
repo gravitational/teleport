@@ -43,6 +43,7 @@ import { LabelsInput } from 'teleport/components/LabelsInput';
 import cfg from 'teleport/config';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import auth from 'teleport/services/auth';
 import {
   createDiscoveryConfig,
   DISCOVERY_GROUP_CLOUD,
@@ -126,11 +127,19 @@ export function DiscoveryConfigSsm() {
         // This can happen if creating discovery config attempt failed
         // and the user retries.
         if (!joinTokenRef.current) {
-          joinTokenRef.current = await joinTokenService.fetchJoinTokenV2({
-            roles: ['Node'],
-            method: 'iam',
-            rules: [{ awsAccountId }],
-          });
+          const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(
+            true /* allow re-use */
+          );
+
+          joinTokenRef.current = await joinTokenService.fetchJoinTokenV2(
+            {
+              roles: ['Node'],
+              method: 'iam',
+              rules: [{ awsAccountId }],
+            },
+            null /* abortSignal */,
+            mfaResponse
+          );
         }
 
         const config = await createDiscoveryConfig(clusterId, {
