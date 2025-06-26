@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"sync"
 	"time"
@@ -41,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -622,7 +622,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				}
 				s.cloudWatchResourcesCh = make(chan []cloudWatchResource, 1)
 				s.hasCloudWatchPollers.Store(true)
-				err = s.startCloudwatchPoller(ctx, reloadCh, specs)
+				err = s.startCloudwatchPollers(ctx, reloadCh, specs)
 				if err != nil {
 					if errors.Is(err, errTAGFeatureNotEnabled) {
 						s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
@@ -907,7 +907,7 @@ type cloudWatchResource struct {
 	region       string
 }
 
-func (s *Server) startCloudwatchPoller(
+func (s *Server) startCloudwatchPollers(
 	ctx context.Context,
 	reloadCh <-chan struct{},
 	specs []*types.AccessGraphAWSSync,
@@ -1021,90 +1021,51 @@ func (s *Server) startCloudwatchPoller(
 		}
 	}()
 
-	// Watch for configuration changes and spawn pollers accordingly
-	eventsCh := make(chan cloudWatchEvents, 1)
-	type poller struct {
-		spec       *types.AccessGraphAWSSync
-		cancelFunc context.CancelFunc
+	// Spawn new pollers
+	eventsCh := make(chan []cloudWatchEvents, 1)
+	type cwPoller struct {
+		spec      *types.AccessGraphAWSSync
+		ctx       context.Context
+		cancel    context.CancelFunc
+		accountID string
 	}
-	pollerMap := make(map[string]poller)
-	spawnPoller := func(ctx context.Context, spec *types.AccessGraphAWSSync) {
-		localCtx, cancel := context.WithCancel(ctx)
-		pollerMap[spec.Integration] = poller{
-			spec:       spec,
-			cancelFunc: cancel,
+	var pollers []cwPoller
+	spawnPollers := func(specs []*types.AccessGraphAWSSync, existingPollers []cwPoller) ([]cwPoller, error) {
+		for _, existingPoller := range existingPollers {
+			existingPoller.cancel()
 		}
-		go func(ctx context.Context, spec *types.AccessGraphAWSSync) {
+		for _, spec := range specs {
 			accountID, err := s.getAccountId(ctx, spec)
 			if err != nil {
-				s.Log.ErrorContext(ctx, "Error getting account ID", "error", err)
-				return
+				s.Log.ErrorContext(ctx, "Error getting AWS account ID", "error", err)
+				return nil, trace.Wrap(err)
 			}
-			err = s.pollEventsFromCloudWatch(ctx, accountID, spec, eventsCh)
-			if err != nil {
-				s.Log.ErrorContext(ctx, "Error polling events from CloudWatch", "error", err)
-			}
-		}(localCtx, spec)
+			pollerCtx, pollerCancel := context.WithCancel(ctx)
+			pollers = append(pollers, cwPoller{
+				spec:      spec,
+				ctx:       pollerCtx,
+				cancel:    pollerCancel,
+				accountID: accountID,
+			})
+		}
+		for _, poller := range pollers {
+			s.spawnCloudwatchPollers(poller.ctx, poller.accountID, poller.spec, eventsCh)
+		}
+		return pollers, nil
 	}
-	// Spawn the initial set of pollers
-	for _, matcher := range specs {
-		spawnPoller(ctx, matcher)
-	}
+	pollers, err = spawnPollers(specs, pollers)
 
-	// Create a reconciler for managing the pollers based on the sync specs
-	reconciler, err := services.NewGenericReconciler(services.GenericReconcilerConfig[string, *types.AccessGraphAWSSync]{
-		Matcher: func(matcher *types.AccessGraphAWSSync) bool {
-			return true
-		},
-		GetCurrentResources: func() map[string]*types.AccessGraphAWSSync {
-			matchersMap := make(map[string]*types.AccessGraphAWSSync)
-			for k, matcher := range pollerMap {
-				matchersMap[k] = matcher.spec
-			}
-			return matchersMap
-		},
-		GetNewResources: func() map[string]*types.AccessGraphAWSSync {
-			matchersMap := make(map[string]*types.AccessGraphAWSSync)
-			for _, matcher := range s.getAllAWSSyncFetchersWithTrailEnabled() {
-				matchersMap[matcher.Integration] = matcher
-			}
-			return matchersMap
-		},
-		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
-		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
-			spawnPoller(ctx, disc)
-			return nil
-		},
-		OnUpdate: func(ctx context.Context, new, old *types.AccessGraphAWSSync) error {
-			if p, ok := pollerMap[old.Integration]; ok {
-				p.cancelFunc()
-				delete(pollerMap, old.Integration)
-			}
-			spawnPoller(ctx, new)
-			return nil
-		},
-		OnDelete: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
-			if p, ok := pollerMap[disc.Integration]; ok {
-				p.cancelFunc()
-				delete(pollerMap, disc.Integration)
-			}
-			return nil
-		},
-		Logger: s.Log,
-	})
-	if err != nil {
-		s.Log.ErrorContext(ctx, "Error creating reconciler", "error", err)
-		return trace.Wrap(err)
-	}
-
-	// Wait for the finished context, config reloads, and CloudWatch events
+	// Wait for context done, discovery config reload, and cloudwatch events
 	for {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		case <-reloadCh:
-			if err := reconciler.Reconcile(ctx); err != nil {
-				s.Log.ErrorContext(ctx, "Error reconciling access graph fetchers", "error", err)
+			// Stop existing pollers and spawn new pollers based on new specs
+			specs = s.getAWSSyncSpecsWithCloudwatch()
+			pollers, err = spawnPollers(specs, pollers)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 			continue
 		case events := <-eventsCh:
@@ -1114,6 +1075,7 @@ func (s *Server) startCloudwatchPoller(
 						Events: &accessgraphv1alpha.AWSCloudWatchEvents{
 							Events:    events.events,
 							AccountId: events.accountID,
+							Cursors:   nil,
 						},
 					},
 				},
@@ -1208,6 +1170,9 @@ type payloadChannelMessage struct {
 
 type cloudWatchEvents struct {
 	events    []*accessgraphv1alpha.AWSCloudWatchEvent
+	cursor    string
+	logGroup  string
+	region    string
 	accountID string
 }
 
@@ -1398,13 +1363,13 @@ func downloadCloudTrailFile(ctx context.Context, client s3Client, bucket, key st
 	return body, nil
 }
 
-func (s *Server) pollEventsFromCloudWatch(
+func (s *Server) spawnCloudwatchPollers(
 	ctx context.Context,
 	accountID string,
 	spec *types.AccessGraphAWSSync,
-	eventsCh chan<- cloudWatchEvents,
-) error {
-	s.Log.Info("Polling for CloudWatch events")
+	eventsCh chan<- []cloudWatchEvents,
+) {
+	s.Log.Info("Spawning CloudWatch poller", "integration", spec.Integration)
 	restartPollerCh := make(chan struct{})
 	var cwResourceLock sync.RWMutex
 	cwResMap := make(map[string][]cloudWatchResource)
@@ -1412,9 +1377,12 @@ func (s *Server) pollEventsFromCloudWatch(
 		for {
 			select {
 			case <-ctx.Done():
+				s.Log.DebugContext(ctx, "CloudWatch poller resource watcher exiting",
+					"integration", spec.Integration)
 				return
 			case cwResources := <-s.cloudWatchResourcesCh:
-				s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources)
+				s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources,
+					"integration", spec.Integration)
 				cwResourceLock.Lock()
 				cwResMap = make(map[string][]cloudWatchResource)
 				for _, resource := range cwResources {
@@ -1425,74 +1393,71 @@ func (s *Server) pollEventsFromCloudWatch(
 			}
 		}
 	}()
-	for {
-		pollerCtx, pollerCancel := context.WithCancel(ctx)
-		for _, region := range spec.Regions {
-			awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
-			if err != nil {
-				pollerCancel()
-				return trace.Wrap(err)
-			}
-			cli := cloudwatchlogs.NewFromConfig(awsCfg)
-			startTime := time.Now().Unix()
+	go func() {
+		for {
+			var allEvents []cloudWatchEvents{}
+			for _, region := range spec.Regions {
+				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
+				if err != nil {
+					return
+				}
+				cli := cloudwatchlogs.NewFromConfig(awsCfg)
+				startTime := time.Now().Unix()
 
-			cwResourceLock.RLock()
-			cwResources, ok := cwResMap[region]
-			cwResourceLock.RUnlock()
-			if !ok {
-				continue
-			}
-			for _, resource := range cwResources {
-				// We only support EKS for now
-				if resource.resourceType != cloudWatchResourceEKS {
+				cwResourceLock.RLock()
+				cwResources, ok := cwResMap[region]
+				cwResourceLock.RUnlock()
+				if !ok {
 					continue
 				}
-				go func() {
-					var resumeToken *string
-					for {
-						// TODO (mvbrock): Check that the log group exists before fetching logs
-						logGroupName := fmt.Sprintf("/aws/eks/%s/cluster", resource.resourceID)
-						params := &cloudwatchlogs.FilterLogEventsInput{
-							LogGroupName:        aws.String(logGroupName),
-							LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
-							StartTime:           aws.Int64(startTime),
-							NextToken:           resumeToken,
-						}
-						out, err := cli.FilterLogEvents(ctx, params)
-						if err != nil {
-							s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
-								"error", err, "region", region)
-							return
-						}
-						var events []*accessgraphv1alpha.AWSCloudWatchEvent
-						for _, cwEvent := range out.Events {
-							event := &accessgraphv1alpha.AWSCloudWatchEvent{
-								LogStream: *cwEvent.LogStreamName,
-								Message:   *cwEvent.Message,
-								Timestamp: timestamppb.New(time.UnixMilli(*cwEvent.Timestamp)),
-							}
-							events = append(events, event)
-						}
-						eventsCh <- cloudWatchEvents{
-							events:    events,
-							accountID: accountID,
-						}
-						select {
-						case <-pollerCtx.Done():
-							return
-						}
+				for _, resource := range cwResources {
+					// We only support EKS for now
+					if resource.resourceType != cloudWatchResourceEKS {
+						continue
 					}
-				}()
+					var resumeToken *string
+					// TODO (mvbrock): Check that the log group exists before fetching logs
+					logGroup := fmt.Sprintf("/aws/eks/%s/cluster", resource.resourceID)
+					params := &cloudwatchlogs.FilterLogEventsInput{
+						LogGroupName:        aws.String(logGroup),
+						LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
+						StartTime:           aws.Int64(startTime),
+						NextToken:           resumeToken,
+					}
+					out, err := cli.FilterLogEvents(ctx, params)
+					if err != nil {
+						s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
+							"error", err, "region", region)
+						return
+					}
+					var events []*accessgraphv1alpha.AWSCloudWatchEvent
+					for _, cwEvent := range out.Events {
+						event := &accessgraphv1alpha.AWSCloudWatchEvent{
+							LogGroup:  logGroup,
+							Message:   *cwEvent.Message,
+							Timestamp: timestamppb.New(time.UnixMilli(*cwEvent.Timestamp)),
+						}
+						events = append(events, event)
+					}
+					allEvents = append(allEvents, cloudWatchEvents{
+						events:    events,
+						cursor:    *out.NextToken,
+						logGroup:  logGroup,
+						region:    region,
+						accountID: accountID,
+					})
+				}
+			}
+			eventsCh <- allEvents
+			select {
+			case <-ctx.Done():
+				s.Log.DebugContext(ctx, "CloudWatch poller log fetcher exiting",
+					"integration", spec.Integration)
+				break
+			case <-restartPollerCh:
+				s.Log.DebugContext(ctx, "CloudWatch poller restarting due to new AWS resources",
+					"integration", spec.Integration)
 			}
 		}
-		select {
-		case <-ctx.Done():
-			s.Log.ErrorContext(ctx, "Context done for CloudWatch poller")
-			pollerCancel()
-			return nil
-		case <-restartPollerCh:
-			s.Log.InfoContext(ctx, "Restarting poller for CloudWatch logs")
-			pollerCancel()
-		}
-	}
+	}()
 }
