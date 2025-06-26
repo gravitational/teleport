@@ -28,6 +28,7 @@ import {
 import type { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClipboardData, TdpClient } from 'shared/libs/tdp';
+import { isAbortError } from 'shared/utils/error';
 
 declare global {
   interface Window {
@@ -132,6 +133,9 @@ export default function useDesktopSession(
         directorySelected: true,
       });
     } catch (e) {
+      if (isAbortError(e)) {
+        return;
+      }
       setDirectorySharingState({
         directorySelected: false,
       });
