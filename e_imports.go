@@ -68,7 +68,10 @@ import (
 	_ "github.com/crewjam/saml/samlsp"
 	_ "github.com/elimity-com/scim/schema"
 	_ "github.com/ghodss/yaml"
+
+	// TODO(Joerger): Remove once /e uses v2
 	_ "github.com/go-piv/piv-go/piv"
+	_ "github.com/go-piv/piv-go/v2/piv"
 	_ "github.com/gogo/protobuf/proto"
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/google/go-cmp/cmp"
