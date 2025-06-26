@@ -489,25 +489,27 @@ export const VnetContextProvider: FC<
 
   const autoConfigureSSH = useCallback(async (): Promise<void> => {
     await vnet.autoConfigureSSH({});
-    // Refresh the service info attempt because SSH is now configured.
+    // Refresh the service info and diagnostic attempts because SSH is now configured.
     refreshServiceInfoAttempt();
+    runDiagnostics();
   }, [vnet, refreshServiceInfoAttempt]);
-  const openSSHConfigurationModal = useCallback(
-    ({ vnetSSHConfigPath, host, onSuccess }) => {
-      appCtx.modalsService.openRegularDialog({
-        kind: 'configure-ssh-clients',
-        onConfirm: async () => {
-          await autoConfigureSSH();
-          if (onSuccess) {
-            onSuccess();
-          }
-        },
-        vnetSSHConfigPath,
-        host,
-      });
-    },
-    [appCtx.modalsService, autoConfigureSSH]
-  );
+  const openSSHConfigurationModal: VnetContext['openSSHConfigurationModal'] =
+    useCallback(
+      ({ vnetSSHConfigPath, host, onSuccess }) => {
+        appCtx.modalsService.openRegularDialog({
+          kind: 'configure-ssh-clients',
+          onConfirm: async () => {
+            await autoConfigureSSH();
+            if (onSuccess) {
+              onSuccess();
+            }
+          },
+          vnetSSHConfigPath,
+          host,
+        });
+      },
+      [appCtx.modalsService, autoConfigureSSH]
+    );
 
   return (
     <VnetContext.Provider
