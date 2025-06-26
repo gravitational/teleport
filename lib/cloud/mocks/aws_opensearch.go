@@ -56,6 +56,11 @@ func (o *OpenSearchMock) DescribeDomainsWithContext(_ aws.Context, input *opense
 	if o.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
+	// The real API only allows 5 domains at a time:
+	// https://github.com/gravitational/teleport/issues/38651
+	if len(input.DomainNames) > 5 {
+		return nil, trace.BadParameter("Please provide a maximum of 5 domain names to describe.")
+	}
 	out := &opensearchservice.DescribeDomainsOutput{}
 	for _, domain := range o.Domains {
 		if slices.ContainsFunc(input.DomainNames, func(other *string) bool {

@@ -241,6 +241,10 @@ message UserCertsRequest {
     TSH_KUBE_LOCAL_PROXY_HEADLESS = 3;
     // TSH_APP_LOCAL_PROXY is set when the request was sent by a tsh app local proxy.
     TSH_APP_LOCAL_PROXY = 4;
+    // TSH_DB_EXEC is set when the request was sent by a tsh db exec local proxy
+    // tunnel. Requests from this requester allows reuse of the MFA session
+    // response but TTL is limited to single use TTL.
+    TSH_DB_EXEC = 5;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -3105,7 +3109,11 @@ service AuthService {
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
   // GetWebSessions gets all web sessions.
-  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse);
+  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse) {
+    option deprecated = true;
+  }
+  // StreamWebSessions gets all web sessions in a stream.
+  rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.
   rpc DeleteWebSession(types.DeleteWebSessionRequest) returns (google.protobuf.Empty);
   // DeleteAllWebSessions deletes all web sessions.

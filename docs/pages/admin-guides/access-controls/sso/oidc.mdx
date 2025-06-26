@@ -12,13 +12,17 @@ policies like:
 - Only members of the "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx!)
+
 ## Prerequisites
 
 - Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
 - Teleport role with permission to maintain `oidc` resources. This permission is available
   in the default `editor` role.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 

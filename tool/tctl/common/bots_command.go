@@ -581,7 +581,15 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	}
 
 	if c.format == teleport.JSON {
-		err := utils.WriteJSONArray(c.stdout, instances)
+		// Wrap resource type so the correct protojson marshaling is used for
+		// timestamp fields.
+		wrappedInstances := make([]types.Resource, 0, len(instances))
+		for _, instance := range instances {
+			wrappedInstances = append(
+				wrappedInstances, types.ProtoResource153ToLegacy(instance),
+			)
+		}
+		err := utils.WriteJSONArray(c.stdout, wrappedInstances)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal bot instances")
 		}

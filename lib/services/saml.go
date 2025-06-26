@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -130,6 +131,9 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	if sc.GetSSO() == "" {
 		return trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
 	}
+	if err := validateAssertionConsumerServicesEndpoint(sc.GetSSO()); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if sc.GetSigningKeyPair() == nil {
 		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
@@ -167,6 +171,13 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		}
 	}
 
+	preferredRequestBinding := sc.GetPreferredRequestBinding()
+	if preferredRequestBinding != "" {
+		if !slices.Contains(types.SAMLRequestBindingValues, preferredRequestBinding) {
+			return trace.BadParameter("invalid preferred_request_binding value. It can be one of %q", types.SAMLRequestBindingValues)
+		}
+	}
+
 	// Validate MFA settings.
 	if mfa := sc.GetMFASettings(); mfa != nil {
 		if mfa.EntityDescriptorUrl != "" {
@@ -191,6 +202,12 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 			if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
 				mfa.Sso = md.IDPSSODescriptor.SingleSignOnServices[0].Location
 			}
+		}
+		if preferredRequestBinding == types.SAMLRequestHTTPPostBinding {
+			log.Warn("SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
+				teleport.ComponentKey, teleport.ComponentSAML,
+				"preferred_request_binding", preferredRequestBinding,
+			)
 		}
 		sc.SetMFASettings(mfa)
 	}

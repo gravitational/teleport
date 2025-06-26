@@ -1,16 +1,24 @@
 ---
-title: Configure Teleport to Automatically Enroll EC2 instances 
+title: Server Auto-Discovery for Amazon EC2
 description: How to configure Teleport to automatically enroll EC2 instances.
 ---
 
-The Teleport Discovery Service can connect to Amazon EC2 and automatically
-discover and enroll EC2 instances matching configured labels. It will then
-execute an install script on these discovered instances using AWS Systems
-Manager that will install Teleport, start it and join the cluster.
+This guide shows you how to configure Teleport to automatically enroll EC2
+instances in your cluster.
 
-In this scenario, Teleport Discovery Service uses an IAM invite token with a
-long time-to-live (TTL), so that new instances can be discovered and added to
-the Teleport cluster for the lifetime of the token.
+## How it works
+
+In the setup we describe in this guide, the Teleport Discovery Service connects
+to Amazon EC2 and reconciles the servers enrolled on the Auth Service backend
+with servers it lists from the EC2 API. If an EC2 instance matches a configured
+label and is not enrolled in your cluster, the Discovery Service executes a
+script on these discovered instances using AWS Systems Manager that installs
+Teleport, starts it and joins the cluster using the [IAM join method](
+../../agents/aws-iam.mdx).
+
+The Teleport Discovery Service uses an IAM invite token with a long time-to-live
+(TTL), so that new instances can be discovered and added to the Teleport cluster
+for the lifetime of the token.
 
 ## Prerequisites
 
@@ -348,7 +356,7 @@ See SSM RunCommand error codes and troubleshooting information in AWS documentat
 ## Next steps
 
 - Read [Joining Nodes via AWS IAM
-  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx)
+  Role](../../agents/aws-iam.mdx)
 for more information on IAM Invite Tokens.
 - Information on IAM best practices on EC2 instances managed by Systems
 Manager can be found for in the [AWS Cloud Operations & Migrations Blog

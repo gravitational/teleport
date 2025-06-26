@@ -15,6 +15,9 @@ attestors:
     enabled: false
   systemd:
     enabled: false
+  unix: {}
+  sigstore:
+    enabled: false
 selector:
   name: my-workload-identity
 credential_ttl: 1m0s

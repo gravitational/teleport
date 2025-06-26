@@ -42,7 +42,7 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 		Connector: &connector{
 			DBAuth: ec.Auth,
 
-			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.DataDir),
+			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.Log),
 		},
 	}
 }

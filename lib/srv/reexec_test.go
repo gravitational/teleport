@@ -46,8 +46,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type stubUser struct {
@@ -215,9 +215,9 @@ func TestNetworkingCommand(t *testing.T) {
 // for a user different than the one running a node (which we need to run
 // as root to create).
 func TestRootNetworkingCommand(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	_, err := host.UserAdd(login, nil, host.UserOpts{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -414,7 +414,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 }
 
 func TestRootCheckHomeDir(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
 	tmp := t.TempDir()
 	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
@@ -430,7 +430,7 @@ func TestRootCheckHomeDir(t *testing.T) {
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -483,7 +483,7 @@ func changeHomeDir(t *testing.T, username, home string) {
 }
 
 func TestRootOpenFileAsUser(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	euid := os.Geteuid()
 	egid := os.Getegid()
 

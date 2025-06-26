@@ -35,7 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -632,7 +632,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(ident *sshca.Identity, ca types.CertAu
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
 	if osUser == teleport.SSHSessionJoinPrincipal &&
-		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
 		// allow joining if cluster wide MFA is not required
 		if state.MFARequired == services.MFARequiredNever {

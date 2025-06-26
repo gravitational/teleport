@@ -200,10 +200,11 @@ func handleReexec() {
 		})
 	}
 
-	// Allows test to refer to tsh binary in tests.
-	// Needed for tests that generate OpenSSH config by tsh config command where
-	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv(tshBinMainTestEnv) != "" {
+	// Re-exec tsh commands. Needed for:
+	// - Tests that generate OpenSSH config by tsh config command where
+	//   tsh proxy ssh command is used as ProxyCommand.
+	// - Fork after authentication.
+	if os.Getenv(tshBinMainTestEnv) != "" || (len(os.Args) >= 2 && os.Args[1] == "--fork-signal-fd") {
 		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
 			// unset this env var so child processes started by 'tsh ssh'
 			// will be executed correctly below.
@@ -223,8 +224,7 @@ func handleReexec() {
 		os.Exit(0)
 	}
 
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe. Used to test tsh ssh command.
+	// Re-exec teleport commands. Used to test tsh ssh command.
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 	}
@@ -5115,10 +5115,10 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
 			wantUsers: &dbUsers{
-				Allowed: []string{"*", "dev"},
+				Allowed: []string{"*"},
 				Denied:  []string{"superuser"},
 			},
-			wantText: "[* dev], except: [superuser]",
+			wantText: "[*], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
@@ -7235,6 +7235,118 @@ func TestSetEnvVariables(t *testing.T) {
 			setEnvVariables(c, options)
 
 			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
+		})
+	}
+}
+
+func TestSSHForkAfterAuthentication(t *testing.T) {
+	u, err := user.Current()
+	require.NoError(t, err)
+
+	// Create resources.
+	accessRole, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			Logins: []string{u.Username},
+		},
+	})
+	require.NoError(t, err)
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{accessRole.GetName()})
+
+	tsrv := testserver.MakeTestServer(t,
+		testserver.WithSSHLabel("foo", "bar"),
+		testserver.WithBootstrap(connector, accessRole, alice),
+	)
+	t.Cleanup(func() { require.NoError(t, tsrv.Close()) })
+	// We don't need a real second node for multi-node exec, tsh ssh should fail before that.
+	fakeNode, err := types.NewNode("fake", types.SubKindTeleportNode, types.ServerSpecV2{}, map[string]string{"foo": "bar"})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	_, err = tsrv.GetAuthServer().UpsertNode(ctx, fakeNode)
+	require.NoError(t, err)
+
+	// Use env var instead of homedir mock to preserve across the re-exec.
+	tmpHomeDir := filepath.Join(t.TempDir(), ".tsh")
+	t.Setenv(types.HomeEnvVar, tmpHomeDir)
+	proxyAddr, err := tsrv.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.Addr,
+	}, setMockSSOLogin(tsrv.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                string
+		target              string
+		command             []string
+		assertRun           assert.ErrorAssertionFunc
+		assertCommandEffect func(t *testing.T, testFile string) bool
+	}{
+		{
+			name:      "ok",
+			target:    tsrv.Config.Hostname,
+			command:   []string{"echo", "hello", ">", "test.txt"},
+			assertRun: assert.NoError,
+			assertCommandEffect: func(t *testing.T, testFile string) bool {
+				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+					assert.FileExists(collect, testFile)
+				}, 3*time.Second, 100*time.Millisecond)
+			},
+		},
+		{
+			name:      "stdin is closed after disowning",
+			target:    tsrv.Config.Hostname,
+			command:   []string{"read", "&&", "echo", "should not happen", ">", "test.txt"},
+			assertRun: assert.NoError,
+			assertCommandEffect: func(t *testing.T, testFile string) bool {
+				return assert.Never(t, func() bool {
+					_, err := os.Stat(testFile)
+					return !errors.Is(err, os.ErrNotExist)
+				}, 3*time.Second, time.Second)
+			},
+		},
+		{
+			name:      "not allowed on multiple nodes",
+			target:    "foo=bar",
+			command:   []string{"echo", "hello", ">", "test.txt"},
+			assertRun: assert.Error,
+		},
+		{
+			name:      "not allowed for interactive commands",
+			target:    tsrv.Config.Hostname,
+			command:   []string{},
+			assertRun: assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Configure command with a real file path.
+			testFile := filepath.Join(t.TempDir(), "test.txt")
+			cmd := make([]string, 0, len(tc.command))
+			for _, arg := range tc.command {
+				cmd = append(cmd, strings.ReplaceAll(arg, "test.txt", testFile))
+			}
+
+			err := Run(ctx, append([]string{
+				"ssh",
+				"--insecure",
+				"-f",
+				u.Username + "@" + tc.target,
+			}, cmd...))
+			tc.assertRun(t, err)
+			if tc.assertCommandEffect != nil {
+				tc.assertCommandEffect(t, testFile)
+			}
 		})
 	}
 }

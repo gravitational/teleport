@@ -515,6 +515,13 @@ spec:
 +  - sso
 ```
 
+<Admonition type="warning">
+  Before using the new `second_factors` field instead of the legacy `second_factor`,
+  you must ensure that your Teleport cluster is fully upgraded to v17+. Due to a
+  version compatibility bug, v16 teleport services do not properly handle this setting
+  and may fail to start as a result.
+</Admonition>
+
 ## Working with an external email identity
 
 Along with sending groups, an SSO provider will also provide a user's email address.

@@ -302,6 +302,8 @@ export type PluginOktaSpec = {
   enableBidirectionalSync?: boolean;
   // Whether User Sync is enabled
   enableUserSync?: boolean;
+  // Whether the builtin okta-requester role should be assigned to synced users.
+  assignDefaultRoles?: boolean;
   // Whether Access List Sync is enabled. Should match App/Group sync.
   enableAccessListSync?: boolean;
   // Whether App/Group Sync is enabled. Should match Access List sync.

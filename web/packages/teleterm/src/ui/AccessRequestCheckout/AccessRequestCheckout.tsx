@@ -102,6 +102,8 @@ export function AccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
+    reasonMode,
+    reasonPrompts,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -179,6 +181,9 @@ export function AccessRequestCheckout() {
                         case 'kube_cluster':
                         case 'namespace':
                           resource.Icon = Icon.Kubernetes;
+                          break;
+                        case 'windows_desktop':
+                          resource.Icon = Icon.Desktop;
                           break;
                         case 'role':
                           break;
@@ -265,7 +270,6 @@ export function AccessRequestCheckout() {
             clearAttempt={clearCreateAttempt}
             selectedReviewers={selectedReviewers}
             setSelectedReviewers={setSelectedReviewers}
-            requireReason={false}
             numRequestedResources={requestedCount}
             isResourceRequest={!isRoleRequest}
             fetchStatus={'loaded'}
@@ -280,6 +284,8 @@ export function AccessRequestCheckout() {
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
+            requireReason={reasonMode === 'required'}
+            reasonPrompts={reasonPrompts}
           />
         )}
       </Transition>

@@ -80,6 +80,7 @@ during the migration.
 |[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
 |[`jwt`](#jwt)|Teleport users accessing web applications.|
 |[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
+|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
 
 ### `host`
@@ -302,6 +303,33 @@ must configure any service providers that rely on the Teleport SAML IdP to trust
 the Teleport `saml_idp` CA. Follow the instructions in the
 [SAML IdP documentation](../../access-controls/idps/saml-guide.mdx) to export an
 XML metadata file and make it available to your service provider.
+
+### `spiffe`
+
+The `spiffe` CA signs X509 and JWT SVIDs for Workload Identity clients, often so
+other clients can mutually verify their identity with mTLS.
+
+When rotating this CA, before entering the final `standby` phase, ensure all
+clients that validate Teleport-issued SVIDs have been updated to trust the new
+CA:
+
+- Teleport Workload Identity clients should receive the updated CA certificates
+  automatically via the `tbot` client, and future SVIDs will be issued using the
+  new CA.
+
+  If using `tbot`'s `workload-identity-api` service, additional steps may be
+  needed for client applications to fetch new SVIDs. If generating credentials
+  with one of the `spiffe-svid` outputs, new SVIDs should be issued
+  automatically.
+
+- If using [SPIFFE federation](../../../machine-workload-identity/workload-identity/federation.mdx#federation-to-teleport-workload-identity),
+  other SPIFFE trust domains should periodically refresh Teleport's certificate
+  bundle. This interval is usually 5 minute, but you can examine the bundle
+  yourself to verify:
+
+  ```code
+  $ curl https://example.teleport.sh/webapi/spiffe/bundle.json | jq '.spiffe_refresh_hint'
+  ```
 
 ### `oidc_idp`
 

@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // ListDeployedDatabaseServicesRequest contains the required fields to list the deployed database services in Amazon ECS.
@@ -148,6 +147,10 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 		return nil, trace.Wrap(convertedError)
 	}
 
+	if len(listServicesOutput.ServiceArns) == 0 {
+		return &ListDeployedDatabaseServicesResponse{}, nil
+	}
+
 	describeServicesOutput, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Services: listServicesOutput.ServiceArns,
 		Include:  []ecstypes.ServiceField{ecstypes.ServiceFieldTags},
@@ -157,7 +160,7 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 		return nil, trace.Wrap(err)
 	}
 
-	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.Integration)
+	ownershipTags := defaultResourceCreationTags(req.TeleportClusterName, req.Integration)
 
 	deployedDatabaseServices := []DeployedDatabaseService{}
 	for _, ecsService := range describeServicesOutput.Services {

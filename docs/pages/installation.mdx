@@ -639,7 +639,7 @@ the image is customized in order to improve the experience of running `tbot` in 
 container environment.
 
 To learn more, read the
-[Deploying Machine ID on Kubernetes](./enroll-resources/machine-id/deployment/kubernetes.mdx)
+[Deploying Machine ID on Kubernetes](machine-workload-identity/machine-id/deployment/kubernetes.mdx)
 guide.
 
 ### Running Teleport on Docker
@@ -729,7 +729,7 @@ Service on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+method](enroll-resources/agents/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -956,4 +956,4 @@ infrastructure. Get started with enrolling resources in your Teleport cluster:
 - [Databases](enroll-resources/database-access/database-access.mdx)
 - [Applications](enroll-resources/application-access/introduction.mdx)
 - [Remote desktops](enroll-resources/desktop-access/introduction.mdx)
-- [Machine ID](enroll-resources/machine-id/introduction.mdx)
+- [Machine ID](machine-workload-identity/machine-id/introduction.mdx)

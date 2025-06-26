@@ -118,6 +118,10 @@ const (
 	// like GitHub.
 	GitClient
 
+	// BoundKeypairJoining represents a key used for the bound keypair joining
+	// identity.
+	BoundKeypairJoining
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -191,8 +195,9 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect: Ed25519,
-		GitClient:          Ed25519,
+		EC2InstanceConnect:  Ed25519,
+		GitClient:           Ed25519,
+		BoundKeypairJoining: Ed25519,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -224,6 +229,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
+		BoundKeypairJoining:     Ed25519,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -256,6 +262,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      ECDSAP256,
 		GitClient:               ECDSAP256,
+		BoundKeypairJoining:     ECDSAP256,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -290,6 +297,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
+		BoundKeypairJoining:     Ed25519,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{
@@ -336,6 +344,14 @@ func GetCurrentSuiteFromPing(pinger Pinger) GetSuiteFunc {
 		}
 		return pingResp.SignatureAlgorithmSuite, nil
 	})
+}
+
+// StaticAlgorithmSuite returns a [GetSuiteFunc] that always returns the given
+// static suite.
+func StaticAlgorithmSuite(suite types.SignatureAlgorithmSuite) GetSuiteFunc {
+	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		return suite, nil
+	}
 }
 
 // GetSuiteFunc is a function type that retrieves the current signature
