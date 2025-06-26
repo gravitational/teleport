@@ -391,3 +391,69 @@ func TestIsValidGlueResourceName(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidIAMRolesAnywhereTrustAnchorName(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		trustAnchorName string
+		errCheck        require.ErrorAssertionFunc
+	}{
+		{
+			name:            "valid",
+			trustAnchorName: "aA0-_",
+			errCheck:        require.NoError,
+		},
+		{
+			name:            "empty",
+			trustAnchorName: "",
+			errCheck:        require.Error,
+		},
+		{
+			name:            "too long",
+			trustAnchorName: strings.Repeat("a", 256),
+			errCheck:        require.Error,
+		},
+		{
+			name:            "invalid chars",
+			trustAnchorName: "+",
+			errCheck:        require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidIAMRolesAnywhereTrustAnchorName(tt.trustAnchorName))
+		})
+	}
+}
+
+func TestIsValidIAMRolesAnywhereProfileName(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		profileName string
+		errCheck    require.ErrorAssertionFunc
+	}{
+		{
+			name:        "valid",
+			profileName: "aA0-_",
+			errCheck:    require.NoError,
+		},
+		{
+			name:        "empty",
+			profileName: "",
+			errCheck:    require.Error,
+		},
+		{
+			name:        "too long",
+			profileName: strings.Repeat("a", 256),
+			errCheck:    require.Error,
+		},
+		{
+			name:        "invalid chars",
+			profileName: "+",
+			errCheck:    require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidIAMRolesAnywhereProfileName(tt.profileName))
+		})
+	}
+}
