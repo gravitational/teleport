@@ -28,7 +28,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"github.com/gravitational/teleport/lib/winpki"
 	"log/slog"
 	"strings"
 	"time"
@@ -46,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 // GenerateDatabaseCert generates client certificate used by a database
