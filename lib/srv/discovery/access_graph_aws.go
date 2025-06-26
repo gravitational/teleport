@@ -1069,13 +1069,23 @@ func (s *Server) startCloudwatchPollers(
 			}
 			continue
 		case events := <-eventsCh:
+			var logGroups []*accessgraphv1alpha.AWSCloudWatchLogGroup
+			for _, event := range events {
+				logGroups = append(logGroups, &accessgraphv1alpha.AWSCloudWatchLogGroup{
+					Name:      event.logGroup,
+					AccountId: event.accountID,
+					Events:    event.events,
+					Cursor: &accessgraphv1alpha.AWSCloudWatchCursor{
+						NextToken: event.nextToken,
+						StartTime: timestamppb.New(event.startTime),
+					},
+				})
+			}
 			err := stream.Send(
 				&accessgraphv1alpha.AWSCloudWatchStreamRequest{
-					Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Events{
-						Events: &accessgraphv1alpha.AWSCloudWatchEvents{
-							Events:    events.events,
-							AccountId: events.accountID,
-							Cursors:   nil,
+					Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Results{
+						Results: &accessgraphv1alpha.AWSCloudWatchResults{
+							LogGroups: logGroups,
 						},
 					},
 				},
@@ -1171,6 +1181,8 @@ type payloadChannelMessage struct {
 type cloudWatchEvents struct {
 	events    []*accessgraphv1alpha.AWSCloudWatchEvent
 	cursor    string
+	nextToken string
+	startTime time.Time
 	logGroup  string
 	region    string
 	accountID string
@@ -1395,14 +1407,14 @@ func (s *Server) spawnCloudwatchPollers(
 	}()
 	go func() {
 		for {
-			var allEvents []cloudWatchEvents{}
+			var allEvents []cloudWatchEvents
 			for _, region := range spec.Regions {
 				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
 				if err != nil {
 					return
 				}
 				cli := cloudwatchlogs.NewFromConfig(awsCfg)
-				startTime := time.Now().Unix()
+				startTime := time.Now()
 
 				cwResourceLock.RLock()
 				cwResources, ok := cwResMap[region]
@@ -1415,14 +1427,14 @@ func (s *Server) spawnCloudwatchPollers(
 					if resource.resourceType != cloudWatchResourceEKS {
 						continue
 					}
-					var resumeToken *string
+					var nextToken *string
 					// TODO (mvbrock): Check that the log group exists before fetching logs
 					logGroup := fmt.Sprintf("/aws/eks/%s/cluster", resource.resourceID)
 					params := &cloudwatchlogs.FilterLogEventsInput{
 						LogGroupName:        aws.String(logGroup),
 						LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
-						StartTime:           aws.Int64(startTime),
-						NextToken:           resumeToken,
+						StartTime:           aws.Int64(startTime.Unix()),
+						NextToken:           nextToken,
 					}
 					out, err := cli.FilterLogEvents(ctx, params)
 					if err != nil {
@@ -1432,16 +1444,20 @@ func (s *Server) spawnCloudwatchPollers(
 					}
 					var events []*accessgraphv1alpha.AWSCloudWatchEvent
 					for _, cwEvent := range out.Events {
+						cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
 						event := &accessgraphv1alpha.AWSCloudWatchEvent{
-							LogGroup:  logGroup,
 							Message:   *cwEvent.Message,
-							Timestamp: timestamppb.New(time.UnixMilli(*cwEvent.Timestamp)),
+							Timestamp: timestamppb.New(cwTimestamp),
+						}
+						if cwTimestamp.After(startTime) {
+							startTime = cwTimestamp
 						}
 						events = append(events, event)
 					}
 					allEvents = append(allEvents, cloudWatchEvents{
 						events:    events,
-						cursor:    *out.NextToken,
+						nextToken: *out.NextToken,
+						startTime: startTime,
 						logGroup:  logGroup,
 						region:    region,
 						accountID: accountID,
