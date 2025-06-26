@@ -40,6 +40,7 @@ func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.W
 
 	return &collection[*provisioningv1.PrincipalState, principalStateIndex]{
 		store: newStore(
+			types.KindProvisioningPrincipalState,
 			proto.CloneOf[*provisioningv1.PrincipalState],
 			map[principalStateIndex]func(*provisioningv1.PrincipalState) string{
 				principalStateNameIndex: func(r *provisioningv1.PrincipalState) string {

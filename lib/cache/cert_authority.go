@@ -41,6 +41,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 
 	return &collection[types.CertAuthority, certAuthorityIndex]{
 		store: newStore(
+			types.KindCertAuthority,
 			types.CertAuthority.Clone,
 			map[certAuthorityIndex]func(types.CertAuthority) string{
 				certAuthorityIDIndex: func(ca types.CertAuthority) string {

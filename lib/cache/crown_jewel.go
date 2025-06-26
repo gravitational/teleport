@@ -39,6 +39,7 @@ func newCrownJewelCollection(upstream services.CrownJewels, w types.WatchKind) (
 
 	return &collection[*crownjewelv1.CrownJewel, crownJewelIndex]{
 		store: newStore(
+			types.KindCrownJewel,
 			proto.CloneOf[*crownjewelv1.CrownJewel],
 			map[crownJewelIndex]func(*crownjewelv1.CrownJewel) string{
 				crownJewelNameIndex: func(r *crownjewelv1.CrownJewel) string {

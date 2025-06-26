@@ -55,6 +55,7 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 
 	return &collection[*machineidv1.BotInstance, botInstanceIndex]{
 		store: newStore(
+			types.KindBotInstance,
 			proto.CloneOf[*machineidv1.BotInstance],
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name

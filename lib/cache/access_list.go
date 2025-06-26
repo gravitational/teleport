@@ -41,6 +41,7 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 
 	return &collection[*accesslist.AccessList, accessListIndex]{
 		store: newStore(
+			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
 				accessListNameIndex: func(al *accesslist.AccessList) string {
@@ -163,6 +164,7 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 
 	return &collection[*accesslist.AccessListMember, accessListMemberIndex]{
 		store: newStore(
+			types.KindAccessListMember,
 			(*accesslist.AccessListMember).Clone,
 			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
 				accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
@@ -330,6 +332,7 @@ func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchK
 
 	return &collection[*accesslist.Review, accessListReviewIndex]{
 		store: newStore(
+			types.KindAccessListReview,
 			(*accesslist.Review).Clone,
 			map[accessListReviewIndex]func(*accesslist.Review) string{
 				accessListReviewNameIndex: func(r *accesslist.Review) string {
