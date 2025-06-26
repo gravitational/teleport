@@ -20,11 +20,11 @@ package rollout
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/client/proto"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"

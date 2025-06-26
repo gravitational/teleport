@@ -20,17 +20,17 @@ package rollout
 
 import (
 	"context"
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"log/slog"
 	"slices"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
