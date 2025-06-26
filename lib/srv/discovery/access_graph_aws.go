@@ -1382,97 +1382,85 @@ func (s *Server) spawnCloudwatchPollers(
 	eventsCh chan<- []cloudWatchEvents,
 ) {
 	s.Log.Info("Spawning CloudWatch poller", "integration", spec.Integration)
-	restartPollerCh := make(chan struct{})
-	var cwResourceLock sync.RWMutex
-	cwResMap := make(map[string][]cloudWatchResource)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				s.Log.DebugContext(ctx, "CloudWatch poller resource watcher exiting",
-					"integration", spec.Integration)
-				return
-			case cwResources := <-s.cloudWatchResourcesCh:
-				s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources,
-					"integration", spec.Integration)
-				cwResourceLock.Lock()
-				cwResMap = make(map[string][]cloudWatchResource)
-				for _, resource := range cwResources {
-					cwResMap[resource.region] = append(cwResMap[resource.region], resource)
-				}
-				cwResourceLock.Unlock()
-				restartPollerCh <- struct{}{}
-			}
-		}
-	}()
+	type cwResourceKey struct {
+		region string
+		id     string
+	}
+	var cwResLock sync.RWMutex
+	cwResMap := make(map[cwResourceKey]cloudWatchResource)
 	go func() {
 		for {
 			var allEvents []cloudWatchEvents
-			for _, region := range spec.Regions {
-				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, getOptions(spec)...)
+			for _, cwRes := range cwResMap {
+
+				// Create the client
+				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, cwRes.region, getOptions(spec)...)
 				if err != nil {
 					return
 				}
 				cli := cloudwatchlogs.NewFromConfig(awsCfg)
 				startTime := time.Now()
-
-				cwResourceLock.RLock()
-				cwResources, ok := cwResMap[region]
-				cwResourceLock.RUnlock()
-				if !ok {
-					continue
+				var nextToken *string
+				// TODO (mvbrock): Check that the log group exists before fetching logs
+				logGroup := fmt.Sprintf("/aws/eks/%s/cluster", cwRes.resourceID)
+				params := &cloudwatchlogs.FilterLogEventsInput{
+					LogGroupName:        aws.String(logGroup),
+					LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
+					StartTime:           aws.Int64(startTime.Unix()),
+					NextToken:           nextToken,
 				}
-				for _, resource := range cwResources {
-					// We only support EKS for now
-					if resource.resourceType != cloudWatchResourceEKS {
-						continue
-					}
-					var nextToken *string
-					// TODO (mvbrock): Check that the log group exists before fetching logs
-					logGroup := fmt.Sprintf("/aws/eks/%s/cluster", resource.resourceID)
-					params := &cloudwatchlogs.FilterLogEventsInput{
-						LogGroupName:        aws.String(logGroup),
-						LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
-						StartTime:           aws.Int64(startTime.Unix()),
-						NextToken:           nextToken,
-					}
-					out, err := cli.FilterLogEvents(ctx, params)
-					if err != nil {
-						s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
-							"error", err, "region", region)
-						return
-					}
-					var events []*accessgraphv1alpha.AWSCloudWatchEvent
-					for _, cwEvent := range out.Events {
-						cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
-						event := &accessgraphv1alpha.AWSCloudWatchEvent{
-							Message:   *cwEvent.Message,
-							Timestamp: timestamppb.New(cwTimestamp),
-						}
-						if cwTimestamp.After(startTime) {
-							startTime = cwTimestamp
-						}
-						events = append(events, event)
-					}
-					allEvents = append(allEvents, cloudWatchEvents{
-						events:    events,
-						nextToken: *out.NextToken,
-						startTime: startTime,
-						logGroup:  logGroup,
-						region:    region,
-						accountID: accountID,
-					})
+				out, err := cli.FilterLogEvents(ctx, params)
+				if err != nil {
+					s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
+						"error", err, "region", cwRes.region)
+					return
 				}
+				var events []*accessgraphv1alpha.AWSCloudWatchEvent
+				for _, cwEvent := range out.Events {
+					cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
+					event := &accessgraphv1alpha.AWSCloudWatchEvent{
+						Message:   *cwEvent.Message,
+						Timestamp: timestamppb.New(cwTimestamp),
+					}
+					if cwTimestamp.After(startTime) {
+						startTime = cwTimestamp
+					}
+					events = append(events, event)
+				}
+				allEvents = append(allEvents, cloudWatchEvents{
+					events:    events,
+					nextToken: *out.NextToken,
+					startTime: startTime,
+					logGroup:  logGroup,
+					region:    cwRes.region,
+					accountID: accountID,
+				})
 			}
+
+			// Send the events to the events channel
 			eventsCh <- allEvents
+
+			// Block until the next event
 			select {
 			case <-ctx.Done():
 				s.Log.DebugContext(ctx, "CloudWatch poller log fetcher exiting",
 					"integration", spec.Integration)
 				break
-			case <-restartPollerCh:
-				s.Log.DebugContext(ctx, "CloudWatch poller restarting due to new AWS resources",
+			case cwResources := <-s.cloudWatchResourcesCh:
+				for len(s.cloudWatchResourcesCh) > 0 {
+					cwResources = <-s.cloudWatchResourcesCh
+				}
+				s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", cwResources,
 					"integration", spec.Integration)
+				cwResLock.Lock()
+				for _, res := range cwResources {
+					// We only support EKS for now
+					if res.resourceType != cloudWatchResourceEKS {
+						continue
+					}
+					cwResMap[cwResourceKey{res.region, res.resourceID}] = res
+				}
+				cwResLock.Unlock()
 			}
 		}
 	}()
