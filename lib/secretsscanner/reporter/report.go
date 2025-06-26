@@ -128,10 +128,7 @@ func (r *Reporter) reportPrivateKeys(stream accessgraphsecretsv1pb.SecretsScanne
 	batchSize := r.batchSize
 	for i := 0; len(privateKeys) > i; i += batchSize {
 		start := i
-		end := i + batchSize
-		if end > len(privateKeys) {
-			end = len(privateKeys)
-		}
+		end := min(i+batchSize, len(privateKeys))
 		if err := stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
 			Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_PrivateKeys{
 				PrivateKeys: &accessgraphsecretsv1pb.ReportPrivateKeys{

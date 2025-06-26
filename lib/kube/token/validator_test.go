@@ -365,7 +365,6 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.token, func(t *testing.T) {
 			// Fill value of raw to avoid duplication in test table
 			if tt.wantResult != nil {

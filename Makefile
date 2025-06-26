@@ -775,13 +775,16 @@ release-connect: | $(RELEASE_DIR)
 	pnpm build-term
 	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
-	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
+	# Drop -universal "arch" from dmg and zip name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
-		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		DMG_TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		ZIP_TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH)-mac.zip"; \
 		if [ "$(ARCH)" = 'universal' ]; then \
-			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
+			DMG_TARGET_NAME="$${DMG_TARGET_NAME/-universal/}"; \
+			ZIP_TARGET_NAME="$${ZIP_TARGET_NAME/-universal/}"; \
 		fi; \
-		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${DMG_TARGET_NAME}"; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH)-mac.zip" "$(RELEASE_DIR)/$${ZIP_TARGET_NAME}"; \
 	fi
 
 #
@@ -1081,9 +1084,10 @@ FLAKY_RUNS ?= 3
 FLAKY_TIMEOUT ?= 1h
 FLAKY_TOP_N ?= 20
 FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
+test-go-flaky: rdpclient
 test-go-flaky: FLAGS ?= -race -shuffle on
 test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e e2e -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
-test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
+test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \

@@ -30,7 +30,8 @@ import (
 )
 
 type mcpCommands struct {
-	dbStart *mcpDBStartCommand
+	dbStart  *mcpDBStartCommand
+	dbConfig *mcpDBConfigCommand
 
 	config  *mcpConfigCommand
 	list    *mcpListCommand
@@ -41,7 +42,8 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 	mcp := app.Command("mcp", "View and control proxied MCP servers.")
 	db := mcp.Command("db", "Database access for MCP servers.")
 	return &mcpCommands{
-		dbStart: newMCPDBCommand(db),
+		dbStart:  newMCPDBCommand(db, cf),
+		dbConfig: newMCPDBconfigCommand(db, cf),
 
 		list:    newMCPListCommand(mcp, cf),
 		config:  newMCPConfigCommand(mcp, cf),
@@ -114,6 +116,7 @@ a config file compatible with the "mcpServer" mapping.`)
 // claudeConfig defines a subset of functions from claude.Config.
 type claudeConfig interface {
 	PutMCPServer(string, claude.MCPServer) error
+	GetMCPServers() map[string]claude.MCPServer
 }
 
 func makeLocalMCPServer(cf *CLIConf, args []string) claude.MCPServer {

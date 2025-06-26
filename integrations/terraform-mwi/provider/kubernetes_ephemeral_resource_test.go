@@ -17,35 +17,56 @@ limitations under the License.
 package provider
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
-	"github.com/hashicorp/terraform-plugin-testing/statecheck"
-	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestAccKubernetesEphemeralResource(t *testing.T) {
-	const config = `
+	log := utils.NewSlogLoggerForTests()
+	ctx := t.Context()
+
+	process, kubeMock := setupKubernetesHarness(t, log)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	_, pt := setupKubernetesAccessBot(ctx, t, rootClient)
+
+	config := fmt.Sprintf(`
 provider "teleportmwi" {
-  proxy_server = "example.com:3080"
-  join_method  = "gitlab"
-  join_token   = "example-token"
+  proxy_server = "%[1]s"
+  join_method  = "kubernetes"
+  join_token   = "%[2]s"
+  insecure     = true
 }
 
 ephemeral "teleportmwi_kubernetes" "example" {
   selector = {
-    name = "barry"
+    name = "%[3]s"
   } 
 }
 
-provider "echo" {
-  data = ephemeral.teleportmwi_kubernetes.example.output.host
+provider "kubernetes" {
+  host                   = ephemeral.teleportmwi_kubernetes.example.output.host
+  tls_server_name        = ephemeral.teleportmwi_kubernetes.example.output.tls_server_name
+  client_certificate     = ephemeral.teleportmwi_kubernetes.example.output.client_certificate
+  client_key             = ephemeral.teleportmwi_kubernetes.example.output.client_key
+  cluster_ca_certificate = ephemeral.teleportmwi_kubernetes.example.output.cluster_ca_certificate
 }
 
-resource "echo" "test" {}
-`
+resource "kubernetes_namespace" "ns" {
+  metadata {
+    name = "tf-mwi-ers-test"
+  }
+}
+`, process.Config.Proxy.WebAddr.String(), pt.GetName(), kubeClusterName)
+
 	resource.Test(t, resource.TestCase{
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
 			// Ephemeral resources were introduced in Terraform 1.10.0.
@@ -55,15 +76,26 @@ resource "echo" "test" {}
 			testAccPreCheck(t)
 		},
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactoriesWithEcho,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"kubernetes": {
+				Source: "hashicorp/kubernetes",
+			},
+		},
 		Steps: []resource.TestStep{
 			{
 				Config: config,
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(
-						"echo.test",
-						tfjsonpath.New("data"),
-						knownvalue.StringExact("Hello, barry!"),
-					),
+				Check: func(state *terraform.State) error {
+					// Check that the namespace was actually created!
+					containsCreatedNamespace := slices.ContainsFunc(
+						kubeMock.ListNamespaces().Items,
+						func(ns corev1.Namespace) bool {
+							return ns.Name == "tf-mwi-ers-test"
+						},
+					)
+					if !containsCreatedNamespace {
+						return fmt.Errorf("expected to find created namespace in TF state")
+					}
+					return nil
 				},
 			},
 		},

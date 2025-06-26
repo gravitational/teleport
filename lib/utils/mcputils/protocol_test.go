@@ -140,8 +140,8 @@ func TestJSONRPCResponse(t *testing.T) {
 			Description: "Get current weather information for a location",
 			InputSchema: mcp.ToolInputSchema{
 				Type: "object",
-				Properties: map[string]interface{}{
-					"location": map[string]interface{}{
+				Properties: map[string]any{
+					"location": map[string]any{
 						"type":        "string",
 						"description": "City name or zip code",
 					},

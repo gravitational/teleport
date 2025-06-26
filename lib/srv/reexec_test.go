@@ -176,7 +176,6 @@ func TestStartNewParker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
@@ -350,7 +349,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	}
 	require.NoError(t, err)
 
-	cred, err := getCmdCredential(localUser)
+	cred, err := host.GetHostUserCredential(localUser)
 	require.NoError(t, err)
 
 	// Create a temporary xauth file path belonging to the user.

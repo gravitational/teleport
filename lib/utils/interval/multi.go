@@ -20,6 +20,7 @@ package interval
 
 import (
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -388,10 +389,8 @@ type pendingTicks[T comparable] struct {
 
 func (p *pendingTicks[T]) add(now time.Time, key T) {
 	p.time = now
-	for _, k := range p.keys {
-		if k == key {
-			return
-		}
+	if slices.Contains(p.keys, key) {
+		return
 	}
 	p.keys = append(p.keys, key)
 }
@@ -409,7 +408,7 @@ func (p *pendingTicks[T]) next() (tick Tick[T], ok bool) {
 func (p *pendingTicks[T]) remove(key T) {
 	for idx := range p.keys {
 		if p.keys[idx] == key {
-			p.keys = append(p.keys[:idx], p.keys[idx+1:]...)
+			p.keys = slices.Delete(p.keys, idx, idx+1)
 			return
 		}
 	}

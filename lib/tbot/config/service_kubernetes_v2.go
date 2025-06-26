@@ -97,7 +97,7 @@ func (o *KubernetesV2Output) Describe() []FileDescription {
 	}
 }
 
-func (o *KubernetesV2Output) MarshalYAML() (interface{}, error) {
+func (o *KubernetesV2Output) MarshalYAML() (any, error) {
 	type raw KubernetesV2Output
 	return withTypeHeader((*raw)(o), KubernetesV2OutputType)
 }

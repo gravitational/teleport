@@ -1948,10 +1948,8 @@ func (m *annotationMatcher) matchesRequest(req types.AccessRequest) bool {
 		matchers = m.resourceRequestMatchers
 	}
 	for _, matcher := range matchers {
-		for _, role := range req.GetRoles() {
-			if matcher.Match(role) {
-				return true
-			}
+		if slices.ContainsFunc(req.GetRoles(), matcher.Match) {
+			return true
 		}
 	}
 	return false

@@ -259,6 +259,9 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Auth.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
 	}
+	if cfg.Kube.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.KubernetesReady)
+	}
 	waitForEvents(t, auth, serviceReadyEvents...)
 
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
@@ -549,7 +552,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 

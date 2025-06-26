@@ -65,7 +65,7 @@ func (s *SSHMultiplexerService) Type() string {
 	return SSHMultiplexerServiceType
 }
 
-func (s *SSHMultiplexerService) MarshalYAML() (interface{}, error) {
+func (s *SSHMultiplexerService) MarshalYAML() (any, error) {
 	type raw SSHMultiplexerService
 	return withTypeHeader((*raw)(s), SSHMultiplexerServiceType)
 }

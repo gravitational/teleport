@@ -42,7 +42,7 @@ import (
 
 // TestClientConn defines interface for client.Conn.
 type TestClientConn interface {
-	Execute(command string, args ...interface{}) (*mysql.Result, error)
+	Execute(command string, args ...any) (*mysql.Result, error)
 	Close() error
 	UseDB(dbName string) error
 	GetServerVersion() string
@@ -314,7 +314,7 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	if query == "show tables" {
 		resultSet, err := mysql.BuildSimpleTextResultset(
 			[]string{"Tables_in_test"},
-			[][]interface{}{
+			[][]any{
 				// In raw bytes, this table name starts with 0x11 which used to
 				// cause server packet parsing issues since it clashed with
 				// COM_CHANGE_USER packet type.
@@ -331,11 +331,11 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	return newTestQueryResponse(), nil
 }
 
-func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, error) {
+func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, any, error) {
 	params := strings.Count(prepare, "?")
 	return params, 0, nil, nil
 }
-func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
+func (h *testHandler) HandleStmtExecute(_ any, query string, args []any) (*mysql.Result, error) {
 	h.log.DebugContext(context.Background(), "Received execute statement with args", "query", query, "args", args)
 	if strings.HasPrefix(query, "CALL ") {
 		return h.handleCallProcedure(query, args)
@@ -343,7 +343,7 @@ func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []inte
 	return newTestQueryResponse(), nil
 }
 
-func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*mysql.Result, error) {
+func (h *testHandler) handleCallProcedure(query string, args []any) (*mysql.Result, error) {
 	query = strings.TrimSpace(strings.TrimPrefix(query, "CALL"))
 	openBracketIndex := strings.IndexByte(query, '(')
 	endBracketIndex := strings.LastIndexByte(query, ')')

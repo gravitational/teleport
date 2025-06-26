@@ -738,7 +738,7 @@ func (a *eksFetcher) getAWSOpts() []awsconfig.OptionsFn {
 			a.AssumeRole.RoleARN,
 			a.AssumeRole.ExternalID,
 		),
-		awsconfig.WithCredentialsMaybeIntegration(a.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: a.Integration}),
 	}
 }
 
