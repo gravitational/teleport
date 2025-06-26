@@ -23,7 +23,12 @@ import { act } from 'react';
 
 import { render } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, MessageType, TdpClient } from 'shared/libs/tdp';
+import {
+  MessageType,
+  selectDirectoryInBrowser,
+  SharedDirectoryAccess,
+  TdpClient,
+} from 'shared/libs/tdp';
 
 import { DesktopSession } from './DesktopSession';
 
@@ -102,7 +107,7 @@ test('reconnect button reinitializes the connection', async () => {
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
     transport.getTransport,
-    new BrowserFileSystem()
+    selectDirectoryInBrowser
   );
   jest.spyOn(tpdClient, 'connect');
   jest.spyOn(tpdClient, 'shutdown');
@@ -148,7 +153,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
     transport.getTransport,
-    new BrowserFileSystem()
+    selectDirectoryInBrowser
   );
   render(
     <DesktopSession
