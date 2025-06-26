@@ -669,3 +669,59 @@ type AWSOIDCCreateAWSAppAccessRequest struct {
 	// Labels added to the app server resource that will be created.
 	Labels map[string]string `json:"labels"`
 }
+
+// AWSRolesAnywherePingRequest contains ping request fields.
+type AWSRolesAnywherePingRequest struct {
+	// TrustAnchorARN is the ARN of the IAM Roles Anywhere Trust Anchor.
+	TrustAnchorARN string `json:"trustAnchorArn"`
+	// SyncProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
+	SyncProfileARN string `json:"syncProfileArn"`
+	// SyncRoleARN is the ARN of the IAM Role that is used to sync profiles.
+	SyncRoleARN string `json:"syncRoleArn"`
+}
+
+// AWSRolesAnywherePingResponse contains the result of the Ping request.
+// This response contains meta information about the current state of the Integration.
+type AWSRolesAnywherePingResponse struct {
+	// ProfileCount is the number of IAM Roles Anywhere Profiles that can be accessed by the Integration.
+	// Profiles that are disabled or don't have any IAM Role associated with them are not counted.
+	ProfileCount int `json:"profileCount"`
+	// AccountID number of the account that owns or contains the calling entity.
+	AccountID string `json:"accountId"`
+	// ARN associated with the calling entity.
+	ARN string `json:"arn"`
+	// UserID is the unique identifier of the calling entity.
+	UserID string `json:"userId"`
+}
+
+// AWSRolesAnywhereListProfilesRequest contains the list of Roles Anywhere Profiles.
+type AWSRolesAnywhereListProfilesRequest struct {
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSRolesAnywhereListProfilesResponse contains the result of the ListProfiles request.
+type AWSRolesAnywhereListProfilesResponse struct {
+	// Profiles contains the list of Roles Anywhere Profiles.
+	Profiles []AWSRolesAnywhereListProfile `json:"profiles"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSRolesAnywhereListProfile represents a single IAM Roles Anywhere Profile.
+type AWSRolesAnywhereListProfile struct {
+	// The AWS Roles Anywhere Profile ARN.
+	ARN string `json:"arn,omitempty"`
+	// Whether the AWS Roles Anywhere Profile is enabled.
+	Enabled bool `json:"enabled,omitempty"`
+	// The name of the AWS Roles Anywhere Profile.
+	Name string `json:"name,omitempty"`
+	// Whether the profile accepts role session names.
+	AcceptRoleSessionName bool `json:"acceptRoleSessionName,omitempty"`
+	// The tags associated with the AWS Roles Anywhere Profile.
+	Tags []ui.Label `json:"tags,omitempty"`
+	// The roles accessible from this AWS Roles Anywhere Profile.
+	Roles []string `json:"roles,omitempty"`
+}
