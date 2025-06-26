@@ -207,7 +207,6 @@ func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.Watc
 
 				resp, err := upstream.ListWindowsDesktops(ctx, req)
 				if err != nil {
-
 					// TODO(tross): DELETE in V21.0.0
 					if trace.IsNotImplemented(err) {
 						return upstream.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
