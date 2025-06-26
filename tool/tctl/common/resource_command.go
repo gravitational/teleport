@@ -2791,7 +2791,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &windowsDesktopServiceCollection{services: services}, nil
 	case types.KindWindowsDesktop:
-		if rc.ref.Name == "" {
+		if rc.ref.Name != "" {
 			desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: rc.ref.Name})
 			if err != nil {
 				if trace.IsNotFound(err) {
