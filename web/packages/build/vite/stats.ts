@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Plugin } from 'vite';
-import { gzipSync } from 'node:zlib';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { dirname, resolve } from 'path';
-import { join, relative } from 'node:path'
+
 import type { OutputAsset, OutputChunk } from 'rollup';
+import type { Plugin } from 'vite';
 
 type OutputBundle =
   | ({ type: 'chunk' } & OutputChunk)
@@ -38,7 +39,10 @@ interface JSONStatsReport {
   totalGzipSize: number;
 }
 
-export function statsPlugin(rootDirectory: string, outputDirectory: string): Plugin {
+export function statsPlugin(
+  rootDirectory: string,
+  outputDirectory: string
+): Plugin {
   return {
     name: 'teleport-stats-plugin',
     async writeBundle(options, output) {
