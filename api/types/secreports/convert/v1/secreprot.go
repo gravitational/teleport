@@ -34,7 +34,7 @@ func FromProtoAuditQuery(in *secreportsv1.AuditQuery) (*secreports.AuditQuery, e
 		Query:       in.GetSpec().GetQuery(),
 		Description: in.GetSpec().GetDescription(),
 	}
-	out, err := secreports.NewAuditQuery(headerv1.FromMetadataProto(in.Header.Metadata), spec)
+	out, err := secreports.NewAuditQuery(headerv1.FromMetadataProto(in.GetHeader().GetMetadata()), spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,7 +76,7 @@ func FromProtoReport(in *secreportsv1.Report) (*secreports.Report, error) {
 		Title:        in.GetSpec().GetTitle(),
 		Version:      in.GetSpec().GetVersion(),
 	}
-	out, err := secreports.NewReport(headerv1.FromMetadataProto(in.Header.Metadata), spec)
+	out, err := secreports.NewReport(headerv1.FromMetadataProto(in.GetHeader().GetMetadata()), spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
