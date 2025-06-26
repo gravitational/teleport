@@ -165,6 +165,8 @@ function VnetSliderStep(props: StoryProps) {
             appDnsZones: props.appDnsZones,
             clusters: props.clusters,
             sshConfigured: props.sshConfigured,
+            vnetSshConfigPath:
+              '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
           });
         }
         return pendingPromise;
@@ -175,6 +177,8 @@ function VnetSliderStep(props: StoryProps) {
           appDnsZones: props.appDnsZones,
           clusters: props.clusters,
           sshConfigured: props.sshConfigured,
+          vnetSshConfigPath:
+            '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
         },
         props.fetchStatus === 'error'
           ? new Error('something went wrong')
@@ -235,13 +239,13 @@ function VnetSliderStep(props: StoryProps) {
 }
 
 const RerequestServiceInfo = () => {
-  const { getServiceInfo, serviceInfoAttempt } = useVnetContext();
+  const { serviceInfoAttempt, refreshServiceInfoAttempt } = useVnetContext();
 
   useEffect(() => {
     if (serviceInfoAttempt.status === 'success') {
-      getServiceInfo();
+      refreshServiceInfoAttempt();
     }
-  }, [serviceInfoAttempt, getServiceInfo]);
+  }, [serviceInfoAttempt, refreshServiceInfoAttempt]);
 
   return null;
 };

@@ -123,9 +123,10 @@ export class MockVnetClient implements VnetClient {
       appDnsZones: [],
       clusters: [],
       sshConfigured: false,
+      vnetSshConfigPath:
+        '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
     });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
-
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
@@ -134,4 +135,5 @@ export class MockVnetClient implements VnetClient {
       },
     });
   }
+  autoConfigureSSH = () => new MockedUnaryCall({});
 }
