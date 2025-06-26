@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -223,8 +224,8 @@ func (s *WindowsDesktopService) DeleteAllWindowsDesktops(ctx context.Context) er
 // ListWindowsDesktops returns all Windows desktops matching filter.
 func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	reqLimit := req.Limit
-	if reqLimit <= 0 {
-		return nil, trace.BadParameter("nonpositive parameter limit")
+	if reqLimit <= 0 || reqLimit > defaults.DefaultChunkSize {
+		reqLimit = defaults.DefaultChunkSize
 	}
 
 	filter := services.MatchResourceFilter{
@@ -306,8 +307,8 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 
 func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	reqLimit := req.Limit
-	if reqLimit <= 0 {
-		return nil, trace.BadParameter("nonpositive parameter limit")
+	if reqLimit <= 0 || reqLimit > defaults.DefaultChunkSize {
+		reqLimit = defaults.DefaultChunkSize
 	}
 
 	rangeStart := backend.NewKey(windowsDesktopServicesPrefix, req.StartKey)
