@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/carotation"
 	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -321,15 +322,20 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	}
 	services = append(services, heartbeatService)
 
-	services = append(services, &caRotationService{
-		getBotIdentity:     b.botIdentitySvc.GetIdentity,
-		botClient:          b.botIdentitySvc.GetClient(),
-		botIdentityReadyCh: b.botIdentitySvc.Ready(),
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
+	caRotationService, err := carotation.NewService(carotation.Config{
+		Logger: b.log.With(
+			teleport.ComponentKey,
+			teleport.Component(componentTBot, "ca-rotation"),
 		),
-		reloadBroadcaster: reloadBroadcaster,
+		BroadcastFn:        reloadBroadcaster.Broadcast,
+		Client:             b.botIdentitySvc.GetClient(),
+		GetBotIdentityFn:   b.botIdentitySvc.GetIdentity,
+		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
 	})
+	if err != nil {
+		return trace.Wrap(err, "building CA rotation service")
+	}
+	services = append(services, caRotationService)
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
