@@ -32,6 +32,7 @@ func TestGetter(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	store := newStore(
+		types.KindRole,
 		func(role types.Role) types.Role {
 			return role
 		},
@@ -90,6 +91,7 @@ func TestLister(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	store := newStore(
+		types.KindRole,
 		func(role types.Role) types.Role {
 			return role
 		},

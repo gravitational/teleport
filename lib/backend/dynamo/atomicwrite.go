@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 )
 
 const (
@@ -250,7 +251,7 @@ TxnLoop:
 		}
 
 		if i > 0 {
-			backend.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
+			backendmetrics.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
 		}
 
 		if n := i + 1; n > 2 {
