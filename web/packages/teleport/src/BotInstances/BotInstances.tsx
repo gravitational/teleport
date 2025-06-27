@@ -58,7 +58,7 @@ function formatSortType(sortType: SortType): string {
 
 export function BotInstances() {
   const history = useHistory();
-  const location = useLocation();
+  const location = useLocation<{ prevPageTokens?: readonly string[] }>();
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
@@ -77,6 +77,7 @@ export function BotInstances() {
     staleTime: 30_000, // Cached pages are valid for 30 seconds
   });
 
+  const { prevPageTokens = [] } = location.state ?? {};
   const hasNextPage = !!data?.next_page_token;
   const hasPrevPage = !!pageToken;
 
@@ -84,15 +85,41 @@ export function BotInstances() {
     const search = new URLSearchParams(location.search);
     search.set('page', data?.next_page_token ?? '');
 
-    history.push({
-      pathname: `${location.pathname}`,
-      search: search.toString(),
-    });
-  }, [data?.next_page_token, history, location.pathname, location.search]);
+    history.replace(
+      {
+        pathname: location.pathname,
+        search: search.toString(),
+      },
+      {
+        prevPageTokens: [...prevPageTokens, pageToken],
+      }
+    );
+  }, [
+    data?.next_page_token,
+    history,
+    location.pathname,
+    location.search,
+    pageToken,
+    prevPageTokens,
+  ]);
 
   const handleFetchPrev = useCallback(() => {
-    history.goBack();
-  }, [history]);
+    const prevTokens = [...prevPageTokens];
+    const nextToken = prevTokens.pop();
+
+    const search = new URLSearchParams(location.search);
+    search.set('page', nextToken ?? '');
+
+    history.replace(
+      {
+        pathname: location.pathname,
+        search: search.toString(),
+      },
+      {
+        prevPageTokens: prevTokens,
+      }
+    );
+  }, [history, location.pathname, location.search, prevPageTokens]);
 
   const handleSearchChange = useCallback(
     (term: string) => {
@@ -100,7 +127,7 @@ export function BotInstances() {
       search.set('search', term);
       search.set('page', '');
 
-      history.push({
+      history.replace({
         pathname: `${location.pathname}`,
         search: search.toString(),
       });
@@ -130,8 +157,8 @@ export function BotInstances() {
       search.set('sort', formattedSortType);
       search.set('page', '');
 
-      history.push({
-        pathname: `${location.pathname}`,
+      history.replace({
+        pathname: location.pathname,
         search: search.toString(),
       });
     },
