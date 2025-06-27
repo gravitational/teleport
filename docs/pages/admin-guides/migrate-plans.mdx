@@ -43,9 +43,9 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 - An existing Teleport cluster.
 - The `tsh` and `tctl` client tools. This guide assumes that you are using
   `tctl` to manage dynamic resources, but it is also possible to use [Teleport
-  Terraform provider](infrastructure-as-code/terraform-provider/terraform-provider.mdx) and
+  Terraform provider](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) and
   [Kubernetes
-  operator](infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx), in
+  operator](../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx), in
   addition to custom scripts that use the [Teleport API](api/api.mdx)
   to manage the Teleport Auth Service backend.
 - If you are migrating to Teleport Enterprise (Cloud), you must not have an
@@ -332,7 +332,7 @@ In general, you can migrate Teleport plugins using the following steps:
 For specific plugins running in your infrastructure, read the full documentation
 on:
 - [Access Request plugins](../identity-governance/access-request-plugins/access-request-plugins.mdx)
-- The [Teleport Event Handler](management/export-audit-events/export-audit-events.mdx)
+- The [Teleport Event Handler](../zero-trust-access/export-audit-events/export-audit-events.mdx)
 
 ## Step 4/4. Verify end user access and performance
 

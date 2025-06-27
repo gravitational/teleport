@@ -258,7 +258,7 @@ Possible values are `local` and `github` for Teleport Community Edition, plus `o
 | `string` | `""`          | No        | `auth_service.authentication.connector_name` |
 
 `authentication.connectorName` sets the default authentication connector.
-[The SSO documentation](../../admin-guides/access-controls/sso/sso.mdx) explains how to create
+[The SSO documentation](../../zero-trust-access/sso/sso.mdx) explains how to create
 authentication connectors for common identity providers. In addition to SSO
 connector names, the following built-in connectors are supported:
 
@@ -277,7 +277,7 @@ Defaults to `local`.
 `authentication.localAuth` controls whether local authentication is enabled.
 When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
 
-[Disabling local auth is required for FedRAMP / FIPS](../../admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+[Disabling local auth is required for FedRAMP / FIPS](../../zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ### `authentication.lockingMode`
 
