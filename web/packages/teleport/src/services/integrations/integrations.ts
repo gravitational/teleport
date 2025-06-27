@@ -514,13 +514,13 @@ export const integrationService = {
           installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
-          clusters: resp.discoverEks?.instances,
+          clusters: resp.discoverEks?.clusters,
           account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
           app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
-          databases: resp.discoverRds?.instances,
+          databases: resp.discoverRds?.databases,
           account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
