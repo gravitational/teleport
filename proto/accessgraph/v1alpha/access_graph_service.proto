@@ -657,8 +657,12 @@ message AWSCloudWatchCursors {
 
 // The CloudWatch poller configuration
 message AWSCloudWatchConfig {
+  // The AWS region of the log group
+  string region = 1;
+  // The name of the CloudWatch log group
+  string log_group = 2;
   // The starting point for tailing the log
-  google.protobuf.Timestamp start_date = 1;
+  google.protobuf.Timestamp start_date = 3;
 }
 
 // The results from querying AWS CloudWatch
@@ -692,7 +696,7 @@ message AWSCloudWatchCursor {
   // The AWS region of the log group
   string region = 1;
   // The name of the CloudWatch log group
-  string name = 2;
+  string log_group = 2;
   // The next token used for paging query results
   string next_token = 3;
   // The start time used for the query

@@ -3103,8 +3103,12 @@ func (x *AWSCloudWatchCursors) GetCursors() []*AWSCloudWatchCursor {
 // The CloudWatch poller configuration
 type AWSCloudWatchConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// The AWS region of the log group
+	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
+	// The name of the CloudWatch log group
+	LogGroup string `protobuf:"bytes,2,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
 	// The starting point for tailing the log
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	StartDate     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3137,6 +3141,20 @@ func (x *AWSCloudWatchConfig) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AWSCloudWatchConfig.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchConfig) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *AWSCloudWatchConfig) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
+func (x *AWSCloudWatchConfig) GetLogGroup() string {
+	if x != nil {
+		return x.LogGroup
+	}
+	return ""
 }
 
 func (x *AWSCloudWatchConfig) GetStartDate() *timestamppb.Timestamp {
@@ -3319,7 +3337,7 @@ type AWSCloudWatchCursor struct {
 	// The AWS region of the log group
 	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
 	// The name of the CloudWatch log group
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	LogGroup string `protobuf:"bytes,2,opt,name=log_group,json=logGroup,proto3" json:"log_group,omitempty"`
 	// The next token used for paging query results
 	NextToken string `protobuf:"bytes,3,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
 	// The start time used for the query
@@ -3365,9 +3383,9 @@ func (x *AWSCloudWatchCursor) GetRegion() string {
 	return ""
 }
 
-func (x *AWSCloudWatchCursor) GetName() string {
+func (x *AWSCloudWatchCursor) GetLogGroup() string {
 	if x != nil {
-		return x.Name
+		return x.LogGroup
 	}
 	return ""
 }
@@ -4151,10 +4169,12 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12B\n" +
 	"\aconfigs\x18\x02 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigR\aconfigs\"Z\n" +
 	"\x14AWSCloudWatchCursors\x12B\n" +
-	"\acursors\x18\x01 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\acursors\"P\n" +
-	"\x13AWSCloudWatchConfig\x129\n" +
+	"\acursors\x18\x01 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\acursors\"\x85\x01\n" +
+	"\x13AWSCloudWatchConfig\x12\x16\n" +
+	"\x06region\x18\x01 \x01(\tR\x06region\x12\x1b\n" +
+	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x129\n" +
 	"\n" +
-	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\x80\x01\n" +
+	"start_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\x80\x01\n" +
 	"\x14AWSCloudWatchResults\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12I\n" +
@@ -4165,10 +4185,10 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\x06cursor\"h\n" +
 	"\x12AWSCloudWatchEvent\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x9b\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xa4\x01\n" +
 	"\x13AWSCloudWatchCursor\x12\x16\n" +
-	"\x06region\x18\x01 \x01(\tR\x06region\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
+	"\x06region\x18\x01 \x01(\tR\x06region\x12\x1b\n" +
+	"\tlog_group\x18\x02 \x01(\tR\blogGroup\x12\x1d\n" +
 	"\n" +
 	"next_token\x18\x03 \x01(\tR\tnextToken\x129\n" +
 	"\n" +
