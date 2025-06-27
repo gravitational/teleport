@@ -1,0 +1,48 @@
+---
+title: Installing Teleport on MacOS
+description: How to install Teleport on MacOS.
+---
+
+<Tabs>
+<TabItem label="Teleport Enterprise (Managed)">
+
+(!docs/pages/includes/cloud/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Teleport Enterprise (Self-Hosted)">
+
+(!docs/pages/includes/enterprise/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Teleport Community Edition">
+
+You can download one of the following .pkg installers for macOS:
+
+  |Link|Binaries|
+  |-|-|
+  |[`teleport-(=teleport.version=).pkg`](https://cdn.teleport.dev/teleport-(=teleport.version=).pkg)|`teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot`<br/>`fdpass-teleport`|
+
+  You can also fetch an installer via the command line:
+
+  ```code
+  $ curl -O https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
+  # Installs on Macintosh HD
+  $ sudo installer -pkg teleport-(=teleport.version=).pkg -target /
+  # Password:
+  # installer: Package name is teleport-(=teleport.version=)
+  # installer: Upgrading at base path /
+  # installer: The upgrade was successful.
+  $ which teleport
+  # /usr/local/bin/teleport
+  ```
+
+<Admonition type="danger">
+
+We do not recommend using Homebrew to install Teleport.  The Teleport package in
+Homebrew is not maintained by Teleport and we can't guarantee its reliability or
+security.
+
+</Admonition>
+
+</TabItem>
+</Tabs>
