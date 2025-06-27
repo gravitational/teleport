@@ -381,6 +381,13 @@ func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, o
 	return
 }
 
+// GetAllControlStreams gets a control stream for the given server ID if one exists (if multiple control streams
+// exist one is selected pseudorandomly).
+func (c *Controller) GetAllControlStreams(serverID string) (handle []UpstreamHandle, ok bool) {
+	handle, ok = c.store.GetAll(serverID)
+	return
+}
+
 // UniqueHandles iterates across unique handles registered with this controller.
 // If multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.

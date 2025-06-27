@@ -48,51 +48,47 @@ type instanceReport struct {
 	omissions map[string]int
 }
 
-func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
+// filterHandler filters handles than can or cannot be used for automatic update
+// purposes. It returns true if the handle can be used, false otherwise.
+// If the handle cannot be used, the function might also return a non-empty string
+// explaining why.
+func filterHandler(handle inventory.UpstreamHandle, now time.Time) (bool, string) {
 	// If the instance is being soft-reloaded or shut down, we ignore it.
 	if goodbye := handle.Goodbye(); goodbye.GetSoftReload() || goodbye.GetDeleteResources() {
-		return
+		return false, ""
 	}
 
 	// We skip servers that joined less than a minute ago as they might have been
 	// connected to another auth instance a few seconds ago, which would lead to double-counting.
-	if ir.timestamp.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
-		return
+	if now.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
+		return false, ""
 	}
 	// We skip control planes instances because we don't update them.
 	if handle.HasControlPlaneService() {
-		return
+		return false, ""
 	}
 
 	hello := handle.Hello()
 
+	// If the machine has no updater, we skip it
 	switch hello.ExternalUpgrader {
 	case "":
-		ir.omissions[omissionReasonNoUpdater] += 1
-		return
+		return false, omissionReasonNoUpdater
 	case types.UpgraderKindSystemdUnit:
-		ir.omissions[omissionReasonUpdaterV1] += 1
-		return
-	}
-
-	// If the machine has no updater, we skip it
-	if hello.ExternalUpgrader == "" {
-		return
+		return false, omissionReasonUpdaterV1
 	}
 
 	// Reject instance not advertising updater info
 	updaterInfo := hello.GetUpdaterInfo()
 	if updaterInfo == nil {
-		ir.omissions[omissionReasonUpdaterTooOld] += 1
-		return
+		return false, omissionReasonUpdaterTooOld
 	}
 
 	// Reject instances who are not advertising the group properly.
 	// They might be running too old versions.
 	updateGroup := updaterInfo.UpdateGroup
 	if updateGroup == "" {
-		ir.omissions[omissionReasonUpdaterTooOld] += 1
-		return
+		return false, omissionReasonUpdaterTooOld
 	}
 
 	// We skip instances whose updater status is not OK.
@@ -100,18 +96,30 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	switch status {
 	case types.UpdaterStatus_UPDATER_STATUS_OK:
 	case types.UpdaterStatus_UPDATER_STATUS_DISABLED:
-		ir.omissions[omissionReasonUpdaterDisabled] += 1
-		return
+		return false, omissionReasonUpdaterDisabled
 	case types.UpdaterStatus_UPDATER_STATUS_PINNED:
-		ir.omissions[omissionReasonUpdaterPinned] += 1
-		return
+		return false, omissionReasonUpdaterPinned
 	case types.UpdaterStatus_UPDATER_STATUS_UNREADABLE:
-		ir.omissions[omissionReasonUpdaterUnreadable] += 1
-		return
+		return false, omissionReasonUpdaterUnreadable
 	default:
-		ir.omissions[omissionReasonUpdaterUnknown] += 1
+		return false, omissionReasonUpdaterUnknown
+	}
+	return true, ""
+}
+
+// pass this function to inventory.AllHandles()
+func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
+	ok, reason := filterHandler(handle, ir.timestamp)
+	if !ok {
+		if reason != "" {
+			ir.omissions[reason] += 1
+		}
 		return
 	}
+
+	// No need to check for UpdaterInfo being nil, it would have been filtered
+	// out by filterHandler().
+	updateGroup := handle.Hello().UpdaterInfo.UpdateGroup
 
 	if _, ok := ir.data[updateGroup]; !ok {
 		ir.data[updateGroup] = instanceGroupReport{}
@@ -210,5 +218,4 @@ func (a *Server) reportAgentVersions(ctx context.Context) {
 		a.logger.ErrorContext(ctx, "Failed to write agent version report", "error", err)
 	}
 	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
-
 }

@@ -63,6 +63,12 @@ func (s *Store) Get(serverID string) (handle UpstreamHandle, ok bool) {
 	return s.getShard(serverID).get(serverID)
 }
 
+// GetAll attempts to load all known handlers for the given server ID.
+// If you only need one handler, use Get instead.
+func (s *Store) GetAll(serverID string) (handles []UpstreamHandle, ok bool) {
+	return s.getShard(serverID).getAll(serverID)
+}
+
 // Insert adds a new handle to the store.
 func (s *Store) Insert(handle UpstreamHandle) {
 	s.getShard(handle.Hello().ServerID).insert(handle)
@@ -142,6 +148,20 @@ func (s *shard) get(serverID string) (handle UpstreamHandle, ok bool) {
 	idx := entry.ct.Add(1) % uint64(len(entry.handles))
 	handle = entry.handles[int(idx)]
 	return handle, true
+}
+
+// getAll gets all handles registered for a given hostID.
+// To get a random handle, use get() instead.
+func (s *shard) getAll(serverID string) (handle []UpstreamHandle, ok bool) {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	entry, ok := s.m[serverID]
+	if !ok {
+		return nil, ok
+	}
+	handles := make([]UpstreamHandle, len(entry.handles))
+	copy(handles, entry.handles)
+	return handles, true
 }
 
 func (s *shard) iter(fn func(UpstreamHandle)) {
