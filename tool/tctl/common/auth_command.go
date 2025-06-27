@@ -536,16 +536,15 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 		var results []output
 		for _, authority := range authorities {
 			for i, keypair := range authority.GetActiveKeys().TLS {
-				if len(keypair.CRL) == 0 {
+				crl := keypair.CRL
+				if len(crl) == 0 {
 					fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
-					crl, err := clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+					crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
 					if err != nil {
 						return trace.Wrap(err)
 					}
-					results = append(results, output{keypair.Cert, crl})
 				}
-
-				results = append(results, output{keypair.Cert, keypair.CRL})
+				results = append(results, output{keypair.Cert, crl})
 			}
 		}
 
@@ -570,7 +569,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	authority := authorities[0]
 	crl := authority.GetActiveKeys().TLS[0].CRL
 	if len(crl) == 0 {
-		fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
+		fmt.Fprintf(os.Stderr, "keypair is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
 		crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
 		if err != nil {
 			return trace.Wrap(err)
