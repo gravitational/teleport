@@ -3103,10 +3103,8 @@ func (x *AWSCloudWatchCursors) GetCursors() []*AWSCloudWatchCursor {
 // The CloudWatch poller configuration
 type AWSCloudWatchConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// AWS tag filters to only log specific resources
-	TagFilters []string `protobuf:"bytes,1,rep,name=tag_filters,json=tagFilters,proto3" json:"tag_filters,omitempty"`
 	// The starting point for tailing the log
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3139,13 +3137,6 @@ func (x *AWSCloudWatchConfig) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AWSCloudWatchConfig.ProtoReflect.Descriptor instead.
 func (*AWSCloudWatchConfig) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
-}
-
-func (x *AWSCloudWatchConfig) GetTagFilters() []string {
-	if x != nil {
-		return x.TagFilters
-	}
-	return nil
 }
 
 func (x *AWSCloudWatchConfig) GetStartDate() *timestamppb.Timestamp {
@@ -4160,12 +4151,10 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12B\n" +
 	"\aconfigs\x18\x02 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigR\aconfigs\"Z\n" +
 	"\x14AWSCloudWatchCursors\x12B\n" +
-	"\acursors\x18\x01 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\acursors\"q\n" +
-	"\x13AWSCloudWatchConfig\x12\x1f\n" +
-	"\vtag_filters\x18\x01 \x03(\tR\n" +
-	"tagFilters\x129\n" +
+	"\acursors\x18\x01 \x03(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorR\acursors\"P\n" +
+	"\x13AWSCloudWatchConfig\x129\n" +
 	"\n" +
-	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\x80\x01\n" +
+	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\x80\x01\n" +
 	"\x14AWSCloudWatchResults\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12I\n" +

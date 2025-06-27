@@ -657,10 +657,8 @@ message AWSCloudWatchCursors {
 
 // The CloudWatch poller configuration
 message AWSCloudWatchConfig {
-  // AWS tag filters to only log specific resources
-  repeated string tag_filters = 1;
   // The starting point for tailing the log
-  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp start_date = 1;
 }
 
 // The results from querying AWS CloudWatch
