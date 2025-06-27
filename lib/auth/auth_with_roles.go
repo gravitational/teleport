@@ -4568,6 +4568,8 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 
 	switch {
 	case oldRole != nil:
+		// if the role already exists, then require update permission
+		// on both the current state of the role and the new state of the role
 		if err := a.actionForResource(oldRole, types.KindRole, types.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
 		}
