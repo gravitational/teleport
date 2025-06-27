@@ -23,6 +23,7 @@ import { buttonSizes } from 'design/ButtonIcon';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
+import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import {
   useRule,
@@ -287,19 +288,21 @@ export function LabelsInput({
           })}
         </tbody>
       </LabelTable>
-      <ButtonSecondary
+      <ButtonWithAddIcon
+        Button={ButtonSecondary}
+        label={
+          labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`
+        }
         onClick={e => {
           e.preventDefault();
           addLabel();
         }}
         disabled={disableBtns}
-        gap={1}
         size="small"
+        pr={3}
+        compact={false}
         inputAlignment
-      >
-        <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
-        {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
-      </ButtonSecondary>
+      />
     </Fieldset>
   );
 }
