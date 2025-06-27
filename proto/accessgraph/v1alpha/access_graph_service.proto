@@ -659,16 +659,16 @@ message AWSCloudWatchResults {
 // AWS CloudWatch log group results, consisting of log data and the cursor for
 // querying and paging
 message AWSCloudWatchLogGroup {
-  // The name of the log group
-  string name = 1;
+  // The AWS account ID for this batch of logs
+  string account_id = 1;
   // The AWS region of the log group
   string region = 2;
+  // The name of the CloudWatch log group
+  string name = 3;
   // The events as they arrive from the CloudWatch API
-  repeated AWSCloudWatchEvent events = 3;
+  repeated AWSCloudWatchEvent events = 4;
   // The cursors for each log group, for querying and paging
-  AWSCloudWatchCursor cursor = 4;
-  // The AWS account ID for this batch of logs
-  string account_id = 5;
+  AWSCloudWatchCursor cursor = 5;
 }
 
 // The AWS CloudWatch event as it arrives from the CloudWatch API
@@ -683,9 +683,9 @@ message AWSCloudWatchEvent {
 // paging through CloudWatch logs.
 message AWSCloudWatchCursor {
   // The next token used for paging query results
-  string next_token = 3;
+  string next_token = 1;
   // The start time used for the query
-  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp start_time = 2;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
