@@ -1228,7 +1228,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
 	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&c.disableAccessRequest)
+	c.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&c.disableAccessRequest)
 
 	return c
 }
