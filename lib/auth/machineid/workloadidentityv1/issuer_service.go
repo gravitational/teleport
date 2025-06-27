@@ -676,6 +676,11 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 		// For Active Directory, we'll also include an additional extension for
 		// the SID for "strong certificate binding", see
 		// https://support.microsoft.com/en-us/topic/kb5014754-certificate-based-authentication-changes-on-windows-domain-controllers-ad2c23b0-15d8-4340-a468-4d4f3b188f16
+		ext, err := winpki.ADSIDExtension("S-1-5-21-2190211591-3450346774-3417754488-1108")
+		if err != nil {
+			return nil, trace.Wrap(err, "creating Active Directory SID extension")
+		}
+		template.ExtraExtensions = append(template.ExtraExtensions, ext)
 	}
 
 	certBytes, err := x509.CreateCertificate(
