@@ -104,8 +104,6 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, resource stri
 		if err := a.context.Checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, verb); err != nil {
 			errs = append(errs, err)
 		}
-
-		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, verb))
 	}
 
 	return trace.NewAggregate(errs...)
