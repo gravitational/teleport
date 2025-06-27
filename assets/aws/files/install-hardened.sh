@@ -62,6 +62,3 @@ rm -rf /var/cache/dnf /var/cache/yum
 # Enable Teleport services to start on boot
 systemctl enable teleport-generate-config.service
 systemctl enable teleport.service
-
-# Disable password age on ec2-user account to prevent users being locked out (V-230367)
-chage -M -1 ec2-user
