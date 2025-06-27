@@ -91,15 +91,25 @@ describe('BotInstances', () => {
   });
 
   it('Shows an error state', async () => {
-    server.use(listBotInstancesError(500));
+    server.use(listBotInstancesError(500, 'server error'));
 
     render(<BotInstances />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(
-      screen.getByText('Error: 500', { exact: false })
-    ).toBeInTheDocument();
+    expect(screen.getByText('Error: server error')).toBeInTheDocument();
+  });
+
+  it('Shows an unhealthy cache error state', async () => {
+    server.use(
+      listBotInstancesError(400, 'cache is unhealthy for some reason')
+    );
+
+    render(<BotInstances />, { wrapper: Wrapper });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    expect(screen.getByText('Service is degraded')).toBeInTheDocument();
   });
 
   it('Shows a list', async () => {
