@@ -23,7 +23,7 @@ jobs:
         role-to-assume: ${{ vars.IAM_ROLE }}
 
     - name: Create Amplify preview environment
-      uses: gravitational/shared-workflows/tools/amplify-preview@tools/amplify-preview/v0.0.1
+      uses: gravitational/shared-workflows/tools/amplify-preview@c46b731e6f7e2c50024454965c6097a72f866734 # tools/amplify-preview/v0.0.1
       continue-on-error: true
       with:
         app_ids: ${{ vars.AMPLIFY_APP_IDS }}

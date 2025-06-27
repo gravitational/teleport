@@ -72,7 +72,10 @@ func TestSSHConfigurator(t *testing.T) {
 	// Intentionally not using the template defined in the production code to
 	// test that it actually produces output that looks like this.
 	expectedConfigFile := func(expectedHosts string) string {
-		return fmt.Sprintf(`Host %s
+		if expectedHosts == "" {
+			return generatedFileHeader + "# VNet currently detects no logged-in clusters, log in to start using VNet\n"
+		}
+		return generatedFileHeader + fmt.Sprintf(`Host %s
     IdentityFile "%s/id_vnet"
     GlobalKnownHostsFile "%s/vnet_known_hosts"
     UserKnownHostsFile /dev/null
@@ -98,19 +101,30 @@ func TestSSHConfigurator(t *testing.T) {
 	// fakeClientApp.
 	assertConfigFile("*.cluster1 *.cluster2 *.leaf1")
 
-	// Add a new root and leaf cluster, wait until the configurator is blocked
-	// in the loop, advance the clock, wait until the configurator is blocked
-	// again indicating it should have updated the config and made it back into
-	// the loop, and then assert that the new clusters are in the config file.
+	// To reliably advance the clock and allow runConfigurationLoop to update
+	// the config the test waits until the loop is blocked on the clock, then
+	// advances the clock, then waits until the loop is blocked again.
+	advance := func() {
+		fakeClock.BlockUntilContext(ctx, 1)
+		fakeClock.Advance(sshConfigurationUpdateInterval)
+		fakeClock.BlockUntilContext(ctx, 1)
+	}
+
+	// Add a new root and leaf cluster, allow the configuration loop to run,
+	// and then assert that the new clusters are in the config file.
 	fakeClientApp.cfg.clusters["cluster3"] = testClusterSpec{
 		leafClusters: map[string]testClusterSpec{
 			"leaf2": {},
 		},
 	}
-	fakeClock.BlockUntilContext(ctx, 1)
-	fakeClock.Advance(sshConfigurationUpdateInterval)
-	fakeClock.BlockUntilContext(ctx, 1)
+	advance()
 	assertConfigFile("*.cluster1 *.cluster2 *.cluster3 *.leaf1 *.leaf2")
+
+	// Delete all clusters as if the user logged out, allow the configuration
+	// loop to run, and then assert that the config file is well-formed.
+	fakeClientApp.cfg.clusters = nil
+	advance()
+	assertConfigFile("")
 
 	// Kill the configurator, wait for it to return, and assert that the config
 	// file was deleted.
