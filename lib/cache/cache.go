@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -678,8 +679,6 @@ type Config struct {
 	// WorkloadIdentity is the upstream Workload Identities service that we're
 	// caching
 	WorkloadIdentity services.WorkloadIdentities
-	// Backend is a backend for local cache
-	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
 	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
@@ -713,6 +712,8 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -742,9 +743,6 @@ type Config struct {
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
-	}
-	if c.Backend == nil {
-		return trace.BadParameter("missing Backend parameter")
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -786,6 +784,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Tracer == nil {
 		c.Tracer = tracing.NoopTracer(c.Component)
 	}
+	if c.Registerer == nil {
+		c.Registerer = prometheus.DefaultRegisterer
+	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
 	}
@@ -818,16 +819,20 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := backendmetrics.RegisterCollectors(config.Registerer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := metrics.RegisterCollectors(config.Registerer,
 		cacheEventsReceived,
 		cacheStaleEventsReceived,
 		cacheHealth,
 		cacheLastReset,
 	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

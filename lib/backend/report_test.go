@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 )
 
 func TestReporterTopRequestsLimit(t *testing.T) {
@@ -44,7 +45,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	countTopRequests := func() int {
 		ch := make(chan prometheus.Metric)
 		go func() {
-			requests.Collect(ch)
+			backendmetrics.Requests.Collect(ch)
 			close(ch)
 		}()
 
@@ -54,7 +55,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 		}
 		return int(count)
 	}
-	t.Cleanup(requests.Reset)
+	t.Cleanup(backendmetrics.Requests.Reset)
 
 	// At first, the metric should have no values.
 	require.Equal(t, 0, countTopRequests())

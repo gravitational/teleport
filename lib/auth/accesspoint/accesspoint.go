@@ -23,17 +23,15 @@ package accesspoint
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
@@ -63,6 +61,8 @@ type Config struct {
 	// TracingProvider is the provider to be used for exporting
 	// traces. No-op tracers will be used if no provider is set.
 	TracingProvider *tracing.Provider
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
 
 	// The following services are provided to the Cache to allow it to
 	// populate its resource collections. They will either be the local service
@@ -130,26 +130,10 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog.DebugContext(cfg.Context, "Creating in-memory backend cache.", "cache_name", cfg.CacheName)
-	mem, err := memory.New(memory.Config{
-		Context:   cfg.Context,
-		EventsOff: !cfg.EventsSystem,
-		Mirror:    true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	var tracer oteltrace.Tracer
 	if cfg.TracingProvider != nil {
 		tracer = cfg.TracingProvider.Tracer(teleport.ComponentCache)
-	}
-	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentCache,
-		Backend:   mem,
-		Tracer:    tracer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	component := slices.Clone(cfg.CacheName)
@@ -161,14 +145,13 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
 	cacheCfg := cache.Config{
-		Context:         cfg.Context,
-		Backend:         reporter,
-		Component:       teleport.Component(component...),
-		MetricComponent: teleport.Component(metricComponent...),
-		Tracer:          tracer,
-		MaxRetryPeriod:  cfg.MaxRetryPeriod,
-		Unstarted:       cfg.Unstarted,
-
+		Context:                 cfg.Context,
+		Component:               teleport.Component(component...),
+		MetricComponent:         teleport.Component(metricComponent...),
+		Tracer:                  tracer,
+		Registerer:              cfg.Registerer,
+		MaxRetryPeriod:          cfg.MaxRetryPeriod,
+		Unstarted:               cfg.Unstarted,
 		Access:                  cfg.Access,
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,

@@ -36,6 +36,7 @@ func newWebUIConfigCollection(upstream services.ClusterConfiguration, w types.Wa
 
 	return &collection[types.UIConfig, webUIConfigIndex]{
 		store: newStore(
+			types.KindUIConfig,
 			types.UIConfig.Clone,
 			map[webUIConfigIndex]func(types.UIConfig) string{
 				webUIConfigNameIndex: types.UIConfig.GetName,
