@@ -75,6 +75,11 @@ enum UserKind {
   //
   // PostHog property value: "bot"
   USER_KIND_BOT = 2;
+
+  // Indicates that the user associated with this event is a system component e.g. Okta service.
+  //
+  // PostHog property value: "system"
+  USER_KIND_SYSTEM = 3;
 }
 
 // a set of activity counters for a single user; some old versions report
