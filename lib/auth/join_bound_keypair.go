@@ -353,7 +353,7 @@ type boundKeypairStatusMutator func(*types.ProvisionTokenSpecV2BoundKeypair, *ty
 // the recovery counter. This verifies that the backend recovery count has not
 // changed, and that total join count is at least the value when the mutator was
 // created.
-func mutateStatusConsumeRecovery(mode boundkeypair.RecoveryMode, expectRecoveryCount uint32, expectMinRecoveryLimit uint32) boundKeypairStatusMutator {
+func mutateStatusConsumeRecovery(expectRecoveryCount uint32, expectMinRecoveryLimit uint32) boundKeypairStatusMutator {
 	now := time.Now()
 
 	return func(spec *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
@@ -834,7 +834,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		// mutator.
 		mutators = append(
 			mutators,
-			mutateStatusConsumeRecovery(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
+			mutateStatusConsumeRecovery(status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		// Note: this is the initial join, so no join state to verify.
@@ -901,7 +901,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		mutators = append(
 			mutators,
-			mutateStatusConsumeRecovery(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
+			mutateStatusConsumeRecovery(status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		recoveryCount += 1
