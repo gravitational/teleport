@@ -35,10 +35,10 @@ func init() {
 // TeleportTrustedClusterV2 is the Schema for the trusted_clusters API
 type TeleportTrustedClusterV2 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportTrustedClusterV2Spec `json:"spec,omitempty"`
-	Status resources.Status             `json:"status,omitempty"`
+	Spec   TeleportTrustedClusterV2Spec `json:"spec"`
+	Status resources.Status             `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -46,7 +46,7 @@ type TeleportTrustedClusterV2 struct {
 // TeleportTrustedClusterV2List contains a list of TeleportTrustedClusterV2
 type TeleportTrustedClusterV2List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportTrustedClusterV2 `json:"items"`
 }
 

@@ -520,7 +520,7 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
+func withTypeHeader[T any](payload T, payloadType string) (any, error) {
 	header := struct {
 		Type    string `yaml:"type"`
 		Payload T      `yaml:",inline"`

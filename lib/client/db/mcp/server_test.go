@@ -42,7 +42,7 @@ func TestRegisterDatabase(t *testing.T) {
 	}
 	// sort databases by name to ensure the same order every test.
 	slices.SortFunc(databases, func(a, b *Database) int {
-		return strings.Compare(a.ResourceURI().String(), b.ResourceURI().String())
+		return strings.Compare(a.ResourceURI().WithoutParams().String(), b.ResourceURI().WithoutParams().String())
 	})
 
 	for _, db := range databases {
@@ -150,7 +150,6 @@ func buildDatabase(t *testing.T, name string) *Database {
 	return &Database{
 		DB:          db,
 		ClusterName: "root",
-		Addr:        "localhost:5555",
 	}
 }
 

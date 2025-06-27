@@ -39,6 +39,7 @@ func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, 
 
 	return &collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
 		store: newStore(
+			types.KindAccessMonitoringRule,
 			proto.CloneOf[*accessmonitoringrulesv1.AccessMonitoringRule],
 			map[accessMonitoringRuleIndex]func(*accessmonitoringrulesv1.AccessMonitoringRule) string{
 				accessMonitoringRuleNameIndex: func(r *accessmonitoringrulesv1.AccessMonitoringRule) string {

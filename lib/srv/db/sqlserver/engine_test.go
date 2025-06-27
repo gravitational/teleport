@@ -368,7 +368,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 // intercalateChunkedPacketMessages intercalates a chunked packet with a regular packet a specified number of times.
 func intercalateChunkedPacketMessages(chunkedPacket [][]byte, regularPacket []byte, repeat int) [][]byte {
 	var result [][]byte
-	for i := 0; i < repeat; i++ {
+	for range repeat {
 		result = append(result, chunkedPacket...)
 		result = append(result, regularPacket)
 	}

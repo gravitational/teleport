@@ -53,7 +53,7 @@ func (f *gzipWriter) Close() error {
 // so it makes sense to reset the writer and reuse the
 // internal buffers to avoid too many objects on the heap
 var writerPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		w, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
 		return w
 	},

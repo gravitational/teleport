@@ -475,7 +475,7 @@ func TestGetKubeClientGetter(t *testing.T) {
 			region:        "us-east-1",
 			caData:        "badCA",
 			expectedToken: "",
-			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errorCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "illegal base64 data")
 			},
 		},

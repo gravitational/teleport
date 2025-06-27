@@ -19,6 +19,8 @@ ln -s /opt/certbot/bin/certbot /usr/local/bin/certbot
 useradd -r teleport -u "${TELEPORT_UID}" -d /var/lib/teleport
 # Add teleport to adm group to read and write logs
 usermod -a -G adm teleport
+# Disable password age on ec2-user account to prevent users being locked out (V-230367)
+chage --maxdays -1 ec2-user
 
 # Setup teleport run dir for pid files
 install -d -m 0700 -o teleport -g adm /var/lib/teleport

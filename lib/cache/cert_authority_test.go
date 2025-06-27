@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -81,10 +80,6 @@ func TestNodeCAFiltering(t *testing.T) {
 	err = p.clusterConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
-	nodeCacheBackend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
-
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
 		Events:                  p.cache,
@@ -97,7 +92,6 @@ func TestNodeCAFiltering(t *testing.T) {
 		SAMLIdPServiceProviders: p.cache.SAMLIdPServiceProviders,
 		UserGroups:              p.cache.UserGroups,
 		StaticHostUsers:         p.cache.StaticHostUsers,
-		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
@@ -216,7 +210,6 @@ func TestCAWatcherFilters(t *testing.T) {
 
 	const fetchTimeout = time.Second
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			event := fetchEvent(t, test.watcher, fetchTimeout)

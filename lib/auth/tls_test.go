@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -125,7 +126,7 @@ func TestRejectedClients(t *testing.T) {
 	t.Run("allow valid versions", func(t *testing.T) {
 		version := teleport.MinClientSemVer()
 		version.Major--
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			version.Major++
 
 			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
@@ -1885,7 +1886,6 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 			expectRoles: []string{baseRoleName},
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			clt, sess := baseWebClient, baseWebSession
@@ -3268,7 +3268,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	t.Run("Reset link not allowed when user does not exist", func(t *testing.T) {
 		var tokenID string
 		var resp *proto.MFARegisterResponse
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  time.Hour,
@@ -3417,7 +3417,7 @@ func TestTLSFailover(t *testing.T) {
 	require.NoError(t, err)
 
 	// couple of runs to get enough connections
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
 		require.True(t, trace.IsNotFound(err))
 	}
@@ -3427,7 +3427,7 @@ func TestTLSFailover(t *testing.T) {
 	require.NoError(t, err)
 
 	// client detects closed sockets and reconnect to the backup server
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
 		require.True(t, trace.IsNotFound(err))
 	}
@@ -3620,8 +3620,7 @@ func TestRegisterCAPath(t *testing.T) {
 func TestClusterAlertAck(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testSrv := newTestTLSServer(t)
 
@@ -3665,8 +3664,7 @@ func TestClusterAlertAck(t *testing.T) {
 func TestClusterAlertClearAckWildcard(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testSrv := newTestTLSServer(t)
 
@@ -3724,17 +3722,14 @@ func TestClusterAlertClearAckWildcard(t *testing.T) {
 func TestClusterAlertAccessControls(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	testSrv := newTestTLSServer(t)
 
 	expectAlerts := func(alerts []types.ClusterAlert, names ...string) {
 		for _, alert := range alerts {
-			for _, name := range names {
-				if alert.Metadata.Name == name {
-					return
-				}
+			if slices.Contains(names, alert.Metadata.Name) {
+				return
 			}
 			t.Fatalf("unexpected alert %q", alert.Metadata.Name)
 		}
@@ -4318,7 +4313,7 @@ func mustNewTokenFromSpec(
 	return tok
 }
 
-func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
+func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	require.True(
 		t,
 		trace.IsAccessDenied(err),
@@ -4326,7 +4321,7 @@ func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
 	)
 }
 
-func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
+func requireBadParameter(t require.TestingT, err error, i ...any) {
 	require.True(
 		t,
 		trace.IsBadParameter(err),
@@ -4334,7 +4329,7 @@ func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
 	)
 }
 
-func requireNotFound(t require.TestingT, err error, i ...interface{}) {
+func requireNotFound(t require.TestingT, err error, i ...any) {
 	require.True(
 		t,
 		trace.IsNotFound(err),
@@ -4456,7 +4451,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			name:     "already exists",
 			identity: TestUser(privilegedUser.GetName()),
 			token:    alreadyExistsToken,
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(
 					t,
 					trace.IsAlreadyExists(err),

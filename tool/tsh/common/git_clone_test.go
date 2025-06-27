@@ -95,7 +95,7 @@ func TestGitCloneCommand(t *testing.T) {
 			verifyCommand: func(cmd *exec.Cmd) error {
 				return trace.BadParameter("some git error")
 			},
-			checkError: func(t require.TestingT, err error, i ...interface{}) {
+			checkError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("some git error"))
 			},
 		},

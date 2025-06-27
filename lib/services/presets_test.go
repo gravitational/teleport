@@ -37,10 +37,10 @@ import (
 )
 
 func TestAddRoleDefaults(t *testing.T) {
-	noChange := func(t require.TestingT, err error, i ...interface{}) {
+	noChange := func(t require.TestingT, err error, i ...any) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
-	notModifying := func(t require.TestingT, err error, i ...interface{}) {
+	notModifying := func(t require.TestingT, err error, i ...any) {
 		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
 	}
 

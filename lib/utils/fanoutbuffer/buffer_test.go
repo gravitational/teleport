@@ -85,7 +85,7 @@ func concurrentFanout(ctx context.Context, t require.TestingT, events int, curso
 	defer buf.Close()
 
 	results := make(chan error, cursors)
-	for i := 0; i < cursors; i++ {
+	for range cursors {
 		cursor := buf.NewCursor()
 		go func() {
 			var result error
@@ -126,7 +126,7 @@ func concurrentFanout(ctx context.Context, t require.TestingT, events int, curso
 		buf.Append(outbuf[:]...)
 	}
 
-	for i := 0; i < cursors; i++ {
+	for range cursors {
 		select {
 		case err := <-results:
 			require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestBasics(t *testing.T) {
 	require.Zero(t, n)
 
 	// continuously stream items
-	for i := 0; i < bufSize; i++ {
+	for i := range bufSize {
 		buf.Append(i)
 
 		n, err := cursor.Read(ctx, rbuf[:])
@@ -173,7 +173,7 @@ func TestBasics(t *testing.T) {
 
 	var input []int
 	// fill and drain buffer
-	for i := 0; i < bufSize; i++ {
+	for i := range bufSize {
 		input = append(input, i)
 	}
 
@@ -189,7 +189,7 @@ func TestBasics(t *testing.T) {
 
 	// generate new input that causes overflow/backlog
 	input = nil
-	for i := 0; i < bufSize*2; i++ {
+	for i := range bufSize * 2 {
 		input = append(input, i)
 	}
 	buf.Append(input...)
@@ -203,7 +203,7 @@ func TestBasics(t *testing.T) {
 	require.Equal(t, input, output)
 
 	// overflow and then exceed grace-period
-	for i := 0; i < bufSize*2; i++ {
+	for i := range bufSize * 2 {
 		buf.Append(i)
 	}
 	clock.Advance(gracePeriod * 2)
@@ -217,8 +217,7 @@ func TestBasics(t *testing.T) {
 }
 
 func TestCursorFinalizer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	buf := NewBuffer[int](Config{})
 	defer buf.Close()

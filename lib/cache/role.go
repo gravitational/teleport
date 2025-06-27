@@ -36,6 +36,7 @@ func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.
 
 	return &collection[types.Role, roleIndex]{
 		store: newStore(
+			types.KindRole,
 			types.Role.Clone,
 			map[roleIndex]func(types.Role) string{
 				roleNameIndex: types.Role.GetName,

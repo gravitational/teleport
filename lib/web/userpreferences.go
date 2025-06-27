@@ -82,14 +82,14 @@ type UserPreferencesResponse struct {
 	Theme                       userpreferencesv1.Theme             `json:"theme"`
 	UnifiedResourcePreferences  UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
 	Onboard                     OnboardUserPreferencesResponse      `json:"onboard"`
-	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
+	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences"`
 	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
-	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
+	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph"`
 	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
 	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }
 
-func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	authClient, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)

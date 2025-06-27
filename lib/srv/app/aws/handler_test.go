@@ -195,7 +195,7 @@ func (r requestByAssumedRoleTransport) RoundTrip(req *http.Request) (*http.Respo
 }
 
 func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
 		var respErr *transporthttp.ResponseError
 		require.ErrorAs(t, err, &respErr, msgAndArgs...)
 		require.Equal(t, wantStatusCode, respErr.Response.StatusCode, msgAndArgs...)
@@ -457,7 +457,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fakeClock := clockwork.NewFakeClock()

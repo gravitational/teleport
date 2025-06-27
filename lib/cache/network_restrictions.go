@@ -36,6 +36,7 @@ func newNetworkingRestrictionCollection(upstream services.Restrictions, w types.
 
 	return &collection[types.NetworkRestrictions, networkingRestrictionIndex]{
 		store: newStore(
+			types.KindNetworkRestrictions,
 			types.NetworkRestrictions.Clone,
 			map[networkingRestrictionIndex]func(types.NetworkRestrictions) string{
 				networkingRestrictionNameIndex: types.NetworkRestrictions.GetName,

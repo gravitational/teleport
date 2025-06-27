@@ -667,14 +667,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	b.log.InfoContext(ctx, "Initialization complete. Starting services")
 	// Start services
 	for _, svc := range services {
-		svc := svc
 		log := b.log.With("service", svc.String())
 
 		if b.cfg.Oneshot {
 			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
-				log.DebugContext(ctx, "Service does not support oneshot mode, ignoring")
+				log.InfoContext(
+					ctx,
+					"Service does not support oneshot mode, it will not run",
+				)
 				continue
 			}
 			eg.Go(func() error {
@@ -982,7 +984,7 @@ func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Contex
 	}
 	a.mu.Unlock()
 
-	val, err, _ := a.group.Do(key, func() (interface{}, error) {
+	val, err, _ := a.group.Do(key, func() (any, error) {
 		// Recheck the cache in case we've just missed a previous group
 		// completing
 		a.mu.Lock()

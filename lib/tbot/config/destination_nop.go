@@ -75,7 +75,7 @@ func (dm *DestinationNop) TryLock() (func() error, error) {
 
 // MarshalYAML enables the yaml package to correctly marshal the Destination
 // as YAML including the type header.
-func (dm *DestinationNop) MarshalYAML() (interface{}, error) {
+func (dm *DestinationNop) MarshalYAML() (any, error) {
 	type raw DestinationNop
 	return withTypeHeader((*raw)(dm), DestinationNopType)
 }

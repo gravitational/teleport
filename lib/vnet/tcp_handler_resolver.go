@@ -189,7 +189,8 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		log.DebugContext(ctx, "Resolved FQDN to a matched cluster")
 		// Attempt a dial to the target SSH node to see if it exists.
 		target := computeDialTarget(matchedCluster, h.cfg.fqdn)
-		targetConn, err := h.cfg.sshProvider.dial(ctx, target)
+		agent := newSSHAgent()
+		targetConn, err := h.cfg.sshProvider.dial(ctx, target, agent)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
 				log.DebugContext(ctx, "Failed TCP dial to target, node might be offline")
@@ -209,7 +210,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		h.setDecidedHandler(sshHandler)
 		// Handle the incoming connection with the TCP connection to the target
 		// SSH node that has already been established.
-		return sshHandler.handleTCPConnectorWithTargetConn(ctx, connector, targetConn)
+		return sshHandler.handleTCPConnectorWithTargetConn(ctx, connector, targetConn, agent)
 	}
 	return trace.Errorf("rejecting connection to %s:%d", h.cfg.fqdn, localPort)
 }

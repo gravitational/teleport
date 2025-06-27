@@ -211,7 +211,7 @@ func TestDiscoveryConfig(t *testing.T) {
 
 	t.Run("Create multiple and then list all of them", func(t *testing.T) {
 		listTestCount := 54
-		for i := 0; i < listTestCount; i++ {
+		for i := range listTestCount {
 			resp, err := pack.clt.PostJSON(ctx, createEndpoint, ui.DiscoveryConfig{
 				Name:           fmt.Sprintf("dc-%d", i),
 				DiscoveryGroup: "dg01",

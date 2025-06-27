@@ -3,19 +3,59 @@ title: Proxy Peering Migration
 description: How to upgrade an existing Teleport cluster to Proxy Peering mode.
 ---
 
-This guide shows you how to migrate your Teleport
-cluster to use Proxy Peering, which enables you to scale
-your Proxy Service instances horizontally by reducing the
-number of connections created between Teleport Proxy instances
-and Teleport services like the Database Service and Application Service.
+Proxy Peering enables Teleport Agents to be reachable without connecting to
+every Teleport Proxy Service instance. This allows Proxy Service instances to
+scale horizontally without increasing the number of connections created by
+agents.
+
+By default, Teleport Agents need to create a reverse tunnel to every Proxy
+Service instance to ensure a client is able to reach every agent. With Proxy
+Peering this is no longer a requirement. When Proxy Peering is enabled agents
+will automatically change their behavior to connect to the configured number of
+Proxy Service instances.
+
+This guide shows you how to migrate your Teleport cluster to use Proxy Peering.
+
+## How it works
+
+A gRPC service on each Teleport Proxy Service instance provides an API for
+establishing a bi-directional connection to the agents connected to that
+instance. Proxy Service instances also manage a gRPC client to all other Proxy
+Service instances in the cluster.
+
+Routing information on which Proxy Service instances each agent is connected to
+is stored in Teleport's backend and propagated to each Proxy Service instance.
+
+The routing information and gRPC service allow a Proxy Service instance to
+identify which peer instances an agent is connected to and create an
+end-to-end connection from a client to that agent. This allows for access to the
+agent without connecting to the same Proxy Service instance initially.
+
+Agents check whether you have enabled Proxy Peering before attempting to create
+a reverse tunnel to a Proxy Service instance. By default, in Proxy Peering mode,
+agents are configured to connect to a single Proxy Service instance. For high
+availability a cluster administrator may configure agents to connect to 2 or
+more Proxy Service instances.
+
+![Teleport Proxy Peering](../../../../img/architecture/proxy-peering@1.2x.png)
 
 ## Prerequisites
 
-An existing self-hosted Teleport Enterprise cluster that is **not** using [Trusted Clusters](../../../admin-guides/management/admin/trustedclusters.mdx). See the documentation on [self-hosting Teleport](../../deploy-a-cluster/deploy-a-cluster.mdx) to get started.
+1. An existing self-hosted Teleport Enterprise cluster that is **not** using
+   [Trusted
+   Clusters](../../../admin-guides/management/admin/trustedclusters.mdx). See
+   the documentation on [self-hosting
+   Teleport](../../deploy-a-cluster/deploy-a-cluster.mdx) to get started.
 
-Teleport Proxy Service instances must be able to reach each other over the network on port
-`3021` by default. Ensure there are no firewall policies that would block communication
-between instances.
+1. A network architecture that meets the following DNS requirements: 
+
+   * Teleport Proxy Service instances must be able to reach each other over the
+     network on port `3021` by default. Ensure there are no firewall policies
+     that would block communication between instances.
+   * All Proxy Service instances must be available at a single domain. If
+     clients in different networks must access the Teleport Proxy Service, the
+     typical pattern is to use split DNS to resolve the same domain differently
+     depending on the network.
 
 ## Step 1/3. Enable Proxy Peering
 

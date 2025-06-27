@@ -200,7 +200,7 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
 			ec2Client, err := getEC2Client(ctx, region,
-				awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+				awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
 			)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -393,10 +393,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation
 func chunkInstances(insts EC2Instances) []Instances {
 	var instColl []Instances
 	for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
-		end := i + awsEC2APIChunkSize
-		if end > len(insts.Instances) {
-			end = len(insts.Instances)
-		}
+		end := min(i+awsEC2APIChunkSize, len(insts.Instances))
 		inst := EC2Instances{
 			AccountID:           insts.AccountID,
 			Region:              insts.Region,
@@ -428,10 +425,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 
 		for _, res := range page.Reservations {
 			for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
-				end := i + awsEC2APIChunkSize
-				if end > len(res.Instances) {
-					end = len(res.Instances)
-				}
+				end := min(i+awsEC2APIChunkSize, len(res.Instances))
 				ownerID := aws.ToString(res.OwnerId)
 				inst := EC2Instances{
 					AccountID:           ownerID,

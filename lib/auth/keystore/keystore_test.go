@@ -27,7 +27,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -210,7 +209,7 @@ func TestBackends(t *testing.T) {
 			const numKeys = 3
 			rawPrivateKeys := make([][]byte, numKeys)
 			publicKeys := make([]crypto.PublicKey, numKeys)
-			for i := 0; i < numKeys; i++ {
+			for i := range numKeys {
 				var signer crypto.Signer
 				var err error
 				rawPrivateKeys[i], signer, err = backend.generateSigner(ctx, cryptosuites.ECDSAP256)
@@ -301,11 +300,8 @@ func TestManager(t *testing.T) {
 			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
 			encKeyPair, err := manager.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
-			// TODO (eriktate): remove once decryption with AWS is added
-			if !strings.Contains(backendDesc.name, "aws_kms") {
-				require.NoError(t, err)
-				require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
-			}
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
 
 			// Test a CA with multiple active keypairs. Each element of ActiveKeys
 			// includes a keypair generated above and a PKCS11 keypair with a
@@ -347,23 +343,20 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
 
-			// TODO (eriktate): remove once decryption with AWS is added
-			if !strings.Contains(backendDesc.name, "aws_kms") {
-				decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
+			decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
 
-				require.NoError(t, err)
-				require.NotNil(t, decrypter)
+			require.NoError(t, err)
+			require.NotNil(t, decrypter)
 
-				// Try encrypting and decrypting some data
-				msg := []byte("teleport")
-				require.NoError(t, err)
-				ciphertext, err := encKeyPair.EncryptOAEP(msg)
-				require.NoError(t, err)
+			// Try encrypting and decrypting some data
+			msg := []byte("teleport")
+			require.NoError(t, err)
+			ciphertext, err := encKeyPair.EncryptOAEP(msg)
+			require.NoError(t, err)
 
-				plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
-				require.NoError(t, err)
-				require.Equal(t, msg, plaintext)
-			}
+			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
+			require.NoError(t, err)
+			require.Equal(t, msg, plaintext)
 
 			// Try signing an SSH cert.
 			sshCert := ssh.Certificate{

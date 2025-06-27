@@ -49,5 +49,5 @@ type DiscordEmbed struct {
 	Color       int    `json:"color,omitempty"`
 	Author      struct {
 		Name string `json:"name"`
-	} `json:"author,omitempty"`
+	} `json:"author"`
 }

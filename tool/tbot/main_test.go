@@ -62,7 +62,7 @@ func TestRun_Configure(t *testing.T) {
 	// If we switch to a more dependency injected model for botfs, we can
 	// ensure that the test one returns the same value across operating systems.
 	normalizeOSDependentValues := func(data []byte) []byte {
-		cpy := append([]byte{}, data...)
+		cpy := slices.Clone(data)
 		cpy = bytes.ReplaceAll(
 			cpy, []byte("symlinks: try-secure"), []byte("symlinks: secure"),
 		)
@@ -104,7 +104,6 @@ func TestRun_Configure(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Run("file", func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "config.yaml")

@@ -41,6 +41,7 @@ func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w 
 
 	return &collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]{
 		store: newStore(
+			types.KindAutoUpdateConfig,
 			proto.CloneOf[*autoupdatev1.AutoUpdateConfig],
 			map[autoUpdateConfigIndex]func(*autoupdatev1.AutoUpdateConfig) string{
 				autoUpdateConfigNameIndex: func(r *autoupdatev1.AutoUpdateConfig) string {
@@ -107,6 +108,7 @@ func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w
 
 	return &collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]{
 		store: newStore(
+			types.KindAutoUpdateVersion,
 			proto.CloneOf[*autoupdatev1.AutoUpdateVersion],
 			map[autoUpdateVersionIndex]func(*autoupdatev1.AutoUpdateVersion) string{
 				autoUpdateVersionNameIndex: func(r *autoupdatev1.AutoUpdateVersion) string {
@@ -169,6 +171,7 @@ func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w
 
 	return &collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]{
 		store: newStore(
+			types.KindAutoUpdateAgentRollout,
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentRollout],
 			map[autoUpdateAgentRolloutIndex]func(*autoupdatev1.AutoUpdateAgentRollout) string{
 				autoUpdateAgentRolloutNameIndex: func(r *autoupdatev1.AutoUpdateAgentRollout) string {
@@ -231,6 +234,7 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 
 	return &collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
 		store: newStore(
+			types.KindSecurityReport,
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentReport],
 			map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{
 				autoUpdateAgentReportNameIndex: func(r *autoupdatev1.AutoUpdateAgentReport) string {

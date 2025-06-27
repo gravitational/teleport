@@ -132,6 +132,8 @@ For each, test the invite, reset, and login flows
 - [ ] Verify that error message is shown if an invite/reset is expired/invalid
 - [ ] Verify that account is locked after several unsuccessful login attempts
 
+- [ ] Verify that after logging in, user is automatically redirected to the login page when the session expires.
+
 #### Auth Connectors
 
 For help with setting up auth connectors, check out the [Quick GitHub/SAML/OIDC Setup Tips]

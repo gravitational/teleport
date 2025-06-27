@@ -88,15 +88,13 @@ export function AuthConnectorEditorContent({
             {saveAttempt.status === 'error' && (
               <Alert width="100%">{saveAttempt.statusText}</Alert>
             )}
-            <Flex height="600px" width="100%">
-              {content && (
-                <TextEditor
-                  bg="levels.deep"
-                  readOnly={false}
-                  data={[{ content, type: 'yaml' }]}
-                  onChange={setContent}
-                />
-              )}
+            <Flex height="100%" width="100%">
+              <TextEditor
+                bg="levels.deep"
+                readOnly={false}
+                data={[{ content, type: 'yaml' }]}
+                onChange={setContent}
+              />
             </Flex>
             <Box mt={3}>
               <ButtonPrimary disabled={isSaveDisabled} onClick={onSave} mr="3">

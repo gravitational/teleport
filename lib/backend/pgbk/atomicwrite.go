@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
 
@@ -131,7 +132,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	})
 
 	if attempts > 1 {
-		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
+		backendmetrics.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
 	}
 
 	if attempts > 2 {

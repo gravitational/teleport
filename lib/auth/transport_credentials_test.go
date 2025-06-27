@@ -55,14 +55,14 @@ func TestTransportCredentials_Check(t *testing.T) {
 	}{
 		{
 			name: "invalid configuration: no transport credentials",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("parameter TransportCredentials required"))
 			},
 			credentialAssertion: require.Nil,
 		},
 		{
 			name: "invalid configuration: bad transport credentials security protocol",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("the TransportCredentials must be a tls security protocol, got insecure"))
 			},
 			conf:                TransportCredentialsConfig{TransportCredentials: insecure.NewCredentials()},
@@ -70,7 +70,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 		},
 		{
 			name: "invalid configuration: no user getter provided",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("parameter UserGetter required"))
 			},
 			conf:                TransportCredentialsConfig{TransportCredentials: credentials.NewTLS(tlsConf.Clone())},
@@ -78,7 +78,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 		},
 		{
 			name: "invalid configuration: connection enforcer provided without an authorizer",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.BadParameter("both a UserGetter and an Authorizer are required to enforce connection limits with an Enforcer"))
 			},
 			conf: TransportCredentialsConfig{
@@ -120,7 +120,6 @@ func TestTransportCredentials_Check(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -213,7 +212,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 				Authorizer:           &fakeAuthorizer{authorizeError: unauthorized},
 			},
 			clientTLSConf: &tls.Config{InsecureSkipVerify: true},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, unauthorized)
 			},
 			handshakeAssertion: require.NoError,
@@ -230,7 +229,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 				Enforcer:             &fakeEnforcer{err: tooManyConnections},
 			},
 			clientTLSConf: &tls.Config{InsecureSkipVerify: true},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, tooManyConnections)
 			},
 			handshakeAssertion: require.NoError,
@@ -250,7 +249,6 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -662,12 +662,12 @@ func (pq *priorityQueue) Swap(i, j int) {
 	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
 }
 
-func (pq *priorityQueue) Push(x interface{}) {
+func (pq *priorityQueue) Push(x any) {
 	item := x.(*fileLine)
 	*pq = append(*pq, item)
 }
 
-func (pq *priorityQueue) Pop() interface{} {
+func (pq *priorityQueue) Pop() any {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -842,8 +842,7 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 
 	errG, workerCtx := errgroup.WithContext(ctx)
 
-	for i := 0; i < t.NoOfEmitWorkers; i++ {
-		i := i
+	for i := range t.NoOfEmitWorkers {
 		errG.Go(func() error {
 			for {
 				select {

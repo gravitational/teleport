@@ -38,10 +38,10 @@ type TeleportProvisionTokenSpec types.ProvisionTokenSpecV2
 // TeleportProvisionToken is the Schema for the ProvisionToken API
 type TeleportProvisionToken struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportProvisionTokenSpec `json:"spec,omitempty"`
-	Status resources.Status           `json:"status,omitempty"`
+	Spec   TeleportProvisionTokenSpec `json:"spec"`
+	Status resources.Status           `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportProvisionToken struct {
 // TeleportProvisionTokenList contains a list of TeleportProvisionToken
 type TeleportProvisionTokenList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportProvisionToken `json:"items"`
 }
 

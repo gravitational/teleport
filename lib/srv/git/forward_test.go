@@ -204,12 +204,10 @@ func TestForwardServer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			mockEmitter := &eventstest.MockRecorderEmitter{}
 			mockGitService := newMockGitHostingService(t, caSigner)

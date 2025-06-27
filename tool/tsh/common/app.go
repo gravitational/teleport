@@ -209,7 +209,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		})
 
 	case localProxyRequiredForApp(tc):
-		return webAppLoginProxyTemplate.Execute(output, map[string]interface{}{
+		return webAppLoginProxyTemplate.Execute(output, map[string]any{
 			"appName": app.GetName(),
 		})
 
@@ -232,7 +232,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return webAppLoginTemplate.Execute(output, map[string]interface{}{
+		return webAppLoginTemplate.Execute(output, map[string]any{
 			"appName":  app.GetName(),
 			"curlCmd":  curlCmd,
 			"insecure": cf.InsecureSkipVerify,

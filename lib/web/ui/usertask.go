@@ -44,7 +44,7 @@ type UserTask struct {
 	// Integration is the Integration Name this User Task refers to.
 	Integration string `json:"integration,omitempty"`
 	// LastStateChange indicates when the current's user task state was last changed.
-	LastStateChange time.Time `json:"lastStateChange,omitempty"`
+	LastStateChange time.Time `json:"lastStateChange"`
 }
 
 // UserTaskDetail contains all the details for a User Task.

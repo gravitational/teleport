@@ -124,7 +124,6 @@ func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) erro
 	}()
 
 	for item := range itemC {
-		item := item
 		group.Go(func() error {
 			if err := retry(ctx, 3, func() error {
 				if _, err := dst.Put(ctx, item); err != nil {
@@ -159,7 +158,7 @@ func retry(ctx context.Context, attempts int, fn func() error) error {
 		return trace.Errorf("retry attempts must be > 0")
 	}
 
-	for i := 0; i < attempts; i++ {
+	for range attempts {
 		err = fn()
 		if err == nil {
 			return nil

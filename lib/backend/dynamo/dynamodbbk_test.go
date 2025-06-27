@@ -72,7 +72,7 @@ func dynamoDBTestTable() string {
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	dynamoCfg := map[string]interface{}{
+	dynamoCfg := map[string]any{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
 	}
@@ -243,7 +243,7 @@ func TestCreateTable(t *testing.T) {
 func TestContinuousBackups(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	b, err := New(t.Context(), map[string]interface{}{
+	b, err := New(t.Context(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"continuous_backups": true,
 	})
@@ -277,7 +277,7 @@ func TestAutoScaling(t *testing.T) {
 	ensureTestsEnabled(t)
 
 	// Create new backend with auto scaling enabled.
-	b, err := New(context.Background(), map[string]interface{}{
+	b, err := New(context.Background(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"auto_scaling":       true,
 		"read_min_capacity":  10,
@@ -384,7 +384,7 @@ func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tab
 	if err != nil {
 		return nil, convertError(err)
 	}
-	for i := 0; i < len(policyResponse.ScalingPolicies); i++ {
+	for i := range policyResponse.ScalingPolicies {
 		policy := policyResponse.ScalingPolicies[i]
 		switch aws.ToString(policy.PolicyName) {
 		case fmt.Sprintf("%v-%v", tableName, readScalingPolicySuffix):

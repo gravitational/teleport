@@ -53,6 +53,7 @@ type sshProviderConfig struct {
 		target dialTarget,
 		tlsConfig *tls.Config,
 		dialOpts *vnetv1.DialOptions,
+		agent *sshAgent,
 	) (net.Conn, error)
 }
 
@@ -77,7 +78,7 @@ func newSSHProvider(ctx context.Context, cfg sshProviderConfig) (*sshProvider, e
 }
 
 // dial dials the target SSH host.
-func (p *sshProvider) dial(ctx context.Context, target dialTarget) (net.Conn, error) {
+func (p *sshProvider) dial(ctx context.Context, target dialTarget, agent *sshAgent) (net.Conn, error) {
 	userTLSCertResp, err := p.cfg.clt.UserTLSCert(ctx, target.profile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -89,9 +90,10 @@ func (p *sshProvider) dial(ctx context.Context, target dialTarget) (net.Conn, er
 		return nil, trace.Wrap(err)
 	}
 	if p.cfg.overrideNodeDialer != nil {
-		return p.cfg.overrideNodeDialer(ctx, target, tlsConfig, dialOpts)
+		conn, err := p.cfg.overrideNodeDialer(ctx, target, tlsConfig, dialOpts, agent)
+		return conn, trace.Wrap(err)
 	}
-	return p.dialViaProxy(ctx, target, tlsConfig, dialOpts)
+	return p.dialViaProxy(ctx, target, tlsConfig, dialOpts, agent)
 }
 
 // dialViaProxy dials the target SSH host via the proxy transport service.
@@ -100,6 +102,7 @@ func (p *sshProvider) dialViaProxy(
 	target dialTarget,
 	tlsConfig *tls.Config,
 	dialOpts *vnetv1.DialOptions,
+	agent *sshAgent,
 ) (net.Conn, error) {
 	// TODO(nklaassen): consider reusing proxy clients, need to figure out when
 	// it's necessary to make a new client e.g. if the user's TLS credentials
@@ -117,8 +120,14 @@ func (p *sshProvider) dialViaProxy(
 	if err != nil {
 		return nil, trace.Wrap(err, "building proxy client")
 	}
-	// TODO(nklaassen): pass an SSH keyring to support proxy recording mode.
-	conn, _, err := pclt.DialHost(ctx, target.addr, target.cluster, nil /*keyRing*/)
+	// Forward an SSH agent in case proxy recording mode is enabled in the cluster.
+	// At this point there is no SSH key for the user yet and the agent is
+	// empty, the SSH key will be added to the agent in [sshProvider.sessionSSHConfig].
+	// This forwarded agent will be used only to make the next SSH connection
+	// to the target SSH node, it is not actually forwarded to the target node
+	// and does not prevent the client from forwarding its own agent if
+	// requested.
+	conn, _, err := pclt.DialHost(ctx, target.addr, target.cluster, agent)
 	if err != nil {
 		pclt.Close()
 		return nil, trace.Wrap(err, "dialing target via proxy")
@@ -168,6 +177,7 @@ func (p *sshProvider) sessionSSHConfig(
 	ctx context.Context,
 	target dialTarget,
 	user string,
+	agent *sshAgent,
 ) (*ssh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
@@ -200,6 +210,13 @@ func (p *sshProvider) sessionSSHConfig(
 	}
 	certSigner, err := ssh.NewCertSigner(sshCert, sshSigner)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Add the session SSH key to the SSH agent in case proxy recording mode is
+	// enabled. Adding it to the agent here before returning an
+	// ssh.ClientConfig guarantees the key is added to the agent before the
+	// agent could be used.
+	if err := agent.setSessionKey(certSigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	hostKeyCallback, err := buildHostKeyCallback(resp.GetTrustedCas(), p.cfg.clock)

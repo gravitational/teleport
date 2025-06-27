@@ -23,12 +23,15 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -104,12 +107,67 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx SessionCtx) error
 	if s.cfg.inMemoryServer && isInMemoryServerApp(sessionCtx.App) {
 		return trace.Wrap(s.handleInMemoryServerSession(ctx, sessionCtx))
 	}
-	// TODO(greedy52) handle stdio
-	return trace.NotImplemented("not implemented")
+	return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 }
 
 // HandleUnauthorizedConnection handles an unauthorized client connection.
+// This function has a hardcoded 30 seconds timeout in case the proper error
+// message cannot be delivered to the client.
 func (s *Server) HandleUnauthorizedConnection(ctx context.Context, clientConn net.Conn, authErr error) error {
-	// TODO(greedy52) handle stdio
-	return trace.NotImplemented("not implemented")
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	return trace.Wrap(s.handleAuthErrStdio(ctx, clientConn, authErr))
+}
+
+func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx SessionCtx, logger *slog.Logger) (*sessionAuditor, error) {
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	name := clusterName.GetClusterName()
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sessionCtx.sessionID,
+		ServerID:    s.cfg.HostID,
+		Namespace:   apidefaults.Namespace,
+		Clock:       s.cfg.clock,
+		ClusterName: name,
+		StartTime:   s.cfg.clock.Now(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newSessionAuditor(sessionAuditorConfig{
+		emitter:    s.cfg.Emitter,
+		logger:     logger,
+		hostID:     s.cfg.HostID,
+		preparer:   preparer,
+		sessionCtx: &sessionCtx,
+	})
+}
+
+func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx SessionCtx) (*sessionHandler, error) {
+	// Some extra info for debugging purpose.
+	logger := s.cfg.Log.With(
+		"client_ip", sessionCtx.ClientConn.RemoteAddr(),
+		"app", sessionCtx.App.GetName(),
+		"user", sessionCtx.AuthCtx.User.GetName(),
+		"session_id", sessionCtx.sessionID,
+	)
+
+	sessionAuditor, err := s.makeSessionAuditor(ctx, sessionCtx, logger)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newSessionHandler(sessionHandlerConfig{
+		SessionCtx:     &sessionCtx,
+		sessionAuditor: sessionAuditor,
+		accessPoint:    s.cfg.AccessPoint,
+		logger:         logger,
+		parentCtx:      s.cfg.ParentContext,
+		clock:          s.cfg.clock,
+	})
 }

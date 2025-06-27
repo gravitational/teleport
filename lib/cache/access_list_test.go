@@ -115,7 +115,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := 0; i < numMembers; i++ {
+	for i := range numMembers {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
@@ -252,7 +252,7 @@ func TestAccessListReviews(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		review := newAccessListReview(t, "access-list-test", "fake-review-"+strconv.Itoa(i))
 		review.Spec.Changes = accesslist.ReviewChanges{}
 		_, _, err = p.accessLists.CreateAccessListReview(t.Context(), review)
@@ -265,7 +265,7 @@ func TestAccessListReviews(t *testing.T) {
 
 		var start string
 		var out []*accesslist.Review
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
 			require.NoError(t, err)
 

@@ -40,6 +40,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/http2"
 	v1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -185,6 +186,8 @@ type KubeMockServer struct {
 	KubePortforward      KubeUpgradeRequests
 	supportsTunneledSPDY bool
 
+	nsList *corev1.NamespaceList
+
 	crds map[GVP]*CRD
 }
 
@@ -204,6 +207,7 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 			Minor:      "20",
 			GitVersion: "1.20.0",
 		},
+		nsList: defaultNamespaceList.DeepCopy(),
 	}
 	for _, o := range opts {
 		o(s)
@@ -251,6 +255,7 @@ func (s *KubeMockServer) setup() {
 	router.Handle("GET /api/{ver}/namespaces", s.withWriter(s.listNamespaces))
 	router.Handle("GET /api/{ver}/namespaces/{name}", s.withWriter(s.getNamespace))
 	router.Handle("DELETE /api/v1/namespaces/{name}", s.withWriter(s.deleteNamespace))
+	router.Handle("POST /api/{ver}/namespaces", s.withWriter(s.createNamespace))
 
 	router.Handle("GET /api/{ver}/namespaces/{namespace}/secrets", s.withWriter(s.listSecrets))
 	router.Handle("GET /api/{ver}/secrets", s.withWriter(s.listSecrets))
@@ -258,6 +263,7 @@ func (s *KubeMockServer) setup() {
 	router.Handle("DELETE /api/{ver}/namespaces/{namespace}/secrets/{name}", s.withWriter(s.deleteSecret))
 
 	router.Handle("POST /apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
+	router.Handle("GET /apis/authorization.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
 
 	for k, crd := range s.crds {
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural, s.withWriter(s.listCRDs(crd)))

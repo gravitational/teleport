@@ -147,6 +147,10 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 		return nil, trace.Wrap(convertedError)
 	}
 
+	if len(listServicesOutput.ServiceArns) == 0 {
+		return &ListDeployedDatabaseServicesResponse{}, nil
+	}
+
 	describeServicesOutput, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Services: listServicesOutput.ServiceArns,
 		Include:  []ecstypes.ServiceField{ecstypes.ServiceFieldTags},

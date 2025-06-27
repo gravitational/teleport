@@ -47,7 +47,7 @@ func TestConcurrent(t *testing.T) {
 	})
 
 	timeBefore := time.Now()
-	for i := 0; i < config.MaxConcurrency; i++ {
+	for i := range config.MaxConcurrency {
 		resource, err := types.NewAccessRequest(fmt.Sprintf("REQ-%v", i+1), "foo", "admin")
 		require.NoError(t, err)
 		process.Events.Fire(types.Event{Type: types.OpPut, Resource: resource})
@@ -73,7 +73,7 @@ func TestSequential(t *testing.T) {
 	})
 
 	timeBefore := time.Now()
-	for i := 0; i < config.MaxConcurrency; i++ {
+	for range config.MaxConcurrency {
 		resource, err := types.NewAccessRequest("REQ-SAME", "foo", "admin")
 		require.NoError(t, err)
 		process.Events.Fire(types.Event{Type: types.OpPut, Resource: resource})
@@ -99,11 +99,11 @@ func TestConcurrencyLimit(t *testing.T) {
 	})
 
 	timeBefore := time.Now()
-	for i := 0; i < config.MaxConcurrency; i++ {
+	for i := range config.MaxConcurrency {
 		resource, err := types.NewAccessRequest(fmt.Sprintf("REQ-%v", i+1), "foo", "admin")
 		require.NoError(t, err)
 
-		for j := 0; j < 2; j++ {
+		for range 2 {
 			process.Events.Fire(types.Event{Type: types.OpPut, Resource: resource})
 		}
 	}
@@ -153,7 +153,7 @@ func TestNewJobWithConfirmedWatchKinds(t *testing.T) {
 	}
 
 	timeBefore := time.Now()
-	for i := 0; i < config.MaxConcurrency; i++ {
+	for range config.MaxConcurrency {
 		resource, err := types.NewAccessRequest("REQ-SAME", "foo", "admin")
 		require.NoError(t, err)
 		process.Events.Fire(types.Event{Type: types.OpPut, Resource: resource})
