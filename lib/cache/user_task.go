@@ -39,6 +39,7 @@ func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*col
 
 	return &collection[*usertasksv1.UserTask, userTaskIndex]{
 		store: newStore(
+			types.KindUserTask,
 			proto.CloneOf[*usertasksv1.UserTask],
 			map[userTaskIndex]func(*usertasksv1.UserTask) string{
 				userTaskNameIndex: func(r *usertasksv1.UserTask) string {

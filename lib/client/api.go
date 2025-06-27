@@ -5585,3 +5585,42 @@ func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer typ
 	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
 	return cert, trace.Wrap(err)
 }
+
+// DialDatabase makes a remote connection to the database.
+//
+// TODO(gabrielcorado): support acccess requests connections.
+func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToDatabase) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialDatabase",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("db", route.GetServiceName()),
+			attribute.String("protocol", route.GetProtocol()),
+		),
+	)
+	defer span.End()
+
+	dbCertParams := ReissueParams{
+		RouteToCluster:  tc.SiteName,
+		RouteToDatabase: route,
+		TTL:             tc.KeyTTL,
+	}
+
+	alpnProtocol, err := alpncommon.ToALPNProtocol(route.GetProtocol())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, dbCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.DBTLSCert(route.GetServiceName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc.DialALPN(ctx, cert, alpnProtocol)
+}

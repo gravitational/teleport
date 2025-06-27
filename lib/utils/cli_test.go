@@ -19,10 +19,8 @@
 package utils
 
 import (
-	"bytes"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -161,85 +159,6 @@ func TestAllowWhitespace(t *testing.T) {
 
 	for i, tt := range tests {
 		require.Equal(t, tt.out, AllowWhitespace(tt.in), fmt.Sprintf("test case %v", i))
-	}
-}
-
-func TestUpdateAppUsageTemplate(t *testing.T) {
-	makeApp := func(usageWriter io.Writer) *kingpin.Application {
-		app := InitCLIParser("TestUpdateAppUsageTemplate", "some help message")
-		app.UsageWriter(usageWriter)
-		app.Terminate(func(int) {})
-
-		app.Command("hello", "Hello.")
-
-		create := app.Command("create", "Create.")
-		create.Command("box", "Box.")
-		create.Command("rocket", "Rocket.")
-		return app
-	}
-
-	tests := []struct {
-		name           string
-		inputArgs      []string
-		outputContains string
-	}{
-		{
-			name:      "command width aligned for app help",
-			inputArgs: []string{},
-			outputContains: `
-Commands:
-  help          Show help.
-  hello         Hello.
-  create box    Box.
-  create rocket Rocket.
-`,
-		},
-		{
-			name:      "command width aligned for command help",
-			inputArgs: []string{"create"},
-			outputContains: `
-Commands:
-  create box    Box.
-  create rocket Rocket.
-`,
-		},
-		{
-			name:      "command width aligned for unknown command error",
-			inputArgs: []string{"unknown"},
-			outputContains: `
-Commands:
-  help          Show help.
-  hello         Hello.
-  create box    Box.
-  create rocket Rocket.
-`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Run("help flag", func(t *testing.T) {
-				var buffer bytes.Buffer
-				app := makeApp(&buffer)
-				args := append(tt.inputArgs, "--help")
-				UpdateAppUsageTemplate(app, args)
-
-				app.Usage(args)
-				require.Contains(t, buffer.String(), tt.outputContains)
-			})
-
-			t.Run("help command", func(t *testing.T) {
-				var buffer bytes.Buffer
-				app := makeApp(&buffer)
-				args := append([]string{"help"}, tt.inputArgs...)
-				UpdateAppUsageTemplate(app, args)
-
-				// HelpCommand is triggered on PreAction during Parse.
-				// See kingpin.Application.init for more details.
-				_, err := app.Parse(args)
-				require.NoError(t, err)
-				require.Contains(t, buffer.String(), tt.outputContains)
-			})
-		})
 	}
 }
 

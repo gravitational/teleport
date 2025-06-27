@@ -42,6 +42,7 @@ func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection
 
 	return &collection[types.Database, databaseIndex]{
 		store: newStore(
+			types.KindDatabase,
 			func(d types.Database) types.Database {
 				return d.Copy()
 			},
@@ -123,6 +124,7 @@ func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*colle
 
 	return &collection[types.DatabaseServer, databaseServerIndex]{
 		store: newStore(
+			types.KindDatabaseServer,
 			types.DatabaseServer.Copy,
 			map[databaseServerIndex]func(types.DatabaseServer) string{
 				databaseServerNameIndex: func(u types.DatabaseServer) string {
@@ -183,6 +185,7 @@ func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*coll
 
 	return &collection[types.DatabaseService, databaseServiceIndex]{
 		store: newStore(
+			types.KindDatabaseService,
 			types.DatabaseService.Clone,
 			map[databaseServiceIndex]func(types.DatabaseService) string{
 				databaseServiceNameIndex: types.DatabaseService.GetName,
@@ -230,6 +233,7 @@ func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.Watc
 
 	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
 		store: newStore(
+			types.KindDatabaseObject,
 			proto.CloneOf[*dbobjectv1.DatabaseObject],
 			map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{
 				databaseObjectNameIndex: func(r *dbobjectv1.DatabaseObject) string {
