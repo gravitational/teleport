@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	saml2 "github.com/russellhaering/gosaml2"
+	samltypes "github.com/russellhaering/gosaml2/types"
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -310,4 +312,30 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 
 		require.Equal(t, tc.expectedSsoUrl, connector.GetSSO())
 	}
+}
+
+func TestSAMLAssertionsToTraits(t *testing.T) {
+	assertion := saml2.AssertionInfo{
+		Values: map[string]samltypes.Attribute{
+			"singular_claim": {
+				Name:   "singular_claim",
+				Values: []samltypes.AttributeValue{{Value: "value"}},
+			},
+			"plural_claim": {
+				Name: "plural_claim",
+				Values: []samltypes.AttributeValue{
+					{Value: "value1"},
+					{Value: "value2"},
+					{Value: "value3"},
+				},
+			},
+		},
+	}
+	expectTraits := map[string][]string{
+		"singular_claim": {"value"},
+		"plural_claim":   {"value1", "value2", "value3"},
+	}
+
+	gotTraits := SAMLAssertionsToTraits(assertion)
+	require.Equal(t, expectTraits, gotTraits)
 }
