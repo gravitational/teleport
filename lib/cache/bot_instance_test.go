@@ -355,7 +355,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	require.Len(t, results, 1)
 
 	// sort descending by bot_name
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+	_, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "bot_name",
 		IsDesc: true,
 	})
@@ -363,7 +363,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	require.Equal(t, "cache is unhealthy, only bot_name:asc is supported, but got bot_name (desc = true)", err.Error())
 
 	// sort ascending by active_at_latest
-	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+	_, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
 		Field:  "active_at_latest",
 		IsDesc: false,
 	})
