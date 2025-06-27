@@ -1270,7 +1270,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	switch {
 	case id.BotName != "":
 		userKind = events.UserKind_USER_KIND_BOT
-	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil:
+	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil && len(id.Groups) > 0:
 		userKind = events.UserKind_USER_KIND_SYSTEM
 	default:
 		userKind = events.UserKind_USER_KIND_HUMAN
