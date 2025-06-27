@@ -2830,7 +2830,7 @@ type AWSCloudWatchStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Action:
 	//
-	//	*AWSCloudWatchStreamRequest_Config
+	//	*AWSCloudWatchStreamRequest_Configs
 	//	*AWSCloudWatchStreamRequest_Results
 	Action        isAWSCloudWatchStreamRequest_Action `protobuf_oneof:"action"`
 	unknownFields protoimpl.UnknownFields
@@ -2874,10 +2874,10 @@ func (x *AWSCloudWatchStreamRequest) GetAction() isAWSCloudWatchStreamRequest_Ac
 	return nil
 }
 
-func (x *AWSCloudWatchStreamRequest) GetConfig() *AWSCloudWatchConfig {
+func (x *AWSCloudWatchStreamRequest) GetConfigs() *AWSCloudWatchConfigs {
 	if x != nil {
-		if x, ok := x.Action.(*AWSCloudWatchStreamRequest_Config); ok {
-			return x.Config
+		if x, ok := x.Action.(*AWSCloudWatchStreamRequest_Configs); ok {
+			return x.Configs
 		}
 	}
 	return nil
@@ -2896,9 +2896,9 @@ type isAWSCloudWatchStreamRequest_Action interface {
 	isAWSCloudWatchStreamRequest_Action()
 }
 
-type AWSCloudWatchStreamRequest_Config struct {
+type AWSCloudWatchStreamRequest_Configs struct {
 	// Proposed configuration if none exists in the Access Graph
-	Config *AWSCloudWatchConfig `protobuf:"bytes,1,opt,name=config,proto3,oneof"`
+	Configs *AWSCloudWatchConfigs `protobuf:"bytes,1,opt,name=configs,proto3,oneof"`
 }
 
 type AWSCloudWatchStreamRequest_Results struct {
@@ -2907,7 +2907,7 @@ type AWSCloudWatchStreamRequest_Results struct {
 	Results *AWSCloudWatchResults `protobuf:"bytes,2,opt,name=results,proto3,oneof"`
 }
 
-func (*AWSCloudWatchStreamRequest_Config) isAWSCloudWatchStreamRequest_Action() {}
+func (*AWSCloudWatchStreamRequest_Configs) isAWSCloudWatchStreamRequest_Action() {}
 
 func (*AWSCloudWatchStreamRequest_Results) isAWSCloudWatchStreamRequest_Action() {}
 
@@ -4146,9 +4146,9 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x18AWSCloudTrailResumeState\"D\n" +
 	"\x1aAWSCloudTrailEventResource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\"\xb1\x01\n" +
-	"\x1aAWSCloudWatchStreamRequest\x12B\n" +
-	"\x06config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigH\x00R\x06config\x12E\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"\xb4\x01\n" +
+	"\x1aAWSCloudWatchStreamRequest\x12E\n" +
+	"\aconfigs\x18\x01 \x01(\v2).accessgraph.v1alpha.AWSCloudWatchConfigsH\x00R\aconfigs\x12E\n" +
 	"\aresults\x18\x02 \x01(\v2).accessgraph.v1alpha.AWSCloudWatchResultsH\x00R\aresultsB\b\n" +
 	"\x06action\"\xb4\x01\n" +
 	"\x1bAWSCloudWatchStreamResponse\x12E\n" +
@@ -4386,7 +4386,7 @@ var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
 	37, // 47: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events_file:type_name -> accessgraph.v1alpha.AWSCloudTrailEventsFile
 	38, // 48: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
 	40, // 49: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
-	46, // 50: accessgraph.v1alpha.AWSCloudWatchStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudWatchConfig
+	44, // 50: accessgraph.v1alpha.AWSCloudWatchStreamRequest.configs:type_name -> accessgraph.v1alpha.AWSCloudWatchConfigs
 	47, // 51: accessgraph.v1alpha.AWSCloudWatchStreamRequest.results:type_name -> accessgraph.v1alpha.AWSCloudWatchResults
 	44, // 52: accessgraph.v1alpha.AWSCloudWatchStreamResponse.configs:type_name -> accessgraph.v1alpha.AWSCloudWatchConfigs
 	45, // 53: accessgraph.v1alpha.AWSCloudWatchStreamResponse.cursors:type_name -> accessgraph.v1alpha.AWSCloudWatchCursors
@@ -4539,7 +4539,7 @@ func file_accessgraph_v1alpha_access_graph_service_proto_init() {
 		(*AWSCloudTrailStreamResponse_ResumeState)(nil),
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[42].OneofWrappers = []any{
-		(*AWSCloudWatchStreamRequest_Config)(nil),
+		(*AWSCloudWatchStreamRequest_Configs)(nil),
 		(*AWSCloudWatchStreamRequest_Results)(nil),
 	}
 	file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43].OneofWrappers = []any{

@@ -621,7 +621,7 @@ message AWSCloudTrailEventResource {
 message AWSCloudWatchStreamRequest {
   oneof action {
     // Proposed configuration if none exists in the Access Graph
-    AWSCloudWatchConfig config = 1;
+    AWSCloudWatchConfigs configs = 1;
     // CloudWatch results , sent once Access Graph has returned the required
     // configuration
     AWSCloudWatchResults results = 2;
