@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base32"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"io"
 	"log/slog"
 	"os"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/winpki"
 )
