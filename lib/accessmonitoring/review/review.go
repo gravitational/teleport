@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/client"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
@@ -41,6 +43,7 @@ type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	client.ListResourcesClient
 }
 
 // Config specifies access review handler configuration.
@@ -190,18 +193,11 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 		"req_id", req.GetName(),
 		"user", req.GetUser())
 
-	// Automatic reviews are only supported with role requests.
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		return trace.BadParameter("cannot automatically review access requests for resources other than 'roles'")
-	}
-
-	const withSecretsFalse = false
-	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	env, err := handler.newExpressionEnv(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	env := getAccessRequestExpressionEnv(req, user.GetTraits())
 	reviewRule := handler.getMatchingRule(ctx, env)
 	if reviewRule == nil {
 		// This access request does not match any access monitoring rules.
@@ -211,7 +207,9 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 	review, err := newAccessReview(
 		req.GetUser(),
 		reviewRule.GetMetadata().GetName(),
-		reviewRule.GetSpec().GetAutomaticReview().GetDecision())
+		reviewRule.GetSpec().GetAutomaticReview().GetDecision(),
+		time.Now(),
+	)
 	if err != nil {
 		return trace.Wrap(err, "failed to create new access review")
 	}
@@ -267,7 +265,7 @@ func (handler *Handler) getMatchingRule(
 	return reviewRule
 }
 
-func newAccessReview(userName, ruleName, state string) (types.AccessReview, error) {
+func newAccessReview(userName, ruleName, state string, created time.Time) (types.AccessReview, error) {
 	var proposedState types.RequestState
 	switch state {
 	case types.RequestState_APPROVED.String():
@@ -284,7 +282,7 @@ func newAccessReview(userName, ruleName, state string) (types.AccessReview, erro
 		Reason: fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
 			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
 			teleport.SystemAccessApproverUserName, userName, ruleName, strings.ToLower(state)),
-		Created: time.Now(),
+		Created: created,
 	}, nil
 }
 
@@ -296,16 +294,27 @@ func isAlreadyReviewedError(err error) bool {
 	return trace.IsAlreadyExists(err) || strings.HasSuffix(err.Error(), "has already reviewed this request")
 }
 
-// getAccessRequestExpressionEnv returns the expression env of the access request.
-func getAccessRequestExpressionEnv(req types.AccessRequest, traits map[string][]string) accessmonitoring.AccessRequestExpressionEnv {
+func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
+	const withSecretsFalse = false
+	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	if err != nil {
+		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+	}
+
+	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, handler.Client, req.GetRequestedResourceIDs())
+	if err != nil {
+		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+	}
+
 	return accessmonitoring.AccessRequestExpressionEnv{
 		Roles:              req.GetRoles(),
+		RequestedResources: requestedResources,
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 		Annotations:        req.GetSystemAnnotations(),
 		User:               req.GetUser(),
 		RequestReason:      req.GetRequestReason(),
 		CreationTime:       req.GetCreationTime(),
 		Expiry:             req.Expiry(),
-		UserTraits:         traits,
-	}
+		UserTraits:         user.GetTraits(),
+	}, nil
 }
