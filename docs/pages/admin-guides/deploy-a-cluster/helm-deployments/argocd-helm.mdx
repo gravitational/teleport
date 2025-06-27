@@ -50,88 +50,6 @@ Kubernetes cluster via the Teleport cluster running within it.
   
 - ArgoCD version 2.10 or greater.
 
-## Step 1/2. Install Teleport
-
-1. Install the `teleport-cluster` Helm chart, which deploys the Teleport Auth
-   Service and Proxy Service on your Kubernetes cluster.
-
-### Install the `teleport-cluster` Helm chart
-
-1. Create a namespace for Teleport and configure its Pod Security Admission,
-   which enforces security standards on pods in the namespace:
-
-   ```code
-   $ kubectl create namespace teleport-cluster
-   namespace/teleport-cluster created
-   
-   $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
-   namespace/teleport-cluster labeled
-   ```
-
-2. Navigate to the 'Application Page in ArgoCD', then select 'New App'.
-
-
-![ArgoCD application page](../../../../img/helm/argocd/application-page.png)
-
-3. Then select 'Edit as YAML'
-
-![ArgoCD application page](../../../../img/helm/argocd/edit-yaml.png)
-
-Example teleport-cluster configuration
-``` yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: teleport-cluster
-spec:
-  destination:
-    name: ''
-    namespace: teleport
-    server: 'https://kubernetes.default.svc'
-  source:
-    path: ''
-    repoURL: 'https://charts.releases.teleport.dev'
-    targetRevision: (=teleport.version=)
-    chart: teleport-cluster
-    helm:
-      values: |-
-        chartMode: standalone
-        clusterName: localhost
-        auth:
-          teleportConfig:
-            teleport:
-              log:
-                output: stderr
-                severity: DEBUG
-            auth_service:
-              cluster_name: localhost
-              authentication:
-                locking_mode: best_effort
-              case_insensitive_routing: true
-              enabled: true
-              web_idle_timeout: 1h
-        proxy:
-          teleportConfig:
-            proxy_service:
-              web_listen_addr: 0.0.0.0:9876
-              public_addr: localhost:9876
-              https_keypairs_reload_interval: 12h
-  sources: []
-  project: default
-project: default
-destination:
-  server: 'https://kubernetes.default.svc'
-  namespace: teleport
-```
-
-4. Edit this example configuration to match your needs.
-More information on how to modify helm this the helm chart
-and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
-5. Then select 'Sync' to apply the changes.
-
-![ArgoCD application page](../../../../img/helm/argocd/sync-app.png)
-
-
 ### Install the `teleport-kube-agent` Helm chart via ArgoCD
 
 #### Prerequisites
@@ -142,8 +60,25 @@ and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
   The address is automatically retrieved from the Teleport proxy configuration.
 - A join token for the Teleport Cluster.
 
-1. Follow the steps for creating a new app in ArgoCD as above.
-   Using the following yaml as a template to configure the Kube agent.
+1. Create a namespace for Teleport and configure its Pod Security Admission,
+   which enforces security standards on pods in the namespace:
+
+   ```code
+   $ kubectl create namespace teleport
+   namespace/teleport created
+   
+   $ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+   namespace/teleport labeled
+   ```
+
+2. Navigate to the 'Application Page in ArgoCD', then select 'New App'.
+
+
+![ArgoCD application page](../../../../img/helm/argocd/application-page.png)
+
+3. Then select 'Edit as YAML'
+
+![ArgoCD application page](../../../../img/helm/argocd/edit-yaml.png)
 
 ``` yaml
 apiVersion: argoproj.io/v1alpha1
@@ -164,6 +99,12 @@ spec:
   project: default
 ```
 
-2.	Additionally helm parameters can be set in the 'Create App'
+4.	Additionally helm parameters can be set in the 'Create App'
 	![ArgoCD application page](../../../../img/helm/argocd/helm-parameters.png)
-3. Once you have finished configuring your the chart. Sync the state to apply the changes.
+5. Edit this example configuration to match your needs.
+More information on how to modify helm this the helm chart
+and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
+6. Then select 'Sync' to apply the changes.
+![ArgoCD application page](../../../../img/helm/argocd/sync-app.png)
+
+
