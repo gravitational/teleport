@@ -980,21 +980,30 @@ func (s *Server) startCloudwatchPollers(
 
 	// Initiate the config negotiation by deriving configurations from the sync specs
 	var proposedConfigs []*accessgraphv1alpha.AWSCloudWatchConfig
+	// Assuming one AWS account ID per Discovery service
+	var awsAccountId string
 	for _, spec := range specs {
-		accountID, err := s.getAccountId(ctx, spec)
-		if err != nil {
-			s.Log.ErrorContext(ctx, "Error getting AWS account ID", "error", err)
-			return trace.Wrap(err)
+		// Get the AWS account ID and CloudWatch start date from the spec
+		if awsAccountId == "" {
+			awsAccountId, err = s.getAccountId(ctx, spec)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error getting AWS account ID", "error", err)
+				return trace.Wrap(err)
+			}
 		}
 		startDate := timestamppb.New(time.Unix(
 			spec.CloudWatchLogs.StartDate.Seconds,
 			int64(spec.CloudWatchLogs.StartDate.Nanos),
 		))
-		proposedConfigs = append(proposedConfigs, &accessgraphv1alpha.AWSCloudWatchConfig{
-			AccountId:  accountID,
-			TagFilters: spec.CloudWatchLogs.TagFilters,
-			StartDate:  startDate,
-		})
+
+		// Construct initial proposed config based on sync specs
+		for _, region := range spec.Regions {
+			proposedConfigs = append(proposedConfigs, &accessgraphv1alpha.AWSCloudWatchConfig{
+				StartDate: startDate,
+				Region:    region,
+				LogGroups: []string{},
+			})
+		}
 	}
 	err = stream.Send(
 		&accessgraphv1alpha.AWSCloudWatchStreamRequest{
@@ -1025,8 +1034,8 @@ func (s *Server) startCloudwatchPollers(
 	}
 	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", configsRes.GetConfigs())
 	configMap := make(map[string]*accessgraphv1alpha.AWSCloudWatchConfig)
-	for _, cfg := range configsRes.GetConfigs().Configs {
-		configMap[cfg.AccountId] = cfg
+	for _, config := range configsRes.GetConfigs().Configs {
+		configMap[config.Region] = config
 	}
 	cursorsRes, err := stream.Recv()
 	if err != nil {
@@ -1036,12 +1045,9 @@ func (s *Server) startCloudwatchPollers(
 		return trace.BadParameter("access graph service did not return resume state")
 	}
 	s.Log.InfoContext(ctx, "Access graph service resume state", "cursor", cursorsRes.GetCursors())
-	cursorsMap := make(map[string][]*accessgraphv1alpha.AWSCloudWatchCursor)
+	cursorsMap := make(map[cwLogGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor)
 	for _, cursor := range cursorsRes.GetCursors().Cursors {
-		if _, ok := configMap[cursor.AccountId]; !ok {
-			cursorsMap[cursor.AccountId] = []*accessgraphv1alpha.AWSCloudWatchCursor{}
-		}
-		cursorsMap[cursor.AccountId] = append(cursorsMap[cursor.AccountId], cursor)
+		cursorsMap[cwLogGroupKey{cursor.Region, cursor.LogGroup}] = cursor
 	}
 
 	// Wait for access graph client connection state changes in order to stop any further message processing
@@ -1056,37 +1062,39 @@ func (s *Server) startCloudwatchPollers(
 
 	// Spawn new pollers
 	eventsCh := make(chan []cloudWatchEvents, 1)
-	spawnPollers := func(specs []*types.AccessGraphAWSSync, cancelFns []context.CancelFunc) ([]context.CancelFunc, error) {
-		for _, cancelFn := range cancelFns {
-			cancelFn()
-		}
-		cancelFns = []context.CancelFunc{}
-		for _, spec := range specs {
-			accountID, err := s.getAccountId(ctx, spec)
+	spawnPollers := func(newSpecs []*types.AccessGraphAWSSync) (context.CancelFunc, error) {
+		awsOptsMap := make(map[string][]awsconfig.OptionsFn)
+		for _, spec := range newSpecs {
 			awsOpts := getOptions(spec)
-			if err != nil {
-				s.Log.ErrorContext(ctx, "Error getting AWS account ID", "error", err)
-				return nil, trace.Wrap(err)
+			for _, region := range spec.Regions {
+				awsOptsMap[region] = awsOpts
 			}
-			pollerCtx, cancelFn := context.WithCancel(ctx)
-			cancelFns = append(cancelFns, cancelFn)
-			config, ok := configMap[accountID]
-			if !ok {
-				s.Log.ErrorContext(ctx, "No configuration defined for CloudWatch poller",
-					"aws_account_id", accountID)
-				continue
+			startDate := timestamppb.New(time.Unix(
+				spec.CloudWatchLogs.StartDate.Seconds,
+				int64(spec.CloudWatchLogs.StartDate.Nanos),
+			))
+			for _, region := range spec.Regions {
+				if _, ok := configMap[region]; !ok {
+					config := &accessgraphv1alpha.AWSCloudWatchConfig{
+						StartDate: startDate,
+						Region:    region,
+						LogGroups: []string{}, // No log groups since no EKS clusters have been fetched
+					}
+					configMap[region] = config
+				}
 			}
-			cursors, ok := cursorsMap[accountID]
-			if !ok {
-				s.Log.ErrorContext(ctx, "No cursors defined for CloudWatch poller",
-					"aws_account_id", accountID)
-				continue
-			}
-			s.spawnCloudwatchPollers(pollerCtx, accountID, config, cursors, awsOpts, eventsCh)
 		}
-		return cancelFns, nil
+		pollerCtx, cancelFn := context.WithCancel(ctx)
+		s.spawnCloudwatchPollers(
+			pollerCtx,
+			awsAccountId,
+			configMap,
+			cursorsMap,
+			awsOptsMap,
+			eventsCh)
+		return cancelFn, nil
 	}
-	pollerCancelFns, err := spawnPollers(specs, []context.CancelFunc{})
+	pollerCancelFn, err := spawnPollers(specs)
 
 	// Wait for context done, discovery config reload, and cloudwatch events
 	for {
@@ -1096,7 +1104,8 @@ func (s *Server) startCloudwatchPollers(
 		case <-reloadCh:
 			// Stop existing pollers and spawn new pollers based on new specs
 			specs = s.getAWSSyncSpecsWithCloudwatch()
-			pollerCancelFns, err = spawnPollers(specs, pollerCancelFns)
+			pollerCancelFn()
+			pollerCancelFn, err = spawnPollers(specs)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1111,9 +1120,8 @@ func (s *Server) startCloudwatchPollers(
 				logGroups = append(logGroups, &accessgraphv1alpha.AWSCloudWatchLogGroup{
 					Events: event.events,
 					Cursor: &accessgraphv1alpha.AWSCloudWatchCursor{
-						AccountId: event.accountID,
 						Region:    event.region,
-						Name:      event.logGroup,
+						LogGroup:  event.logGroup,
 						NextToken: nextToken,
 						StartTime: timestamppb.New(event.startTime),
 					},
@@ -1412,31 +1420,34 @@ func downloadCloudTrailFile(ctx context.Context, client s3Client, bucket, key st
 	return body, nil
 }
 
+type cwLogGroupKey struct {
+	region   string
+	logGroup string
+}
+
 func (s *Server) spawnCloudwatchPollers(
 	ctx context.Context,
 	accountID string,
-	config *accessgraphv1alpha.AWSCloudWatchConfig,
-	cursors []*accessgraphv1alpha.AWSCloudWatchCursor,
-	awsOpts []awsconfig.OptionsFn,
+	configMap map[string]*accessgraphv1alpha.AWSCloudWatchConfig,
+	cursorsMap map[cwLogGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor,
+	awsOptsMap map[string][]awsconfig.OptionsFn,
 	eventsCh chan<- []cloudWatchEvents,
 ) {
 	s.Log.Info("Spawning CloudWatch poller", "aws_account_id", accountID)
 	go func() {
-		type logGroupKey struct {
-			region   string
-			logGroup string
-		}
-		logGroupMap := make(map[logGroupKey]cloudWatchLogGroup)
-		cwCursorMap := make(map[logGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor)
-		for _, cursor := range cursors {
-			cwCursorMap[logGroupKey{cursor.Region, cursor.Name}] = cursor
-		}
+		logGroupMap := make(map[cwLogGroupKey]cloudWatchLogGroup)
 		for {
 			wg := &sync.WaitGroup{}
 			errCh := make(chan error, len(logGroupMap))
 			pollCh := make(chan *cloudWatchEvents, len(logGroupMap))
 			for _, logGroup := range logGroupMap {
 				// Create the client
+				awsOpts, ok := awsOptsMap[logGroup.region]
+				if !ok {
+					s.Log.ErrorContext(ctx, "No AWS options for CloudWatch client", "aws_Account_id",
+						accountID, "region", logGroup.region)
+					return
+				}
 				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, logGroup.region, awsOpts...)
 				if err != nil {
 					s.Log.ErrorContext(ctx, "Could not get config for AWS",
@@ -1446,14 +1457,20 @@ func (s *Server) spawnCloudwatchPollers(
 				cli := cloudwatchlogs.NewFromConfig(awsCfg)
 
 				// Get the cursor or create a new one from the config
-				cursor, ok := cwCursorMap[logGroupKey{logGroup.region, logGroup.name}]
+				config, ok := configMap[logGroup.region]
+				if !ok {
+					s.Log.ErrorContext(ctx, "No config for CloudWatch region", "region",
+						"aws_account_id", accountID, "region", logGroup.region)
+					return
+				}
+				cursor, ok := cursorsMap[cwLogGroupKey{logGroup.region, logGroup.name}]
 				if !ok {
 					cursor = &accessgraphv1alpha.AWSCloudWatchCursor{
-						AccountId: accountID,
 						Region:    logGroup.region,
-						Name:      logGroup.name,
+						LogGroup:  logGroup.name,
 						StartTime: config.StartDate,
 					}
+					cursorsMap[cwLogGroupKey{logGroup.region, logGroup.name}] = cursor
 				}
 
 				// Poll CloudWatch for events
@@ -1473,7 +1490,7 @@ func (s *Server) spawnCloudwatchPollers(
 			var allEvents []cloudWatchEvents
 			for events := range pollCh {
 				allEvents = append(allEvents, *events)
-				if cursor, ok := cwCursorMap[logGroupKey{events.region, events.logGroup}]; ok {
+				if cursor, ok := cursorsMap[cwLogGroupKey{events.region, events.logGroup}]; ok {
 					if events.nextToken != nil {
 						cursor.NextToken = *events.nextToken
 					}
@@ -1502,13 +1519,13 @@ func (s *Server) spawnCloudwatchPollers(
 					"aws_account_id", accountID)
 
 				// Reset the map and load the new log groups
-				logGroupMap = make(map[logGroupKey]cloudWatchLogGroup)
+				logGroupMap = make(map[cwLogGroupKey]cloudWatchLogGroup)
 				for _, logGroup := range logGroups {
 					// We only support EKS for now
 					if logGroup.resourceType != cloudWatchLogGroupEKS {
 						continue
 					}
-					logGroupMap[logGroupKey{logGroup.region, logGroup.name}] = logGroup
+					logGroupMap[cwLogGroupKey{logGroup.region, logGroup.name}] = logGroup
 				}
 			default:
 			}
