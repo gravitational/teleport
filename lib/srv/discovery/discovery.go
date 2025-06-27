@@ -456,7 +456,7 @@ type Server struct {
 
 	// Provides the cloudwatch poller with a set of resources to poll for
 	hasCloudWatchPollers  atomic.Bool
-	cloudWatchResourcesCh chan []cloudWatchLogGroup
+	cloudWatchLogGroupsCh chan []cloudWatchLogGroup
 }
 
 // New initializes a discovery Server
@@ -483,7 +483,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		awsEC2ResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEC2),
 		awsRDSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherRDS),
 		awsEKSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEKS),
-		cloudWatchResourcesCh:      make(chan []cloudWatchLogGroup),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
