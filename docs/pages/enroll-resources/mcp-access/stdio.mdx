@@ -1,7 +1,6 @@
 ---
-title: MCP Access Getting Started Guide
-sidebar_label: Getting Started
-description: Getting started with Teleport MCP access.
+title: MCP Access with Stdio MCP Server
+description: How to access MCP server with stdio transport.
 ---
 
 Teleport’s MCP access allows users to securely access remote MCP servers,
@@ -10,28 +9,30 @@ the Teleport log.
 
 This guides shows you how to:
 
-- Enroll a MCP server in your Teleport cluster.
-- Connect to the MCP server via Teleport.
+- Enroll a MCP server with stdio transport in your Teleport cluster.
+- Connect to the stdio MCP server via Teleport.
 
 ## How it works
 
-![How it works](../../../img/mcp-access/architecture-sse.png)
+![How it works](../../../img/mcp-access/architecture-stdio.png)
 
 Users can configure their AI tools such as Claude Desktop to start an MCP
 server using `tsh`. Once successfully authorized, a session is initiated by
 `tsh` with the Teleport Application Service.
 
-The Application Service starts a new MCP session in SSE transport with the MCP
-server. Teleport then proxies the connection between the client and the remote
-MCP server, applying additional role-based access controls such as filtering
-which tools are available to the user.
+The Application Service starts the MCP server using the command and arguments
+defined by Teleport administrators in the app definition. Teleport then proxies
+the connection between the client and the remote MCP server, applying additional
+role-based access controls such as filtering which tools are available to the
+user.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - A host, e.g., an EC2 instance, where you will run the Teleport Applications
   Service.
-- SSE endpoint for the MCP server.
+- Tools on the same host that can launch stdio-based MCP servers like `npx`
+  or `docker`.
 
 ## Step 1/3. Configure the Teleport Application Service
 
@@ -66,17 +67,21 @@ app_service:
   enabled: true
   apps:
   - name: "everything"
-    description: "Example everything MCP server"
-    uri: "mcp+sse+http://localhost:3001"
     labels:
       env: dev
+    description: "Example everything MCP server"
+    mcp:
+      # Command to launch stdio-based MCP servers.
+      command: "docker"
+      # Args to execute with the command.
+      args: ["run", "-i", "--rm", "mcp/everything"]
+      # Name of the host user account under which the command will be
+      # executed. Required for stdio-based MCP servers.
+      run_as_host_user: "docker"
 ```
 
 Replace <Var name="PROXY_ADDR" /> with the host and port of your Teleport Proxy
 Service or Teleport Cloud tenant, e.g., `example.teleport.sh:443`.
-
-Update the app definition with your MCP server information. The `uri` must
-starts with either `mcp+sse+http` or `mcp+sse+https`.
 
 ### Start the Teleport Application Service
 
@@ -140,7 +145,7 @@ Now we can inspect available MCP servers:
 $ tsh mcp ls
 Name       Description                   Type  Labels
 ---------- ----------------------------- ----- ----------
-everything Example everything MCP server SSE   env=dev
+everything Example everything MCP server stdio env=dev
 ```
 
 To show configurations for your AI tool to connect:
@@ -155,7 +160,7 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
   "mcpServers": {
     "teleport-mcp-everything": {
       "command": "/path/to/tsh",
-      "args": ["mcp", "connect", "everything", "--auto-reconnect"]
+      "args": ["mcp", "connect", "everything"]
     }
   }
 }

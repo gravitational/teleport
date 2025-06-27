@@ -1,5 +1,5 @@
 ---
-title: Troubleshooting MCP Access
+title: MCP Access Troubleshooting
 description: Describes common issues and solutions for access to MCP servers protected by Teleport.
 ---
 
@@ -27,3 +27,13 @@ spec:
 
 Alternatively you can define a custom role that explicitly specifies the allowed
 MCP tools and assigns them to users. See [RBAC](./rbac.mdx) for more details.
+
+## I often see "disconnected" error from my AI tool
+
+Your MCP connection to Teleport backend may be interrupted due to network issues
+or expired `tsh` session.
+
+`tsh mcp config` and `tsh mcp connect` provide a `--auto-reconnect` flag that
+allows `tsh` to automatically starts a new remote MCP session when the previous
+remote session is interrupted. Use `--auto-reconnect` for better user experience
+if your MCP sessions are stateless across requests.
