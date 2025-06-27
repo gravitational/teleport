@@ -37,9 +37,6 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	if spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
-	if spec.GetGrants() == nil {
-		return nil, trace.BadParameter("grants is missing")
-	}
 
 	metadata := headerv1.FromMetadataProto(msg.GetHeader().GetMetadata())
 
