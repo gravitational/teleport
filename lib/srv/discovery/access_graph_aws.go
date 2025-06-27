@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -1103,13 +1104,17 @@ func (s *Server) startCloudwatchPollers(
 		case events := <-eventsCh:
 			var logGroups []*accessgraphv1alpha.AWSCloudWatchLogGroup
 			for _, event := range events {
+				var nextToken string
+				if event.nextToken != nil {
+					nextToken = *event.nextToken
+				}
 				logGroups = append(logGroups, &accessgraphv1alpha.AWSCloudWatchLogGroup{
 					Events: event.events,
 					Cursor: &accessgraphv1alpha.AWSCloudWatchCursor{
 						AccountId: event.accountID,
 						Region:    event.region,
 						Name:      event.logGroup,
-						NextToken: event.nextToken,
+						NextToken: nextToken,
 						StartTime: timestamppb.New(event.startTime),
 					},
 				})
@@ -1213,8 +1218,7 @@ type payloadChannelMessage struct {
 
 type cloudWatchEvents struct {
 	events    []*accessgraphv1alpha.AWSCloudWatchEvent
-	cursor    string
-	nextToken string
+	nextToken *string
 	startTime time.Time
 	logGroup  string
 	region    string
@@ -1417,19 +1421,20 @@ func (s *Server) spawnCloudwatchPollers(
 	eventsCh chan<- []cloudWatchEvents,
 ) {
 	s.Log.Info("Spawning CloudWatch poller", "aws_account_id", accountID)
-	type logGroupKey struct {
-		region   string
-		logGroup string
-	}
-	var logGroupLock sync.RWMutex
-	logGroupMap := make(map[logGroupKey]cloudWatchLogGroup)
-	cwCursorMap := make(map[logGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor)
-	for _, cursor := range cursors {
-		cwCursorMap[logGroupKey{cursor.Region, cursor.Name}] = cursor
-	}
 	go func() {
+		type logGroupKey struct {
+			region   string
+			logGroup string
+		}
+		logGroupMap := make(map[logGroupKey]cloudWatchLogGroup)
+		cwCursorMap := make(map[logGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor)
+		for _, cursor := range cursors {
+			cwCursorMap[logGroupKey{cursor.Region, cursor.Name}] = cursor
+		}
 		for {
-			var allEvents []cloudWatchEvents
+			wg := &sync.WaitGroup{}
+			errCh := make(chan error, len(logGroupMap))
+			pollCh := make(chan *cloudWatchEvents, len(logGroupMap))
 			for _, logGroup := range logGroupMap {
 				// Create the client
 				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, logGroup.region, awsOpts...)
@@ -1440,65 +1445,49 @@ func (s *Server) spawnCloudwatchPollers(
 				}
 				cli := cloudwatchlogs.NewFromConfig(awsCfg)
 
-				// TODO (mvbrock): Check that the log group exists before fetching logs
-				// Get the log events
-				startTime := time.Now()
-				var nextToken *string
+				// Get the cursor or create a new one from the config
 				cursor, ok := cwCursorMap[logGroupKey{logGroup.region, logGroup.name}]
-				if ok {
-					startTime = cursor.StartTime.AsTime()
-					if cursor.NextToken != "" {
-						nextToken = &cursor.NextToken
+				if !ok {
+					cursor = &accessgraphv1alpha.AWSCloudWatchCursor{
+						AccountId: accountID,
+						Region:    logGroup.region,
+						Name:      logGroup.name,
+						StartTime: config.StartDate,
 					}
-				} else {
-					startTime = config.StartDate.AsTime()
-				}
-				params := &cloudwatchlogs.FilterLogEventsInput{
-					LogGroupName:        aws.String(logGroup.name),
-					LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
-					StartTime:           aws.Int64(startTime.UnixMilli()),
-					NextToken:           nextToken,
-				}
-				out, err := cli.FilterLogEvents(ctx, params)
-				if err != nil {
-					s.Log.ErrorContext(ctx, "Error requesting log events from CloudWatch",
-						"error", err, "region", logGroup.region)
-					return
 				}
 
-				// Process the events
-				var events []*accessgraphv1alpha.AWSCloudWatchEvent
-				for _, cwEvent := range out.Events {
-					cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
-					event := &accessgraphv1alpha.AWSCloudWatchEvent{
-						Message:   *cwEvent.Message,
-						Timestamp: timestamppb.New(cwTimestamp),
+				// Poll CloudWatch for events
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					events, err := pollCloudWatch(ctx, accountID, cli, logGroup, config, cursor)
+					if err != nil {
+						errCh <- err
 					}
-					if cwTimestamp.After(startTime) {
-						startTime = cwTimestamp
-					}
-					events = append(events, event)
-				}
-				allEvents = append(allEvents, cloudWatchEvents{
-					events:    events,
-					nextToken: *out.NextToken,
-					startTime: startTime,
-					logGroup:  logGroup.name,
-					region:    logGroup.region,
-					accountID: accountID,
-				})
-
-				// Update the cursor
-				if out.NextToken != nil {
-					cursor.NextToken = *out.NextToken
-				}
-				cursor.StartTime = timestamppb.New(startTime)
+					pollCh <- events
+				}()
 			}
 
-			// Send the events to the events channel
+			// Accumulate the events, update the cursors, and send to the events channel
+			wg.Wait()
+			var allEvents []cloudWatchEvents
+			for events := range pollCh {
+				allEvents = append(allEvents, *events)
+				if cursor, ok := cwCursorMap[logGroupKey{events.region, events.logGroup}]; ok {
+					if events.nextToken != nil {
+						cursor.NextToken = *events.nextToken
+					}
+					cursor.StartTime = timestamppb.New(events.startTime)
+				}
+			}
 			eventsCh <- allEvents
+			s.Log.InfoContext(ctx, "Polled CloudWatch for all log groups", "account_id", accountID,
+				"log_group_count", len(logGroupMap), "error_count", len(errCh))
+			for err := range errCh {
+				s.Log.DebugContext(ctx, "Error from CloudWatch log group", "error", err)
+			}
 
-			// Block until the next event
+			// Look for done context or new log groups before processing more logs
 			select {
 			case <-ctx.Done():
 				s.Log.DebugContext(ctx, "CloudWatch poller log fetcher exiting",
@@ -1513,7 +1502,6 @@ func (s *Server) spawnCloudwatchPollers(
 					"aws_account_id", accountID)
 
 				// Reset the map and load the new log groups
-				logGroupLock.Lock()
 				logGroupMap = make(map[logGroupKey]cloudWatchLogGroup)
 				for _, logGroup := range logGroups {
 					// We only support EKS for now
@@ -1522,8 +1510,66 @@ func (s *Server) spawnCloudwatchPollers(
 					}
 					logGroupMap[logGroupKey{logGroup.region, logGroup.name}] = logGroup
 				}
-				logGroupLock.Unlock()
+			default:
 			}
 		}
 	}()
+}
+
+func pollCloudWatch(
+	ctx context.Context,
+	accountID string,
+	cli *cloudwatchlogs.Client,
+	logGroup cloudWatchLogGroup,
+	config *accessgraphv1alpha.AWSCloudWatchConfig,
+	cursor *accessgraphv1alpha.AWSCloudWatchCursor,
+) (*cloudWatchEvents, error) {
+	// TODO (mvbrock): Check that the log group exists before fetching logs
+	// Process cursor
+	var startTime time.Time
+	var nextToken *string
+	if cursor != nil {
+		startTime = cursor.StartTime.AsTime()
+		if cursor.NextToken != "" {
+			nextToken = &cursor.NextToken
+		}
+	} else {
+		startTime = config.StartDate.AsTime()
+	}
+
+	// Get the log events
+	params := &cloudwatchlogs.FilterLogEventsInput{
+		LogGroupName:        aws.String(logGroup.name),
+		LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
+		StartTime:           aws.Int64(startTime.UnixMilli()),
+		NextToken:           nextToken,
+	}
+	out, err := cli.FilterLogEvents(ctx, params)
+	if err != nil {
+		slog.ErrorContext(ctx, "Error requesting log events from CloudWatch",
+			"error", err, "region", logGroup.region)
+		return nil, trace.Wrap(err)
+	}
+
+	// Process the events
+	var events []*accessgraphv1alpha.AWSCloudWatchEvent
+	for _, cwEvent := range out.Events {
+		cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
+		event := &accessgraphv1alpha.AWSCloudWatchEvent{
+			Message:   *cwEvent.Message,
+			Timestamp: timestamppb.New(cwTimestamp),
+		}
+		if cwTimestamp.After(startTime) {
+			startTime = cwTimestamp
+		}
+		events = append(events, event)
+	}
+	return &cloudWatchEvents{
+		events:    events,
+		nextToken: out.NextToken,
+		startTime: startTime,
+		logGroup:  logGroup.name,
+		region:    logGroup.region,
+		accountID: accountID,
+	}, nil
 }
