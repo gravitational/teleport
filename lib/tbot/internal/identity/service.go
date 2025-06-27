@@ -52,8 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const componentTBot = "tbot"
-
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/internal/identity")
 
 // Config contains configuration and dependencies for the bot identity service.
@@ -126,7 +124,7 @@ func (s *Service) GetGenerator() (*identity.Generator, error) {
 		Insecure:    s.cfg.Connection.Insecure,
 		Logger: s.log.With(
 			teleport.ComponentKey,
-			teleport.Component(componentTBot, "identity-generator"),
+			teleport.Component(teleport.ComponentTBot, "identity-generator"),
 		),
 	})
 }

@@ -59,10 +59,6 @@ const (
 	envoyAllBundlesName = "ALL"
 )
 
-type bundleSetGetter interface {
-	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
-}
-
 type svidFetcher func(ctx context.Context, localBundle *spiffebundle.Bundle) ([]*workloadpb.X509SVID, error)
 
 // spiffeSDSHandler implements an Envoy SDS API.
@@ -72,7 +68,7 @@ type svidFetcher func(ctx context.Context, localBundle *spiffebundle.Bundle) ([]
 type spiffeSDSHandler struct {
 	log              *slog.Logger
 	botCfg           *config.BotConfig
-	trustBundleCache bundleSetGetter
+	trustBundleCache TrustBundleGetter
 
 	clientAuthenticator func(ctx context.Context) (*slog.Logger, svidFetcher, error)
 }

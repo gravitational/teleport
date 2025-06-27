@@ -27,22 +27,48 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/config/openssh"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func IdentityOutputServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.IdentityOutput,
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &IdentityOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			executablePath:     autoupdate.StableExecutable,
+			alpnUpgradeCache:   alpnUpgradeCache,
+			proxyPinger:        deps.ProxyPinger,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 // IdentityOutputService produces credentials which can be used to connect to
 // Teleport's API or SSH.
@@ -54,10 +80,9 @@ type IdentityOutputService struct {
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.IdentityOutput
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPinger        connection.ProxyPinger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath    func() (string, error)
@@ -75,9 +100,6 @@ func (s *IdentityOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *IdentityOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := loop.Run(ctx, loop.Config{
 		Service:         s.String(),
 		Name:            "output-renewal",
@@ -85,7 +107,7 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)

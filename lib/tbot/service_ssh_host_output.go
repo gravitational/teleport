@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -36,21 +37,39 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 )
+
+func SSHHostOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.SSHHostOutput) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &SSHHostOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 type SSHHostOutputService struct {
 	botAuthClient      *apiclient.Client
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.SSHHostOutput
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
 }
@@ -64,9 +83,6 @@ func (s *SSHHostOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *SSHHostOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := loop.Run(ctx, loop.Config{
 		Service:         s.String(),
 		Name:            "output-renewal",
@@ -74,7 +90,7 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)

@@ -25,18 +25,40 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func ApplicationTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.ApplicationTunnelService) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &ApplicationTunnelService{
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 // ApplicationTunnelService is a service that listens on a socket and forwards
 // traffic to an application registered in Teleport Application Access. It is

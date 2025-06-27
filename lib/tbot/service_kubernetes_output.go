@@ -28,6 +28,7 @@ import (
 	"net"
 	"path/filepath"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -39,17 +40,38 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
+
+func KubernetesOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.KubernetesOutput) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &KubernetesOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			proxyPinger:        deps.ProxyPinger,
+			reloadCh:           deps.ReloadCh,
+			executablePath:     autoupdate.StableExecutable,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 // KubernetesOutputService produces credentials which can be used to connect to
 // a Kubernetes Cluster through teleport.
@@ -61,10 +83,9 @@ type KubernetesOutputService struct {
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.KubernetesOutput
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPinger        connection.ProxyPinger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
@@ -82,9 +103,6 @@ func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *KubernetesOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := loop.Run(ctx, loop.Config{
 		Service:         s.String(),
 		Name:            "output-renewal",
@@ -92,7 +110,7 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)

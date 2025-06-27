@@ -22,14 +22,33 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 )
+
+func ClientCredentialOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.UnstableClientCredentialOutput) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &ClientCredentialOutputService{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 // ClientCredentialOutputService produces credentials which can be used to
 // connect to Teleport's API or SSH.
@@ -41,9 +60,8 @@ type ClientCredentialOutputService struct {
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.UnstableClientCredentialOutput
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
 }
 
@@ -56,9 +74,6 @@ func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := loop.Run(ctx, loop.Config{
 		Service:         s.String(),
 		Name:            "output-renewal",
@@ -66,7 +81,7 @@ func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
 		Interval:        s.botCfg.CredentialLifetime.RenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)

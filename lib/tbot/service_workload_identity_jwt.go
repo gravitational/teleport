@@ -24,16 +24,40 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
+
+func WorkloadIdentityJWTServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.WorkloadIdentityJWTService,
+	trustBundleCache TrustBundleGetter,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &WorkloadIdentityJWTService{
+			botAuthClient:     deps.Client,
+			botCfg:            botCfg,
+			cfg:               cfg,
+			getBotIdentity:    deps.BotIdentity,
+			identityGenerator: deps.IdentityGenerator,
+			clientBuilder:     deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 // WorkloadIdentityJWTService is a service that retrieves JWT workload identity
 // credentials for WorkloadIdentity resources.
@@ -45,7 +69,7 @@ type WorkloadIdentityJWTService struct {
 	log            *slog.Logger
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache  *workloadidentity.TrustBundleCache
+	trustBundleCache  TrustBundleGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
 }

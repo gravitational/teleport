@@ -37,6 +37,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -53,12 +54,12 @@ import (
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
@@ -91,6 +92,31 @@ var (
 	)
 )
 
+func SSHMultiplexerServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.SSHMultiplexerService,
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &SSHMultiplexerService{
+			alpnUpgradeCache:   alpnUpgradeCache,
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			proxyPinger:        deps.ProxyPinger,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
+
 // SSHMultiplexerService is a long-lived local SSH proxy. It listens on a local Unix
 // socket and has a special client with support for FDPassing with OpenSSH.
 // It places an emphasis on high performance.
@@ -103,10 +129,9 @@ type SSHMultiplexerService struct {
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.SSHMultiplexerService
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPinger        connection.ProxyPinger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
@@ -400,8 +425,6 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 func (s *SSHMultiplexerService) identityRenewalLoop(
 	ctx context.Context, proxyHost string, authClient *apiclient.Client,
 ) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
 	err := loop.Run(ctx, loop.Config{
 		Service: s.String(),
 		Name:    "identity-renewal",
@@ -416,7 +439,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		RetryLimit: renewalRetryLimit,
 		Log:        s.log,
-		ReloadCh:   reloadCh,
+		ReloadCh:   s.reloadCh,
 	})
 	return trace.Wrap(err)
 }

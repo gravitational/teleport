@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	awsspiffe "github.com/spiffe/aws-spiffe-workload-helper"
 	"github.com/spiffe/aws-spiffe-workload-helper/vendoredaws"
@@ -34,14 +35,33 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
+
+func WorkloadIdentityAWSRAServiceBuilder(botCfg *config.BotConfig, cfg *config.WorkloadIdentityAWSRAService) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &WorkloadIdentityAWSRAService{
+			botCfg:             botCfg,
+			cfg:                cfg,
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		return svc, nil
+	}
+}
 
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
@@ -50,9 +70,8 @@ type WorkloadIdentityAWSRAService struct {
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
 	cfg                *config.WorkloadIdentityAWSRAService
-	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
 }
@@ -71,9 +90,6 @@ func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
 // Run runs the service in a loop, generating the output and writing it to the
 // destination at regular intervals.
 func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := loop.Run(ctx, loop.Config{
 		Service:         s.String(),
 		Name:            "output-renewal",
@@ -81,7 +97,7 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 		Interval:        s.cfg.SessionRenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 	})
 	return trace.Wrap(err)
