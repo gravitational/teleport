@@ -659,8 +659,8 @@ message AWSCloudWatchCursors {
 message AWSCloudWatchConfig {
   // The AWS region of the log group
   string region = 1;
-  // The name of the CloudWatch log group
-  string log_group = 2;
+  // The CloudWatch log groups in this region
+  repeated string log_groups = 2;
   // The starting point for tailing the log
   google.protobuf.Timestamp start_date = 3;
 }
