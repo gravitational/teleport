@@ -990,3 +990,78 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		})
 	}
 }
+
+func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
+	roleEmptyTools := newRole(func(rv *types.RoleV6) {
+		rv.SetName("empty")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+	})
+	roleNoLabelsMatch := newRole(func(rv *types.RoleV6) {
+		rv.SetName("not-match")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"bar"},
+		})
+	})
+	roleAllowWildcard := newRole(func(rv *types.RoleV6) {
+		rv.SetName("dev")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"dev"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"*"},
+		})
+	})
+	roleExplicitDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("deny-bar")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+		rv.SetMCPPermissions(types.Deny, &types.MCPPermissions{
+			Tools: []string{"foo"},
+		})
+	})
+
+	mcpServer := &types.AppV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: "mcp-everything",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		roles     RoleSet
+		mcpServer types.Application
+		result    EnumerationResult
+	}{
+		{
+			name:      "no tools permission",
+			roles:     NewRoleSet(roleEmptyTools, roleNoLabelsMatch),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				allowedDeniedMap: map[string]bool{},
+			},
+		},
+		{
+			name:      "allow wildcard, deny specific value",
+			roles:     NewRoleSet(roleAllowWildcard, roleExplicitDeny),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				wildcardAllowed: true,
+				allowedDeniedMap: map[string]bool{
+					"foo": false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) {
+				accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
+				enumResult := accessChecker.EnumerateMCPTools(tt.mcpServer)
+				require.Equal(t, tt.result, enumResult)
+			})
+		})
+	}
+}

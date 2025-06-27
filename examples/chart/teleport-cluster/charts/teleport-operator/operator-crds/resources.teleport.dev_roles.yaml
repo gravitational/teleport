@@ -305,6 +305,21 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  mcp:
+                    description: MCPPermissions defines MCP servers related permissions.
+                    nullable: true
+                    properties:
+                      tools:
+                        description: Tools defines the list of tools allowed or denied
+                          for this role. Each entry can be a literal string, a glob
+                          pattern (e.g. "prefix_*"), or a regular expression (must
+                          start with '^' and end with '$'). If the list is empty,
+                          no tools are allowed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -901,6 +916,21 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  mcp:
+                    description: MCPPermissions defines MCP servers related permissions.
+                    nullable: true
+                    properties:
+                      tools:
+                        description: Tools defines the list of tools allowed or denied
+                          for this role. Each entry can be a literal string, a glob
+                          pattern (e.g. "prefix_*"), or a regular expression (must
+                          start with '^' and end with '$'). If the list is empty,
+                          no tools are allowed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1794,6 +1824,21 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  mcp:
+                    description: MCPPermissions defines MCP servers related permissions.
+                    nullable: true
+                    properties:
+                      tools:
+                        description: Tools defines the list of tools allowed or denied
+                          for this role. Each entry can be a literal string, a glob
+                          pattern (e.g. "prefix_*"), or a regular expression (must
+                          start with '^' and end with '$'). If the list is empty,
+                          no tools are allowed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -2390,6 +2435,21 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  mcp:
+                    description: MCPPermissions defines MCP servers related permissions.
+                    nullable: true
+                    properties:
+                      tools:
+                        description: Tools defines the list of tools allowed or denied
+                          for this role. Each entry can be a literal string, a glob
+                          pattern (e.g. "prefix_*"), or a regular expression (must
+                          start with '^' and end with '$'). If the list is empty,
+                          no tools are allowed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true

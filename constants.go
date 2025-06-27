@@ -298,6 +298,9 @@ const (
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
 
+	// ComponentMCP represents the MCP server handler.
+	ComponentMCP = "mcp"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -654,6 +657,10 @@ const (
 	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
 	// organizations for GitHub integrations.
 	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
+
+	// TraitInternalMCPTools is the variable used to store allowed MCP tools for
+	// MCP servers.
+	TraitInternalMCPTools = "{{internal.mcp_tools}}"
 )
 
 // SCP is Secure Copy.

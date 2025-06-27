@@ -324,6 +324,8 @@ describe('AppAccessSection', () => {
     screen.getByRole('group', { name: 'GCP Service Accounts' });
   const gcpServiceAccountTextBoxes = () =>
     within(gcpServiceAccounts()).getAllByRole('textbox');
+  const mcpTools = () => screen.getByRole('group', { name: 'MCP Tools' });
+  const mcpToolsTextBoxes = () => within(mcpTools()).getAllByRole('textbox');
 
   test('editing', async () => {
     const { user, onChange } = setup();
@@ -350,6 +352,11 @@ describe('AppAccessSection', () => {
     );
     await user.click(gcpServiceAccountTextBoxes()[1]);
     await user.paste('admin@some-project.iam.gserviceaccount.com');
+    await user.click(
+      within(mcpTools()).getByRole('button', { name: 'Add More' })
+    );
+    await user.click(mcpToolsTextBoxes()[1]);
+    await user.paste('allow_tools_with_prefix_*');
 
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
@@ -366,6 +373,7 @@ describe('AppAccessSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
+      mcpTools: ['{{internal.mcp_tools}}', 'allow_tools_with_prefix_*'],
       hideValidationErrors: true,
     } as AppAccess);
   });

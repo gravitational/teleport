@@ -195,8 +195,56 @@ func TestStructTrimToMaxSize(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.in.trimToMaxSize(tc.maxSize)
+			got := tc.in.trimToMaxFieldSize(tc.maxSize)
 			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestTrimMCPJSONRPCMessage(t *testing.T) {
+	m := MCPJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      "some-id",
+		Method:  "tools/call",
+		Params: &Struct{
+			Struct: types.Struct{
+				Fields: map[string]*types.Value{
+					strings.Repeat("A", 100): {
+						Kind: &types.Value_StringValue{
+							StringValue: "A",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	orgSize := m.Size()
+	t.Run("not trimmed", func(t *testing.T) {
+		notTrimmed := m.trimToMaxSize(10000)
+		require.Equal(t, orgSize, m.Size())
+		require.Equal(t, notTrimmed, m)
+	})
+
+	t.Run("trimmed", func(t *testing.T) {
+		trimmed := m.trimToMaxSize(50)
+		require.Equal(t, orgSize, m.Size())
+		require.Less(t, trimmed.Size(), 50)
+		require.Equal(t, MCPJSONRPCMessage{
+			JSONRPC: "2.0",
+			ID:      "some-id",
+			Method:  "tools/ca",
+			Params: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 8): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		}, trimmed)
+	})
 }

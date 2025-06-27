@@ -417,6 +417,9 @@ const (
 	// TraitGitHubOrgs is the name of the variable to specify the GitHub
 	// organizations for GitHub integration.
 	TraitGitHubOrgs = "github_orgs"
+	// TraitMCPTools is the name of the variable to specify the MCP tools for
+	// MCP servers.
+	TraitMCPTools = "mcp_tools"
 )
 
 const (
