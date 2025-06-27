@@ -91,7 +91,7 @@ spec:
   source:
     path: ''
     repoURL: 'https://charts.releases.teleport.dev'
-    targetRevision: 17.4.10
+    targetRevision: (=teleport.version=)
     chart: teleport-cluster
     helm:
       values: |-
@@ -158,7 +158,7 @@ spec:
   source:
     path: ''
     repoURL: 'https://charts.releases.teleport.dev'
-    targetRevision: 17.4.10
+    targetRevision: (=teleport.version=)
     chart: teleport-kube-agent
   sources: []
   project: default
