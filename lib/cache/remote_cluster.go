@@ -38,6 +38,7 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 
 	return &collection[types.TunnelConnection, tunnelConnectionIndex]{
 		store: newStore(
+			types.KindTunnelConnection,
 			types.TunnelConnection.Clone,
 			map[tunnelConnectionIndex]func(types.TunnelConnection) string{
 				tunnelConnectionNameIndex: func(tc types.TunnelConnection) string {
@@ -125,6 +126,7 @@ func newRemoteClusterCollection(upstream services.Trust, w types.WatchKind) (*co
 
 	return &collection[types.RemoteCluster, remoteClusterIndex]{
 		store: newStore(
+			types.KindRemoteCluster,
 			types.RemoteCluster.Clone,
 			map[remoteClusterIndex]func(types.RemoteCluster) string{
 				remoteClusterNameIndex: types.RemoteCluster.GetName,

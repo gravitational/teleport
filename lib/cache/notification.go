@@ -38,6 +38,7 @@ func newUserNotificationCollection(upstream services.NotificationGetter, w types
 
 	return &collection[*notificationsv1.Notification, userNotificationIndex]{
 		store: newStore(
+			types.KindNotification,
 			proto.CloneOf[*notificationsv1.Notification],
 			map[userNotificationIndex]func(*notificationsv1.Notification) string{
 				userNotificationNameIndex: func(r *notificationsv1.Notification) string {
@@ -95,6 +96,7 @@ func newGlobalNotificationCollection(upstream services.NotificationGetter, w typ
 
 	return &collection[*notificationsv1.GlobalNotification, globalNotificationIndex]{
 		store: newStore(
+			types.KindGlobalNotification,
 			proto.CloneOf[*notificationsv1.GlobalNotification],
 			map[globalNotificationIndex]func(*notificationsv1.GlobalNotification) string{
 				globalNotificationNameIndex: func(r *notificationsv1.GlobalNotification) string {

@@ -38,6 +38,7 @@ func newAuditQueryCollection(upstream services.SecReports, w types.WatchKind) (*
 
 	return &collection[*secreports.AuditQuery, auditQueryIndex]{
 		store: newStore(
+			types.KindAuditQuery,
 			(*secreports.AuditQuery).Clone,
 			map[auditQueryIndex]func(*secreports.AuditQuery) string{
 				auditQueryNameIndex: func(r *secreports.AuditQuery) string {
@@ -149,6 +150,7 @@ func newSecurityReportCollection(upstream services.SecReports, w types.WatchKind
 
 	return &collection[*secreports.Report, securityReportIndex]{
 		store: newStore(
+			types.KindSecurityReport,
 			(*secreports.Report).Clone,
 			map[securityReportIndex]func(*secreports.Report) string{
 				securityReportNameIndex: func(r *secreports.Report) string {
@@ -261,6 +263,7 @@ func newSecurityReportStateCollection(upstream services.SecReports, w types.Watc
 
 	return &collection[*secreports.ReportState, securityReportStateIndex]{
 		store: newStore(
+			types.KindSecurityReportState,
 			(*secreports.ReportState).Clone,
 			map[securityReportStateIndex]func(*secreports.ReportState) string{
 				securityReportStateNameIndex: func(r *secreports.ReportState) string {

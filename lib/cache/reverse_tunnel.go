@@ -37,6 +37,7 @@ func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (
 
 	return &collection[types.ReverseTunnel, reverseTunnelIndex]{
 		store: newStore(
+			types.KindReverseTunnel,
 			types.ReverseTunnel.Clone,
 			map[reverseTunnelIndex]func(types.ReverseTunnel) string{
 				reverseTunnelNameIndex: types.ReverseTunnel.GetName,

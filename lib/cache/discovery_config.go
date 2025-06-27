@@ -38,6 +38,7 @@ func newDiscoveryConfigCollection(upstream services.DiscoveryConfigs, w types.Wa
 
 	return &collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]{
 		store: newStore(
+			types.KindDiscoveryConfig,
 			(*discoveryconfig.DiscoveryConfig).Clone,
 			map[discoveryConfigIndex]func(*discoveryconfig.DiscoveryConfig) string{
 				discoveryConfigNameIndex: func(r *discoveryconfig.DiscoveryConfig) string {
