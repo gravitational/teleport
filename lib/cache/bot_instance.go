@@ -53,12 +53,14 @@ func makeNameIndexKey(botName string, instanceID string) string {
 func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
 	var recordedAt time.Time
 
-	if botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt() != nil {
-		recordedAt = botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt().AsTime()
+	initialHeartbeatTime := botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt()
+	if initialHeartbeatTime != nil {
+		recordedAt = initialHeartbeatTime.AsTime()
 	}
 
-	if len(botInstance.GetStatus().GetLatestHeartbeats()) > 0 {
-		recordedAt = botInstance.GetStatus().GetLatestHeartbeats()[len(botInstance.GetStatus().GetLatestHeartbeats())-1].GetRecordedAt().AsTime()
+	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
+	if len(latestHeartbeats) > 0 {
+		recordedAt = latestHeartbeats[len(latestHeartbeats)-1].GetRecordedAt().AsTime()
 	}
 
 	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
