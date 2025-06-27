@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
@@ -95,7 +96,7 @@ var (
 func SSHMultiplexerServiceBuilder(
 	botCfg *config.BotConfig,
 	cfg *config.SSHMultiplexerService,
-	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache,
+	alpnUpgradeCache *internal.ALPNUpgradeCache,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &SSHMultiplexerService{
@@ -121,7 +122,7 @@ func SSHMultiplexerServiceBuilder(
 // socket and has a special client with support for FDPassing with OpenSSH.
 // It places an emphasis on high performance.
 type SSHMultiplexerService struct {
-	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
+	alpnUpgradeCache *internal.ALPNUpgradeCache
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
@@ -335,7 +336,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
-		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
+		connUpgradeRequired, err = s.alpnUpgradeCache.IsUpgradeRequired(
 			ctx, proxyAddr, s.botCfg.Insecure,
 		)
 		if err != nil {

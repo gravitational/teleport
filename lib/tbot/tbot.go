@@ -21,7 +21,6 @@ package tbot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"sync"
 
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -41,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -142,10 +141,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	alpnUpgradeCache := &alpnProxyConnUpgradeRequiredCache{
-		botCfg: b.cfg,
-		log:    b.log,
-	}
+	alpnUpgradeCache := internal.NewALPNUpgradeCache(b.log)
 
 	var botServices []bot.ServiceBuilder
 
@@ -358,57 +354,4 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
-}
-
-type alpnProxyConnUpgradeRequiredCache struct {
-	botCfg *config.BotConfig
-	log    *slog.Logger
-
-	mu    sync.Mutex
-	cache map[string]bool
-	group singleflight.Group
-}
-
-func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
-	key := fmt.Sprintf("%s-%t", addr, insecure)
-
-	a.mu.Lock()
-	if a.cache == nil {
-		a.cache = make(map[string]bool)
-	}
-	v, ok := a.cache[key]
-	if ok {
-		a.mu.Unlock()
-		return v, nil
-	}
-	a.mu.Unlock()
-
-	val, err, _ := a.group.Do(key, func() (any, error) {
-		// Recheck the cache in case we've just missed a previous group
-		// completing
-		a.mu.Lock()
-		v, ok := a.cache[key]
-		if ok {
-			a.mu.Unlock()
-			return v, nil
-		}
-		a.mu.Unlock()
-
-		// Ok, now we know for sure that the work hasn't already been done or
-		// isn't in flight, we can complete it.
-		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
-		v = apiclient.IsALPNConnUpgradeRequired(ctx, addr, insecure)
-		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
-		if err := ctx.Err(); err != nil {
-			// Check for case where false is returned because client canceled ctx.
-			// We don't want to cache this result.
-			return v, trace.Wrap(err)
-		}
-
-		a.mu.Lock()
-		a.cache[key] = v
-		a.mu.Unlock()
-		return v, nil
-	})
-	return val.(bool), err
 }
