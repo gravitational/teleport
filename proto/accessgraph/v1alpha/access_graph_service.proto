@@ -642,8 +642,10 @@ message AWSCloudWatchStreamResponse {
 // The CloudWatch configuration received from the Access Graph which provides
 // parameters for each discovery integration
 message AWSCloudWatchConfigs {
+  // The AWS account ID
+  string account_id = 1;
   // The CloudWatch configs
-  repeated AWSCloudWatchConfig configs = 1;
+  repeated AWSCloudWatchConfig configs = 2;
 }
 
 // The CloudWatch cursors received from the Access Graph which provides
@@ -655,18 +657,18 @@ message AWSCloudWatchCursors {
 
 // The CloudWatch poller configuration
 message AWSCloudWatchConfig {
-  // The AWS account ID
-  string account_id = 1;
   // AWS tag filters to only log specific resources
-  repeated string tag_filters = 2;
+  repeated string tag_filters = 1;
   // The starting point for tailing the log
-  google.protobuf.Timestamp start_date = 3;
+  google.protobuf.Timestamp start_date = 2;
 }
 
 // The results from querying AWS CloudWatch
 message AWSCloudWatchResults {
+  // The AWS account ID for this batch of logs
+  string account_id = 1;
   // The log groups and the events in them
-  repeated AWSCloudWatchLogGroup log_groups = 1;
+  repeated AWSCloudWatchLogGroup log_groups = 2;
 }
 
 // AWS CloudWatch log group results, consisting of log data and the cursor for
@@ -689,16 +691,14 @@ message AWSCloudWatchEvent {
 // The CloudWatch cursor, providing both a next token and a start time for
 // paging through CloudWatch logs.
 message AWSCloudWatchCursor {
-  // The AWS account ID for this batch of logs
-  string account_id = 1;
   // The AWS region of the log group
-  string region = 2;
+  string region = 1;
   // The name of the CloudWatch log group
-  string name = 3;
+  string name = 2;
   // The next token used for paging query results
-  string next_token = 4;
+  string next_token = 3;
   // The start time used for the query
-  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp start_time = 4;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
