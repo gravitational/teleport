@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/gravitational/teleport/lib/utils"
 	hostutils "github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -47,10 +46,10 @@ func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, au
 	logger := s.cfg.Log.With("client_ip", clientConn.RemoteAddr())
 	errMsg := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.INTERNAL_ERROR, authErr.Error(), nil)
 	writer := mcputils.NewStdioMessageWriter(clientConn)
-	reader, err := mcputils.NewStdioMessageReader(mcputils.StdioMessageReaderConfig{
-		SourceReadCloser: clientConn,
-		Logger:           logger,
-		ParentContext:    s.cfg.ParentContext,
+	reader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
+		Transport:     mcputils.NewStdioReader(clientConn),
+		Logger:        logger,
+		ParentContext: s.cfg.ParentContext,
 		OnRequest: func(ctx context.Context, req *mcputils.JSONRPCRequest) error {
 			// Use request ID when available. Return auth error after writing
 			// back to client to stop the reader.
@@ -104,46 +103,32 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 		return trace.Wrap(err)
 	}
 
-	clientResponseWriter := mcputils.NewStdioMessageWriter(utils.NewSyncWriter(sessionCtx.ClientConn))
-	serverRequestWriter := mcputils.NewStdioMessageWriter(utils.NewSyncWriter(writeToServer))
+	clientResponseWriter := mcputils.NewSyncStdioMessageWriter(sessionCtx.ClientConn)
+	serverRequestWriter := mcputils.NewSyncStdioMessageWriter(writeToServer)
 
-	clientRequestReader, err := mcputils.NewStdioMessageReader(mcputils.StdioMessageReaderConfig{
-		SourceReadCloser: sessionCtx.ClientConn,
-		Logger:           session.logger.With("stdio", "stdin"),
-		ParentContext:    s.cfg.ParentContext,
+	clientRequestReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
+		Transport:     mcputils.NewStdioReader(sessionCtx.ClientConn),
+		Logger:        session.logger.With("stdio", "stdin"),
+		ParentContext: s.cfg.ParentContext,
 		// make sure launched process is getting shut down when client is closed.
-		OnClose:      serverRunner.close,
-		OnParseError: mcputils.ReplyParseError(clientResponseWriter),
-		OnRequest: func(ctx context.Context, req *mcputils.JSONRPCRequest) error {
-			msg, replyDirection := session.processClientRequest(ctx, req)
-			if replyDirection == replyToClient {
-				return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
-			}
-			return trace.Wrap(serverRequestWriter.WriteMessage(ctx, msg))
-		},
-		OnNotification: func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
-			session.processClientNotification(ctx, notification)
-			return trace.Wrap(serverRequestWriter.WriteMessage(ctx, notification))
-		},
+		OnClose:        serverRunner.close,
+		OnParseError:   mcputils.ReplyParseError(clientResponseWriter),
+		OnRequest:      session.onClientRequest(clientResponseWriter, serverRequestWriter),
+		OnNotification: session.onClientNotification(serverRequestWriter),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	stdoutLogger := session.logger.With("stdio", "stdout")
-	serverResponseReader, err := mcputils.NewStdioMessageReader(mcputils.StdioMessageReaderConfig{
-		SourceReadCloser: readFromServer,
-		Logger:           stdoutLogger,
-		ParentContext:    s.cfg.ParentContext,
-		OnClose:          serverRunner.close,
-		OnParseError:     mcputils.LogAndIgnoreParseError(stdoutLogger),
-		OnNotification: func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
-			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, notification))
-		},
-		OnResponse: func(ctx context.Context, response *mcputils.JSONRPCResponse) error {
-			msgToClient := session.processServerResponse(ctx, response)
-			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msgToClient))
-		},
+	serverResponseReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
+		Transport:      mcputils.NewStdioReader(readFromServer),
+		Logger:         stdoutLogger,
+		ParentContext:  s.cfg.ParentContext,
+		OnClose:        serverRunner.close,
+		OnParseError:   mcputils.LogAndIgnoreParseError(stdoutLogger),
+		OnNotification: session.onServerNotification(clientResponseWriter),
+		OnResponse:     session.onServerResponse(clientResponseWriter),
 	})
 	if err != nil {
 		return trace.Wrap(err)

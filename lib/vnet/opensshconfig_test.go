@@ -20,10 +20,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -69,7 +72,10 @@ func TestSSHConfigurator(t *testing.T) {
 	// Intentionally not using the template defined in the production code to
 	// test that it actually produces output that looks like this.
 	expectedConfigFile := func(expectedHosts string) string {
-		return fmt.Sprintf(`Host %s
+		if expectedHosts == "" {
+			return generatedFileHeader + "# VNet currently detects no logged-in clusters, log in to start using VNet\n"
+		}
+		return generatedFileHeader + fmt.Sprintf(`Host %s
     IdentityFile "%s/id_vnet"
     GlobalKnownHostsFile "%s/vnet_known_hosts"
     UserKnownHostsFile /dev/null
@@ -95,19 +101,30 @@ func TestSSHConfigurator(t *testing.T) {
 	// fakeClientApp.
 	assertConfigFile("*.cluster1 *.cluster2 *.leaf1")
 
-	// Add a new root and leaf cluster, wait until the configurator is blocked
-	// in the loop, advance the clock, wait until the configurator is blocked
-	// again indicating it should have updated the config and made it back into
-	// the loop, and then assert that the new clusters are in the config file.
+	// To reliably advance the clock and allow runConfigurationLoop to update
+	// the config the test waits until the loop is blocked on the clock, then
+	// advances the clock, then waits until the loop is blocked again.
+	advance := func() {
+		fakeClock.BlockUntilContext(ctx, 1)
+		fakeClock.Advance(sshConfigurationUpdateInterval)
+		fakeClock.BlockUntilContext(ctx, 1)
+	}
+
+	// Add a new root and leaf cluster, allow the configuration loop to run,
+	// and then assert that the new clusters are in the config file.
 	fakeClientApp.cfg.clusters["cluster3"] = testClusterSpec{
 		leafClusters: map[string]testClusterSpec{
 			"leaf2": {},
 		},
 	}
-	fakeClock.BlockUntilContext(ctx, 1)
-	fakeClock.Advance(sshConfigurationUpdateInterval)
-	fakeClock.BlockUntilContext(ctx, 1)
+	advance()
 	assertConfigFile("*.cluster1 *.cluster2 *.cluster3 *.leaf1 *.leaf2")
+
+	// Delete all clusters as if the user logged out, allow the configuration
+	// loop to run, and then assert that the config file is well-formed.
+	fakeClientApp.cfg.clusters = nil
+	advance()
+	assertConfigFile("")
 
 	// Kill the configurator, wait for it to return, and assert that the config
 	// file was deleted.
@@ -115,4 +132,86 @@ func TestSSHConfigurator(t *testing.T) {
 	require.ErrorIs(t, <-errC, context.Canceled)
 	_, err = os.Stat(keypaths.VNetSSHConfigPath(homePath))
 	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestAutoConfigureOpenSSH(t *testing.T) {
+	d := t.TempDir()
+	profilePath := filepath.Join(d, ".tsh")
+	vnetSSHConfigPath := keypaths.VNetSSHConfigPath(profilePath)
+	userOpenSSHConfigPath := filepath.Join(d, ".ssh", "config")
+	expectedInclude := fmt.Sprintf(`# Include Teleport VNet generated configuration
+Include "%s"
+
+`, vnetSSHConfigPath)
+	for _, tc := range []struct {
+		desc                            string
+		userOpenSSHConfigExists         bool
+		userOpenSSHConfigContents       string
+		expectAlreadyIncludedError      bool
+		expectUserOpenSSHConfigContents string
+	}{
+		{
+			// When the user OpenSSH config file doesn't exist, it should be
+			// created with the include.
+			desc:                            "no file",
+			expectUserOpenSSHConfigContents: expectedInclude,
+		},
+		{
+			// When the user OpenSSH config file already exists but it's empty,
+			// the include should be added.
+			desc:                            "empty file",
+			userOpenSSHConfigExists:         true,
+			expectUserOpenSSHConfigContents: expectedInclude,
+		},
+		{
+			// When the user OpenSSH config file already exists with some
+			// content, the include should be added at the top.
+			desc:                            "not empty",
+			userOpenSSHConfigExists:         true,
+			userOpenSSHConfigContents:       "something\nsomethingelse\n",
+			expectUserOpenSSHConfigContents: expectedInclude + "something\nsomethingelse\n",
+		},
+		{
+			// When the user OpenSSH config file already includes VNet's config
+			// file, it should return an AlreadyExists error and the file
+			// should not be modified.
+			desc:                            "already included",
+			userOpenSSHConfigExists:         true,
+			userOpenSSHConfigContents:       expectedInclude,
+			expectAlreadyIncludedError:      true,
+			expectUserOpenSSHConfigContents: expectedInclude,
+		},
+		{
+			// When the user OpenSSH config file already includes VNet's config
+			// file along with existing content, it should return an
+			// AlreadyExists error and the file should not be modified.
+			desc:                            "already included with extra content",
+			userOpenSSHConfigExists:         true,
+			userOpenSSHConfigContents:       "something\n" + expectedInclude + "somethingelse",
+			expectAlreadyIncludedError:      true,
+			expectUserOpenSSHConfigContents: "something\n" + expectedInclude + "somethingelse",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.userOpenSSHConfigExists {
+				// Write the existing user OpenSSH config file if it's supposed
+				// to exist for this test case.
+				require.NoError(t, os.WriteFile(userOpenSSHConfigPath,
+					[]byte(tc.userOpenSSHConfigContents), filePerms))
+			}
+
+			err := AutoConfigureOpenSSH(t.Context(), profilePath, withUserSSHConfigPathOverride(userOpenSSHConfigPath))
+
+			if tc.expectAlreadyIncludedError {
+				assert.ErrorIs(t, err, trace.AlreadyExists("%s is already included in %s",
+					vnetSSHConfigPath, userOpenSSHConfigPath))
+			} else {
+				assert.NoError(t, err)
+			}
+
+			contents, err := os.ReadFile(userOpenSSHConfigPath)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectUserOpenSSHConfigContents, string(contents))
+		})
+	}
 }
