@@ -95,11 +95,15 @@ const (
 	dbKeepAliveErr testEvent = "db-keep-alive-err"
 	dbKeepAliveDel testEvent = "db-keep-alive-del"
 
-	dbUpsertOk  testEvent = "db-upsert-ok"
-	dbUpsertErr testEvent = "db-upsert-err"
+	dbUpsertOk          testEvent = "db-upsert-ok"
+	dbUpsertErr         testEvent = "db-upsert-err"
+	dbUpsertRateLimited testEvent = "db-upsert-limited"
 
 	dbUpsertRetryOk  testEvent = "db-upsert-retry-ok"
 	dbUpsertRetryErr testEvent = "db-upsert-retry-err"
+
+	dbUpsertRateLimitedRetryOk  testEvent = "db-upsert-limited-retry-ok"
+	dbUpsertRateLimitedRetryErr testEvent = "db-upsert-limited-retry-err"
 
 	dbDelOk  testEvent = "db-del-ok"
 	dbDelErr testEvent = "db-del-err"
@@ -141,16 +145,19 @@ const (
 const heartbeatStepSize = 1024
 
 type controllerOptions struct {
-	serverKeepAlive    time.Duration
-	instanceHBInterval time.Duration
-	testEvents         chan testEvent
-	maxKeepAliveErrs   int
-	authID             string
-	onConnectFunc      func(string)
-	onDisconnectFunc   func(string, int)
-	cleanupLimiter     *rate.Limiter
-	cleanupTimeout     time.Duration
-	clock              clockwork.Clock
+	serverKeepAlive         time.Duration
+	serverTTL               time.Duration
+	serverHBLimiterInterval time.Duration
+	serverHBLimiterBurst    int
+	instanceHBInterval      time.Duration
+	testEvents              chan testEvent
+	maxKeepAliveErrs        int
+	authID                  string
+	onConnectFunc           func(string)
+	onDisconnectFunc        func(string, int)
+	cleanupLimiter          *rate.Limiter
+	cleanupTimeout          time.Duration
+	clock                   clockwork.Clock
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -159,6 +166,26 @@ func (options *controllerOptions) SetDefaults() {
 		// use 1.5x standard server keep alive since we use a jitter that
 		// shortens the actual average interval.
 		options.serverKeepAlive = baseKeepAlive + (baseKeepAlive / 2)
+	}
+
+	if options.serverTTL == 0 {
+		if variableRateHeartbeatsDisabledEnv() {
+			options.serverTTL = apidefaults.ServerAnnounceTTL
+		} else {
+			// by default, keepalives will scale from 1.5 to 6 minutes, and
+			// heartbeats will have a TTL of 15 minutes
+			options.serverTTL = (apidefaults.ServerAnnounceTTL * 3) / 2
+		}
+	}
+
+	if options.serverHBLimiterInterval == 0 {
+		// limit each server's heartbeat announcement to once per minute.
+		options.serverHBLimiterInterval = time.Minute
+	}
+	if options.serverHBLimiterBurst == 0 {
+		// this is arbitrary, but allows an occasional fast update shortly after
+		// a full server heartbeat.
+		options.serverHBLimiterBurst = 2
 	}
 
 	if options.instanceHBInterval == 0 {
@@ -230,6 +257,18 @@ func withServerKeepAlive(d time.Duration) ControllerOption {
 	}
 }
 
+func withServerHBLimiterInterval(d time.Duration) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.serverHBLimiterInterval = d
+	}
+}
+
+func withServerHBLimiterBurst(burst int) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.serverHBLimiterBurst = burst
+	}
+}
+
 func withInstanceHBInterval(d time.Duration) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.instanceHBInterval = d
@@ -258,6 +297,8 @@ type Controller struct {
 	authID                     string
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
+	serverHBLimiterInterval    time.Duration
+	serverHBLimiterBurst       int
 	instanceTTL                time.Duration
 	instanceHBEnabled          bool
 	instanceHBVariableDuration *interval.VariableDuration
@@ -300,11 +341,9 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 
 		relayHBVariableDuration *interval.VariableDuration
 	)
-	serverTTL := apidefaults.ServerAnnounceTTL
 	if !variableRateHeartbeatsDisabledEnv() {
-		// by default, heartbeats will scale from 1.5 to 6 minutes, and will
-		// have a TTL of 15 minutes
-		serverTTL = apidefaults.ServerAnnounceTTL * 3 / 2
+		// by default, keepalives will scale from 1.5 to 6 minutes, and
+		// heartbeats will have a TTL of 15 minutes
 		sshHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
 			MinDuration: options.serverKeepAlive,
 			MaxDuration: options.serverKeepAlive * 4,
@@ -337,7 +376,9 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		store:                      NewStore(),
 		serviceCounter:             &serviceCounter{},
 		serverKeepAlive:            options.serverKeepAlive,
-		serverTTL:                  serverTTL,
+		serverTTL:                  options.serverTTL,
+		serverHBLimiterInterval:    options.serverHBLimiterInterval,
+		serverHBLimiterBurst:       options.serverHBLimiterBurst,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
 		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
 		instanceHBVariableDuration: instanceHBVariableDuration,
@@ -1087,11 +1128,34 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		if c.dbHBVariableDuration != nil {
 			c.dbHBVariableDuration.Inc()
 		}
-		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{}
+		hbInfo := &heartBeatInfo[*types.DatabaseServerV3]{}
+		if handle.Hello().GetCapabilities().GetDatabaseHeartbeatGracefulStop() {
+			// graceful stop for individual heartbeats is necessary to enforce
+			// rate limiting without dropping upserts.
+			// otherwise a client may unregister a single server and delete its
+			// backend heartbeat directly, but a rate limit delayed upsert would
+			// reverse the deletion and keepalive the server indefinitely
+			hbInfo.heartbeatLimiter = c.newServerHBRateLimiter()
+		}
+		handle.databaseServers[dbKey] = hbInfo
 		handle.dbKeepAliveDelay.Add(dbKey)
 	}
 
 	now := time.Now()
+	srv := handle.databaseServers[dbKey]
+	if delay := srv.delayUpsertFrom(now); delay > 0 {
+		c.testEvent(dbUpsertRateLimited)
+		slog.DebugContext(c.closeContext, "Database heartbeat rate limit exceeded",
+			"server_id", handle.Hello().ServerID,
+			"name", dbKey.name,
+			"wait_for", logutils.StringerAttr(delay),
+		)
+		// reset the keepalive to upsert at reservation time
+		handle.dbKeepAliveDelay.Reset(dbKey, delay)
+		srv.lease = nil
+		srv.resource = databaseServer
+		return nil
+	}
 
 	databaseServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
@@ -1099,7 +1163,6 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 	if err == nil {
 		c.testEvent(dbUpsertOk)
 		// store the new lease and reset retry state
-		srv := handle.databaseServers[dbKey]
 		srv.lease = lease
 		srv.retryUpsert = false
 		srv.resource = databaseServer
@@ -1112,7 +1175,6 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
-		srv := handle.databaseServers[dbKey]
 		srv.lease = nil
 		srv.retryUpsert = true
 		srv.resource = databaseServer
@@ -1293,10 +1355,24 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 			srv.keepAliveErrs = 0
 			c.testEvent(dbKeepAliveOk)
 		}
-	} else if srv.retryUpsert {
-		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+
+	} else if srv.retryUpsert || srv.heartbeatReservation != nil {
+		srv.resource.SetExpiry(now.Add(c.serverTTL).UTC())
 		lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
 		if err != nil {
+			if !srv.retryUpsert {
+				c.testEvent(dbUpsertRateLimitedRetryErr)
+				// this must be a retry due to rate limiting, meaning there
+				// wasn't a failed lease write prior to this failure, so we can
+				// retry again
+				slog.WarnContext(c.closeContext, "Failed to upsert database server on rate limit retry",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+				)
+				srv.retryUpsert = true
+				return nil
+			}
+
 			c.testEvent(dbUpsertRetryErr)
 			slog.WarnContext(c.closeContext, "Failed to upsert database server on retry",
 				"server_id", handle.Hello().ServerID,
@@ -1307,7 +1383,12 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 			// attempting a third time.
 			return trace.Errorf("failed to upsert database server on retry: %v", err)
 		}
-		c.testEvent(dbUpsertRetryOk)
+
+		if srv.retryUpsert {
+			c.testEvent(dbUpsertRetryOk)
+		} else {
+			c.testEvent(dbUpsertRateLimitedRetryOk)
+		}
 
 		srv.lease = lease
 		srv.retryUpsert = false
@@ -1516,6 +1597,7 @@ func (c *Controller) createKeepAliveMultiDelay(variableDuration *interval.Variab
 		VariableInterval: variableDuration,
 		FirstJitter:      retryutils.HalfJitter,
 		Jitter:           retryutils.SeventhJitter,
+		ResetJitter:      retryutils.AdditiveSeventhJitter,
 	})
 }
 
@@ -1524,4 +1606,9 @@ func (c *Controller) createKeepAliveMultiDelay(variableDuration *interval.Variab
 func (c *Controller) Close() error {
 	c.cancel()
 	return nil
+}
+
+// newServerHBRateLimiter returns a new heartbeat upsert rate limiter.
+func (c *Controller) newServerHBRateLimiter() *rate.Limiter {
+	return rate.NewLimiter(rate.Every(c.serverHBLimiterInterval), c.serverHBLimiterBurst)
 }

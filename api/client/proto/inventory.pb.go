@@ -528,7 +528,9 @@ type UpstreamInventoryHello struct {
 	// ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
 	ExternalUpgraderVersion string `protobuf:"bytes,6,opt,name=ExternalUpgraderVersion,proto3" json:"ExternalUpgraderVersion,omitempty"`
 	// UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
-	UpdaterInfo   *types.UpdaterV2Info `protobuf:"bytes,8,opt,name=UpdaterInfo,proto3" json:"UpdaterInfo,omitempty"`
+	UpdaterInfo *types.UpdaterV2Info `protobuf:"bytes,8,opt,name=UpdaterInfo,proto3" json:"UpdaterInfo,omitempty"`
+	// SupportedCapabilities advertises the supported features of the instance.
+	Capabilities  *UpstreamInventoryHello_SupportedCapabilities `protobuf:"bytes,9,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -608,6 +610,13 @@ func (x *UpstreamInventoryHello) GetExternalUpgraderVersion() string {
 func (x *UpstreamInventoryHello) GetUpdaterInfo() *types.UpdaterV2Info {
 	if x != nil {
 		return x.UpdaterInfo
+	}
+	return nil
+}
+
+func (x *UpstreamInventoryHello) GetCapabilities() *UpstreamInventoryHello_SupportedCapabilities {
+	if x != nil {
+		return x.Capabilities
 	}
 	return nil
 }
@@ -1238,6 +1247,54 @@ func (x *UpstreamInventoryStopHeartbeat) GetName() string {
 }
 
 // SupportedCapabilities indicate which features of the ICS that
+// the connected instance supports. This allows the auth server to determine
+// how it should interact with the instance to maintain compatibility.
+type UpstreamInventoryHello_SupportedCapabilities struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DatabaseHeartbeatGracefulStop indicates the instance supports stopping an individual database heartbeat.
+	DatabaseHeartbeatGracefulStop bool `protobuf:"varint,1,opt,name=database_heartbeat_graceful_stop,json=databaseHeartbeatGracefulStop,proto3" json:"database_heartbeat_graceful_stop,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
+}
+
+func (x *UpstreamInventoryHello_SupportedCapabilities) Reset() {
+	*x = UpstreamInventoryHello_SupportedCapabilities{}
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpstreamInventoryHello_SupportedCapabilities) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpstreamInventoryHello_SupportedCapabilities) ProtoMessage() {}
+
+func (x *UpstreamInventoryHello_SupportedCapabilities) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpstreamInventoryHello_SupportedCapabilities.ProtoReflect.Descriptor instead.
+func (*UpstreamInventoryHello_SupportedCapabilities) Descriptor() ([]byte, []int) {
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{4, 0}
+}
+
+func (x *UpstreamInventoryHello_SupportedCapabilities) GetDatabaseHeartbeatGracefulStop() bool {
+	if x != nil {
+		return x.DatabaseHeartbeatGracefulStop
+	}
+	return false
+}
+
+// SupportedCapabilities indicate which features of the ICS that
 // the connect auth server supports. This allows agents to determine
 // how they should interact with the auth server to maintain compatibility.
 type DownstreamInventoryHello_SupportedCapabilities struct {
@@ -1288,7 +1345,7 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) Reset() {
 	*x = DownstreamInventoryHello_SupportedCapabilities{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1300,7 +1357,7 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) String() string {
 func (*DownstreamInventoryHello_SupportedCapabilities) ProtoMessage() {}
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1478,7 +1535,7 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x02ID\x18\x01 \x01(\x04R\x02ID\"e\n" +
 	"\x15UpstreamInventoryPong\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\x04R\x02ID\x12<\n" +
-	"\vSystemClock\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vSystemClock\"\xb9\x02\n" +
+	"\vSystemClock\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vSystemClock\"\xf4\x03\n" +
 	"\x16UpstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12\x1a\n" +
@@ -1486,7 +1543,10 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\bHostname\x18\x04 \x01(\tR\bHostname\x12*\n" +
 	"\x10ExternalUpgrader\x18\x05 \x01(\tR\x10ExternalUpgrader\x128\n" +
 	"\x17ExternalUpgraderVersion\x18\x06 \x01(\tR\x17ExternalUpgraderVersion\x126\n" +
-	"\vUpdaterInfo\x18\b \x01(\v2\x14.types.UpdaterV2InfoR\vUpdaterInfoJ\x04\b\a\x10\bR\rUpdaterV2Info\"\xd4\x02\n" +
+	"\vUpdaterInfo\x18\b \x01(\v2\x14.types.UpdaterV2InfoR\vUpdaterInfo\x12W\n" +
+	"\fcapabilities\x18\t \x01(\v23.proto.UpstreamInventoryHello.SupportedCapabilitiesR\fcapabilities\x1a`\n" +
+	"\x15SupportedCapabilities\x12G\n" +
+	" database_heartbeat_graceful_stop\x18\x01 \x01(\bR\x1ddatabaseHeartbeatGracefulStopJ\x04\b\a\x10\bR\rUpdaterV2Info\"\xd4\x02\n" +
 	"\x1eUpstreamInventoryAgentMetadata\x12\x0e\n" +
 	"\x02OS\x18\x01 \x01(\tR\x02OS\x12\x1c\n" +
 	"\tOSVersion\x18\x02 \x01(\tR\tOSVersion\x12*\n" +
@@ -1588,7 +1648,7 @@ func file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_legacy_client_proto_inventory_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(LabelUpdateKind)(0),                                   // 0: proto.LabelUpdateKind
 	(StopHeartbeatKind)(0),                                 // 1: proto.StopHeartbeatKind
@@ -1606,19 +1666,20 @@ var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(*InventoryStatusRequest)(nil),                         // 13: proto.InventoryStatusRequest
 	(*InventoryStatusSummary)(nil),                         // 14: proto.InventoryStatusSummary
 	(*UpstreamInventoryStopHeartbeat)(nil),                 // 15: proto.UpstreamInventoryStopHeartbeat
-	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 16: proto.DownstreamInventoryHello.SupportedCapabilities
-	nil,                              // 17: proto.InventoryUpdateLabelsRequest.LabelsEntry
-	nil,                              // 18: proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	nil,                              // 19: proto.InventoryStatusSummary.VersionCountsEntry
-	nil,                              // 20: proto.InventoryStatusSummary.UpgraderCountsEntry
-	nil,                              // 21: proto.InventoryStatusSummary.ServiceCountsEntry
-	(*timestamppb.Timestamp)(nil),    // 22: google.protobuf.Timestamp
-	(*types.UpdaterV2Info)(nil),      // 23: types.UpdaterV2Info
-	(*types.ServerV2)(nil),           // 24: types.ServerV2
-	(*types.AppServerV3)(nil),        // 25: types.AppServerV3
-	(*types.DatabaseServerV3)(nil),   // 26: types.DatabaseServerV3
-	(*types.KubernetesServerV3)(nil), // 27: types.KubernetesServerV3
-	(*v1.RelayServer)(nil),           // 28: teleport.presence.v1.RelayServer
+	(*UpstreamInventoryHello_SupportedCapabilities)(nil),   // 16: proto.UpstreamInventoryHello.SupportedCapabilities
+	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 17: proto.DownstreamInventoryHello.SupportedCapabilities
+	nil,                              // 18: proto.InventoryUpdateLabelsRequest.LabelsEntry
+	nil,                              // 19: proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	nil,                              // 20: proto.InventoryStatusSummary.VersionCountsEntry
+	nil,                              // 21: proto.InventoryStatusSummary.UpgraderCountsEntry
+	nil,                              // 22: proto.InventoryStatusSummary.ServiceCountsEntry
+	(*timestamppb.Timestamp)(nil),    // 23: google.protobuf.Timestamp
+	(*types.UpdaterV2Info)(nil),      // 24: types.UpdaterV2Info
+	(*types.ServerV2)(nil),           // 25: types.ServerV2
+	(*types.AppServerV3)(nil),        // 26: types.AppServerV3
+	(*types.DatabaseServerV3)(nil),   // 27: types.DatabaseServerV3
+	(*types.KubernetesServerV3)(nil), // 28: types.KubernetesServerV3
+	(*v1.RelayServer)(nil),           // 29: teleport.presence.v1.RelayServer
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
@@ -1630,28 +1691,29 @@ var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	8,  // 6: proto.DownstreamInventoryOneOf.Hello:type_name -> proto.DownstreamInventoryHello
 	4,  // 7: proto.DownstreamInventoryOneOf.Ping:type_name -> proto.DownstreamInventoryPing
 	10, // 8: proto.DownstreamInventoryOneOf.UpdateLabels:type_name -> proto.DownstreamInventoryUpdateLabels
-	22, // 9: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
-	23, // 10: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
-	16, // 11: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
-	0,  // 12: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
-	17, // 13: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
-	0,  // 14: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
-	18, // 15: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	24, // 16: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
-	25, // 17: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
-	26, // 18: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
-	27, // 19: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
-	28, // 20: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
-	6,  // 21: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	19, // 22: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	20, // 23: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	21, // 24: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	1,  // 25: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	23, // 9: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
+	24, // 10: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
+	16, // 11: proto.UpstreamInventoryHello.capabilities:type_name -> proto.UpstreamInventoryHello.SupportedCapabilities
+	17, // 12: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
+	0,  // 13: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
+	18, // 14: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
+	0,  // 15: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
+	19, // 16: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	25, // 17: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
+	26, // 18: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
+	27, // 19: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
+	28, // 20: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
+	29, // 21: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
+	6,  // 22: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	20, // 23: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	21, // 24: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	22, // 25: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 26: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	27, // [27:27] is the sub-list for method output_type
+	27, // [27:27] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }
@@ -1678,7 +1740,7 @@ func file_teleport_legacy_client_proto_inventory_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_legacy_client_proto_inventory_proto_rawDesc), len(file_teleport_legacy_client_proto_inventory_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
