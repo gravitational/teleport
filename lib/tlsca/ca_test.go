@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -550,6 +551,39 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					CredentialId: "credentialid1",
 				},
 				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for auth system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleAuth)},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+			},
+		},
+		{
+			name: "user metadata for discovery system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleDiscovery)},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+			},
+		},
+		{
+			name: "user metadata for okta system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleOkta)},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
 			},
 		},
 	}

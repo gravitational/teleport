@@ -55,6 +55,8 @@ func prehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKi
 		return prehogv1a.UserKind_USER_KIND_BOT
 	case apievents.UserKind_USER_KIND_HUMAN:
 		return prehogv1a.UserKind_USER_KIND_HUMAN
+	case apievents.UserKind_USER_KIND_SYSTEM:
+		return prehogv1a.UserKind_USER_KIND_SYSTEM
 	default:
 		return prehogv1a.UserKind_USER_KIND_UNSPECIFIED
 	}
