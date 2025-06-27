@@ -13,24 +13,26 @@ so that users can access Azure Portal and the Azure CLI by authenticating with T
 
 ## How it works
 
-In this setup, Teleport users can authenticate to Microsoft Azure Portal, the
-Azure CLI, and Azure API clients using Security Assertion Markup Language
-(SAML). The [Teleport SAML
-IdP](../../../admin-guides/access-controls/idps/idps.mdx) acts as a SAML
-identity provider, and Microsoft Entra External ID acts as a service provider.
-Azure Portal can verify that a user has authenticated to Teleport by verifying
-an assertion from the Teleport SAML IdP against the Teleport SAML certificate
-authority.
+This integration is based on [Microsoft Entra External ID](https://learn.microsoft.com/en-us/entra/external-id/) 
+and [Teleport SAML IdP](saml-guide.mdx).
 
-Azure tags authentication logs on behalf of Teleport user accounts, providing
-visibility into the Teleport users accessing Azure.
+In Microsoft Entra External ID, Teleport SAML IdP will be configured as an external IdP.
+And users who are to be granted access to Azure will be configured as an external users.
+As long as the user account is associated with a domain that is assigned to the 
+Teleport SAML IdP, users can access Azure portal and CLI by authenticating with Teleport.
 
-You can also manage Azure API and CLI authentication (but not Azure Portal
-access) by deploying the Teleport Application Service. For instructions, read
-[Protect Azure CLIs and APIs with Teleport](
-../../../enroll-resources/application-access/cloud-apis/azure.mdx). One downside
-of this approach is that Azure audit logs are not tied to Teleport user
-accounts.
+Authentication is based on the [interactive sign-in](
+https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively) 
+process. User audit events in Azure are tagged on behalf of Teleport user account,
+providing better audit visibility.
+
+Alternatively, you can also manage accesss to Azure API and CLI by deploying the 
+[Teleport Application Service](../../../enroll-resources/application-access/cloud-apis/azure.mdx). 
+This approach supports access based on [managed identity](
+https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-managed-identity), 
+which may be suitable for automated access. The downside to this approach is that it cannot
+be used to provision access to Azure portal and the audit logs are not tied to the 
+Teleport user account, limiting user account visibility on the the audit events.
 
 ## Prerequisites
 
