@@ -59,8 +59,16 @@ export const LockKey = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  fillRule="evenodd" d="M12.75 15.641a2.626 2.626 0 1 0-1.5 0v1.609a.75.75 0 0 0 1.5 0zM12 12a1.125 1.125 0 1 0 0 2.25A1.125 1.125 0 0 0 12 12" clipRule="evenodd"/>
-<path  fillRule="evenodd" d="M7.5 7.5V5.25a4.5 4.5 0 0 1 9 0V7.5h3A1.5 1.5 0 0 1 21 9v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5V9a1.5 1.5 0 0 1 1.5-1.5zm2.379-4.371A3 3 0 0 1 15 5.25V7.5H9V5.25a3 3 0 0 1 .879-2.121M4.5 9v10.5h15V9z" clipRule="evenodd"/>
+      <path
+        fillRule="evenodd"
+        d="M12.75 15.641a2.626 2.626 0 1 0-1.5 0v1.609a.75.75 0 0 0 1.5 0zM12 12a1.125 1.125 0 1 0 0 2.25A1.125 1.125 0 0 0 12 12"
+        clipRule="evenodd"
+      />
+      <path
+        fillRule="evenodd"
+        d="M7.5 7.5V5.25a4.5 4.5 0 0 1 9 0V7.5h3A1.5 1.5 0 0 1 21 9v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5V9a1.5 1.5 0 0 1 1.5-1.5zm2.379-4.371A3 3 0 0 1 15 5.25V7.5H9V5.25a3 3 0 0 1 .879-2.121M4.5 9v10.5h15V9z"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );

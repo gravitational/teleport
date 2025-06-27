@@ -59,10 +59,18 @@ export const Server = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  d="M16.875 8.438a.937.937 0 1 0 0-1.875.937.937 0 0 0 0 1.875"/>
-<path  fillRule="evenodd" d="M4.5 3.75A1.5 1.5 0 0 0 3 5.25v4.5a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5v-4.5a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15v4.5h-15z" clipRule="evenodd"/>
-<path  d="M17.813 16.5a.937.937 0 1 1-1.875 0 .937.937 0 0 1 1.874 0"/>
-<path  fillRule="evenodd" d="M4.5 12.75a1.5 1.5 0 0 0-1.5 1.5v4.5a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5v-4.5a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15v4.5h-15z" clipRule="evenodd"/>
+      <path d="M16.875 8.438a.937.937 0 1 0 0-1.875.937.937 0 0 0 0 1.875" />
+      <path
+        fillRule="evenodd"
+        d="M4.5 3.75A1.5 1.5 0 0 0 3 5.25v4.5a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5v-4.5a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15v4.5h-15z"
+        clipRule="evenodd"
+      />
+      <path d="M17.813 16.5a.937.937 0 1 1-1.875 0 .937.937 0 0 1 1.874 0" />
+      <path
+        fillRule="evenodd"
+        d="M4.5 12.75a1.5 1.5 0 0 0-1.5 1.5v4.5a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5v-4.5a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15v4.5h-15z"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );

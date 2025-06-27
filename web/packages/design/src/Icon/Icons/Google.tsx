@@ -59,7 +59,11 @@ export const Google = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  fillRule="evenodd" d="M13.357 4.623a7.5 7.5 0 1 0 6.105 8.127H12a.75.75 0 0 1 0-1.5h8.25A.75.75 0 0 1 21 12a9 9 0 1 1-2.057-5.727.75.75 0 0 1-1.157.954 7.5 7.5 0 0 0-4.429-2.604" clipRule="evenodd"/>
+      <path
+        fillRule="evenodd"
+        d="M13.357 4.623a7.5 7.5 0 1 0 6.105 8.127H12a.75.75 0 0 1 0-1.5h8.25A.75.75 0 0 1 21 12a9 9 0 1 1-2.057-5.727.75.75 0 0 1-1.157.954 7.5 7.5 0 0 0-4.429-2.604"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );

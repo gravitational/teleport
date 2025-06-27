@@ -59,7 +59,7 @@ export const MoreHoriz = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  d="M4.5 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m7.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m7.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3"/>
+      <path d="M4.5 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m7.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m7.5 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3" />
     </Icon>
   )
 );

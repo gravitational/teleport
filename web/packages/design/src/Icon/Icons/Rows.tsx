@@ -59,7 +59,11 @@ export const Rows = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  fillRule="evenodd" d="M4.5 4.5A1.5 1.5 0 0 0 3 6v3.75a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15v3.75h-15zm0 6.75a1.5 1.5 0 0 0-1.5 1.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18v-3.75a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15V18h-15z" clipRule="evenodd"/>
+      <path
+        fillRule="evenodd"
+        d="M4.5 4.5A1.5 1.5 0 0 0 3 6v3.75a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15v3.75h-15zm0 6.75a1.5 1.5 0 0 0-1.5 1.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18v-3.75a1.5 1.5 0 0 0-1.5-1.5zm0 1.5h15V18h-15z"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );

@@ -59,7 +59,11 @@ export const Magnifier = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  fillRule="evenodd" d="M10.5 2.25a8.25 8.25 0 1 0 5.279 14.59l4.69 4.69a.75.75 0 1 0 1.061-1.06l-4.69-4.69A8.25 8.25 0 0 0 10.5 2.25M3.75 10.5a6.75 6.75 0 1 1 13.5 0 6.75 6.75 0 0 1-13.5 0" clipRule="evenodd"/>
+      <path
+        fillRule="evenodd"
+        d="M10.5 2.25a8.25 8.25 0 1 0 5.279 14.59l4.69 4.69a.75.75 0 1 0 1.061-1.06l-4.69-4.69A8.25 8.25 0 0 0 10.5 2.25M3.75 10.5a6.75 6.75 0 1 1 13.5 0 6.75 6.75 0 0 1-13.5 0"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );

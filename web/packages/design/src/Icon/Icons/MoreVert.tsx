@@ -59,7 +59,7 @@ export const MoreVert = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  d="M13.5 4.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0m0 7.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0m0 7.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0"/>
+      <path d="M13.5 4.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0m0 7.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0m0 7.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0" />
     </Icon>
   )
 );
