@@ -22,6 +22,7 @@ import { useHistory, useLocation } from 'react-router';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
+import { formatSortType, parseSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Mark } from 'design/Mark/Mark';
@@ -42,19 +43,6 @@ import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
 
 import { BotInstancesList } from './List/BotInstancesList';
-
-function parseSortType(sort: string): SortType | undefined {
-  if (!sort) return undefined;
-  const [fieldName, dir] = sort.toLowerCase().split(':');
-  return {
-    fieldName,
-    dir: dir === 'desc' ? 'DESC' : 'ASC',
-  };
-}
-
-function formatSortType(sortType: SortType): string {
-  return `${sortType.fieldName}:${sortType.dir}`.toLowerCase();
-}
 
 export function BotInstances() {
   const history = useHistory();
