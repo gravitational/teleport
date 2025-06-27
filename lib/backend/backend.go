@@ -341,7 +341,7 @@ func NextPaginationKey(ki KeyedItem) string {
 		key = NewKey(ki.GetName())
 	}
 
-	return nextKey(key).String()
+	return RangeEnd(key).String()
 }
 
 // GetPaginationKey returns the pagination key given item.
