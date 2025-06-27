@@ -39,7 +39,7 @@ const (
 	configFilePerms = 0o644
 	// defaultSizeStoredVersion defines how many versions will be stored in the tools
 	// directory. Older versions will be cleaned up based on least recently used.
-	defaultSizeStoredVersion = 5
+	defaultSizeStoredVersion = 3
 )
 
 // ClientToolsConfig is configuration structure for client tools managed updates.
@@ -50,6 +50,9 @@ type ClientToolsConfig struct {
 	// Tools stores information about tools directories per versions:
 	// `[{"tool_name": "tsh", "path": "tool-path", "version": "tool-version"}]`.
 	Tools []Tool `json:"tools"`
+	// MaxTools defines the maximum number of tools allowed in the tools directory.
+	// Any tools exceeding this limit will be removed during the next installation.
+	MaxTools int `json:"max_tools"`
 }
 
 // AddTool adds a tool to the collection in the configuration, always placing it at the top.
@@ -58,8 +61,11 @@ func (ctc *ClientToolsConfig) AddTool(tool Tool) {
 	if ctc.HasVersion(tool.Version) {
 		return
 	}
-	if len(ctc.Tools) >= defaultSizeStoredVersion {
-		ctc.Tools = append([]Tool{tool}, ctc.Tools[:defaultSizeStoredVersion-1]...)
+	if ctc.MaxTools <= 0 {
+		ctc.MaxTools = defaultSizeStoredVersion
+	}
+	if len(ctc.Tools) >= ctc.MaxTools {
+		ctc.Tools = append([]Tool{tool}, ctc.Tools[:ctc.MaxTools-1]...)
 	} else {
 		ctc.Tools = append([]Tool{tool}, ctc.Tools...)
 	}
