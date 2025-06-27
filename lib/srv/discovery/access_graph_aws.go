@@ -147,11 +147,11 @@ func (s *Server) reconcileAccessGraph(
 
 	if s.hasCloudWatchPollers.Load() {
 		// Send EKS cluster references to be polled for logs via CloudWatch
-		var cwRes []cloudWatchResource
+		var cwRes []cloudWatchLogGroup
 		for _, cluster := range result.EKSClusters {
-			cwRes = append(cwRes, cloudWatchResource{
+			cwRes = append(cwRes, cloudWatchLogGroup{
 				resourceType: cloudWatchResourceEKS,
-				resourceID:   cluster.Name,
+				logGroup:     fmt.Sprintf("/aws/eks/%s/cluster", cluster.Name),
 				region:       cluster.Region,
 			})
 		}
@@ -620,7 +620,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					}
 					continue
 				}
-				s.cloudWatchResourcesCh = make(chan []cloudWatchResource, 1)
+				s.cloudWatchResourcesCh = make(chan []cloudWatchLogGroup, 1)
 				s.hasCloudWatchPollers.Store(true)
 				err = s.startCloudwatchPollers(ctx, reloadCh, specs)
 				if err != nil {
@@ -901,9 +901,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 
 const cloudWatchResourceEKS = "eks"
 
-type cloudWatchResource struct {
+type cloudWatchLogGroup struct {
 	resourceType string
-	resourceID   string
+	logGroup     string
 	region       string
 }
 
@@ -1417,12 +1417,16 @@ func (s *Server) spawnCloudwatchPollers(
 	eventsCh chan<- []cloudWatchEvents,
 ) {
 	s.Log.Info("Spawning CloudWatch poller", "aws_account_id", accountID)
-	type cwResourceKey struct {
-		region string
-		id     string
+	type logGroupKey struct {
+		region   string
+		logGroup string
 	}
 	var cwResLock sync.RWMutex
-	cwResMap := make(map[cwResourceKey]cloudWatchResource)
+	cwResMap := make(map[logGroupKey]cloudWatchLogGroup)
+	cwCursorMap := make(map[logGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor)
+	for _, cursor := range cursors {
+		cwCursorMap[logGroupKey{cursor.Region, cursor.Name}] = cursor
+	}
 	go func() {
 		for {
 			var allEvents []cloudWatchEvents
@@ -1430,18 +1434,26 @@ func (s *Server) spawnCloudwatchPollers(
 				// Create the client
 				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, cwRes.region, awsOpts...)
 				if err != nil {
+					s.Log.ErrorContext(ctx, "Could not get config for AWS",
+						"aws_account_id", accountID, "region", cwRes.region)
 					return
 				}
 				cli := cloudwatchlogs.NewFromConfig(awsCfg)
-				startTime := time.Now()
-				var nextToken *string
+
 				// TODO (mvbrock): Check that the log group exists before fetching logs
-				logGroup := fmt.Sprintf("/aws/eks/%s/cluster", cwRes.resourceID)
+				// Get the log events
+				startTime := time.Now()
+				var nextToken string
+				cursor, ok := cwCursorMap[logGroupKey{cwRes.region, cwRes.logGroup}]
+				if ok {
+					startTime = cursor.StartTime.AsTime()
+					nextToken = cursor.NextToken
+				}
 				params := &cloudwatchlogs.FilterLogEventsInput{
-					LogGroupName:        aws.String(logGroup),
+					LogGroupName:        aws.String(cwRes.logGroup),
 					LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
 					StartTime:           aws.Int64(startTime.Unix()),
-					NextToken:           nextToken,
+					NextToken:           &nextToken,
 				}
 				out, err := cli.FilterLogEvents(ctx, params)
 				if err != nil {
@@ -1449,6 +1461,8 @@ func (s *Server) spawnCloudwatchPollers(
 						"error", err, "region", cwRes.region)
 					return
 				}
+
+				// Process the events
 				var events []*accessgraphv1alpha.AWSCloudWatchEvent
 				for _, cwEvent := range out.Events {
 					cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
@@ -1465,10 +1479,14 @@ func (s *Server) spawnCloudwatchPollers(
 					events:    events,
 					nextToken: *out.NextToken,
 					startTime: startTime,
-					logGroup:  logGroup,
+					logGroup:  cwRes.logGroup,
 					region:    cwRes.region,
 					accountID: accountID,
 				})
+
+				// Update the cursor
+				cursor.NextToken = *out.NextToken
+				cursor.StartTime = timestamppb.New(startTime)
 			}
 
 			// Send the events to the events channel
@@ -1492,7 +1510,7 @@ func (s *Server) spawnCloudwatchPollers(
 					if res.resourceType != cloudWatchResourceEKS {
 						continue
 					}
-					cwResMap[cwResourceKey{res.region, res.resourceID}] = res
+					cwResMap[logGroupKey{res.region, res.logGroup}] = res
 				}
 				cwResLock.Unlock()
 			}
