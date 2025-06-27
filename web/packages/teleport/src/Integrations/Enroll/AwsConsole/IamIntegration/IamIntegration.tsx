@@ -91,7 +91,7 @@ export function IamIntegration() {
     setPhase(Phase.Two);
   }
 
-  // todo mberg 2 in-guide
+  // todo mberg 1 in-guide
   const manageAction = {
     content: (
       <Link href={rolesAnywhere} target="_blank">

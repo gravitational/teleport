@@ -21,7 +21,7 @@ export function ProfilesFilter({
   setFilters: Dispatch<SetStateAction<ProfilesFilterOption[]>>;
 }) {
   const theme = useTheme();
-  // todo mberg hook filter into state
+  // todo mberg 2 hook filter into state
 
   // from e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/CreateFilters.tsx
   const validFilters = (createdFilters: ProfilesFilterOption[]) => () => {
