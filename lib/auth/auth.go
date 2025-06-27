@@ -97,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -700,6 +701,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
 	}
 
+	if as.createBoundKeypairValidator == nil {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
+		}
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -1131,6 +1138,10 @@ type Server struct {
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	bitbucketIDTokenValidator bitbucketIDTokenValidator
+
+	// createBoundKeypairValidator is a helper to create new bound keypair
+	// challenge validators. Used to override the implementation used in tests.
+	createBoundKeypairValidator createBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
