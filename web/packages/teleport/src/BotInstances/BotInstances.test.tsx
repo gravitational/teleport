@@ -34,6 +34,7 @@ import {
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import { makeAcl } from 'teleport/services/user/makeAcl';
 import {
@@ -41,6 +42,7 @@ import {
   listBotInstancesSuccess,
 } from 'teleport/test/helpers/botInstances';
 
+import { ContextProvider } from '..';
 import { BotInstances } from './BotInstances';
 
 jest.mock('teleport/services/bot/bot', () => {

@@ -33,6 +33,7 @@ import {
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
+import { EmptyState } from 'teleport/Bots/List/EmptyState/EmptyState';
 import {
   FeatureBox,
   FeatureHeader,
@@ -41,6 +42,7 @@ import {
 import cfg from 'teleport/config';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
+import useTeleport from 'teleport/useTeleport';
 
 import { BotInstancesList } from './List/BotInstancesList';
 
@@ -51,6 +53,10 @@ export function BotInstances() {
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
   const sort = queryParams.get('sort') || 'active_at_latest:desc';
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const canListInstances = flags.listBotInstances;
 
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
     enabled: canListInstances,
@@ -136,7 +142,14 @@ export function BotInstances() {
     [history]
   );
 
-  const sortType = useMemo(() => parseSortType(sort), [sort]);
+  const sortType = useMemo<SortType>(
+    () =>
+      parseSortType(sort) ?? {
+        fieldName: 'active_at_latest',
+        dir: 'DESC',
+      },
+    [sort]
+  );
 
   const handleSortChanged = useCallback(
     (sortType: SortType) => {
@@ -270,6 +283,6 @@ const InfoGuideReferenceLinks = {
   },
 };
 
-const isUnsupportedSortError = (error: Error) => {
+const isUnsupportedSortError = (error: Error | null) => {
   return error?.message && error.message.includes('unsupported sort');
 };
