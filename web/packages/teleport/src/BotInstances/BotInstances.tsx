@@ -138,6 +138,8 @@ export function BotInstances() {
     [history, location.pathname, location.search]
   );
 
+  const hasUnhealthyCacheError = isUnhealthyCacheError(error);
+
   return (
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
@@ -151,7 +153,22 @@ export function BotInstances() {
         </Box>
       ) : undefined}
 
-      {isError ? (
+      {isError && hasUnhealthyCacheError ? (
+        <Alert
+          kind="warning"
+          primaryAction={{
+            content: 'Reset sort',
+            onClick: () => {
+              handleSortChanged({ fieldName: 'bot_name', dir: 'ASC' });
+            },
+          }}
+          details="The bot instance cache is unhealthy - only sort by bot name ascending is supported. Please reset the sort, or try again later."
+        >
+          {'Service is degraded'}
+        </Alert>
+      ) : undefined}
+
+      {isError && !hasUnhealthyCacheError ? (
         <Alert kind="danger">{`Error: ${error.message}`}</Alert>
       ) : undefined}
 
@@ -224,4 +241,8 @@ const InfoGuideReferenceLinks = {
     title: 'Use tctl to manage bot instances',
     href: 'https://goteleport.com/docs/reference/cli/tctl/#tctl-bots-instances-add',
   },
+};
+
+const isUnhealthyCacheError = (error: Error) => {
+  return error?.message && error.message.includes('cache is unhealthy');
 };

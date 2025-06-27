@@ -314,3 +314,60 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	require.Equal(t, "instance-3", results[1].GetMetadata().GetName())
 	require.Equal(t, "instance-1", results[2].GetMetadata().GetName())
 }
+
+// TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
+func TestBotInstanceCacheFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	p := newTestPack(t, func(cfg Config) Config {
+		cfg.neverOK = true // Force the cache into an unhealthy state
+		return ForAuth(cfg)
+	})
+	t.Cleanup(p.Close)
+
+	_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+		Kind:     types.KindBotInstance,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{},
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    "bot-1",
+			InstanceId: "instance-1",
+		},
+		Status: &machineidv1.BotInstanceStatus{},
+	})
+	require.NoError(t, err)
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// sort ascending by bot_name
+	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+		Field:  "bot_name",
+		IsDesc: false,
+	})
+	require.NoError(t, err) // asc by bot_name is the only sort supported by the upstream
+	require.Len(t, results, 1)
+
+	// sort descending by bot_name
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+		Field:  "bot_name",
+		IsDesc: true,
+	})
+	require.Error(t, err)
+	require.Equal(t, "cache is unhealthy, only bot_name:asc is supported, but got bot_name (desc = true)", err.Error())
+
+	// sort ascending by active_at_latest
+	results, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+		Field:  "active_at_latest",
+		IsDesc: false,
+	})
+	require.Error(t, err)
+	require.Equal(t, "cache is unhealthy, only bot_name:asc is supported, but got active_at_latest (desc = false)", err.Error())
+
+}
