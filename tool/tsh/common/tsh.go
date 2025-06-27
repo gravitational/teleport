@@ -971,8 +971,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
-	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic Access Request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("disable-access-request", "Disable automatic resource Access Requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
@@ -1089,7 +1089,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	proxyDB.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	proxyDB.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
+	proxyDB.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
@@ -1141,7 +1141,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbLogin.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	dbLogin.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
+	dbLogin.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -1169,7 +1169,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").Hidden().BoolVar(&cf.LocalProxyTunnel)
 	dbExec := db.Command("exec", "Execute database commands on target database services.")
 	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
@@ -1336,9 +1336,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables.").BoolVar(&cf.unsetEnvironment)
 
-	req := app.Command("request", "Manage access requests.").Alias("requests")
+	req := app.Command("request", "Manage Access Requests.").Alias("requests")
 
-	reqList := req.Command("ls", "List access requests.").Alias("list")
+	reqList := req.Command("ls", "List Access Requests.").Alias("list")
 	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user.").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer.").BoolVar(&cf.SuggestedRequests)
@@ -1351,18 +1351,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
-	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
+	reqCreate := req.Command("create", "Create a new Access Request.").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested.").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting.").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers.").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	reqCreate.Flag("resource", "Resource ID to be requested.").StringsVar(&cf.RequestedResourceIDs)
-	reqCreate.Flag("request-ttl", "Expiration time for the access request.").DurationVar(&cf.RequestTTL)
+	reqCreate.Flag("request-ttl", "Expiration time for the Access Request.").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
-	reqReview := req.Command("review", "Review an access request.")
+	reqReview := req.Command("review", "Review an Access Request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval.").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial.").BoolVar(&cf.Deny)
@@ -1440,7 +1440,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one more Access Requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.

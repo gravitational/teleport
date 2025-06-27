@@ -18,11 +18,6 @@ TELEPORT_LOGIN_BIND_ADDR:
   default: "none"
   type: "string"
 
-TELEPORT_LOGIN_BROWSER:
-  description: "Set to `none` to stop the system default browser from opening for SSO logins. If the value is not `none`, `tsh` will open the system default browser."
-  default: "none"
-  type: "string"
-
 TELEPORT_PROXY:
   description: "Address of the Teleport proxy server"
   default: "none"
