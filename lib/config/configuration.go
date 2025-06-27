@@ -1652,11 +1652,18 @@ kubernetes matchers are present`)
 					Region:   awsMatcher.CloudTrailLogs.QueueRegion,
 				}
 			}
+			var cloudWatchLogs *types.AccessGraphAWSSyncCloudWatchLogs
+			if awsMatcher.CloudWatchLogs != nil {
+				cloudWatchLogs = &types.AccessGraphAWSSyncCloudWatchLogs{
+					TagFilters: awsMatcher.CloudWatchLogs.TagFilters,
+				}
+			}
 
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
 				Regions:        regions,
 				AssumeRole:     assumeRole,
 				CloudTrailLogs: cloudTrailLogs,
+				CloudWatchLogs: cloudWatchLogs,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {

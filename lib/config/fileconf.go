@@ -1609,6 +1609,12 @@ type AccessGraphAWSSyncCloudTrailLogs struct {
 	QueueRegion string `yaml:"queue_region,omitempty"`
 }
 
+// AccessGraphAWSSyncCloudWatchLogs represents the configuration for CloudWatch polling
+type AccessGraphAWSSyncCloudWatchLogs struct {
+	// TagFilters are used to include specifically-tagged resources
+	TagFilters []string `yaml:"tag_filters,omitempty"`
+}
+
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1621,6 +1627,8 @@ type AccessGraphAWSSync struct {
 	// CloudTrailLogs is the configuration for the SQS queue to poll for
 	// CloudTrail logs.
 	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
+	// CloudWatchLogs is the configuration for CloudWatch polling
+	CloudWatchLogs *AccessGraphAWSSyncCloudWatchLogs `yaml:"cloud_watch_logs,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.

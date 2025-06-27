@@ -24,11 +24,14 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
@@ -38,6 +41,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -73,7 +77,12 @@ const (
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
 var errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 
-func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
+func (s *Server) reconcileAccessGraph(
+	ctx context.Context,
+	currentTAGResources *aws_sync.Resources,
+	stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
+	features aws_sync.Features,
+) error {
 	type fetcherResult struct {
 		result *aws_sync.Resources
 		err    error
@@ -136,6 +145,19 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Merge all results into a single result
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
+
+	if s.hasCloudWatchPollers.Load() {
+		// Send EKS cluster references to be polled for logs via CloudWatch
+		var cwRes []cloudWatchLogGroup
+		for _, cluster := range result.EKSClusters {
+			cwRes = append(cwRes, cloudWatchLogGroup{
+				resourceType: cloudWatchLogGroupEKS,
+				name:         fmt.Sprintf("/aws/eks/%s/cluster", cluster.Name),
+				region:       cluster.Region,
+			})
+		}
+		s.cloudWatchLogGroupsCh <- cwRes
+	}
 
 	for _, fetcher := range allFetchers {
 		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
@@ -206,6 +228,31 @@ func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWS
 		}
 	}
 	return allFetchers
+}
+
+func (s *Server) getAWSSyncSpecsWithCloudwatch() []*types.AccessGraphAWSSync {
+	var specs []*types.AccessGraphAWSSync
+	s.dynamicDiscoveryConfigMu.RLock()
+	for _, discConfig := range s.dynamicDiscoveryConfig {
+		if discConfig.Spec.AccessGraph == nil || len(discConfig.Spec.AccessGraph.AWS) == 0 {
+			continue
+		}
+		for _, spec := range discConfig.Spec.AccessGraph.AWS {
+			if spec.CloudWatchLogs != nil {
+				specs = append(specs, spec)
+			}
+		}
+	}
+	s.dynamicDiscoveryConfigMu.RUnlock()
+	if s.Config.Matchers.AccessGraph == nil {
+		return specs
+	}
+	for _, spec := range s.Config.Matchers.AccessGraph.AWS {
+		if spec.CloudWatchLogs != nil {
+			specs = append(specs, spec)
+		}
+	}
+	return specs
 }
 
 func pushUpsertInBatches(
@@ -561,7 +608,37 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				}
 			}
 		}()
-
+		go func() {
+			reloadCh := s.newDiscoveryConfigChangedSub()
+			for {
+				specs := s.getAWSSyncSpecsWithCloudwatch()
+				if len(specs) == 0 {
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					select {
+					case <-ctx.Done():
+						return
+					case <-reloadCh:
+					}
+					continue
+				}
+				s.cloudWatchLogGroupsCh = make(chan []cloudWatchLogGroup, 1)
+				s.hasCloudWatchPollers.Store(true)
+				err = s.startCloudwatchPollers(ctx, reloadCh, specs)
+				if err != nil {
+					if errors.Is(err, errTAGFeatureNotEnabled) {
+						s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
+						break
+					}
+					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Minute):
+				case <-reloadCh:
+				}
+			}
+		}()
 	}
 	return nil
 }
@@ -823,6 +900,262 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	}
 }
 
+const cloudWatchLogGroupEKS = "eks"
+
+type cloudWatchLogGroup struct {
+	name         string
+	region       string
+	resourceType string
+}
+
+func (s *Server) startCloudwatchPollers(
+	ctx context.Context,
+	reloadCh <-chan struct{},
+	specs []*types.AccessGraphAWSSync,
+) error {
+	// Check that the access graph is enabled
+	clusterFeatures := s.Config.ClusterFeatures()
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
+		return trace.Wrap(errTAGFeatureNotEnabled)
+	}
+
+	// Acquire the service-level lock to prevent multiple discovery instances from simultaneous polling
+	const semaphoreName = "access_graph_aws_cloudwatch_sync"
+	const semaphoreExpiration = time.Minute
+	lease, err := services.AcquireSemaphoreLockWithRetry(
+		ctx,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
+			},
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.DefaultJitter,
+			},
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
+		}
+	}()
+
+	// Create the access graph client and stream
+	tagCli, err := newAccessGraphClient(
+		ctx,
+		s.GetClientCert,
+		s.Config.AccessGraphConfig,
+		grpc.WithDefaultServiceConfig(serviceConfig),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tagCli.Close()
+	client := accessgraphv1alpha.NewAccessGraphServiceClient(tagCli)
+	stream, err := client.AWSCloudWatchStream(ctx)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
+		return trace.Wrap(err)
+	}
+
+	// Initiate the config negotiation by deriving configurations from the sync specs
+	var proposedConfigs []*accessgraphv1alpha.AWSCloudWatchConfig
+	// Assuming one AWS account ID per Discovery service
+	var awsAccountId string
+	for _, spec := range specs {
+		// Get the AWS account ID and CloudWatch start date from the spec
+		if awsAccountId == "" {
+			awsAccountId, err = s.getAccountId(ctx, spec)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error getting AWS account ID", "error", err)
+				return trace.Wrap(err)
+			}
+		}
+		startDate := timestamppb.New(time.Unix(
+			spec.CloudWatchLogs.StartDate.Seconds,
+			int64(spec.CloudWatchLogs.StartDate.Nanos),
+		))
+
+		// Construct initial proposed config based on sync specs
+		for _, region := range spec.Regions {
+			proposedConfigs = append(proposedConfigs, &accessgraphv1alpha.AWSCloudWatchConfig{
+				StartDate: startDate,
+				Region:    region,
+				LogGroups: []string{},
+			})
+		}
+	}
+	err = stream.Send(
+		&accessgraphv1alpha.AWSCloudWatchStreamRequest{
+			Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Configs{
+				Configs: &accessgraphv1alpha.AWSCloudWatchConfigs{
+					Configs: proposedConfigs,
+				},
+			},
+		},
+	)
+	if err != nil {
+		for {
+			_, err := stream.Recv()
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	// Receive the configuration and cursors and store them per AWS account ID
+	configsRes, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive config")
+	}
+	if configsRes.GetConfigs() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail config")
+	}
+	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", configsRes.GetConfigs())
+	configMap := make(map[string]*accessgraphv1alpha.AWSCloudWatchConfig)
+	for _, config := range configsRes.GetConfigs().Configs {
+		configMap[config.Region] = config
+	}
+	cursorsRes, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, "failed to receive resume state")
+	}
+	if cursorsRes.GetCursors() == nil {
+		return trace.BadParameter("access graph service did not return resume state")
+	}
+	s.Log.InfoContext(ctx, "Access graph service resume state", "cursor", cursorsRes.GetCursors())
+	cursorsMap := make(map[cwLogGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor)
+	for _, cursor := range cursorsRes.GetCursors().Cursors {
+		cursorsMap[cwLogGroupKey{cursor.Region, cursor.LogGroup}] = cursor
+	}
+
+	// Wait for access graph client connection state changes in order to stop any further message processing
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		if !tagCli.WaitForStateChange(ctx, connectivity.Ready) {
+			s.Log.InfoContext(ctx, "Access graph service connection was closed")
+		}
+	}()
+
+	// Spawn new pollers
+	eventsCh := make(chan []cloudWatchEvents, 1)
+	spawnPollers := func(
+		newSpecs []*types.AccessGraphAWSSync,
+		configMap map[string]*accessgraphv1alpha.AWSCloudWatchConfig,
+		cursorMap map[cwLogGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor,
+	) (context.CancelFunc, error) {
+		awsOptsMap := make(map[string][]awsconfig.OptionsFn)
+		for _, spec := range newSpecs {
+			awsOpts := getOptions(spec)
+			for _, region := range spec.Regions {
+				awsOptsMap[region] = awsOpts
+			}
+			// Create new configs
+			for _, region := range spec.Regions {
+				if _, ok := configMap[region]; !ok {
+					startDate := timestamppb.New(time.Unix(
+						spec.CloudWatchLogs.StartDate.Seconds,
+						int64(spec.CloudWatchLogs.StartDate.Nanos),
+					))
+					config := &accessgraphv1alpha.AWSCloudWatchConfig{
+						StartDate: startDate,
+						Region:    region,
+						LogGroups: []string{}, // No log groups since no EKS clusters have been fetched
+					}
+					configMap[region] = config
+				}
+			}
+			// TODO (mvbrock): Remove old configs, but won't matter because polling is based on active EKS clusters
+		}
+		pollerCtx, cancelFn := context.WithCancel(ctx)
+		s.spawnCloudwatchPollers(
+			pollerCtx,
+			awsAccountId,
+			configMap,
+			cursorsMap,
+			awsOptsMap,
+			eventsCh)
+		return cancelFn, nil
+	}
+	pollerCancelFn, err := spawnPollers(specs, configMap, cursorsMap)
+
+	// Wait for context done, discovery config reload, and cloudwatch events
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-reloadCh:
+			// Stop existing pollers and spawn new pollers based on new specs
+			specs = s.getAWSSyncSpecsWithCloudwatch()
+			pollerCancelFn()
+			pollerCancelFn, err = spawnPollers(specs, configMap, cursorsMap)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		case events := <-eventsCh:
+			var logGroups []*accessgraphv1alpha.AWSCloudWatchLogGroup
+			for _, event := range events {
+				var nextToken string
+				if event.nextToken != nil {
+					nextToken = *event.nextToken
+				}
+				logGroups = append(logGroups, &accessgraphv1alpha.AWSCloudWatchLogGroup{
+					Events: event.events,
+					Cursor: &accessgraphv1alpha.AWSCloudWatchCursor{
+						Region:    event.region,
+						LogGroup:  event.logGroup,
+						NextToken: nextToken,
+						StartTime: timestamppb.New(event.startTime),
+					},
+				})
+			}
+			err := stream.Send(
+				&accessgraphv1alpha.AWSCloudWatchStreamRequest{
+					Action: &accessgraphv1alpha.AWSCloudWatchStreamRequest_Results{
+						Results: &accessgraphv1alpha.AWSCloudWatchResults{
+							LogGroups: logGroups,
+						},
+					},
+				},
+			)
+			if err != nil {
+				for {
+					_, err := stream.Recv()
+					if err != nil {
+						s.Log.ErrorContext(ctx, "Failed to send access graph AWSCloudWatch events", "error", err)
+						return trace.Wrap(err)
+					}
+				}
+			}
+			continue
+		}
+	}
+}
+
 // receiveTAGConfigFromStream receives the TAG config from the stream.
 func (s *Server) receiveTAGConfigFromStream(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
 	tagAWSConfig, err := stream.Recv()
@@ -894,6 +1227,15 @@ func (s *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWS
 
 type payloadChannelMessage struct {
 	payload   []byte
+	accountID string
+}
+
+type cloudWatchEvents struct {
+	events    []*accessgraphv1alpha.AWSCloudWatchEvent
+	nextToken *string
+	startTime time.Time
+	logGroup  string
+	region    string
 	accountID string
 }
 
@@ -1082,4 +1424,175 @@ func downloadCloudTrailFile(ctx context.Context, client s3Client, bucket, key st
 	}
 
 	return body, nil
+}
+
+type cwLogGroupKey struct {
+	region   string
+	logGroup string
+}
+
+func (s *Server) spawnCloudwatchPollers(
+	ctx context.Context,
+	accountID string,
+	configMap map[string]*accessgraphv1alpha.AWSCloudWatchConfig,
+	cursorsMap map[cwLogGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor,
+	awsOptsMap map[string][]awsconfig.OptionsFn,
+	eventsCh chan<- []cloudWatchEvents,
+) {
+	s.Log.Info("Spawning CloudWatch poller", "aws_account_id", accountID)
+	go func() {
+		logGroupMap := make(map[cwLogGroupKey]cloudWatchLogGroup)
+		for {
+			wg := &sync.WaitGroup{}
+			errCh := make(chan error, len(logGroupMap))
+			pollCh := make(chan *cloudWatchEvents, len(logGroupMap))
+			for _, logGroup := range logGroupMap {
+				// Create the client
+				awsOpts, ok := awsOptsMap[logGroup.region]
+				if !ok {
+					s.Log.ErrorContext(ctx, "No AWS options for CloudWatch client", "aws_Account_id",
+						accountID, "region", logGroup.region)
+					return
+				}
+				awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, logGroup.region, awsOpts...)
+				if err != nil {
+					s.Log.ErrorContext(ctx, "Could not get config for AWS",
+						"aws_account_id", accountID, "region", logGroup.region)
+					return
+				}
+				cli := cloudwatchlogs.NewFromConfig(awsCfg)
+
+				// Get the cursor or create a new one from the config
+				config, ok := configMap[logGroup.region]
+				if !ok {
+					s.Log.ErrorContext(ctx, "No config for CloudWatch region", "region",
+						"aws_account_id", accountID, "region", logGroup.region)
+					return
+				}
+				cursor, ok := cursorsMap[cwLogGroupKey{logGroup.region, logGroup.name}]
+				if !ok {
+					cursor = &accessgraphv1alpha.AWSCloudWatchCursor{
+						Region:    logGroup.region,
+						LogGroup:  logGroup.name,
+						StartTime: config.StartDate,
+					}
+					cursorsMap[cwLogGroupKey{logGroup.region, logGroup.name}] = cursor
+				}
+
+				// Poll CloudWatch for events
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					events, err := pollCloudWatch(ctx, accountID, cli, logGroup, config, cursor)
+					if err != nil {
+						errCh <- err
+					}
+					pollCh <- events
+				}()
+			}
+
+			// Accumulate the events, update the cursors, and send to the events channel
+			wg.Wait()
+			var allEvents []cloudWatchEvents
+			for events := range pollCh {
+				allEvents = append(allEvents, *events)
+				if cursor, ok := cursorsMap[cwLogGroupKey{events.region, events.logGroup}]; ok {
+					if events.nextToken != nil {
+						cursor.NextToken = *events.nextToken
+					}
+					cursor.StartTime = timestamppb.New(events.startTime)
+				}
+			}
+			eventsCh <- allEvents
+			s.Log.InfoContext(ctx, "Polled CloudWatch for all log groups", "account_id", accountID,
+				"log_group_count", len(logGroupMap), "error_count", len(errCh))
+			for err := range errCh {
+				s.Log.DebugContext(ctx, "Error from CloudWatch log group", "error", err)
+			}
+
+			// Look for done context or new log groups before processing more logs
+			select {
+			case <-ctx.Done():
+				s.Log.DebugContext(ctx, "CloudWatch poller log fetcher exiting",
+					"aws_account_id", accountID)
+				break
+			case logGroups := <-s.cloudWatchLogGroupsCh:
+				// Drain the channel to get the most recent log groups
+				for len(s.cloudWatchLogGroupsCh) > 0 {
+					logGroups = <-s.cloudWatchLogGroupsCh
+				}
+				s.Log.DebugContext(ctx, "CloudWatch resources for polling", "resources", logGroups,
+					"aws_account_id", accountID)
+
+				// Reset the map and load the new log groups
+				logGroupMap = make(map[cwLogGroupKey]cloudWatchLogGroup)
+				for _, logGroup := range logGroups {
+					// We only support EKS for now
+					if logGroup.resourceType != cloudWatchLogGroupEKS {
+						continue
+					}
+					logGroupMap[cwLogGroupKey{logGroup.region, logGroup.name}] = logGroup
+				}
+			default:
+			}
+		}
+	}()
+}
+
+func pollCloudWatch(
+	ctx context.Context,
+	accountID string,
+	cli *cloudwatchlogs.Client,
+	logGroup cloudWatchLogGroup,
+	config *accessgraphv1alpha.AWSCloudWatchConfig,
+	cursor *accessgraphv1alpha.AWSCloudWatchCursor,
+) (*cloudWatchEvents, error) {
+	// TODO (mvbrock): Check that the log group exists before fetching logs
+	// Process cursor
+	var startTime time.Time
+	var nextToken *string
+	if cursor != nil {
+		startTime = cursor.StartTime.AsTime()
+		if cursor.NextToken != "" {
+			nextToken = &cursor.NextToken
+		}
+	} else {
+		startTime = config.StartDate.AsTime()
+	}
+
+	// Get the log events
+	params := &cloudwatchlogs.FilterLogEventsInput{
+		LogGroupName:        aws.String(logGroup.name),
+		LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
+		StartTime:           aws.Int64(startTime.UnixMilli()),
+		NextToken:           nextToken,
+	}
+	out, err := cli.FilterLogEvents(ctx, params)
+	if err != nil {
+		slog.ErrorContext(ctx, "Error requesting log events from CloudWatch",
+			"error", err, "region", logGroup.region)
+		return nil, trace.Wrap(err)
+	}
+
+	// Process the events
+	var events []*accessgraphv1alpha.AWSCloudWatchEvent
+	for _, cwEvent := range out.Events {
+		cwTimestamp := time.UnixMilli(*cwEvent.Timestamp)
+		event := &accessgraphv1alpha.AWSCloudWatchEvent{
+			Message:   *cwEvent.Message,
+			Timestamp: timestamppb.New(cwTimestamp),
+		}
+		if cwTimestamp.After(startTime) {
+			startTime = cwTimestamp
+		}
+		events = append(events, event)
+	}
+	return &cloudWatchEvents{
+		events:    events,
+		nextToken: out.NextToken,
+		startTime: startTime,
+		logGroup:  logGroup.name,
+		region:    logGroup.region,
+		accountID: accountID,
+	}, nil
 }
