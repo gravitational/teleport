@@ -1,0 +1,89 @@
+# The check webassets-bundle-size workflow compares the bundle sizes of web assets before and after
+# changes in a pull request. It checks out the base branch, builds the web assets, and stores the
+# initial bundle stats. Then it checks out the pull request branch, builds the web assets again, and
+# compares the bundle stats. It posts the results as a comment on the pull request.
+name: Check Web Assets Bundle Size
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/check-webassets-bundle-size.yaml'
+      - 'web/**'
+      - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  pull-requests: write
+
+jobs:
+  check-webassets-bundle-size:
+    name: Check Web Assets Bundle Size
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+    steps:
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+
+      - name: Installing Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: Install JS dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Build WASM
+        run: pnpm build-wasm
+
+      - name: Build web assets
+        run: VITE_OUTPUT_STATS=1 pnpm build-ui-oss
+
+      - name: Store base
+        id: store-base
+        run: |
+          if [ -f webassets/teleport/stats.json ]; then
+            cp webassets/teleport/stats.json /tmp/stats-before.json
+            echo "has-base-stats=true" >> $GITHUB_OUTPUT
+          else
+            echo "Base branch does not have the Vite stats plugin"
+            echo "has-base-stats=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout PR branch
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install JS dependencies
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Build WASM
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        run: pnpm build-wasm
+
+      - name: Build web assets
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        run: VITE_OUTPUT_STATS=1 pnpm build-ui-oss
+
+      - name: Store base
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        run: cp webassets/teleport/stats.json /tmp/stats-after.json
+
+      - name: Compare the bundle sizes
+        if: steps.store-base.outputs.has-base-stats == 'true'
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=webassets -token="${{ secrets.GITHUB_TOKEN }}" --stats /tmp/stats-before.json,/tmp/stats-after.json  -reviewers="${{ secrets.reviewers }}"

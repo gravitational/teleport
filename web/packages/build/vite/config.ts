@@ -26,6 +26,7 @@ import wasm from 'vite-plugin-wasm';
 import { generateAppHashFile } from './apphash';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
+import { statsPlugin } from './stats';
 import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
@@ -94,6 +95,10 @@ export function createViteConfig(
 
     if (process.env.VITE_ANALYZE_BUNDLE) {
       config.plugins.push(visualizer());
+    }
+
+    if (process.env.VITE_OUTPUT_STATS) {
+      config.plugins.push(statsPlugin(rootDirectory, outputDirectory));
     }
 
     if (mode === 'production') {

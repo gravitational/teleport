@@ -67,6 +67,7 @@
     "playwright": "^1.52.0",
     "prettier": "^3.5.3",
     "react-select-event": "^5.5.1",
+    "rollup": "^4.44.1",
     "storybook": "^8.6.12",
     "svgo": "^4.0.0",
     "typescript": "^5.8.3",
