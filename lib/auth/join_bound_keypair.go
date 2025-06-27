@@ -569,9 +569,12 @@ func (a *Server) tryLockBotInvalidJoinState(
 			JoinToken: ptv2.GetName(),
 		},
 		Message: fmt.Sprintf(
-			"The join token %q has been locked after a client failed to verify its join state, possibly indicating a stolen keypair.",
-			ptv2.GetName(),
+			"The join token %q has been locked by bot %q after a client "+
+				"failed to verify its join state, possibly indicating a "+
+				"stolen keypair.",
+			ptv2.GetName(), ptv2.GetBotName(),
 		),
+		CreatedAt: a.clock.Now(),
 	})
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Unable to create lock for bound keypair token")
@@ -865,6 +868,8 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		// Once we've verified the client has the matching private key, validate
 		// the join state. This must be done after a successful challenge to
 		// make sure an otherwise unauthorized client can't trigger a lockout.
+		// This also needs to be done before rotation to prevent an attacker
+		// from rotating the key.
 		if err := a.verifyBoundKeypairJoinState(ctx, log, req, ptv2, ca); err != nil {
 			return nil, trace.AccessDenied("join state verification failed")
 		}
