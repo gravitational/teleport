@@ -1062,19 +1062,24 @@ func (s *Server) startCloudwatchPollers(
 
 	// Spawn new pollers
 	eventsCh := make(chan []cloudWatchEvents, 1)
-	spawnPollers := func(newSpecs []*types.AccessGraphAWSSync) (context.CancelFunc, error) {
+	spawnPollers := func(
+		newSpecs []*types.AccessGraphAWSSync,
+		configMap map[string]*accessgraphv1alpha.AWSCloudWatchConfig,
+		cursorMap map[cwLogGroupKey]*accessgraphv1alpha.AWSCloudWatchCursor,
+	) (context.CancelFunc, error) {
 		awsOptsMap := make(map[string][]awsconfig.OptionsFn)
 		for _, spec := range newSpecs {
 			awsOpts := getOptions(spec)
 			for _, region := range spec.Regions {
 				awsOptsMap[region] = awsOpts
 			}
-			startDate := timestamppb.New(time.Unix(
-				spec.CloudWatchLogs.StartDate.Seconds,
-				int64(spec.CloudWatchLogs.StartDate.Nanos),
-			))
+			// Create new configs
 			for _, region := range spec.Regions {
 				if _, ok := configMap[region]; !ok {
+					startDate := timestamppb.New(time.Unix(
+						spec.CloudWatchLogs.StartDate.Seconds,
+						int64(spec.CloudWatchLogs.StartDate.Nanos),
+					))
 					config := &accessgraphv1alpha.AWSCloudWatchConfig{
 						StartDate: startDate,
 						Region:    region,
@@ -1083,6 +1088,7 @@ func (s *Server) startCloudwatchPollers(
 					configMap[region] = config
 				}
 			}
+			// TODO (mvbrock): Remove old configs, but won't matter because polling is based on active EKS clusters
 		}
 		pollerCtx, cancelFn := context.WithCancel(ctx)
 		s.spawnCloudwatchPollers(
@@ -1094,7 +1100,7 @@ func (s *Server) startCloudwatchPollers(
 			eventsCh)
 		return cancelFn, nil
 	}
-	pollerCancelFn, err := spawnPollers(specs)
+	pollerCancelFn, err := spawnPollers(specs, configMap, cursorsMap)
 
 	// Wait for context done, discovery config reload, and cloudwatch events
 	for {
@@ -1105,7 +1111,7 @@ func (s *Server) startCloudwatchPollers(
 			// Stop existing pollers and spawn new pollers based on new specs
 			specs = s.getAWSSyncSpecsWithCloudwatch()
 			pollerCancelFn()
-			pollerCancelFn, err = spawnPollers(specs)
+			pollerCancelFn, err = spawnPollers(specs, configMap, cursorsMap)
 			if err != nil {
 				return trace.Wrap(err)
 			}
