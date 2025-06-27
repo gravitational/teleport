@@ -633,21 +633,28 @@ message AWSCloudWatchStreamRequest {
 message AWSCloudWatchStreamResponse {
   oneof state {
     // The configuration received from the Access Graph
-    AWSCloudWatchConfig config = 1;
+    AWSCloudWatchConfigs configs = 1;
     // The cursor received from the Access Graph
-    AWSCloudWatchCursor cursor = 2;
+    AWSCloudWatchCursors cursors = 2;
   }
 }
 
 // The CloudWatch configuration received from the Access Graph which provides
-// parameters for log group pollers
-message AWSCloudWatchConfig {
-  // The CloudWatch log group pollers
-  repeated AWSCloudWatchPollerConfig pollers = 1;
+// parameters for each discovery integration
+message AWSCloudWatchConfigs {
+  // The CloudWatch configs
+  repeated AWSCloudWatchConfig configs = 1;
+}
+
+// The CloudWatch cursors received from the Access Graph which provides
+// parameters for each discovery integration
+message AWSCloudWatchCursors {
+  // The CloudWatch cursors
+  repeated AWSCloudWatchCursor cursors = 1;
 }
 
 // The CloudWatch poller configuration
-message AWSCloudWatchPollerConfig {
+message AWSCloudWatchConfig {
   // The AWS account ID
   string account_id = 1;
   // AWS tag filters to only log specific resources
@@ -665,16 +672,10 @@ message AWSCloudWatchResults {
 // AWS CloudWatch log group results, consisting of log data and the cursor for
 // querying and paging
 message AWSCloudWatchLogGroup {
-  // The AWS account ID for this batch of logs
-  string account_id = 1;
-  // The AWS region of the log group
-  string region = 2;
-  // The name of the CloudWatch log group
-  string name = 3;
   // The events as they arrive from the CloudWatch API
-  repeated AWSCloudWatchEvent events = 4;
+  repeated AWSCloudWatchEvent events = 1;
   // The cursors for each log group, for querying and paging
-  AWSCloudWatchCursor cursor = 5;
+  AWSCloudWatchCursor cursor = 2;
 }
 
 // The AWS CloudWatch event as it arrives from the CloudWatch API
@@ -688,10 +689,16 @@ message AWSCloudWatchEvent {
 // The CloudWatch cursor, providing both a next token and a start time for
 // paging through CloudWatch logs.
 message AWSCloudWatchCursor {
+  // The AWS account ID for this batch of logs
+  string account_id = 1;
+  // The AWS region of the log group
+  string region = 2;
+  // The name of the CloudWatch log group
+  string name = 3;
   // The next token used for paging query results
-  string next_token = 1;
+  string next_token = 4;
   // The start time used for the query
-  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp start_time = 5;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
