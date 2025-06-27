@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -145,19 +147,22 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		log:    b.log,
 	}
 
-	// TODO: add the diagnostics service.
-	//
-	// if b.cfg.DiagAddr != "" {
-	// 	services = append(services, &diagnosticsService{
-	// 		diagAddr:     b.cfg.DiagAddr,
-	// 		pprofEnabled: b.cfg.Debug,
-	// 		log: b.log.With(
-	// 			teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
-	// 		),
-	// 	})
-	// }
-
 	var botServices []bot.ServiceBuilder
+
+	if b.cfg.DiagAddr != "" {
+		diagService, err := diagnostics.NewService(diagnostics.Config{
+			Address: b.cfg.DiagAddr,
+			Logger: b.log.With(
+				teleport.ComponentKey,
+				teleport.Component(teleport.ComponentTBot, "diagnostics"),
+			),
+			PProfEnabled: b.cfg.Debug,
+		})
+		if err != nil {
+			return trace.Wrap(err, "building diagnostics service")
+		}
+		botServices = append(botServices, bot.LiteralService(diagService))
+	}
 
 	// TODO: this is a bit hacky. Is it really the best way?
 	botServices = append(botServices, func(deps bot.ServiceDependencies) (bot.Service, error) {
