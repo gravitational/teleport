@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -271,7 +272,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&ExampleService{
+					&example.Config{
 						Message: "llama",
 					},
 					&SSHMultiplexerService{

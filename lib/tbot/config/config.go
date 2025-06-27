@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -287,8 +288,8 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		switch header.Type {
-		case ExampleServiceType:
-			v := &ExampleService{}
+		case example.ServiceType:
+			v := &example.Config{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

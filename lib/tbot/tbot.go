@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/loop"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -211,8 +212,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			botServices = append(botServices, SPIFFEWorkloadAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.DatabaseTunnelService:
 			botServices = append(botServices, DatabaseTunnelServiceBuilder(b.cfg, svcCfg))
-		case *config.ExampleService:
-			botServices = append(botServices, bot.LiteralService(&ExampleService{cfg: svcCfg}))
+		case *example.Config:
+			botServices = append(botServices, example.ServiceBuilder(svcCfg))
 		case *config.SSHMultiplexerService:
 			botServices = append(botServices, SSHMultiplexerServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
 		case *config.KubernetesOutput:
