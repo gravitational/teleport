@@ -102,12 +102,10 @@ func TestNodesDontCacheHighVolumeResources(t *testing.T) {
 // testPack contains pack of
 // services used for test run
 type testPack struct {
-	dataDir      string
-	backend      *backend.Wrapper
-	eventsC      chan Event
-	cache        *Cache
-	cacheBackend backend.Backend
-
+	dataDir                 string
+	backend                 *backend.Wrapper
+	eventsC                 chan Event
+	cache                   *Cache
 	eventsS                 *proxyEvents
 	trustS                  *local.CA
 	provisionerS            *local.ProvisioningService
@@ -256,15 +254,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.backend = backend.NewWrapper(bk)
-
-	p.cacheBackend, err = memory.New(
-		memory.Config{
-			Context: ctx,
-			Mirror:  true,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	p.eventsC = make(chan Event, eventBufferSize)
 
@@ -453,7 +442,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 	p.cache, err = New(setupConfig(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -713,22 +701,13 @@ func TestCompletenessInit(t *testing.T) {
 	}
 
 	for range inits {
-		var err error
-
-		p.cacheBackend, err = memory.New(
-			memory.Config{
-				Context: ctx,
-				Mirror:  true,
-			})
-		require.NoError(t, err)
-
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
 
+		var err error
 		p.cache, err = New(ForAuth(Config{
 			Context:                 ctx,
-			Backend:                 p.cacheBackend,
 			Events:                  p.eventsS,
 			ClusterConfig:           p.clusterConfigS,
 			Provisioner:             p.provisionerS,
@@ -792,8 +771,6 @@ func TestCompletenessInit(t *testing.T) {
 
 		require.NoError(t, p.cache.Close())
 		p.cache = nil
-		require.NoError(t, p.cacheBackend.Close())
-		p.cacheBackend = nil
 	}
 }
 
@@ -817,7 +794,6 @@ func TestCompletenessReset(t *testing.T) {
 	var err error
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -976,7 +952,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -1076,7 +1051,6 @@ func initStrategy(t *testing.T) {
 	var err error
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
-		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
