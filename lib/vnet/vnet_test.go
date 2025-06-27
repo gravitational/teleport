@@ -1157,7 +1157,8 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	clock := clockwork.NewRealClock()
 	homePath := t.TempDir()
 
