@@ -770,7 +770,7 @@ func (s *Server) startHeartbeat(database types.Database) error {
 }
 
 // stopHeartbeat stops the heartbeat for the specified database.
-func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, unregistering bool) error {
+func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, deleteFromUpstream bool) error {
 	s.mu.Lock()
 	heartbeat, ok := s.heartbeats[db.GetName()]
 	if !ok {
@@ -791,7 +791,7 @@ func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, unregiste
 	// stopping the upstream inventory heartbeat or deleting it manually
 	// will incur a backend write, so we should only do it when the database
 	// is being unregistered
-	if !unregistering {
+	if !deleteFromUpstream {
 		return nil
 	}
 
