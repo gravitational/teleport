@@ -1,4 +1,4 @@
-> This fork is maintained by Loadsmart to compile Teleport CE from source under the AGPLv3 license to avoid the commercial restrictions of the Apache 2.0-licensed binaries. A CircleCI-powered pipeline automates the compilation, builds a distroless image, and pushes it to a private registry.
+> This fork is maintained by Loadsmart to compile Teleport CE from source under the AGPLv3 license to avoid the commercial restrictions of the Apache 2.0-licensed binaries. A CircleCI-powered pipeline automates the compilation, builds a distroless image, and pushes it to a private registry. See the [Confluence page](https://loadsmart.atlassian.net/wiki/spaces/PLATFORMOPERATIONS/pages/2776891393/Teleport+Management#How-to-upgrade-Teleport).
 
 Teleport provides connectivity, authentication, access controls and audit for infrastructure.
 

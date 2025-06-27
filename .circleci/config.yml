@@ -6,7 +6,6 @@ tag-pattern: &tag-pattern
 orbs:
   lumper: loadsmart/lumper@4
   aws-ecr: circleci/aws-ecr@9.5.2
-  sentinel: loadsmart/sentinel@1
 
 jobs:
   build-distroless:
@@ -98,6 +97,7 @@ workflows:
             branches:
               ignore:
                 - master
+                - release/*
 
   build-and-push:
     jobs:
@@ -110,8 +110,3 @@ workflows:
               ignore: /.*/
             tags:
               <<: *tag-pattern
-
-  developer-productivity:
-    jobs:
-      - sentinel/default:
-          context: org-global
