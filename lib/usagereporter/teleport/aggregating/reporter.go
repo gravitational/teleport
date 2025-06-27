@@ -209,6 +209,8 @@ func convertUserKind(v1AlphaUserKind prehogv1alpha.UserKind) prehogv1.UserKind {
 		return prehogv1.UserKind_USER_KIND_BOT
 	case prehogv1alpha.UserKind_USER_KIND_HUMAN:
 		return prehogv1.UserKind_USER_KIND_HUMAN
+	case prehogv1alpha.UserKind_USER_KIND_SYSTEM:
+		return prehogv1.UserKind_USER_KIND_SYSTEM
 	default:
 		return prehogv1.UserKind_USER_KIND_UNSPECIFIED
 	}
