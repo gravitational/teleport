@@ -197,7 +197,7 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 	k, err := doc.DataAt(keyDocProperty)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, ConvertGRPCError(err)
 	}
 
 	var r record
@@ -206,7 +206,7 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 		// If the key is a slice of any, then the key was mistakenly persisted
 		// as a backend.Key directly.
 		var br brokenRecord
-		if doc.DataTo(&br) != nil {
+		if err := doc.DataTo(&br); err != nil {
 			return nil, ConvertGRPCError(err)
 		}
 
@@ -223,8 +223,8 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			// Value was a string. This document could've been written by an older
 			// version of our code.
 			var rl legacyRecord
-			if doc.DataTo(&rl) != nil {
-				return nil, ConvertGRPCError(err)
+			if legacyErr := doc.DataTo(&rl); legacyErr != nil {
+				return nil, trace.NewAggregate(ConvertGRPCError(err), ConvertGRPCError(legacyErr))
 			}
 			r = record{
 				Key:       backend.Key(rl.Key),
