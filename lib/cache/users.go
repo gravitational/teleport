@@ -40,6 +40,7 @@ func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[
 
 	return &collection[types.User, userIndex]{
 		store: newStore(
+			types.KindUser,
 			types.User.Clone,
 			map[userIndex]func(types.User) string{
 				userNameIndex: types.User.GetName,
