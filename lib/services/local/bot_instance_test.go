@@ -452,3 +452,28 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 		})
 	}
 }
+
+// TestBotInstanceListWithSort verifies sorting returns a not-implemented error.
+func TestBotInstanceListWithSort(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	ctx := context.Background()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{})
+	require.Error(t, err)
+	require.Equal(t, "sorting is not implemented", err.Error())
+
+	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil)
+	require.NoError(t, err)
+}

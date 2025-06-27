@@ -147,7 +147,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 				return nil, "", trace.BadParameter("cache is unhealthy, only bot_name:asc is supported, but got %s (desc = %t)", sort.Field, sort.IsDesc)
 			}
 
-			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort) // Upstream does not support sorting
+			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, nil) // Upstream does not support sorting
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
 			return matchBotInstance(b, botName, search)
