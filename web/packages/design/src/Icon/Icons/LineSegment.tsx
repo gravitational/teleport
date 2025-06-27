@@ -59,7 +59,11 @@ export const LineSegment = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  fillRule="evenodd" d="M16.476 8.585a3 3 0 1 0-1.06-1.06l-7.892 7.89a3 3 0 1 0 1.06 1.06zM18 4.5a1.5 1.5 0 0 0-1.067 2.554l.006.006.006.007A1.5 1.5 0 1 0 18 4.5M7.054 16.933l.006.006.007.006a1.5 1.5 0 1 1-.012-.012" clipRule="evenodd"/>
+      <path
+        fillRule="evenodd"
+        d="M16.476 8.585a3 3 0 1 0-1.06-1.06l-7.892 7.89a3 3 0 1 0 1.06 1.06zM18 4.5a1.5 1.5 0 0 0-1.067 2.554l.006.006.006.007A1.5 1.5 0 1 0 18 4.5M7.054 16.933l.006.006.007.006a1.5 1.5 0 1 1-.012-.012"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );

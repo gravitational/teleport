@@ -59,7 +59,11 @@ export const Label = forwardRef<HTMLSpanElement, IconProps>(
       {...otherProps}
       ref={ref}
     >
-      <path  fillRule="evenodd" d="M2.69 4.94a1.5 1.5 0 0 1 1.06-.44h13.849a1.5 1.5 0 0 1 1.247.668l4.278 6.416a.75.75 0 0 1 0 .832l-4.278 6.416a1.5 1.5 0 0 1-1.247.668H3.75a1.5 1.5 0 0 1-1.5-1.5V6c0-.398.158-.78.44-1.06M17.597 6H3.75v12h13.848l4-6z" clipRule="evenodd"/>
+      <path
+        fillRule="evenodd"
+        d="M2.69 4.94a1.5 1.5 0 0 1 1.06-.44h13.849a1.5 1.5 0 0 1 1.247.668l4.278 6.416a.75.75 0 0 1 0 .832l-4.278 6.416a1.5 1.5 0 0 1-1.247.668H3.75a1.5 1.5 0 0 1-1.5-1.5V6c0-.398.158-.78.44-1.06M17.597 6H3.75v12h13.848l4-6z"
+        clipRule="evenodd"
+      />
     </Icon>
   )
 );
