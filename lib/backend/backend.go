@@ -189,18 +189,21 @@ func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit i
 // 2. allow individual backends to expose custom streaming methods s.t. the most performant
 // impl for a given backend may be used.
 func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize int) stream.Stream[Item] {
-	return stream.PageFunc[Item](func() ([]Item, error) {
-		if startKey.components == nil {
+	var done bool
+	return stream.PageFunc(func() ([]Item, error) {
+		if done {
 			return nil, io.EOF
 		}
-		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize+1)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(rslt.Items) < pageSize {
-			startKey = Key{}
+		if len(rslt.Items) > pageSize {
+			startKey = rslt.Items[pageSize].Key
+			clear(rslt.Items[pageSize:])
+			rslt.Items = rslt.Items[:pageSize]
 		} else {
-			startKey = nextKey(rslt.Items[pageSize-1].Key)
+			done = true
 		}
 		return rslt.Items, nil
 	})
@@ -320,10 +323,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// nextKey returns the next possible key.
-// If used with a key prefix, this will return
-// the end of the range for that key prefix.
-func nextKey(key Key) Key {
+const noEnd = "\x00"
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key Key) Key {
 	end := make([]byte, len(key.s))
 	copy(end, key.s)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -335,13 +338,6 @@ func nextKey(key Key) Key {
 	}
 	// next key does not exist (e.g., 0xffff);
 	return Key{noEnd: true}
-}
-
-var noEnd = []byte{0}
-
-// RangeEnd returns end of the range for given key.
-func RangeEnd(key Key) Key {
-	return nextKey(key)
 }
 
 // HostID is a derivation of a KeyedItem that allows the host id
