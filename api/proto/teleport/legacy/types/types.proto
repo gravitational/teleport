@@ -8709,6 +8709,8 @@ message AccessGraphAWSSyncCloudTrailLogs {
 message AccessGraphAWSSyncCloudWatchLogs {
   // AWS tag filters to only log specific resources
   repeated string TagFilters = 1 [(gogoproto.jsontag) = "tag_filters,omitempty"];
+  // Start date to begin polling CloudWatch
+  google.protobuf.Timestamp StartDate = 2 [(gogoproto.jsontag) = "start_date,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.

@@ -3001,12 +3001,12 @@ func (*AWSCloudWatchStreamResponse_Cursor) isAWSCloudWatchStreamResponse_State()
 // parameters for polling the log group
 type AWSCloudWatchConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The starting point for tailing the log
-	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
-	// The log groups from which to tail logs
-	LogGroups []string `protobuf:"bytes,2,rep,name=log_groups,json=logGroups,proto3" json:"log_groups,omitempty"`
 	// The AWS account ID
-	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountId string `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// AWS tag filters to only log specific resources
+	TagFilters []string `protobuf:"bytes,2,rep,name=tag_filters,json=tagFilters,proto3" json:"tag_filters,omitempty"`
+	// The starting point for tailing the log
+	StartDate     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3041,25 +3041,25 @@ func (*AWSCloudWatchConfig) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{44}
 }
 
-func (x *AWSCloudWatchConfig) GetStartDate() *timestamppb.Timestamp {
-	if x != nil {
-		return x.StartDate
-	}
-	return nil
-}
-
-func (x *AWSCloudWatchConfig) GetLogGroups() []string {
-	if x != nil {
-		return x.LogGroups
-	}
-	return nil
-}
-
 func (x *AWSCloudWatchConfig) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
 	return ""
+}
+
+func (x *AWSCloudWatchConfig) GetTagFilters() []string {
+	if x != nil {
+		return x.TagFilters
+	}
+	return nil
+}
+
+func (x *AWSCloudWatchConfig) GetStartDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartDate
+	}
+	return nil
 }
 
 // The results from querying AWS CloudWatch
@@ -4061,14 +4061,14 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x1bAWSCloudWatchStreamResponse\x12B\n" +
 	"\x06config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchConfigH\x00R\x06config\x12B\n" +
 	"\x06cursor\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudWatchCursorH\x00R\x06cursorB\a\n" +
-	"\x05state\"\x8e\x01\n" +
-	"\x13AWSCloudWatchConfig\x129\n" +
+	"\x05state\"\x90\x01\n" +
+	"\x13AWSCloudWatchConfig\x12\x1d\n" +
 	"\n" +
-	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\x1d\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1f\n" +
+	"\vtag_filters\x18\x02 \x03(\tR\n" +
+	"tagFilters\x129\n" +
 	"\n" +
-	"log_groups\x18\x02 \x03(\tR\tlogGroups\x12\x1d\n" +
-	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\"a\n" +
+	"start_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"a\n" +
 	"\x14AWSCloudWatchResults\x12I\n" +
 	"\n" +
 	"log_groups\x18\x01 \x03(\v2*.accessgraph.v1alpha.AWSCloudWatchLogGroupR\tlogGroups\"\xe5\x01\n" +

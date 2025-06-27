@@ -642,12 +642,12 @@ message AWSCloudWatchStreamResponse {
 // The CloudWatch configuration received from the Access Graph which provides
 // parameters for polling the log group
 message AWSCloudWatchConfig {
-  // The starting point for tailing the log
-  google.protobuf.Timestamp start_date = 1;
-  // The log groups from which to tail logs
-  repeated string log_groups = 2;
   // The AWS account ID
-  string account_id = 3;
+  string account_id = 1;
+  // AWS tag filters to only log specific resources
+  repeated string tag_filters = 2;
+  // The starting point for tailing the log
+  google.protobuf.Timestamp start_date = 3;
 }
 
 // The results from querying AWS CloudWatch
