@@ -640,8 +640,14 @@ message AWSCloudWatchStreamResponse {
 }
 
 // The CloudWatch configuration received from the Access Graph which provides
-// parameters for polling the log group
+// parameters for log group pollers
 message AWSCloudWatchConfig {
+  // The CloudWatch log group pollers
+  repeated AWSCloudWatchPollerConfig pollers = 1;
+}
+
+// The CloudWatch poller configuration
+message AWSCloudWatchPollerConfig {
   // The AWS account ID
   string account_id = 1;
   // AWS tag filters to only log specific resources
