@@ -5233,6 +5233,9 @@ message OIDCConnectorSpecV3 {
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
   // PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
   string PKCEMode = 20 [(gogoproto.jsontag) = "pkce_mode,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5446,6 +5449,9 @@ message SAMLConnectorSpecV2 {
   // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
   // auth connector behavior and only use http-post binding if it is explicitly configured.
   string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5638,6 +5644,9 @@ message GithubConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 10 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
