@@ -25,12 +25,13 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -114,6 +115,9 @@ type Backend struct {
 	// to handle retries locally.
 	// The same happens with SQlite backend.
 	mu sync.Mutex
+
+	latestSeenRevision string    // latest seen revision of the secret, used to detect changes
+	revisionTime       time.Time // time of the latest seen revision, used to detect changes
 }
 
 // New returns a new instance of Kubernetes Secret identity backend storage.
@@ -196,10 +200,15 @@ func NewWithConfig(conf Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Backend{
+	b := &Backend{
 		Config: conf,
 		mu:     sync.Mutex{},
-	}, nil
+	}
+
+	if err := b.getOrCreateSecret(context.Background()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return b, nil
 }
 
 func (b *Backend) GetName() string {
@@ -218,6 +227,42 @@ func (b *Backend) Exists(ctx context.Context) bool {
 	return err == nil
 }
 
+func (b *Backend) getOrCreateSecret(ctx context.Context) error {
+	retries := -1
+retry:
+	retries++
+	switch secret, err := b.getSecret(ctx); {
+	case err == nil:
+		b.setLastResourceVersion(secret.ResourceVersion)
+		return nil
+	case kubeerrors.IsNotFound(err):
+		// Secret does not exist, create it.
+		secret := b.genSecretObject()
+
+		oldSecretRevision := secret.ResourceVersion
+		secret, err := b.KubeClient.
+			CoreV1().
+			Secrets(b.Namespace).
+			Create(ctx, secret, metav1.CreateOptions{
+				FieldManager: b.FieldManager,
+			})
+		if kubeerrors.IsAlreadyExists(err) && retries < 5 {
+			b.waitForNewRevision(ctx, oldSecretRevision)
+			goto retry
+		}
+		if err != nil {
+			// If the error is not "already exists", return it.
+			return trace.Wrap(err)
+		}
+		// Secret was created successfully, update the latest seen revision.
+		b.setLastResourceVersion(secret.ResourceVersion)
+		return nil
+	default:
+		// Some other error occurred, return it.
+		return trace.Wrap(err)
+	}
+}
+
 // Get reads the secret and extracts the key from it.
 // If the secret does not exist or the key is not found it returns trace.Notfound,
 // otherwise returns the underlying error.
@@ -233,7 +278,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.updateSecretContent(ctx, i)
+	return b.createSecretContent(ctx, i)
 }
 
 // Put puts value into backend (creates if it does not exist, updates it otherwise)
@@ -249,10 +294,22 @@ func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
 	secret, err := b.KubeClient.
 		CoreV1().
 		Secrets(b.Namespace).
-		Get(ctx, b.SecretName, metav1.GetOptions{})
+		Get(ctx, b.SecretName, metav1.GetOptions{
+			// We use ResourceVersion to ensure we get at least the latest
+			// version of the secret that we have seen. This is important to avoid
+			// races where different kubernetes api servers might return
+			// different versions of the secret.
+			// If set, ResourceVersion will return the secret whose version is
+			// greater than or equal to the specified version.
+			ResourceVersion: b.getLastResourceVersion(),
+		})
 
 	if kubeerrors.IsNotFound(err) {
 		return nil, trace.NotFound("secret %v not found", b.SecretName)
+	}
+
+	if secret != nil {
+		b.setLastResourceVersion(secret.ResourceVersion)
 	}
 
 	return secret, trace.Wrap(err)
@@ -277,47 +334,130 @@ func (b *Backend) readSecretData(ctx context.Context, key backend.Key) (*backend
 	}, nil
 }
 
-func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item) (*backend.Lease, error) {
+func (b *Backend) createSecretContent(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	// FIXME(tigrato):
 	// for now, the agent is the owner of the secret so it's safe to replace changes
+loop:
+	for range 5 {
+		secret, err := b.getSecret(ctx)
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("secret %q not found. An external process may have deleted it.", b.SecretName)
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	secret, err := b.getSecret(ctx)
-	if trace.IsNotFound(err) {
-		secret = b.genSecretObject()
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
 
-	if secret.Data == nil {
-		secret.Data = map[string][]byte{}
-	}
+		if _, ok := secret.Data[backendKeyToSecret(item.Key)]; ok {
+			return nil, trace.AlreadyExists("key %q already exists in secret %q", item.Key.String(), b.SecretName)
+		}
 
-	updateDataMap(secret.Data, items...)
-
-	if err := b.upsertSecret(ctx, secret); err != nil {
-		return nil, trace.Wrap(err)
+		updateDataMap(secret.Data, item)
+		oldSecretRevision := secret.ResourceVersion
+		secret, err = b.KubeClient.
+			CoreV1().
+			Secrets(b.Namespace).
+			Update(ctx, secret, metav1.UpdateOptions{
+				FieldManager: b.FieldManager,
+			})
+		switch {
+		case kubeerrors.IsConflict(err):
+			b.waitForNewRevision(ctx, oldSecretRevision)
+			continue // retry on conflict
+		case err == nil:
+			b.setLastResourceVersion(secret.ResourceVersion)
+			break loop
+		default:
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &backend.Lease{}, nil
 }
 
-func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error {
-	secretApply := applyconfigv1.Secret(b.SecretName, b.Namespace).
-		WithData(secret.Data).
-		WithLabels(secret.GetLabels()).
-		WithAnnotations(secret.GetAnnotations())
+func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item) (*backend.Lease, error) {
+	// FIXME(tigrato):
+	// for now, the agent is the owner of the secret so it's safe to replace changes
+loop:
+	for range 5 {
+		secret, err := b.getSecret(ctx)
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("secret %q not found. An external process may have deleted it.", b.SecretName)
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// apply resource lock if it's not a creation
-	if len(secret.ResourceVersion) > 0 {
-		secretApply = secretApply.WithResourceVersion(secret.ResourceVersion)
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+
+		updateDataMap(secret.Data, items...)
+		oldSecretRevision := secret.ResourceVersion
+		secret, err = b.KubeClient.
+			CoreV1().
+			Secrets(b.Namespace).
+			Update(ctx, secret, metav1.UpdateOptions{
+				FieldManager: b.FieldManager,
+			})
+		switch {
+		case kubeerrors.IsConflict(err):
+			b.waitForNewRevision(ctx, oldSecretRevision)
+			continue // retry on conflict
+		case err == nil:
+			b.setLastResourceVersion(secret.ResourceVersion)
+			break loop
+		default:
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	_, err := b.KubeClient.
-		CoreV1().
-		Secrets(b.Namespace).
-		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.FieldManager})
+	return &backend.Lease{}, nil
+}
 
-	return trace.Wrap(err)
+func (b *Backend) waitForNewRevision(ctx context.Context, revision string) error {
+	// Wait until the secret is updated to a different revision than the one given.
+	timeout := int64(5)
+	w, err := b.KubeClient.CoreV1().Secrets(b.Namespace).
+		Watch(ctx, metav1.ListOptions{
+			FieldSelector:       fmt.Sprintf("metadata.name=%s", b.SecretName),
+			ResourceVersion:     revision,
+			Watch:               revision != "",
+			AllowWatchBookmarks: true,
+			TimeoutSeconds:      &timeout,
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer w.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case event, ok := <-w.ResultChan():
+			if !ok {
+				return trace.BadParameter("watch channel closed before receiving event")
+			}
+			switch event.Type {
+			case watch.Added, watch.Modified, watch.Bookmark:
+				// We received an event for the secret, check if it matches the revision.
+				secret, ok := event.Object.(*corev1.Secret)
+				if !ok {
+					return trace.BadParameter("expected Secret object, got %T", event.Object)
+				}
+				if secret.GetResourceVersion() != revision {
+					return nil
+				}
+			case watch.Deleted:
+				// The secret was deleted, return an error.
+				return trace.NotFound("secret %q was deleted", b.SecretName)
+			case watch.Error:
+				// An error occurred, return it.
+				return trace.Errorf("error watching secret %q", b.SecretName)
+			}
+		}
+	}
 }
 
 func (b *Backend) genSecretObject() *corev1.Secret {
@@ -360,4 +500,20 @@ func updateDataMap(data map[string][]byte, items ...backend.Item) {
 	for _, item := range items {
 		data[backendKeyToSecret(item.Key)] = item.Value
 	}
+}
+
+func (b *Backend) getLastResourceVersion() string {
+	if b.revisionTime.Before(time.Now().Add(-time.Minute)) {
+		// If the last revision time is more than a minute ago, we assume the resource version is stale.
+		return ""
+	}
+	return b.latestSeenRevision
+}
+
+func (b *Backend) setLastResourceVersion(revision string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.latestSeenRevision = revision
+	b.revisionTime = time.Now()
 }
