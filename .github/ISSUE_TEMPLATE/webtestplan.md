@@ -724,13 +724,12 @@ spec:
 version: v3
 ```
 
-- [ ] Verify that the user has no `Access` top-level navigation item.
-- [ ] Verify that the `Audit` top-level navigation item only contains `Active Sessions`.
-- [ ] Verify that on Enterprise, the user has no `Policy` top-level navigation item, while the admin does.
-- [ ] Verify that on Enterprise, the `Identity` top-level navigation item only contains `Access Requests` and `Access Lists`.
-- [ ] Verify that on Enterprise, the `Add New` top-level navigation item only contains `Resource` and `Access List`.
-- [ ] Verify that on OSS, the user has no `Identity` top-level navigation item.
-- [ ] Verify that on OSS, the `Add New` top-level navigation item only contains `Resource`.
+- [ ] Verify that the `Audit` side navigation section only contains `Active Sessions`.
+- [ ] Verify that on Enterprise, the `Identity Governance` side navigation section only contains `Access Requests`, `Access Lists` and `Trusted Devices`.
+- [ ] Verify that on Enterprise, the `Machine & Workload ID` side navigation section only contains `Bots` and `Workload Identity`.
+- [ ] Verify that on OSS, the `Identity Governance` side navigation section contains `Access Requests` and `Trusted Devices` empty states with Enterprise CTA's.
+- [ ] Verify that on OSS, the `Add New` side navigation section contains `Resource` and `Integration`.
+- [ ] Verify that on OSS, there is no `Identity Security` side navigation section.
 - [ ] Verify the `Enroll New Resource` button is disabled on the Resources screen.
 
 Note: User has read/create access_request access to their own requests, despite resource settings
