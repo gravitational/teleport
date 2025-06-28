@@ -537,14 +537,8 @@ func (a *Server) tryLockBotInvalidJoinState(
 	req *proto.RegisterUsingBoundKeypairInitialRequest,
 	validationError error,
 ) {
-	// TODO: make sure this join method checks for locks at some point and won't
-	// return certs. It won't be possible to actually _use_ them, but we
-	// shouldn't return anything, either. generateUserCerts() hopefully does
-	// this but add a check if not.
 	log := a.logger.With("join_token", ptv2.GetName(), "validation_error", validationError)
 
-	// TODO: Once we have token-specific locking, generate a lock; this
-	// indicates the keypair may have been compromised.
 	if auditErr := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.BoundKeypairJoinStateVerificationFailed{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairJoinStateVerificationFailed,
