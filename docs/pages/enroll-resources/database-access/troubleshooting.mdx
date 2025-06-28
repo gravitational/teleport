@@ -164,3 +164,37 @@ Service even if TLS Routing was not enabled on the Teleport cluster.
 proxy_service:
   mysql_server_version: "8.0.4"
 ```
+
+## Database Service error logs
+
+<Admonition type="note">
+You may need to enable DEBUG level logs on the Teleport Database Service to diagnose the underlying issue.
+</Admonition>
+
+<details>
+<summary>Enabling DEBUG logs</summary>
+
+(!docs/pages/includes/diagnostics/enable-debug-logs.mdx!)
+
+</details>
+
+### Failed to create db i/o timeout
+
+The Teleport Database Service shows an error message similar to **"failed to create db ... i/o timeout"**.
+
+**Solution:** Check for network restrictions to cloud services. This error is typically caused by restrictions that prevent the Teleport Database Service from reaching cloud services.
+
+[VPC interface endpoints](https://docs.aws.amazon.com/vpc/latest/privatelink/interface-endpoints.html) are a common source of this error in AWS deployments.
+If you have created VPC interface endpoints for AWS services such as RDS, then those endpoints will have a security group. 
+- Check each VPC endpoint's security group inbound rules and ensure that the rules allow traffic from the Teleport Database Service.
+- Check the outbound rules for the Teleport Database Service and ensure traffic is allowed to the VPC endpoints.
+
+<Admonition type="tip">
+It may be helpful to use [AWS Reachability Analyzer](https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html) to analyze the network path between the Teleport Database Service and a VPC interface endpoint.
+
+1. Identify the Elastic Network Interface (ENI) associated with the Teleport Database Service host. This can be found in the [EC2 console](https://console.aws.amazon.com/ec2/home?region=ca-central-1#NIC).
+2. Create and analyze a network path:
+    - Set the path source to the ENI associated with the Teleport Database Service host.
+    - Set the path destination to the VPC interface endpoint.
+3. Check the analysis results to identify reachability issues.
+</Admonition>
