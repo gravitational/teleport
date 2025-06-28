@@ -39,12 +39,23 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/packaging"
 )
 
-var errNoBaseURL = errors.New("baseURL is not defined")
+var (
+	// ErrNoBaseURL is returned when `TELEPORT_CDN_BASE_URL` must be set
+	// in order to proceed with managed updates.
+	ErrNoBaseURL = errors.New("baseURL is not defined")
+	// ErrVersionCheck is returned when the downloaded version fails
+	// to execute for version identification.
+	ErrVersionCheck = errors.New("version check failed")
+)
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
+	if toolsDir := os.Getenv(teleportToolsDirsEnv); toolsDir != "" {
+		return toolsDir, nil
+	}
 	home := os.Getenv(types.HomeEnvVar)
 	if home == "" {
 		var err error
@@ -52,9 +63,16 @@ func Dir() (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+		home = filepath.Join(home, ".tsh", "bin")
+	} else {
+		home = filepath.Join(home, "bin")
 	}
 
-	return filepath.Join(home, ".tsh", "bin"), nil
+	home, err := filepath.Abs(home)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return home, nil
 }
 
 // DefaultClientTools list of the client tools needs to be updated by default.
@@ -67,16 +85,20 @@ func DefaultClientTools() []string {
 	}
 }
 
-// CheckToolVersion returns current installed client tools version, must return NotFoundError if
-// the client tools is not found in tools directory.
-func CheckToolVersion(toolsDir string) (string, error) {
-	// Find the path to the current executable.
+// CheckExecutedToolVersion invokes the exact executable from the tools directory to retrieve its version.
+func CheckExecutedToolVersion(toolsDir string) (string, error) {
 	path, err := toolName(toolsDir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return "", trace.NotFound("autoupdate tool not found in %q", toolsDir)
+	return CheckToolVersion(path)
+}
+
+// CheckToolVersion returns client tools version, must return NotFoundError if
+// the client tools is not found in specified path.
+func CheckToolVersion(toolPath string) (string, error) {
+	if _, err := os.Stat(toolPath); errors.Is(err, os.ErrNotExist) {
+		return "", trace.NotFound("autoupdate tool not found in %q", toolPath)
 	} else if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -89,11 +111,13 @@ func CheckToolVersion(toolsDir string) (string, error) {
 
 	// Execute "{tsh, tctl} version" and pass in TELEPORT_TOOLS_VERSION=off to
 	// turn off all automatic updates code paths to prevent any recursion.
-	command := exec.CommandContext(ctx, path, "version")
+	command := exec.CommandContext(ctx, toolPath, "version")
 	command.Env = []string{teleportToolsVersionEnv + "=off"}
 	output, err := command.Output()
 	if err != nil {
-		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool", path)
+		slog.DebugContext(context.Background(), "failed to determine version",
+			"tool", toolPath, "error", err, "output", string(output))
+		return "", ErrVersionCheck
 	}
 
 	// The output for "{tsh, tctl} version" can be multiple lines. Find the
@@ -133,10 +157,32 @@ func GetReExecFromVersion(ctx context.Context) string {
 	return reExecFromVersion
 }
 
+// CleanUp cleans the tools directory with downloaded versions.
+func CleanUp(toolsDir string, tools []string) error {
+	var aggErr []error
+	for _, tool := range tools {
+		if err := os.RemoveAll(filepath.Join(toolsDir, tool)); err != nil {
+			aggErr = append(aggErr, err)
+		}
+	}
+	if err := os.RemoveAll(filepath.Join(toolsDir, configFileName)); err != nil {
+		aggErr = append(aggErr, err)
+	}
+	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffix, nil); err != nil {
+		aggErr = append(aggErr, err)
+	}
+	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffixV2, nil); err != nil {
+		aggErr = append(aggErr, err)
+	}
+
+	return trace.NewAggregate(aggErr...)
+}
+
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks
 // if this package is optional, for such case download needs to be ignored if package
 // not found in CDN.
 type packageURL struct {
+	Version  string
 	Archive  string
 	Hash     string
 	Optional bool
@@ -148,7 +194,7 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
 		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
-		return nil, errNoBaseURL
+		return nil, ErrNoBaseURL
 	}
 
 	var flags autoupdate.InstallFlags
@@ -170,13 +216,13 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 		}
 
 		return []packageURL{
-			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
-			{Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
+			{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
+			{Version: version, Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
 		}, nil
 	}
 
 	return []packageURL{
-		{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+		{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
 	}, nil
 }
 
