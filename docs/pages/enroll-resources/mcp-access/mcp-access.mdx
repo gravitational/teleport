@@ -1,0 +1,29 @@
+---
+title: MCP Servers
+description: Guides to protecting MCP servers with Teleport
+---
+
+Teleport can provide secure connections to your MCP servers while improving both
+access control and visibility.
+
+![Architecture diagram for enrolling MCP servers with Teleport](../../../img/mcp-access/architecture.png)
+
+Teleport protects MCP servers through the Teleport Application Service, which is
+a Teleport Agent service. For more information on agent services, read [Teleport
+Agent Architecture](../../reference/architecture/agents.mdx). You can also learn
+how to deploy a [pool of Teleport Agents](../agents/agents.mdx) to run multiple
+agent services.
+
+## Getting started
+- [Protect a MCP Server with Teleport](./getting-started.mdx): Provides instructions to set up a Teleport Service and enable secure access to a SSE MCP server.
+
+## By Transport type
+- [MCP Access with SSE MCP Server](./sse.mdx): Set up a Teleport Service and enable secure access to a SSE MCP server.
+- [MCP Access with Stdio MCP Server](./stdio.mdx): Set up a Teleport Service and enable secure access to a stdio MCP server.
+
+## Configuration & management
+- [MCP Access Controls](./rbac.mdx): Role-Based Access Control (RBAC) for Teleport MCP access.
+
+## Troubleshooting & support
+- [MCP Access Troubleshooting](./troubleshooting.mdx): Describes common issues and solutions for access to MCP servers.
+- [MCP Access FAQ](./faq.mdx): Frequently asked questions about Teleport MCP access.

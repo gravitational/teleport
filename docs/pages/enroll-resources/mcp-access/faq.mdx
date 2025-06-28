@@ -1,0 +1,28 @@
+---
+title: MCP Access FAQ
+description: Frequently asked questions about Teleport MCP access.
+---
+
+This page offers answers to frequently asked questions about Teleport's MCP
+access.
+
+## Is auto-discovery supported for MCP servers?
+
+Yes. MCP servers as Kubernetes Services can be automatically discovered. See
+[Enroll Kubernetes Services as Teleport
+Applications](../auto-discovery/kubernetes-applications/kubernetes-applications.mdx) for more details.
+
+## What MCP transport types do Teleport support?
+
+Teleport currently supports stdio transport with your AI tool and both stdio and
+SSE transport with your MCP server. More transport types will be supported in
+upcoming releases.
+
+## Does Teleport MCP access support OAuth?
+
+Teleport does not support OAuth at the moment.
+
+## Does Teleport support MCP servers for databases?
+
+Yes. You can [enroll databases](../database-access/database-access.mdx) as Teleport resources and
+use the Teleport database MCP server built-in in `tsh`. TODO add link.
