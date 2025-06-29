@@ -1393,7 +1393,7 @@ var RequestableResourceKinds = []string{
 // LegacyRequestableKubeResourceKinds lists all legacy Teleport resource kinds users can request access to.
 // Those are the requestable Kubernetes resource kinds that were supported before the introduction of
 // custom resource support. We need to keep them to maintain support with older Teleport versions.
-// TODO(@creack): Remove this list in v20.
+// TODO(@creack): DELETE IN v20.0.0.
 var LegacyRequestableKubeResourceKinds = []string{
 	KindKubePod,
 	KindKubeSecret,

@@ -2049,12 +2049,12 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			}
 		}
 
-		// Only Pod resources are supported in role version <=V6.
-		// This is mandatory because we must append the other resources to the
-		// kubernetes resources.
 		switch roleVersion {
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
+			// Only Pod resources are supported in role version <=V6.
+			// This is mandatory because we must append the other resources to the
+			// kubernetes resources.
 			if kubeResource.Kind != KindKubePod {
 				return trace.BadParameter("KubernetesResource kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V8)
 			}
@@ -2112,9 +2112,6 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 // Mimics types.KubernetesResource data model, but opted to create own type as we don't support other fields yet.
 func validateRequestKubeResources(roleVersion string, kubeResources []RequestKubernetesResource) error {
 	for _, kubeResource := range kubeResources {
-		// Only Pod resources are supported in role version <=V6.
-		// This is mandatory because we must append the other resources to the
-		// kubernetes resources.
 		switch roleVersion {
 		case V8:
 			if kubeResource.Kind == "" {
@@ -2146,6 +2143,9 @@ func validateRequestKubeResources(roleVersion string, kubeResources []RequestKub
 			if kubeResource.APIGroup != "" {
 				return trace.BadParameter("request.kubernetes_resource api_group is not supported in role version %q. Upgrade the role version to %q", roleVersion, V8)
 			}
+			// Only Pod resources are supported in role version <=V6.
+			// This is mandatory because we must append the other resources to the
+			// kubernetes resources.
 			if kubeResource.Kind != KindKubePod {
 				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q",
 					kubeResource.Kind, roleVersion, V8)

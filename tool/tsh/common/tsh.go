@@ -532,7 +532,7 @@ type CLIConf struct {
 	// kubeAllNamespaces allows users to search for resources in every namespace.
 	kubeAllNamespaces bool
 
-	// kubeAllNamespacesLabel allows to search for resources.
+	// kubeResourceKind allows to search for resources.
 	kubeResourceKind string
 
 	// kubeAPIGroup allows to search for CRD and unknown resources.
@@ -1315,16 +1315,23 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployements, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
-		// TODO(@creack): Remove this in v20. Allow legacy kinds with a warning for now.
+		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
 		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
-			fmt.Fprintf(os.Stderr, "Warning: %q is deprecated, use %q instead with --kube-kind and --kube-api-group.\n", cf.ResourceKind, types.KindKubernetesResource)
 			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
 			if cf.ResourceKind == types.KindKubeNamespace {
 				cf.kubeResourceKind = "namespaces"
 			} else {
 				cf.kubeResourceKind = types.KubernetesResourcesKindsPlurals[cf.ResourceKind]
 			}
+			originalKubeKind := cf.ResourceKind
 			cf.ResourceKind = types.KindKubernetesResource
+
+			nsFlag := fmt.Sprintf("--kube-namespace=%q", cf.kubeNamespace)
+			if cf.kubeAllNamespaces {
+				nsFlag = "--all-kube-namespaces"
+			}
+			fmt.Fprintf(os.Stderr, "Warning: %q is deprecated, use:\n", originalKubeKind)
+			fmt.Fprintf(os.Stderr, ">tsh request search --kind=%q --kube-kind=%q --kube-api-group=%q %s\n\n", types.KindKubernetesResource, cf.kubeResourceKind, cf.kubeAPIGroup, nsFlag)
 		}
 		switch cf.ResourceKind {
 		case types.KindKubernetesResource:

@@ -397,7 +397,7 @@ func (s *Server) iterateKubernetesResources(
 			}
 		)
 
-		// TODO(@creack): Remove this in v20 when we no longer support tsh v18.
+		// TODO(@creack): DELETE IN v20.0.0 when we no longer support tsh v18.
 		switch req.ResourceType {
 		case types.KindKubePod:
 			lItems, err := kubeClient.CoreV1().Pods(req.KubernetesNamespace).List(ctx, listOpts)

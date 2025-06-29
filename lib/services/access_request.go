@@ -2415,7 +2415,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 		if resourceID.Name != clusterName {
 			continue
 		}
-		// TODO(@creack): Remove this in v20 when we no longer support legacy access request formats.
+		// TODO(@creack): DELETE IN v20.0.0 when we no longer support legacy access request formats.
 		// Special case to support legacy "namespace" kind request.
 		if resourceID.Kind == types.KindKubeNamespace {
 			// If the target namespace is a wildcard, update the pattern to make sure cluster-wide resources won't be matched.

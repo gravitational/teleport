@@ -36,7 +36,7 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 		return trace.BadParameter("ResourceID must include Name")
 	}
 
-	// TODO(@creack): Remove in v20. Here to maintain backwards compatibility with older clients.
+	// TODO(@creack): DELETE IN v20.0.0. Here to maintain backwards compatibility with older clients.
 	if id.Kind != KindKubeNamespace && slices.Contains(KubernetesResourcesKinds, id.Kind) {
 		apiGroup := KubernetesResourcesV7KindGroups[id.Kind]
 		if slices.Contains(KubernetesClusterWideResourceKinds, id.Kind) {
