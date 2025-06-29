@@ -42,7 +42,7 @@ import (
 // rolloutEquals returns a require.ValueAssertionFunc that checks the rollout is identical.
 // The comparison does not take into account the proto internal state.
 func rolloutEquals(expected *autoupdate.AutoUpdateAgentRollout) require.ValueAssertionFunc {
-	return func(t require.TestingT, i interface{}, _ ...interface{}) {
+	return func(t require.TestingT, i any, _ ...any) {
 		require.IsType(t, &autoupdate.AutoUpdateAgentRollout{}, i, "resource should be an autoupdate_agent_rollout")
 		actual := i.(*autoupdate.AutoUpdateAgentRollout)
 		require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
@@ -52,7 +52,7 @@ func rolloutEquals(expected *autoupdate.AutoUpdateAgentRollout) require.ValueAss
 // cancelContext wraps a require.ValueAssertionFunc so that the given context is canceled before checking the assertion.
 // This is used to test how the reconciler behaves when its context is canceled.
 func cancelContext(assertionFunc require.ValueAssertionFunc, cancel func()) require.ValueAssertionFunc {
-	return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+	return func(t require.TestingT, i any, i2 ...any) {
 		cancel()
 		assertionFunc(t, i, i2...)
 	}
@@ -273,7 +273,6 @@ func TestTryReconcile(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Test setup: creating a fake client answering fixtures

@@ -34,12 +34,14 @@ import {
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import {
   listBotInstancesError,
   listBotInstancesSuccess,
 } from 'teleport/test/helpers/botInstances';
 
+import { ContextProvider } from '..';
 import { BotInstances } from './BotInstances';
 
 jest.mock('teleport/services/bot/bot', () => {
@@ -266,12 +268,13 @@ describe('BotInstances', () => {
 });
 
 function Wrapper({ children }: PropsWithChildren) {
+  const ctx = createTeleportContext();
   return (
     <MemoryRouter>
       <QueryClientProvider client={testQueryClient}>
         <ConfiguredThemeProvider theme={darkTheme}>
           <InfoGuidePanelProvider data-testid="blah">
-            {children}
+            <ContextProvider ctx={ctx}>{children}</ContextProvider>
           </InfoGuidePanelProvider>
         </ConfiguredThemeProvider>
       </QueryClientProvider>

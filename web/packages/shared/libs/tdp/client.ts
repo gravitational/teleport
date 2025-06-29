@@ -342,7 +342,7 @@ export class TdpClient extends EventEmitter<EventMap> {
         this.handleRdpConnectionActivated(buffer);
         break;
       case MessageType.RDP_FASTPATH_PDU:
-        this.handleRdpFastPathPDU(buffer);
+        this.handleRdpFastPathPdu(buffer);
         break;
       case MessageType.CLIENT_SCREEN_SPEC:
         this.handleClientScreenSpec(buffer);
@@ -484,8 +484,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRdpFastPathPDU(buffer: ArrayBufferLike) {
-    let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
+  handleRdpFastPathPdu(buffer: ArrayBufferLike) {
+    let rdpFastPathPdu = this.codec.decodeRdpFastPathPdu(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
     if (!this.fastPathProcessor) {
@@ -493,13 +493,13 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     this.fastPathProcessor.process(
-      rdpFastPathPDU,
+      rdpFastPathPdu,
       this,
       (bmpFrame: BitmapFrame) => {
         this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
       },
       (responseFrame: ArrayBuffer) => {
-        this.sendRdpResponsePDU(responseFrame);
+        this.sendRdpResponsePdu(responseFrame);
       },
       (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
         this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
@@ -821,8 +821,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.sendClientScreenSpec(spec);
   };
 
-  sendRdpResponsePDU(responseFrame: ArrayBufferLike) {
-    this.send(this.codec.encodeRdpResponsePDU(responseFrame));
+  sendRdpResponsePdu(responseFrame: ArrayBufferLike) {
+    this.send(this.codec.encodeRdpResponsePdu(responseFrame));
   }
 
   // Emits a warning event, but keeps the socket open.

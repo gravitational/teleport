@@ -19,17 +19,14 @@
 package appaccess
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"testing"
 
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
 	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
 func testMCP(pack *Pack, t *testing.T) {
@@ -56,18 +53,9 @@ func testMCPDialStdio(t *testing.T, pack *Pack) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	clientTransport := transport.NewIO(serverConn, serverConn, io.NopCloser(bytes.NewReader(nil)))
-	stdioClient := mcpclient.NewClient(clientTransport)
-	defer stdioClient.Close()
-	require.NoError(t, stdioClient.Start(ctx))
+	stdioClient := mcptest.NewStdioClientFromConn(t, serverConn)
 
-	initReq := mcp.InitializeRequest{}
-	initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-	initReq.Params.ClientInfo = mcp.Implementation{
-		Name:    "test-client",
-		Version: "1.0.0",
-	}
-	_, err = stdioClient.Initialize(ctx, initReq)
+	_, err = mcptest.InitializeClient(ctx, stdioClient)
 	require.NoError(t, err)
 
 	listTools, err := stdioClient.ListTools(ctx, mcp.ListToolsRequest{})

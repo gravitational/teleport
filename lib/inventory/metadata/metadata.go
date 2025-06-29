@@ -297,7 +297,6 @@ func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
 
 	cloudEnv := make(chan string, len(checks))
 	for _, check := range checks {
-		check := check
 		go func() {
 			if check.f(ctx) {
 				cloudEnv <- check.env

@@ -18,6 +18,9 @@
 
 import { useCallback, useMemo } from 'react';
 
+import { GetServiceInfoResponse } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { ensureError } from 'shared/utils/error';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { VnetLauncherArgs } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
@@ -46,7 +49,14 @@ export const useVnetLauncher = (): {
   launchVnetWithoutFirstTimeCheck: (args?: VnetLauncherArgs) => Promise<void>;
 } => {
   const { notificationsService, workspacesService } = useAppContext();
-  const { start, status, startAttempt, hasEverStarted } = useVnetContext();
+  const {
+    start,
+    status,
+    startAttempt,
+    hasEverStarted,
+    currentServiceInfo,
+    openSSHConfigurationModal,
+  } = useVnetContext();
   const { open } = useConnectionsContext();
 
   const launchVnet: () => Promise<boolean> = useCallback(async () => {
@@ -106,6 +116,7 @@ export const useVnetLauncher = (): {
       const { addrToCopy, isMultiPortApp, resourceUri } = args;
       const isApp = !!routing.parseAppUri(resourceUri)?.params?.appId;
       const isServer = !!routing.parseServerUri(resourceUri)?.params?.serverId;
+
       let msgParts = [];
       if (isApp) {
         msgParts.push(`Connect via VNet by using ${addrToCopy}`);
@@ -120,9 +131,38 @@ export const useVnetLauncher = (): {
       if (isApp && !isMultiPortApp) {
         msgParts.push('and any port');
       }
-      notificationsService.notifyInfo(msgParts.join(' ') + '.');
+      const msg = msgParts.join(' ') + '.';
+
+      if (isServer) {
+        let serviceInfo: GetServiceInfoResponse;
+        try {
+          serviceInfo = await currentServiceInfo();
+        } catch (err) {
+          notificationsService.notifyError({
+            title:
+              'Could not establish whether SSH clients are configured for VNet',
+            description: ensureError(err).message,
+          });
+          return;
+        }
+        if (!serviceInfo.sshConfigured) {
+          openSSHConfigurationModal({
+            vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            host: addrToCopy,
+            onSuccess: () => notificationsService.notifyInfo(msg),
+          });
+          return;
+        }
+      }
+
+      notificationsService.notifyInfo(msg);
     },
-    [launchVnet, notificationsService]
+    [
+      launchVnet,
+      notificationsService,
+      currentServiceInfo,
+      openSSHConfigurationModal,
+    ]
   );
 
   return useMemo(

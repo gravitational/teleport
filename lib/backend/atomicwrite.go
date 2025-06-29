@@ -218,6 +218,8 @@ const (
 	// MaxAtomicWriteSize is the maximum number of conditional actions that may
 	// be applied via a single atomic write. The exact number is subject to change
 	// but must always be less than the minimum value supported across all backends.
+	//
+	// NOTE:The buckets for backendmetrics.AtomicWriteSize must stay in sync with this constant.
 	MaxAtomicWriteSize = 64
 )
 

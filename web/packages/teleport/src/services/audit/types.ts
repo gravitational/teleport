@@ -338,6 +338,9 @@ export const eventCodes = {
   MCP_SESSION_REQUEST: 'TMCP003I',
   MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
   MCP_SESSION_NOTIFICATION: 'TMCP004I',
+  BOUND_KEYPAIR_RECOVERY: 'TBK001I',
+  BOUND_KEYPAIR_ROTATION: 'TBK002I',
+  BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
 } as const;
 
 /**
@@ -1976,6 +1979,34 @@ export type RawEvents = {
       message: {
         method: string;
       };
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+      recovery_count: number;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_ROTATION,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
     }
   >;
 };

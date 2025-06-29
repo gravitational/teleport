@@ -4185,7 +4185,6 @@ func TestListResources(t *testing.T) {
 	}
 
 	for name, test := range testCases {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{

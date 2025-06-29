@@ -476,7 +476,7 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	return nil
 }
 
-func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
+func (a *authorizer) fromUser(ctx context.Context, userI any) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(ctx, user)
@@ -1093,6 +1093,20 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 		return services.RoleFromSpec(
 			role.String(),
 			roleSpecForProxyWithRecordAtProxy(clusterName),
+		)
+	case types.RoleRelay:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{
+						types.Wildcard,
+					},
+					Rules: []types.Rule{
+						// TODO(espadolini): define permissions for relay role
+					},
+				},
+			},
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(

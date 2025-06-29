@@ -247,7 +247,7 @@ function unknownStatus(numServers: number) {
 
 function getTroubleShootingLink(resource: UnifiedResourceDefinition) {
   if (resource.kind == 'db') {
-    return 'https://goteleport.com/docs/enroll-resources/database-access/getting-started/#troubleshooting';
+    return 'https://goteleport.com/docs/enroll-resources/database-access/troubleshooting';
   }
 }
 

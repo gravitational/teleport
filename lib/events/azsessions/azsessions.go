@@ -411,10 +411,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			return trace.Wrap(err)
 		}
 
-		m := batchSize
-		if len(parts[i:]) < batchSize {
-			m = len(parts[i:])
-		}
+		m := min(len(parts[i:]), batchSize)
 
 		for _, part := range parts[i : i+m] {
 			if err := batch.Delete(partName(upload, part.Number), nil); err != nil {

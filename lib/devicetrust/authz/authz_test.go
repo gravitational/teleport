@@ -116,7 +116,6 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			got := fn(test.ext)
 			if got != test.want {

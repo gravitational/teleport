@@ -41,6 +41,7 @@ func newIdentityCenterAccountCollection(ic services.IdentityCenter, w types.Watc
 
 	return &collection[*identitycenterv1.Account, identityCenterAccountIndex]{
 		store: newStore(
+			types.KindIdentityCenterAccount,
 			proto.CloneOf[*identitycenterv1.Account],
 			map[identityCenterAccountIndex]func(*identitycenterv1.Account) string{
 				identityCenterAccountNameIndex: func(r *identitycenterv1.Account) string {
@@ -150,6 +151,7 @@ func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w 
 
 	return &collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]{
 		store: newStore(
+			types.KindIdentityCenterAccountAssignment,
 			proto.CloneOf[*identitycenterv1.AccountAssignment],
 			map[identityCenterAccountAssignmentIndex]func(*identitycenterv1.AccountAssignment) string{
 				identityCenterAccountAssignmentNameIndex: func(r *identitycenterv1.AccountAssignment) string {
@@ -262,6 +264,7 @@ func newIdentityCenterPrincipalAssignmentCollection(upstream services.IdentityCe
 
 	return &collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
 		store: newStore(
+			types.KindIdentityCenterPrincipalAssignment,
 			proto.CloneOf[*identitycenterv1.PrincipalAssignment],
 			map[identityCenterPrincipalAssignmentIndex]func(*identitycenterv1.PrincipalAssignment) string{
 				identityCenterPrincipalAssignmentNameIndex: func(r *identitycenterv1.PrincipalAssignment) string {
