@@ -56,18 +56,15 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 			return nil, trace.Wrap(err)
 		}
 		return &resourceFilterer{
-			encoder:               encoder,
-			decoder:               decoder,
-			contentType:           contentType,
-			responseCode:          responseCode,
-			negotiator:            negotiator,
-			allowedResources:      allowedResources,
-			deniedResources:       deniedResources,
-			log:                   log,
-			kind:                  mr.requestedResource.resourceKind,
-			group:                 mr.requestedResource.apiGroup,
-			verb:                  mr.verb,
-			isClusterWideResource: mr.isClusterWideResource(),
+			encoder:          encoder,
+			decoder:          decoder,
+			contentType:      contentType,
+			responseCode:     responseCode,
+			negotiator:       negotiator,
+			allowedResources: allowedResources,
+			deniedResources:  deniedResources,
+			log:              log,
+			metaResource:     mr,
 		}, nil
 	}
 }
@@ -115,14 +112,8 @@ type resourceFilterer struct {
 	// log is the logger.
 	log *slog.Logger
 
-	// kind is the type of the resource.
-	kind string
-	// group is the api group of the resource.
-	group string
-	// verb is the kube API verb based on HTTP verb.
-	verb string
-	// isClusterWideResource is true if the resource is cluster wide.
-	isClusterWideResource bool
+	// metaResource contains the information about the resource being filtered.
+	metaResource metaResource
 }
 
 // FilterBuffer receives a byte array, decodes the response into the appropriate
@@ -175,9 +166,9 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
-		r := getKubeResource(d.kind, d.group, d.verb, o)
+		r := getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, o)
 		result, err := matchKubernetesResource(
-			r, d.isClusterWideResource,
+			r, d.metaResource.isClusterWideResource(),
 			d.allowedResources, d.deniedResources,
 		)
 		if err != nil {
@@ -288,8 +279,8 @@ type kubeObjectInterface interface {
 // filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
 	result, err := matchKubernetesResource(
-		getKubeResource(d.kind, d.group, d.verb, resource),
-		d.isClusterWideResource,
+		getKubeResource(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, resource),
+		d.metaResource.isClusterWideResource(),
 		d.allowedResources, d.deniedResources,
 	)
 	return result, trace.Wrap(err)
@@ -314,11 +305,11 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		if err := d.decodePartialObjectMetadata(row); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		resource, err := getKubeResourcePartialMetadataObject(d.kind, d.group, d.verb, row.Object.Object)
+		resource, err := getKubeResourcePartialMetadataObject(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, row.Object.Object)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if result, err := matchKubernetesResource(resource, d.isClusterWideResource, allowedResources, deniedResources); err == nil && result {
+		if result, err := matchKubernetesResource(resource, d.metaResource.isClusterWideResource(), allowedResources, deniedResources); err == nil && result {
 			resources = append(resources, *row)
 		} else if err != nil {
 			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
@@ -451,9 +442,9 @@ func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
 		gvk := resource.GroupVersionKind()
-		r := getKubeResource(d.kind, gvk.Group, d.verb, &resource)
+		r := getKubeResource(d.metaResource.requestedResource.resourceKind, gvk.Group, d.metaResource.verb, &resource)
 		if result, err := matchKubernetesResource(
-			r, d.isClusterWideResource,
+			r, d.metaResource.isClusterWideResource(),
 			d.allowedResources, d.deniedResources,
 		); result {
 			filteredList = append(filteredList, resource.Object)
