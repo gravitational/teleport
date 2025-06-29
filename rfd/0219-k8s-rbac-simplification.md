@@ -207,7 +207,7 @@ index b2aa02fcb4..db4b2050b7 100644
 ### New Teleport Role Model
 
 The new role model version will be the same as V8 with `kubernetes_group` and
-`kubernetes_user` fields removed. While we can't remove them from the model,
+`kubernetes_user` fields deprecated. While we can't remove them from the model,
 if they are set, the validation will reject the role.
 
 - https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/api/types/role.go#L1979
