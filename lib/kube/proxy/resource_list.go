@@ -140,24 +140,20 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 // an empty list.
 // This function is not responsible for enforcing access rules.
 func matchListRequestShouldBeAllowed(mr metaResource, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
-	// TODO(@creack): Use metaResource.rbac()?
-	// Need to fix the list check first (currently setting the resource to nil).
-	resource := types.KubernetesResource{
-		Kind:      mr.requestedResource.resourceKind,
-		Namespace: mr.requestedResource.namespace,
-		Verbs:     []string{mr.verb},
-		APIGroup:  mr.requestedResource.apiGroup,
+	resource := mr.rbacResource()
+	if resource == nil {
+		// Cluster is offline.
+		return false, nil
 	}
-	//	resource = *mr.rbacResource()
 
-	result, err := utils.KubeResourceCouldMatchRules(resource, mr.isClusterWideResource(), deniedResources, types.Deny)
+	result, err := utils.KubeResourceCouldMatchRules(*resource, mr.isClusterWideResource(), deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceCouldMatchRules(resource, mr.isClusterWideResource(), allowedResources, types.Allow)
+	result, err = utils.KubeResourceCouldMatchRules(*resource, mr.isClusterWideResource(), allowedResources, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
