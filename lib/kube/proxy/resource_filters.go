@@ -43,7 +43,7 @@ import (
 // - deniedResources: excluded if (namespace,name) matches an entry even if it matches
 // the allowedResources's list.
 // - allowedResources: excluded if (namespace,name) not match a single entry.
-func newResourceFilterer(kind, group, verb string, isClusterWideResource bool, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
+func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
 	// If the list of allowed resources contains a wildcard and no deniedResources, then we
 	// don't need to filter anything.
 	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
@@ -64,10 +64,10 @@ func newResourceFilterer(kind, group, verb string, isClusterWideResource bool, c
 			allowedResources:      allowedResources,
 			deniedResources:       deniedResources,
 			log:                   log,
-			kind:                  kind,
-			group:                 group,
-			verb:                  verb,
-			isClusterWideResource: isClusterWideResource,
+			kind:                  mr.requestedResource.resourceKind,
+			group:                 mr.requestedResource.apiGroup,
+			verb:                  mr.verb,
+			isClusterWideResource: mr.isClusterWideResource(),
 		}, nil
 	}
 }

@@ -118,12 +118,11 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	if _, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource); !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.metaResource.verb
 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(sess.metaResource.requestedResource.resourceKind, sess.metaResource.requestedResource.apiGroup, verb, sess.metaResource.isClusterWideResource(), sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(sess.metaResource, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -179,15 +178,11 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.metaResource.verb
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
 		newResourceFilterer(
-			sess.metaResource.requestedResource.resourceKind,
-			sess.metaResource.requestedResource.apiGroup,
-			verb,
-			sess.metaResource.isClusterWideResource(),
+			sess.metaResource,
 			sess.codecFactory,
 			allowedResources,
 			deniedResources,
