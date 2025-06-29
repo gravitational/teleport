@@ -165,6 +165,10 @@ unknown resources instead of falling back to the underlying Kubernetes cluster.
 To maintain a good user experience, we'll need to implement watchers to monitor
 CRD activity and register any new ones 'live' (as opposed to currently waiting
 5 minutes).
+This should result in new resources being registered under 500ms, which would
+make it transparent to regular users, while automation tools like Terraform
+will automatically retry the failed request and result in the second attempt to
+be successful (or not, based, based on the role).
 
 ### Impersonation
 
@@ -214,9 +218,9 @@ if they are set, the validation will reject the role.
 
 #### Downgrade
 
-When working with older agents not supporting the role version, we will attempt
-to downgrade the role. To do so, we'll inject the `kubernetes_group` back with
-the Teleport Cluster Admin role name.
+When working with older agents not supporting the role version, we can't
+downgrade the role, so we'll inject a wildcard deny to make sure there is no
+unexpected access being granted.
 
 This is handled as part of the grpcserver auth:
 
