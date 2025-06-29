@@ -263,7 +263,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 					},
 				},
 			},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "error parsing regexp")
 			},
 		},
@@ -281,7 +281,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 					},
 				},
 			},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "error parsing regexp")
 			},
 		},

@@ -206,7 +206,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Execute this when the process running database proxy service exits.
-	process.OnExit("db.stop", func(payload interface{}) {
+	process.OnExit("db.stop", func(payload any) {
 		if dbService != nil {
 			if payload == nil {
 				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")

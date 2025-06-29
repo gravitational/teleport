@@ -240,8 +240,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 func TestProxyResync(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 
@@ -317,7 +316,7 @@ func TestProxyResync(t *testing.T) {
 
 	expected := []types.Server{proxy1, proxy2}
 	sort.Slice(expected, func(i, j int) bool { return expected[i].GetName() < expected[j].GetName() })
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		// wait for the heartbeat loop to select
 		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
 

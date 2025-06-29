@@ -157,7 +157,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 				return "asdf"
 			},
 			verifyParams: makeParams(withRecovery(0, 1)),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "parsing serialized join state")
 			},
 		},
@@ -165,7 +165,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "invalid count",
 			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
 			verifyParams: makeParams(withRecovery(1, 1)),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "recovery counter mismatch")
 			},
 		},
@@ -173,7 +173,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "invalid instance ID",
 			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1), withInstanceID("foo"))),
 			verifyParams: makeParams(withRecovery(0, 1), withInstanceID("bar")),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "bot instance mismatch")
 			},
 		},
@@ -181,7 +181,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			name:         "untrusted signer",
 			issue:        makeIssuer(invalidSigner, makeParams(withRecovery(0, 1), withInstanceID("foo"))),
 			verifyParams: makeParams(withRecovery(0, 1), withInstanceID("bar")),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state could not be verified")
 			},
 		},
@@ -192,7 +192,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			clockMod: func(clock *clockwork.FakeClock) {
 				clock.Advance(-10 * time.Minute)
 			},
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "token not valid yet")
 			},
 		},
@@ -202,7 +202,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 				jsp.ClusterName = "invalid"
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "invalid issuer claim")
 			},
 		},
@@ -212,7 +212,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 				jsp.Token.Spec.BotName = "invalid"
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "invalid subject claim")
 			},
 		},

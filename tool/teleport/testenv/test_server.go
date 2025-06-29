@@ -259,6 +259,9 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Auth.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
 	}
+	if cfg.Kube.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.KubernetesReady)
+	}
 	waitForEvents(t, auth, serviceReadyEvents...)
 
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {

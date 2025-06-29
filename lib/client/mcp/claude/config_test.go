@@ -248,6 +248,29 @@ func Test_formatJSON(t *testing.T) {
 	}
 }
 
+// TestPrettyResourceURIs given a MCP server that includes a Resource URI as
+// arguments it must encode and output those URIs in a readable format.
+func TestReadableResourceURIs(t *testing.T) {
+	for name, uri := range map[string]string{
+		"uri with query params":    "teleport://clusters/root/databases/pg",
+		"uri without query params": "teleport://clusters/root/databases/pg?dbName=postgres&dbUser=readonly",
+		"random uri with params":   "teleport://random?hello=world&random=resource",
+	} {
+		t.Run(name, func(t *testing.T) {
+			config := NewConfig()
+			mcpServer := MCPServer{
+				Command: "command",
+				Args:    []string{uri},
+			}
+			require.NoError(t, config.PutMCPServer("test", mcpServer))
+
+			var buf bytes.Buffer
+			require.NoError(t, config.Write(&buf, FormatJSONCompact))
+			require.Contains(t, buf.String(), uri)
+		})
+	}
+}
+
 func requireFileWithData(t *testing.T, path string, want string) {
 	t.Helper()
 	read, err := os.ReadFile(path)

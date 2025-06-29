@@ -87,8 +87,7 @@ func fastGetResource[T types.Resource](ctx context.Context, bk backend.Backend, 
 func TestNonceBasics(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
@@ -112,7 +111,7 @@ func TestNonceBasics(t *testing.T) {
 	require.NoError(t, err)
 
 	// loading and then re-inserting should always work since nonce is incremented internally
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		rsc, err := fastGetResource[*noncedResource](ctx, bk, backend.NewKey("k1"))
 		require.NoError(t, err)
 
@@ -156,8 +155,7 @@ func TestNonceParallelism(t *testing.T) {
 	const routines = 4
 	const updates = 512
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
@@ -180,7 +178,7 @@ func TestNonceParallelism(t *testing.T) {
 	key := "key"
 	name := "rsc"
 
-	for r := 0; r < routines; r++ {
+	for r := range routines {
 		wg.Add(1)
 		go func(r int) {
 			defer wg.Done()

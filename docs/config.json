@@ -727,7 +727,12 @@
     },
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/machine-workload-identity/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {

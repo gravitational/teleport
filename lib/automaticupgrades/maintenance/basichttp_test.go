@@ -117,7 +117,7 @@ func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 			statusCode: http.StatusOK,
 			response:   "",
 			expected:   false,
-			assertErr: func(t2 require.TestingT, err2 error, _ ...interface{}) {
+			assertErr: func(t2 require.TestingT, err2 error, _ ...any) {
 				require.IsType(t2, &trace.BadParameterError{}, trace.Unwrap(err2))
 			},
 		},

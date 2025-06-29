@@ -19,7 +19,9 @@
 package kubeserver
 
 import (
+	"io"
 	"net/http"
+	"slices"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -28,9 +30,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
-var namespaceList = corev1.NamespaceList{
+var defaultNamespaceList = corev1.NamespaceList{
 	TypeMeta: metav1.TypeMeta{
 		Kind:       "NamespaceList",
 		APIVersion: "v1",
@@ -58,25 +61,105 @@ func newNamespace(name string) corev1.Namespace {
 	}
 }
 
-func (s *KubeMockServer) listNamespaces(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	list := namespaceList.DeepCopy()
+func (s *KubeMockServer) listNamespaces(
+	w http.ResponseWriter,
+	req *http.Request,
+	p httprouter.Params,
+) (any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	list := s.nsList.DeepCopy()
 	return list, nil
 }
 
-func (s *KubeMockServer) getNamespace(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+func (s *KubeMockServer) getNamespace(
+	w http.ResponseWriter,
+	req *http.Request,
+	p httprouter.Params,
+) (any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	name := p.ByName("name")
-	filter := func(role corev1.Namespace) bool {
-		return role.Name == name
+	filter := func(ns corev1.Namespace) bool {
+		return ns.Name == name
 	}
-	for _, role := range namespaceList.Items {
-		if filter(role) {
-			return role, nil
+	for _, ns := range s.nsList.Items {
+		if filter(ns) {
+			return ns, nil
 		}
 	}
 	return nil, trace.NotFound("namespace %q not found", name)
 }
 
-func (s *KubeMockServer) deleteNamespace(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+func parseNamespace(req *http.Request) (*corev1.Namespace, error) {
+	data, err := io.ReadAll(req.Body)
+	_ = req.Body.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(data) == 0 {
+		return nil, trace.BadParameter("no body")
+	}
+	decoder, err := newDecoderForContentType(
+		req.Header.Get(responsewriters.ContentTypeHeader),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	into := corev1.Namespace{}
+	objI, _, err := decoder.Decode(data, nil /* defaults */, &into)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	obj, ok := objI.(*corev1.Namespace)
+	if !ok {
+		return nil, trace.BadParameter(
+			"expected *corev1.Namespace, got %T", objI,
+		)
+	}
+	return obj, nil
+}
+
+func (s *KubeMockServer) createNamespace(
+	w http.ResponseWriter,
+	req *http.Request,
+	p httprouter.Params,
+) (any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ns, err := parseNamespace(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ns.Name == "" {
+		return nil, trace.BadParameter("namespace name is required")
+	}
+
+	if slices.ContainsFunc(s.nsList.Items, func(existing corev1.Namespace) bool {
+		return existing.Name == ns.Name
+	}) {
+		return nil, trace.AlreadyExists(
+			"namespace %q already exists", ns.Name,
+		)
+	}
+
+	ns.ResourceVersion = "1"
+	s.nsList.Items = append(s.nsList.Items, *ns)
+	return &ns, nil
+}
+
+func (s *KubeMockServer) deleteNamespace(
+	w http.ResponseWriter,
+	req *http.Request,
+	p httprouter.Params,
+) (any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	name := p.ByName("name")
 
 	deleteOpts, err := parseDeleteCollectionBody(req)
@@ -87,19 +170,24 @@ func (s *KubeMockServer) deleteNamespace(w http.ResponseWriter, req *http.Reques
 	if deleteOpts.Preconditions != nil && deleteOpts.Preconditions.UID != nil {
 		reqID = string(*deleteOpts.Preconditions.UID)
 	}
-	filter := func(role corev1.Namespace) bool {
-		return role.Name == name
+	filter := func(ns corev1.Namespace) bool {
+		return ns.Name == name
 	}
-	for _, role := range namespaceList.Items {
-		if filter(role) {
-			s.mu.Lock()
+	for i, ns := range s.nsList.Items {
+		if filter(ns) {
 			key := deletedResource{reqID, types.KindKubeNamespace}
 			s.deletedResources[key] = append(s.deletedResources[key], name)
-			s.mu.Unlock()
-			return role, nil
+			s.nsList.Items = slices.Delete(s.nsList.Items, i, i+1)
+			return ns, nil
 		}
 	}
 	return nil, trace.NotFound("namespace %q not found", name)
+}
+
+func (s *KubeMockServer) ListNamespaces() *corev1.NamespaceList {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nsList.DeepCopy()
 }
 
 func (s *KubeMockServer) Deletednamespaces(reqID string) []string {

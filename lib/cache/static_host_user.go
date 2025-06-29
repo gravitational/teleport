@@ -39,6 +39,7 @@ func newStaticHostUserCollection(upstream services.StaticHostUser, w types.Watch
 
 	return &collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]{
 		store: newStore(
+			types.KindStaticHostUser,
 			proto.CloneOf[*userprovisioningv2.StaticHostUser],
 			map[staticHostUserIndex]func(*userprovisioningv2.StaticHostUser) string{
 				staticHostUserNameIndex: func(shu *userprovisioningv2.StaticHostUser) string {

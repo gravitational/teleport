@@ -19,6 +19,7 @@ package diag
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,171 +28,173 @@ import (
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 )
 
-// TestSSHDiag tests the SSH configuration diagnostic, specifically its ability
-// to check whether an OpenSSH config file includes the VNet SSH config file.
-func TestSSHDiag(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		desc        string
-		profilePath string
-		userHome    string
-		isWindows   bool
-		input       string
-		expect      bool
-	}{
-		{
-			desc:        "empty",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-		},
-		{
-			desc:        "macos tsh",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include /Users/user/.tsh/vnet_ssh_config`,
-			expect:      true,
-		},
-		{
-			desc:        "macos tsh ~",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include ~/.tsh/vnet_ssh_config`,
-			expect:      true,
-		},
-		{
-			desc:        "macos connect",
-			profilePath: `/Users/user/Application Support/Teleport Connect/tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include "/Users/user/Application Support/Teleport Connect/tsh/vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "macos connect ~",
-			profilePath: `/Users/user/Application Support/Teleport Connect/tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include "~/Application Support/Teleport Connect/tsh/vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "macos tsh not match connect",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include "/Users/user/Application Support/Teleport Connect/tsh/vnet_ssh_config"`,
-		},
-		{
-			desc:        "macos connect not match tsh",
-			profilePath: `/Users/user/Application Support/Teleport Connect/tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include /Users/user/.tsh/vnet_ssh_config`,
-		},
-		{
-			desc:        "windows tsh",
-			profilePath: `C:\Users\User\.tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:\\Users\\User\\.tsh\\vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows tsh unescaped",
-			profilePath: `C:\Users\User\.tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:\Users\User\.tsh\vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows tsh unix path",
-			profilePath: `C:\Users\User\.tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:/Users/User/.tsh/vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows tsh ~",
-			profilePath: `C:\Users\User\.tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "~\\.tsh\\vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows connect",
-			profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:\\Users\\User\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows connect unescaped",
-			profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:\Users\User\AppData\Roaming\Teleport Connect\tsh\vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows connect unix path",
-			profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:/Users/User/AppData/Roaming/Teleport\ Connect/tsh/vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows connect ~",
-			profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "~\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
-			expect:      true,
-		},
-		{
-			desc:        "windows tsh not match connect",
-			profilePath: `C:\Users\User\.tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:\\Users\\User\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
-		},
-		{
-			desc:        "windows connect not match tsh",
-			profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
-			userHome:    `C:\Users\User`,
-			isWindows:   true,
-			input:       `Include "C:\\Users\\User\\.tsh\\vnet_ssh_config"`,
-		},
-		{
-			desc:        "some other file",
-			profilePath: `/Users/user/.tsh`,
-			input:       `Include /Users/user/.tsh/ssh_config`,
-		},
-		{
-			desc:        "multiple includes",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-			input: `
+var sshDiagTestCases = []struct {
+	desc        string
+	profilePath string
+	userHome    string
+	isWindows   bool
+	input       string
+	expect      bool
+}{
+	{
+		desc:        "empty",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+	},
+	{
+		desc:        "macos tsh",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include /Users/user/.tsh/vnet_ssh_config`,
+		expect:      true,
+	},
+	{
+		desc:        "macos tsh ~",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include ~/.tsh/vnet_ssh_config`,
+		expect:      true,
+	},
+	{
+		desc:        "macos connect",
+		profilePath: `/Users/user/Application Support/Teleport Connect/tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include "/Users/user/Application Support/Teleport Connect/tsh/vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "macos connect ~",
+		profilePath: `/Users/user/Application Support/Teleport Connect/tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include "~/Application Support/Teleport Connect/tsh/vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "macos tsh not match connect",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include "/Users/user/Application Support/Teleport Connect/tsh/vnet_ssh_config"`,
+	},
+	{
+		desc:        "macos connect not match tsh",
+		profilePath: `/Users/user/Application Support/Teleport Connect/tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include /Users/user/.tsh/vnet_ssh_config`,
+	},
+	{
+		desc:        "windows tsh",
+		profilePath: `C:\Users\User\.tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:\\Users\\User\\.tsh\\vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows tsh unescaped",
+		profilePath: `C:\Users\User\.tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:\Users\User\.tsh\vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows tsh unix path",
+		profilePath: `C:\Users\User\.tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:/Users/User/.tsh/vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows tsh ~",
+		profilePath: `C:\Users\User\.tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "~\\.tsh\\vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows connect",
+		profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:\\Users\\User\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows connect unescaped",
+		profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:\Users\User\AppData\Roaming\Teleport Connect\tsh\vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows connect unix path",
+		profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:/Users/User/AppData/Roaming/Teleport\ Connect/tsh/vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows connect ~",
+		profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "~\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
+		expect:      true,
+	},
+	{
+		desc:        "windows tsh not match connect",
+		profilePath: `C:\Users\User\.tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:\\Users\\User\\AppData\\Roaming\\Teleport\ Connect\\tsh\\vnet_ssh_config"`,
+	},
+	{
+		desc:        "windows connect not match tsh",
+		profilePath: `C:\Users\User\AppData\Roaming\Teleport Connect\tsh`,
+		userHome:    `C:\Users\User`,
+		isWindows:   true,
+		input:       `Include "C:\\Users\\User\\.tsh\\vnet_ssh_config"`,
+	},
+	{
+		desc:        "some other file",
+		profilePath: `/Users/user/.tsh`,
+		input:       `Include /Users/user/.tsh/ssh_config`,
+	},
+	{
+		desc:        "multiple includes",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+		input: `
 Include ~/.ssh/include/*
 Include /Users/user/ssh_config
 Include /Users/user/.tsh/vnet_ssh_config
 `,
-			expect: true,
-		},
-		{
-			desc:        "commented",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include #/Users/user/.tsh/vnet_ssh_config`,
-		},
-		{
-			desc:        "single quotes",
-			profilePath: `/Users/user/.tsh`,
-			userHome:    `/Users/user`,
-			input:       `Include '/Users/user/.tsh/vnet_ssh_config'`,
-			expect:      true,
-		},
-	} {
+		expect: true,
+	},
+	{
+		desc:        "commented",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include #/Users/user/.tsh/vnet_ssh_config`,
+	},
+	{
+		desc:        "single quotes",
+		profilePath: `/Users/user/.tsh`,
+		userHome:    `/Users/user`,
+		input:       `Include '/Users/user/.tsh/vnet_ssh_config'`,
+		expect:      true,
+	},
+}
+
+// TestSSHDiag tests the SSH configuration diagnostic, specifically its ability
+// to check whether an OpenSSH config file includes the VNet SSH config file.
+func TestSSHDiag(t *testing.T) {
+	t.Parallel()
+	for _, tc := range sshDiagTestCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			diag, err := NewSSHDiag(&SSHConfig{
 				ProfilePath: tc.profilePath,
@@ -200,9 +203,9 @@ Include /Users/user/.tsh/vnet_ssh_config
 			userOpenSSHConfigPath := filepath.Join(t.TempDir(), "test_ssh_config")
 
 			// Override isWindows and paths for the purpose of the test.
-			diag.isWindows = tc.isWindows
-			diag.userHome = tc.userHome
-			diag.userOpenSSHConfigPath = userOpenSSHConfigPath
+			diag.sshConfigChecker.isWindows = tc.isWindows
+			diag.sshConfigChecker.userHome = tc.userHome
+			diag.sshConfigChecker.UserOpenSSHConfigPath = userOpenSSHConfigPath
 
 			if len(tc.input) > 0 {
 				require.NoError(t, os.WriteFile(userOpenSSHConfigPath, []byte(tc.input), 0o600))
@@ -226,4 +229,22 @@ Include /Users/user/.tsh/vnet_ssh_config
 			require.Equal(t, expectReport, report)
 		})
 	}
+}
+
+// FuzzOpenSSHConfigIncludesPath fuzzes [SSHConfigChecker.openSSHConfigIncludesVNetSSHConfig]
+// to make sure it won't panic on arbitrary input.
+func FuzzOpenSSHConfigIncludesPath(f *testing.F) {
+	// Add all test cases as the base test corpus.
+	for _, tc := range sshDiagTestCases {
+		f.Add(tc.isWindows, tc.profilePath, tc.input)
+	}
+	f.Fuzz(func(t *testing.T, isWindows bool, profilePath, input string) {
+		vnetSSHConfigPath := keypaths.VNetSSHConfigPath(profilePath)
+		sshConfigChecker := &SSHConfigChecker{
+			VNetSSHConfigPath: vnetSSHConfigPath,
+			isWindows:         isWindows,
+		}
+		// Can't deterministically check the result for fuzzed inputs but it shouldn't panic.
+		sshConfigChecker.openSSHConfigIncludesVNetSSHConfig(strings.NewReader(input))
+	})
 }

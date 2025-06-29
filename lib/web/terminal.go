@@ -624,16 +624,11 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 
 func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc, proxyAddr string) *mfa.Ceremony {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
-	var channelID string
+	channelID := uuid.NewString()
 
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			id, err := uuid.NewRandom()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			channelID = id.String()
 
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {

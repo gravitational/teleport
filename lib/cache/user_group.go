@@ -38,6 +38,7 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 
 	return &collection[types.UserGroup, userGroupIndex]{
 		store: newStore(
+			types.KindUserGroup,
 			types.UserGroup.Clone,
 			map[userGroupIndex]func(types.UserGroup) string{
 				userGroupNameIndex: types.UserGroup.GetName,
