@@ -463,7 +463,7 @@ func TestResourceIDs(t *testing.T) {
 	}
 }
 
-// TODO(@creack): Remove in v20 when we don't support legacy kube kinds.
+// TODO(@creack): DELETE IN v20.0.0 when we no longer support legacy kube kinds.
 func TestLegacyKubeResourceIDs(t *testing.T) {
 	testCases := []struct {
 		desc             string
