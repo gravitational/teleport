@@ -12,14 +12,7 @@ AWS provides instructions to rotate your [SSL/TLS certificate](https://docs.aws.
 
 ### Timeout errors
 
-The Teleport Database Service needs connectivity to your database endpoints. That may require
-enabling inbound traffic on the database from the Database Service on the same VPC or routing rules from another VPC. Using the `nc`
-program you can verify connections to databases:
-
-```code
-$ nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
-# Connection to postgres-instance-1.sadas.us-east-1.rds.amazonaws.com (172.31.24.172) 5432 port [tcp/postgresql] succeeded!
-```
+(!docs/pages/includes/database-access/connection-timeout-troubleshooting.mdx!)
 
 ### Not authorized to perform `sts:AssumeRole`
 
