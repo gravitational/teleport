@@ -388,6 +388,58 @@ func TestUnversionedTeleportConfig(t *testing.T) {
 	require.Equal(t, in, out)
 }
 
+func TestWriteTeleportService(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+
+		pidFile    string
+		configFile string
+		pathDir    string
+		flags      autoupdate.InstallFlags
+	}{
+		{
+			name:       "default",
+			pidFile:    "/var/run/teleport.pid",
+			configFile: "/etc/teleport.yaml",
+			pathDir:    "/usr/local/bin",
+		},
+		{
+			name:       "custom",
+			pidFile:    "/some/path/teleport.pid",
+			configFile: "/some/path/teleport.yaml",
+			pathDir:    "/some/path/bin",
+		},
+		{
+			name:       "FIPS",
+			pidFile:    "/var/run/teleport.pid",
+			configFile: "/etc/teleport.yaml",
+			pathDir:    "/usr/local/bin",
+			flags:      autoupdate.FlagFIPS,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serviceFile := filepath.Join(t.TempDir(), "file")
+			ns := &Namespace{
+				log:         slog.Default(),
+				configFile:  tt.configFile,
+				serviceFile: serviceFile,
+				pidFile:     tt.pidFile,
+			}
+			err := ns.WriteTeleportService(context.Background(), tt.pathDir, NewRevision("version", tt.flags))
+			require.NoError(t, err)
+			data, err := os.ReadFile(serviceFile)
+			require.NoError(t, err)
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
 func TestReplaceTeleportService(t *testing.T) {
 	t.Parallel()
 

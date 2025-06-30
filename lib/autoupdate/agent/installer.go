@@ -60,7 +60,13 @@ const (
 	serviceName = "teleport.service"
 )
 
-// ServiceFile represents a systemd service file for a Teleport binary
+// ServiceFile represents a systemd service file for a Teleport binary.
+//
+// ExampleName and ExampleFunc are used to parse an example configuration
+// file and copy it into the service directory. This mechanism of service
+// file generation is only provided to support downgrading to older versions
+// of the updater that do not install the service during the setup phase using
+// logic from lib/config.
 type ServiceFile struct {
 	// Path is the full path to the linked service file.
 	Path string
@@ -617,8 +623,10 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcDir, 
 
 // copyService copies a systemd service file from src to dst.
 // The contents of both src and dst must be smaller than n.
-// Copied data is processed by createFunc.
-// If createFunc nil, no data is copied, but the original file contents are still returned.
+//
+// Copied data is processed by s.ExampleFunc.
+// If s.ExampleFunc nil, no data is copied, but the original file contents are still returned.
+//
 // See prepCopy and forceCopy for more details.
 func copyService(s ServiceFile, exampleDir string, dstBinDir string, flags autoupdate.InstallFlags) (orig *smallFile, err error) {
 	const n = maxServiceFileSize
@@ -679,6 +687,8 @@ func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error)
 	return orig, nil
 }
 
+// prepCopy validates and returns a preserved original copy of a file with
+// length <= n at the path specified by dst.
 func prepCopy(dst string, n int64) (orig *smallFile, err error) {
 	fi, err := os.Lstat(dst)
 	if errors.Is(err, os.ErrNotExist) {
@@ -762,7 +772,10 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, dstBinDir 
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			// FIXME: system package unlinking for old version does not work?
+			// Note that old versions of teleport-update will install services without the marker.
+			// Certain version combinations (before and after this commit) may leave services behind
+			// if they are not replaced by the new version of teleport-update. This should only impact
+			// explicit system package unlinking, which is rarely used.
 			if string(diskMarker) != revMarker {
 				li.Log.WarnContext(ctx, "Removed binary link, but skipping removal of custom service that does not match the binary.",
 					"service", filepath.Base(s.Path), "binary", filepath.Base(newname))

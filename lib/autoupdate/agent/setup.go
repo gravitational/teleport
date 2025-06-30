@@ -447,7 +447,7 @@ func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev
 		pathDir = ns.defaultPathDir
 	}
 	return trace.Wrap(writeAtomicWithinDir(ns.serviceFile, configFileMode, func(w io.Writer) error {
-		_, err := fmt.Fprint(w, genHeader(rev))
+		_, err := fmt.Fprint(w, genHeader(rev)+"\n")
 		if err != nil {
 			return trace.Wrap(err)
 		}
