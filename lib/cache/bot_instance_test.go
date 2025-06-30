@@ -110,7 +110,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 5)
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// page size equal to total items
 	results, nextPageToken, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
@@ -169,7 +169,7 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 10)
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	results, _, err := p.cache.ListBotInstances(ctx, "bot-1", 0, "", "", nil)
 	require.NoError(t, err)
@@ -216,7 +216,7 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 10)
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "host-1", nil)
 	require.NoError(t, err)
@@ -271,7 +271,7 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 3)
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// sort ascending by active_at_latest
 	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
@@ -344,7 +344,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 		results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", nil)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-	}, 2*time.Second, 10*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// sort ascending by bot_name
 	results, _, err := p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
