@@ -3,11 +3,13 @@ package keystore
 import (
 	"context"
 	"crypto"
+	"errors"
 	"io"
 	"log/slog"
 	"sync/atomic"
 	"time"
 
+	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
@@ -55,7 +57,7 @@ func (h *passiveHealthChecker) probeUntilHealthy(ctx context.Context, probe prob
 		err := probe(timeoutCtx)
 		cancel()
 
-		if err != nil {
+		if isHealthCheckFailure(err) {
 			fails += 1
 			oks = 0
 			h.log.DebugContext(ctx, "Detected error from passive health check probe", "err", err, "fails", fails, "oks", oks)
@@ -78,6 +80,23 @@ func (h *passiveHealthChecker) probeUntilHealthy(ctx context.Context, probe prob
 		case <-ctx.Done():
 		}
 	}
+}
+
+// isHealthCheckFailure returns true if the given error indicates the keystore
+// is unhealthy.
+func isHealthCheckFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var (
+		nfe *kmstypes.NotFoundException
+		ise *kmstypes.KMSInvalidStateException
+	)
+	if errors.As(err, &nfe) || errors.As(err, &ise) {
+		return false
+	}
+	return true
 }
 
 // healthSigner wraps a signer with a callback to report failed sign requests.
