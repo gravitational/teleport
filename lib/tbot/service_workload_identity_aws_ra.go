@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -52,6 +53,7 @@ type WorkloadIdentityAWSRAService struct {
 	log                *slog.Logger
 	resolver           reversetunnelclient.Resolver
 	reloadBroadcaster  *channelBroadcaster
+	statusReporter     readyz.Reporter
 }
 
 // String returns a human-readable description of the service.
@@ -80,6 +82,7 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
