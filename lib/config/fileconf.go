@@ -744,6 +744,9 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
+	// SessionRecordingEncryption enables or disables encryption of session recordings.
+	SessionRecordingEncryption *types.BoolOption `yaml:"session_recording_encryption,omitempty"`
+
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
@@ -885,7 +888,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
+		a.SessionRecordingEncryption != empty.SessionRecordingEncryption
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
