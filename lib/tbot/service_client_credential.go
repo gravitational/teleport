@@ -26,6 +26,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // ClientCredentialOutputService produces credentials which can be used to
@@ -41,6 +42,7 @@ type ClientCredentialOutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
+	statusReporter     readyz.Reporter
 }
 
 func (s *ClientCredentialOutputService) String() string {
@@ -64,6 +66,7 @@ func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

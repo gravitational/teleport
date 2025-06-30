@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -226,6 +227,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}()
 	}
 
+	statusRegistry := readyz.NewRegistry()
+
 	b.mu.Lock()
 	b.botIdentitySvc = &identityService{
 		cfg:               b.cfg,
@@ -234,6 +237,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
+		statusReporter: statusRegistry.AddService("identity"),
 	}
 	b.mu.Unlock()
 
@@ -270,8 +274,9 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
 		services = append(services, &diagnosticsService{
-			diagAddr:     b.cfg.DiagAddr,
-			pprofEnabled: b.cfg.Debug,
+			diagAddr:       b.cfg.DiagAddr,
+			pprofEnabled:   b.cfg.Debug,
+			statusRegistry: statusRegistry,
 			log: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
 			),
@@ -291,6 +296,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		botIdentityReadyCh: b.botIdentitySvc.Ready(),
 		interval:           time.Minute * 30,
 		retryLimit:         5,
+		statusReporter:     statusRegistry.AddService("heartbeat"),
 	})
 
 	services = append(services, &caRotationService{
@@ -301,6 +307,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
+		statusReporter:    statusRegistry.AddService("ca-rotation"),
 	})
 
 	// We only want to create this service if it's needed by a dependent
@@ -321,6 +328,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "spiffe-trust-bundle-cache"),
 			),
+			StatusReporter: statusRegistry.AddService("spiffe-trust-bundle-cache"),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -340,6 +348,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
 			),
+			StatusReporter: statusRegistry.AddService("crl-cache"),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -388,6 +397,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.DatabaseTunnelService:
 			svc := &DatabaseTunnelService{
@@ -402,6 +412,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.ExampleService:
 			services = append(services, &ExampleService{
@@ -422,6 +433,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.KubernetesOutput:
 			svc := &KubernetesOutputService{
@@ -438,6 +450,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.KubernetesV2Output:
 			svc := &KubernetesV2OutputService{
@@ -454,6 +467,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
 			b.log.WarnContext(
@@ -470,6 +484,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			if !b.cfg.Oneshot {
 				tbCache, err := setupTrustBundleCache()
 				if err != nil {
@@ -491,6 +506,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.ApplicationOutput:
 			svc := &ApplicationOutputService{
@@ -505,6 +521,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.DatabaseOutput:
 			svc := &DatabaseOutputService{
@@ -519,6 +536,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.IdentityOutput:
 			svc := &IdentityOutputService{
@@ -536,6 +554,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.UnstableClientCredentialOutput:
 			svc := &ClientCredentialOutputService{
@@ -549,6 +568,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.ApplicationTunnelService:
 			svc := &ApplicationTunnelService{
@@ -563,6 +583,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.WorkloadIdentityX509Service:
 			svc := &WorkloadIdentityX509Service{
@@ -575,6 +596,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			if !b.cfg.Oneshot {
 				tbCache, err := setupTrustBundleCache()
 				if err != nil {
@@ -599,6 +621,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			if !b.cfg.Oneshot {
 				tbCache, err := setupTrustBundleCache()
 				if err != nil {
@@ -644,6 +667,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		case *config.WorkloadIdentityAWSRAService:
 			svc := &WorkloadIdentityAWSRAService{
@@ -658,6 +682,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
+			svc.statusReporter = statusRegistry.AddService(svc.String())
 			services = append(services, svc)
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)

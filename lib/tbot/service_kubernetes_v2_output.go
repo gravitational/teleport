@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -61,6 +62,7 @@ type KubernetesV2OutputService struct {
 	proxyPingCache     *proxyPingCache
 	reloadBroadcaster  *channelBroadcaster
 	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
@@ -87,6 +89,7 @@ func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	}))
 }
 
