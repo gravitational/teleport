@@ -6,60 +6,13 @@ videoBanner: fjk29wqXm1A
 tocDepth: 3
 ---
 
-This guide shows you how to install Teleport binaries on your platform,
-including:
-- `teleport`
-- `teleport-update`
-- `tsh`
-- `tctl`
-- `tbot`
-- `fdpass-teleport`
+Whether you are installing Teleport as a cluster or as an agent that talks to the cluster, the Teleport binary is the same. The difference is only in how you [configure it](../reference/config.mdx), which you will need to do after installation. Before choosing an installation method below, you should identify your particular use case. There are three:
 
-If you are new to Teleport, we recommend following our [getting started
-guide](../get-started.mdx).
+1. **Installing Teleport as a cluster:** Install a self-hosted Teleport cluster to provide secure, identity-based access to all your infrastructure. If you are running Teleport Enterprise Cloud, you will not need this use case, as the cluster is managed for you.
+2. **Installing Teleport as an agent:** Install a Teleport agent on your infrastructure resource to enroll it with your cluster for centralized access management.
+3. **Installing Teleport as a client:** For interacting with and managing your clusters via CLI and Teleport Connect.
 
-For best results, Teleport clients (`tsh`, `tctl`, `tbot`) should be the same major
-version as the cluster they are connecting to. Teleport servers are compatible
-with clients that are on the same major version or one major version older.
-Teleport servers do not support clients that are on a newer major version.
-
-See our [Upgrading](../upgrading/upgrading.mdx) guide for more information.
-
-
-## Operating system support
-
-Teleport is officially supported on the platforms listed below. It is worth
-noting that the open-source community has been successful in building and
-running Teleport on UNIX variants other than Linux \[1].
-
-| Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` and Teleport Connect User Clients [2] | Web UI (via the browser) | `tbot` Daemon |
-| - | - | - | - | - | - |
-| Linux v2.6.23+ (RHEL/CentOS 7+, Rocky Linux 8+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
-| macOS 11+  (Big Sur)| yes | yes | yes | yes | yes |
-| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | yes |
-
-\[1] *Teleport is written in Go and many of these system requirements are due to the requirements
-of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
-
-\[2] *`tsh` is a Command Line Client (CLI) and Teleport Connect is a Graphical User Interface (GUI) desktop client. See
-  [Using Teleport Connect](../connect-your-client/teleport-connect.mdx) for usage and installation*.
-
-\[3] *Enhanced Session Recording requires Linux kernel v5.8+*.
-
-\[4] *Teleport server does not run on Windows yet, but `tsh`, `tbot`, `tctl`, and Teleport Connect (the Teleport desktop clients)
-support most features on Windows 10 and later.*
-
-## Start Here - Use Cases
-
-Whether you are installing Teleport as a cluster or as an agent that talks to the cluster, the Teleport binary is the same. The difference is only in how you [configure it](../reference/config.mdx), which you will need to do after installation.
-
-Before choosing an installation method below, you should identify your particular use case. There are three:
-
-1. **Installing Teleport as a Cluster:** If you are running Teleport Enterprise Cloud, you will not need this use case. Otherwise, you can see our [self-hosted demo cluster guide](../admin-guides/deploy-a-cluster/deploy-a-cluster.mdx) for a walkthrough including a configuration example.
-2. **Installing Teleport as an Agent:** There are guided instructions in the Teleport Web UI itself at `/web/discover`, or you can follow our [detailed docs pages](../enroll-resources/) on how to deploy the various Teleport agents to enroll resources.
-3. **Installing Teleport CLI tooling:** For interacting with and managing your clusters via CLI.
-
-The use cases will be addressed in each platform page.
+These use cases will be addressed in each platform page.
 
 ### Choose your platform to install Teleport
 
