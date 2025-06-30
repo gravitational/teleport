@@ -92,6 +92,13 @@ export interface GetServiceInfoResponse {
      * @generated from protobuf field: bool ssh_configured = 3;
      */
     sshConfigured: boolean;
+    /**
+     * vnet_ssh_config_path is the path of VNet's generated OpenSSH-compatible
+     * config file.
+     *
+     * @generated from protobuf field: string vnet_ssh_config_path = 4;
+     */
+    vnetSshConfigPath: string;
 }
 /**
  * Request for GetBackgroundItemStatus.
@@ -128,6 +135,20 @@ export interface RunDiagnosticsResponse {
      * @generated from protobuf field: teleport.lib.vnet.diag.v1.Report report = 1;
      */
     report?: Report;
+}
+/**
+ * Request for AutoConfigureSSH.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+ */
+export interface AutoConfigureSSHRequest {
+}
+/**
+ * Response for AutoConfigureSSH.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+ */
+export interface AutoConfigureSSHResponse {
 }
 /**
  * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
@@ -295,7 +316,8 @@ class GetServiceInfoResponse$Type extends MessageType<GetServiceInfoResponse> {
         super("teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse", [
             { no: 1, name: "app_dns_zones", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "clusters", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "ssh_configured", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 3, name: "ssh_configured", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "vnet_ssh_config_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<GetServiceInfoResponse>): GetServiceInfoResponse {
@@ -303,6 +325,7 @@ class GetServiceInfoResponse$Type extends MessageType<GetServiceInfoResponse> {
         message.appDnsZones = [];
         message.clusters = [];
         message.sshConfigured = false;
+        message.vnetSshConfigPath = "";
         if (value !== undefined)
             reflectionMergePartial<GetServiceInfoResponse>(this, message, value);
         return message;
@@ -320,6 +343,9 @@ class GetServiceInfoResponse$Type extends MessageType<GetServiceInfoResponse> {
                     break;
                 case /* bool ssh_configured */ 3:
                     message.sshConfigured = reader.bool();
+                    break;
+                case /* string vnet_ssh_config_path */ 4:
+                    message.vnetSshConfigPath = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -342,6 +368,9 @@ class GetServiceInfoResponse$Type extends MessageType<GetServiceInfoResponse> {
         /* bool ssh_configured = 3; */
         if (message.sshConfigured !== false)
             writer.tag(3, WireType.Varint).bool(message.sshConfigured);
+        /* string vnet_ssh_config_path = 4; */
+        if (message.vnetSshConfigPath !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.vnetSshConfigPath);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -495,6 +524,56 @@ class RunDiagnosticsResponse$Type extends MessageType<RunDiagnosticsResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
  */
 export const RunDiagnosticsResponse = new RunDiagnosticsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AutoConfigureSSHRequest$Type extends MessageType<AutoConfigureSSHRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest", []);
+    }
+    create(value?: PartialMessage<AutoConfigureSSHRequest>): AutoConfigureSSHRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AutoConfigureSSHRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AutoConfigureSSHRequest): AutoConfigureSSHRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: AutoConfigureSSHRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest
+ */
+export const AutoConfigureSSHRequest = new AutoConfigureSSHRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AutoConfigureSSHResponse$Type extends MessageType<AutoConfigureSSHResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse", []);
+    }
+    create(value?: PartialMessage<AutoConfigureSSHResponse>): AutoConfigureSSHResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AutoConfigureSSHResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AutoConfigureSSHResponse): AutoConfigureSSHResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: AutoConfigureSSHResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse
+ */
+export const AutoConfigureSSHResponse = new AutoConfigureSSHResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.vnet.v1.VnetService
  */
@@ -503,5 +582,6 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
-    { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse }
+    { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
+    { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
 ]);

@@ -140,14 +140,6 @@ func TestFromProtoNils(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("grants", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.Grants = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
-	})
-
 	t.Run("owner_grants", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
 		msg.Spec.OwnerGrants = nil
@@ -301,6 +293,44 @@ func TestConvAccessList(t *testing.T) {
 					Grants: &accesslistv1.AccessListGrants{
 						Roles: []string{"role1"},
 					},
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+		{
+			name: "nil grants",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Title:       "test access list",
+					Description: "test description",
+					Owners: []*accesslistv1.AccessListOwner{
+						{
+							Name: "test-user1",
+						},
+					},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: nil,
 				},
 				Status: &accesslistv1.AccessListStatus{},
 			},

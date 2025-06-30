@@ -38,6 +38,7 @@ func newRelayServerCollection(upstream services.Presence, w types.WatchKind) (*c
 
 	return &collection[*presencev1.RelayServer, relayServerIndex]{
 		store: newStore(
+			types.KindRelayServer,
 			proto.CloneOf[*presencev1.RelayServer],
 			map[relayServerIndex]func(*presencev1.RelayServer) string{
 				relayServerNameIndex: func(r *presencev1.RelayServer) string {

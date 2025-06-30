@@ -77,8 +77,10 @@ func TestGenerateCredentials(t *testing.T) {
 }
 
 type mockCache struct {
-	domainName string
-	ca         types.CertAuthority
+	domainName   string
+	ca           types.CertAuthority
+	appServers   []types.AppServer
+	integrations []types.Integration
 }
 
 // GetClusterName returns local auth domain of the current auth server
@@ -94,6 +96,29 @@ func (m *mockCache) GetClusterName(_ context.Context) (types.ClusterName, error)
 // controls if signing keys are loaded
 func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	return m.ca, nil
+}
+
+func (m *mockCache) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	if m.appServers == nil {
+		m.appServers = []types.AppServer{}
+	}
+	m.appServers = append(m.appServers, server)
+	return nil, nil
+}
+
+func (m *mockCache) GetProxies() ([]types.Server, error) {
+	return []types.Server{&types.ServerV2{
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"proxy.example.com"},
+		},
+	}}, nil
+}
+
+func (m *mockCache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	if m.integrations == nil {
+		m.integrations = []types.Integration{}
+	}
+	return m.integrations, "", nil
 }
 
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
