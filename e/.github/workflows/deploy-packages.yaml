@@ -1,6 +1,6 @@
 ---
 name: Deploy OS packages to repos
-run-name: Deploy OS packages to ${{ inputs.repo-type }} repos
+run-name: Deploy ${{ inputs.artifact-tag }} OS packages to ${{ inputs.environment }}/${{ inputs.repo-type }} repos, channel ${{ inputs.release-channel }}/${{ inputs.version-channel }}
 
 on:
   workflow_dispatch:
