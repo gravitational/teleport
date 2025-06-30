@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const DatabaseOutputType = "database"
@@ -180,7 +181,7 @@ func (o *DatabaseOutput) Describe() []bot.FileDescription {
 
 func (o *DatabaseOutput) MarshalYAML() (any, error) {
 	type raw DatabaseOutput
-	return internal.WithTypeHeader((*raw)(o), DatabaseOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), DatabaseOutputType)
 }
 
 func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {

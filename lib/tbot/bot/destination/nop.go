@@ -21,7 +21,7 @@ package destination
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/trace"
 )
 
@@ -78,7 +78,7 @@ func (dm *Nop) TryLock() (func() error, error) {
 // as YAML including the type header.
 func (dm *Nop) MarshalYAML() (any, error) {
 	type raw Nop
-	return internal.WithTypeHeader((*raw)(dm), NopType)
+	return marshaling.WithTypeHeader((*raw)(dm), NopType)
 }
 
 func (dm *Nop) IsPersistent() bool {

@@ -23,7 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const ServiceType = "example"
@@ -41,7 +41,7 @@ func (s *Config) Type() string {
 
 func (s *Config) MarshalYAML() (any, error) {
 	type raw Config
-	return internal.WithTypeHeader((*raw)(s), ServiceType)
+	return marshaling.WithTypeHeader((*raw)(s), ServiceType)
 }
 
 func (s *Config) UnmarshalYAML(node *yaml.Node) error {

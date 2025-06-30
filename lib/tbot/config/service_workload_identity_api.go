@@ -21,7 +21,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
@@ -70,7 +70,7 @@ func (o *WorkloadIdentityAPIService) Type() string {
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
 func (o *WorkloadIdentityAPIService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityAPIService
-	return internal.WithTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
+	return marshaling.WithTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityOutput from YAML.

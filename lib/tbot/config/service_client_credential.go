@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const UnstableClientCredentialOutputType = "unstable_client_credential"
@@ -143,7 +143,7 @@ func (o *UnstableClientCredentialOutput) CheckAndSetDefaults() error {
 // as YAML including the type header.
 func (o *UnstableClientCredentialOutput) MarshalYAML() (any, error) {
 	type raw UnstableClientCredentialOutput
-	return internal.WithTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
 }
 
 // Type returns a human readable description of this output.

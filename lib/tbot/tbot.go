@@ -226,7 +226,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *config.SSHHostOutput:
 			botServices = append(botServices, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
 		case *application.OutputConfig:
-			botServices = append(botServices, ApplicationOutputServiceBuilder(b.cfg, svcCfg))
+			botServices = append(botServices, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *config.DatabaseOutput:
 			botServices = append(botServices, DatabaseOutputServiceBuider(b.cfg, svcCfg))
 		case *config.IdentityOutput:

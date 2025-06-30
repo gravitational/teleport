@@ -21,10 +21,7 @@ package tbot
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -34,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -44,56 +40,9 @@ const renewalRetryLimit = 5
 
 // newBotConfigWriter returns a new BotConfigWriter that writes to the given
 // Destination.
-func newBotConfigWriter(ctx context.Context, dest destination.Destination, subPath string) *BotConfigWriter {
-	return &BotConfigWriter{
-		ctx:     ctx,
-		dest:    dest,
-		subpath: subPath,
-	}
+func newBotConfigWriter(ctx context.Context, dest destination.Destination, subPath string) *internal.BotConfigWriter {
+	return internal.NewBotConfigWriter(ctx, dest, subPath)
 }
-
-// BotConfigWriter is a trivial adapter to use the identityfile package with
-// bot destinations.
-type BotConfigWriter struct {
-	ctx context.Context
-
-	// dest is the Destination that will handle writing of files.
-	dest destination.Destination
-
-	// subpath is the subdirectory within the Destination to which the files
-	// should be written.
-	subpath string
-}
-
-// WriteFile writes the file to the Destination. Only the basename of the path
-// is used. Specified permissions are ignored.
-func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) error {
-	p := filepath.Base(name)
-	if b.subpath != "" {
-		p = filepath.Join(b.subpath, p)
-	}
-
-	return trace.Wrap(b.dest.Write(b.ctx, p, data))
-}
-
-// Remove removes files. This is a dummy implementation that always returns not found.
-func (b *BotConfigWriter) Remove(name string) error {
-	return &os.PathError{Op: "stat", Path: name, Err: os.ErrNotExist}
-}
-
-// Stat checks file status. This implementation always returns not found.
-func (b *BotConfigWriter) Stat(name string) (fs.FileInfo, error) {
-	return nil, &os.PathError{Op: "stat", Path: name, Err: os.ErrNotExist}
-}
-
-// ReadFile reads a given file. This implementation always returns not found.
-func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
-	return nil, &os.PathError{Op: "read", Path: name, Err: os.ErrNotExist}
-}
-
-// compile-time assertion that the BotConfigWriter implements the
-// identityfile.ConfigWriter interface
-var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
 // NewClientKeyRing returns a sane client.KeyRing for the given bot identity.
 func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
@@ -124,29 +73,7 @@ func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (
 func writeIdentityFile(
 	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest destination.Destination,
 ) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"writeIdentityFile",
-	)
-	defer span.End()
-
-	cfg := identityfile.WriteConfig{
-		OutputPath: internal.IdentityFilePath,
-		Writer:     newBotConfigWriter(ctx, dest, ""),
-		KeyRing:    keyRing,
-		Format:     identityfile.FormatFile,
-
-		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
-		OverwriteDestination: true,
-	}
-
-	files, err := identityfile.Write(ctx, cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	log.DebugContext(ctx, "Wrote identity file", "files", files)
-	return nil
+	return internal.WriteIdentityFile(ctx, log, keyRing, dest)
 }
 
 // writeIdentityFileTLS writes the identity file in TLS format according to the
@@ -156,29 +83,7 @@ func writeIdentityFile(
 func writeIdentityFileTLS(
 	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest destination.Destination,
 ) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"writeIdentityFileTLS",
-	)
-	defer span.End()
-
-	cfg := identityfile.WriteConfig{
-		OutputPath: internal.DefaultTLSPrefix,
-		Writer:     newBotConfigWriter(ctx, dest, ""),
-		KeyRing:    keyRing,
-		Format:     identityfile.FormatTLS,
-
-		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
-		OverwriteDestination: true,
-	}
-
-	files, err := identityfile.Write(ctx, cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	log.DebugContext(ctx, "Wrote TLS identity files", "files", files)
-	return nil
+	return internal.WriteIdentityFileTLS(ctx, log, keyRing, dest)
 }
 
 // concatCACerts borrow's identityfile's CA cert concat method.
@@ -200,29 +105,7 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 // which CAs are actually worth writing for each type of service because
 // it seems inefficient to write the "Database" CA for a Kubernetes output.
 func writeTLSCAs(ctx context.Context, dest destination.Destination, hostCAs, userCAs, databaseCAs []types.CertAuthority) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"writeTLSCAs",
-	)
-	defer span.End()
-
-	// Note: This implementation mirrors tctl's current behavior. I've noticed
-	// that mariadb at least does not seem to like being passed more than one
-	// CA so there may be some compat issues to address in the future for the
-	// rare case where a CA rotation is in progress.
-	if err := dest.Write(ctx, internal.HostCAPath, concatCACerts(hostCAs)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := dest.Write(ctx, internal.UserCAPath, concatCACerts(userCAs)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := dest.Write(ctx, internal.DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return internal.WriteTLSCAs(ctx, dest, hostCAs, userCAs, databaseCAs)
 }
 
 // chooseOneResource chooses one matched resource by name, or tries to choose

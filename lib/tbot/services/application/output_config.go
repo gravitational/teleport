@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const OutputServiceType = "application"
@@ -105,7 +106,7 @@ func (o *OutputConfig) Describe() []bot.FileDescription {
 
 func (o *OutputConfig) MarshalYAML() (any, error) {
 	type raw OutputConfig
-	return internal.WithTypeHeader((*raw)(o), OutputServiceType)
+	return marshaling.WithTypeHeader((*raw)(o), OutputServiceType)
 }
 
 func (o *OutputConfig) UnmarshalYAML(*yaml.Node) error {

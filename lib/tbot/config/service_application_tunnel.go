@@ -26,7 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 var (
@@ -64,7 +64,7 @@ func (s *ApplicationTunnelService) Type() string {
 
 func (s *ApplicationTunnelService) MarshalYAML() (any, error) {
 	type raw ApplicationTunnelService
-	return internal.WithTypeHeader((*raw)(s), ApplicationTunnelServiceType)
+	return marshaling.WithTypeHeader((*raw)(s), ApplicationTunnelServiceType)
 }
 
 func (s *ApplicationTunnelService) UnmarshalYAML(node *yaml.Node) error {
