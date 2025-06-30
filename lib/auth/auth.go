@@ -611,6 +611,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		VnetConfigService:               cfg.VnetConfigService,
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
+		MultipartHandler:                cfg.MultipartHandler,
 	}
 
 	as := Server{
@@ -856,6 +857,7 @@ type Services struct {
 	services.VnetConfigService
 	services.Summarizer
 	RecordingEncryptionManager
+	events.MultipartHandler
 }
 
 // GetWebSession returns existing web session described by req.

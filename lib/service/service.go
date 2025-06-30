@@ -2339,6 +2339,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:                    logger,
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingEncryption:       recordingEncryptionManager,
+			MultipartHandler:          uploadHandler,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -3572,11 +3573,12 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:         uploaderClient,
-		ScanDir:          uploadsDir,
-		CorruptedDir:     corruptedDir,
-		EventsC:          process.Config.Testing.UploadEventsC,
-		InitialScanDelay: 15 * time.Second,
+		Streamer:                   uploaderClient,
+		ScanDir:                    uploadsDir,
+		CorruptedDir:               corruptedDir,
+		EventsC:                    process.Config.Testing.UploadEventsC,
+		InitialScanDelay:           15 * time.Second,
+		EncryptedRecordingUploader: uploaderClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
