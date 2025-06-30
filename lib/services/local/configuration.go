@@ -675,7 +675,7 @@ func (s *ClusterConfigurationService) GetClusterMaintenanceConfig(ctx context.Co
 	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, maintenancePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("no maintenance config has been created")
+			return nil, trace.NotFound("cluster maintenance config not found")
 		}
 		return nil, trace.Wrap(err)
 	}
