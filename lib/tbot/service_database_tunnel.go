@@ -317,5 +317,8 @@ func (s *DatabaseTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *DatabaseTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service),
+	)
 }

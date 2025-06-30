@@ -52,7 +52,10 @@ type DatabaseOutputService struct {
 }
 
 func (s *DatabaseOutputService) String() string {
-	return fmt.Sprintf("database-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("database-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *DatabaseOutputService) OneShot(ctx context.Context) error {

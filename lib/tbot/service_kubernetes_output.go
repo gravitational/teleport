@@ -70,7 +70,10 @@ type KubernetesOutputService struct {
 }
 
 func (s *KubernetesOutputService) String() string {
-	return fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *KubernetesOutputService) OneShot(ctx context.Context) error {

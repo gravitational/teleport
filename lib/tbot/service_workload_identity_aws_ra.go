@@ -58,7 +58,10 @@ type WorkloadIdentityAWSRAService struct {
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityAWSRAService) String() string {
-	return fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the

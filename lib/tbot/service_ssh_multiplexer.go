@@ -807,7 +807,10 @@ func (s *SSHMultiplexerService) handleConn(
 }
 
 func (s *SSHMultiplexerService) String() string {
-	return config.SSHMultiplexerServiceType
+	return cmp.Or(
+		s.cfg.Name,
+		config.SSHMultiplexerServiceType,
+	)
 }
 
 type hostDialer interface {
