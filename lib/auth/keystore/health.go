@@ -48,9 +48,8 @@ func (h *passiveHealthChecker) probeUntilHealthy(ctx context.Context, probe prob
 	timer := h.clock.NewTimer(retryInterval)
 	defer h.busy.Store(false)
 
-	h.log.DebugContext(ctx, "Starting passive health check probe")
 	for {
-		h.log.InfoContext(ctx, "Trying passive health check probe", "duration", h.clock.Since(start), "fails", fails, "oks", oks)
+		h.log.DebugContext(ctx, "Trying passive health check probe", "duration", h.clock.Since(start), "fails", fails, "oks", oks)
 		timer.Reset(retryInterval)
 		timeoutCtx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 		err := probe(timeoutCtx)
