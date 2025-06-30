@@ -31,20 +31,20 @@ func FromProtoDraft(in *externalauditstoragev1.ExternalAuditStorage) (*externala
 		return nil, trace.BadParameter("External Audit Storage message is nil")
 	}
 
-	if in.Spec == nil {
+	if in.GetSpec() == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	externalAuditStorage, err := externalauditstorage.NewDraftExternalAuditStorage(headerv1.FromMetadataProto(in.Header.Metadata), externalauditstorage.ExternalAuditStorageSpec{
-		IntegrationName:        in.Spec.IntegrationName,
-		PolicyName:             in.Spec.PolicyName,
-		Region:                 in.Spec.Region,
-		SessionRecordingsURI:   in.Spec.SessionRecordingsUri,
-		AthenaWorkgroup:        in.Spec.AthenaWorkgroup,
-		GlueDatabase:           in.Spec.GlueDatabase,
-		GlueTable:              in.Spec.GlueTable,
-		AuditEventsLongTermURI: in.Spec.AuditEventsLongTermUri,
-		AthenaResultsURI:       in.Spec.AthenaResultsUri,
+	externalAuditStorage, err := externalauditstorage.NewDraftExternalAuditStorage(headerv1.FromMetadataProto(in.GetHeader().GetMetadata()), externalauditstorage.ExternalAuditStorageSpec{
+		IntegrationName:        in.GetSpec().GetIntegrationName(),
+		PolicyName:             in.GetSpec().GetPolicyName(),
+		Region:                 in.GetSpec().GetRegion(),
+		SessionRecordingsURI:   in.GetSpec().GetSessionRecordingsUri(),
+		AthenaWorkgroup:        in.GetSpec().GetAthenaWorkgroup(),
+		GlueDatabase:           in.GetSpec().GetGlueDatabase(),
+		GlueTable:              in.GetSpec().GetGlueTable(),
+		AuditEventsLongTermURI: in.GetSpec().GetAuditEventsLongTermUri(),
+		AthenaResultsURI:       in.GetSpec().GetAthenaResultsUri(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,20 +59,20 @@ func FromProtoCluster(in *externalauditstoragev1.ExternalAuditStorage) (*externa
 		return nil, trace.BadParameter("External Audit Storage message is nil")
 	}
 
-	if in.Spec == nil {
+	if in.GetSpec() == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	externalAuditStorage, err := externalauditstorage.NewClusterExternalAuditStorage(headerv1.FromMetadataProto(in.Header.Metadata), externalauditstorage.ExternalAuditStorageSpec{
-		IntegrationName:        in.Spec.IntegrationName,
-		PolicyName:             in.Spec.PolicyName,
-		Region:                 in.Spec.Region,
-		SessionRecordingsURI:   in.Spec.SessionRecordingsUri,
-		AthenaWorkgroup:        in.Spec.AthenaWorkgroup,
-		GlueDatabase:           in.Spec.GlueDatabase,
-		GlueTable:              in.Spec.GlueTable,
-		AuditEventsLongTermURI: in.Spec.AuditEventsLongTermUri,
-		AthenaResultsURI:       in.Spec.AthenaResultsUri,
+	externalAuditStorage, err := externalauditstorage.NewClusterExternalAuditStorage(headerv1.FromMetadataProto(in.GetHeader().GetMetadata()), externalauditstorage.ExternalAuditStorageSpec{
+		IntegrationName:        in.GetSpec().GetIntegrationName(),
+		PolicyName:             in.GetSpec().GetPolicyName(),
+		Region:                 in.GetSpec().GetRegion(),
+		SessionRecordingsURI:   in.GetSpec().GetSessionRecordingsUri(),
+		AthenaWorkgroup:        in.GetSpec().GetAthenaWorkgroup(),
+		GlueDatabase:           in.GetSpec().GetGlueDatabase(),
+		GlueTable:              in.GetSpec().GetGlueTable(),
+		AuditEventsLongTermURI: in.GetSpec().GetAuditEventsLongTermUri(),
+		AthenaResultsURI:       in.GetSpec().GetAthenaResultsUri(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
