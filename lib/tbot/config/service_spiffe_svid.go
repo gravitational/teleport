@@ -159,8 +159,8 @@ func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
 }
 
 // Describe returns the file descriptions for the SPIFFE SVID output.
-func (o *SPIFFESVIDOutput) Describe() []FileDescription {
-	fds := []FileDescription{
+func (o *SPIFFESVIDOutput) Describe() []bot.FileDescription {
+	fds := []bot.FileDescription{
 		{
 			Name: SVIDPEMPath,
 		},
@@ -172,7 +172,7 @@ func (o *SPIFFESVIDOutput) Describe() []FileDescription {
 		},
 	}
 	for _, jwt := range o.JWTs {
-		fds = append(fds, FileDescription{Name: jwt.FileName})
+		fds = append(fds, bot.FileDescription{Name: jwt.FileName})
 	}
 	return nil
 }

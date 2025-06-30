@@ -74,8 +74,8 @@ func (o *ApplicationOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *ApplicationOutput) Describe() []FileDescription {
-	out := []FileDescription{
+func (o *ApplicationOutput) Describe() []bot.FileDescription {
+	out := []bot.FileDescription{
 		{
 			Name: IdentityFilePath,
 		},
@@ -90,7 +90,7 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 		},
 	}
 	if o.SpecificTLSExtensions {
-		out = append(out, []FileDescription{
+		out = append(out, []bot.FileDescription{
 			{
 				Name: DefaultTLSPrefix + ".crt",
 			},

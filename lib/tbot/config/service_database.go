@@ -131,8 +131,8 @@ func (o *DatabaseOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *DatabaseOutput) Describe() []FileDescription {
-	fds := []FileDescription{
+func (o *DatabaseOutput) Describe() []bot.FileDescription {
+	fds := []bot.FileDescription{
 		{
 			Name: IdentityFilePath,
 		},
@@ -148,7 +148,7 @@ func (o *DatabaseOutput) Describe() []FileDescription {
 	}
 	switch o.Format {
 	case MongoDatabaseFormat:
-		fds = append(fds, []FileDescription{
+		fds = append(fds, []bot.FileDescription{
 			{
 				Name: DefaultMongoPrefix + ".crt",
 			},
@@ -157,14 +157,14 @@ func (o *DatabaseOutput) Describe() []FileDescription {
 			},
 		}...)
 	case CockroachDatabaseFormat:
-		fds = append(fds, []FileDescription{
+		fds = append(fds, []bot.FileDescription{
 			{
 				Name:  DefaultCockroachDirName,
 				IsDir: true,
 			},
 		}...)
 	case TLSDatabaseFormat:
-		fds = append(fds, []FileDescription{
+		fds = append(fds, []bot.FileDescription{
 			{
 				Name: DefaultTLSPrefix + ".crt",
 			},
