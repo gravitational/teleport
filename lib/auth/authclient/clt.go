@@ -377,16 +377,6 @@ func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn f
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// ListWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
 const (
 	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
 	// allows users to change their password and set second factor (if enabled).
