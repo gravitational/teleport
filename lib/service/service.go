@@ -2235,7 +2235,7 @@ func (process *TeleportProcess) initAuthService() error {
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
-			KeystoreHealthCallback:  process.onHeartbeatWithRecovery(teleport.ComponentKeyStore, 0),
+			KeystoreHealthCallback:  process.onHeartbeatWithRecovery(teleport.ComponentAuthKeystore, 0),
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
