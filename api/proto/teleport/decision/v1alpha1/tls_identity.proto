@@ -149,6 +149,11 @@ message TLSIdentity {
 
   // UserType indicates if the User was created by an SSO Provider or locally.
   string user_type = 35;
+
+  // JoinToken is the name of the join token used when a bot joins; it does not
+  // apply to other identity types, or to bots using the traditional `token`
+  // join method.
+  string join_token = 36;
 }
 
 // RouteToApp holds routing information for applications.

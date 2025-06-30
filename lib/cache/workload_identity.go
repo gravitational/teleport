@@ -40,6 +40,7 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 
 	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		store: newStore(
+			types.KindWorkloadIdentity,
 			proto.CloneOf[*workloadidentityv1pb.WorkloadIdentity],
 			map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{
 				workloadIdentityNameIndex: func(r *workloadidentityv1pb.WorkloadIdentity) string {

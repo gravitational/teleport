@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"image/png"
 	"net/url"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -465,10 +466,8 @@ func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, all
 		return trace.AccessDenied("invalid token")
 	}
 
-	for _, kind := range allowedKinds {
-		if token.GetSubKind() == kind {
-			return nil
-		}
+	if slices.Contains(allowedKinds, token.GetSubKind()) {
+		return nil
 	}
 
 	a.logger.DebugContext(ctx, "Invalid token",

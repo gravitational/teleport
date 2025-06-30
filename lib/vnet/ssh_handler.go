@@ -54,12 +54,13 @@ func (h *sshHandler) handleTCPConnector(ctx context.Context, localPort uint16, c
 	if localPort != 22 {
 		return trace.BadParameter("SSH is only handled on port 22")
 	}
-	targetConn, err := h.cfg.sshProvider.dial(ctx, h.cfg.target)
+	agent := newSSHAgent()
+	targetConn, err := h.cfg.sshProvider.dial(ctx, h.cfg.target, agent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer targetConn.Close()
-	return trace.Wrap(h.handleTCPConnectorWithTargetConn(ctx, connector, targetConn))
+	return trace.Wrap(h.handleTCPConnectorWithTargetConn(ctx, connector, targetConn, agent))
 }
 
 // handleTCPConnectorWithTargetTCPConn handles an incoming TCP connection from
@@ -68,6 +69,7 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	ctx context.Context,
 	connector func() (net.Conn, error),
 	targetConn net.Conn,
+	agent *sshAgent,
 ) error {
 	target := h.cfg.target
 	hostCert, err := newHostCert(target.fqdn, h.cfg.sshProvider.hostCASigner)
@@ -107,7 +109,7 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 				return nil, clientConnErr
 			}
 			initiatedSSHConn = true
-			clientConn, clientConnErr = h.initiateSSHConn(ctx, targetConn, conn.User())
+			clientConn, clientConnErr = h.initiateSSHConn(ctx, targetConn, conn.User(), agent)
 			if clientConnErr != nil {
 				// Attempt to send a friendlier errer message if we failed to
 				// initiate the SSH connection to the target by sending an auth
@@ -159,9 +161,9 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	return nil
 }
 
-func (h *sshHandler) initiateSSHConn(ctx context.Context, targetConn net.Conn, user string) (*sshConn, error) {
+func (h *sshHandler) initiateSSHConn(ctx context.Context, targetConn net.Conn, user string, agent *sshAgent) (*sshConn, error) {
 	target := h.cfg.target
-	clientConfig, err := h.cfg.sshProvider.sessionSSHConfig(ctx, target, user)
+	clientConfig, err := h.cfg.sshProvider.sessionSSHConfig(ctx, target, user, agent)
 	if err != nil {
 		return nil, trace.Wrap(err, "building SSH client config")
 	}

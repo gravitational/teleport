@@ -166,6 +166,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
+	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
@@ -229,8 +230,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Create user for regular tests.
 	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
-
-	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
@@ -553,7 +552,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

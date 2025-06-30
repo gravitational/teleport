@@ -34,6 +34,7 @@ require (
 	code.dny.dev/ssrf v0.2.0 // indirect
 	connectrpc.com/connect v1.18.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
+	filippo.io/age v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
@@ -163,7 +164,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.8.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
-	github.com/go-chi/chi/v5 v5.2.1 // indirect
+	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
@@ -184,7 +185,7 @@ require (
 	github.com/go-piv/piv-go v1.11.0 // indirect
 	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/go-webauthn/webauthn v0.13.0 // indirect
 	github.com/go-webauthn/x v0.1.21 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
@@ -471,7 +472,7 @@ replace (
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
 
 // Doc generation tooling.

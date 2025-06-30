@@ -46,7 +46,7 @@ func TestObeyIdleTimeout(t *testing.T) {
 	errC := make(chan error, 3)
 	go func() {
 		var b [1]byte
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := io.ReadFull(c1, b[:])
 			errC <- err
 		}

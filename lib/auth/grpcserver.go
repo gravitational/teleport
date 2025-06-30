@@ -252,6 +252,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	teleport.ComponentRelay:                  connectedResources.WithLabelValues(teleport.ComponentRelay),
 }
 
 // SendKeepAlives allows node to send a stream of keep alive requests
@@ -5317,6 +5318,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
 	})

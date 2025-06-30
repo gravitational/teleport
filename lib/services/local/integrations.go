@@ -153,11 +153,9 @@ func integrationDeletionConditions(ctx context.Context, bk backend.Backend, name
 	}
 	deleteConditionalActions = append(deleteConditionalActions, easDeleteConditions...)
 
-	awsIcDeleteCondition, err := integrationReferencedByAWSICPlugin(ctx, bk, name)
-	if err != nil {
+	if err := integrationReferencedByAWSICPlugin(ctx, bk, name); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	deleteConditionalActions = append(deleteConditionalActions, awsIcDeleteCondition...)
 
 	return deleteConditionalActions, nil
 }
@@ -196,15 +194,12 @@ func integrationReferencedByEAS(ctx context.Context, bk backend.Backend, name st
 }
 
 // integrationReferencedByAWSICPlugin returns an error if the integration name is referenced
-// by an existing AWS Identity Center plugin. In case the AWS Identity Center plugin exists
-// but does not reference this integration, a conditional action is returned with a revision
-// of the plugin to ensure that plugin hasn't changed during deletion of the AWS OIDC integration.
-func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
-	var conditionalActions []backend.ConditionalAction
+// by an existing AWS Identity Center plugin.
+func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) error {
 	pluginService := NewPluginsService(bk)
 	plugins, err := pluginService.GetPlugins(ctx, false)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	for _, p := range plugins {
@@ -212,25 +207,19 @@ func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend,
 		if !ok {
 			continue
 		}
-		if pluginV1.GetType() != types.PluginType(types.PluginTypeAWSIdentityCenter) {
-			continue
-		}
-		if awsIC := pluginV1.Spec.GetAwsIc(); awsIC != nil {
-			switch awsIC.IntegrationName {
-			case name:
-				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
-			default:
-				conditionalActions = append(conditionalActions, backend.ConditionalAction{
-					Key:       backend.NewKey(pluginsPrefix, name),
-					Action:    backend.Nop(),
-					Condition: backend.Revision(pluginV1.GetRevision()),
-				})
-				return conditionalActions, nil
+		switch pluginV1.GetType() {
+		case types.PluginTypeAWSIdentityCenter:
+			if awsIC := pluginV1.Spec.GetAwsIc(); awsIC != nil {
+				if awsIC.IntegrationName == name {
+					return trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
+				}
 			}
+		default:
+			continue
 		}
 	}
 
-	return conditionalActions, nil
+	return nil
 }
 
 // DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.

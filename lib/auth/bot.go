@@ -176,7 +176,7 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, username string, newValue uint64) error {
 	var err error
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		user, err := a.Services.GetUser(ctx, username, false)
 		if err != nil {
 			return trace.Wrap(err)
@@ -612,6 +612,14 @@ func (a *Server) generateInitialBotCerts(
 		if certReq.botInstanceID == "" {
 			certReq.botInstanceID = existingInstanceID
 		}
+	}
+
+	// Set the join token cert field for non-renewable identities. This is used
+	// for lock targeting; token name lock targets are particularly useful for
+	// token-joined bots and it's a secret value, so we don't bother setting it.
+	// (The renewable flag implies token joining.)
+	if !renewable {
+		certReq.joinToken = initialAuth.JoinToken
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)

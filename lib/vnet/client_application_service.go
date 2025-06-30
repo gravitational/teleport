@@ -353,13 +353,18 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	}
 	var trustedCAs [][]byte
 	for _, trustedCert := range keyRing.TrustedCerts {
-		if trustedCert.ClusterName != targetCluster {
+		switch trustedCert.ClusterName {
+		case targetCluster, req.GetRootCluster():
+			// Always trust the target cluster and the root cluster in case the
+			// root proxy will terminate the connection in proxy recording mode.
+		default:
+			// Don't trust CAs for other leaf clusters or unknown clusters.
 			continue
 		}
 		for _, authorizedKey := range trustedCert.AuthorizedKeys {
 			trustedCA, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
 			if err != nil {
-				return nil, trace.Wrap(err, "parsing CA cert")
+				return nil, trace.Wrap(err, "parsing CA public key")
 			}
 			trustedCAs = append(trustedCAs, trustedCA.Marshal())
 		}

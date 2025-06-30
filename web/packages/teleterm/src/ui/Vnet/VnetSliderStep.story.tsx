@@ -46,7 +46,6 @@ type StoryProps = {
     | 'error'
     | 'processing'
     | 'processing-with-previous-results';
-  vnetDiag: boolean;
   runDiagnostics: 'success' | 'error' | 'processing';
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
@@ -60,7 +59,6 @@ const defaultArgs: StoryProps = {
   clusters: ['teleport.example.com'],
   sshConfigured: false,
   fetchStatus: 'success',
-  vnetDiag: true,
   runDiagnostics: 'success',
   diagReport: 'ok',
   isWorkspacePresent: true,
@@ -117,9 +115,7 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 function VnetSliderStep(props: StoryProps) {
-  const appContext = new MockAppContext({
-    platform: props.vnetDiag ? 'darwin' : 'win32',
-  });
+  const appContext = new MockAppContext();
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());
@@ -169,6 +165,8 @@ function VnetSliderStep(props: StoryProps) {
             appDnsZones: props.appDnsZones,
             clusters: props.clusters,
             sshConfigured: props.sshConfigured,
+            vnetSshConfigPath:
+              '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
           });
         }
         return pendingPromise;
@@ -179,6 +177,8 @@ function VnetSliderStep(props: StoryProps) {
           appDnsZones: props.appDnsZones,
           clusters: props.clusters,
           sshConfigured: props.sshConfigured,
+          vnetSshConfigPath:
+            '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
         },
         props.fetchStatus === 'error'
           ? new Error('something went wrong')
@@ -239,13 +239,13 @@ function VnetSliderStep(props: StoryProps) {
 }
 
 const RerequestServiceInfo = () => {
-  const { getServiceInfo, serviceInfoAttempt } = useVnetContext();
+  const { serviceInfoAttempt, refreshServiceInfoAttempt } = useVnetContext();
 
   useEffect(() => {
     if (serviceInfoAttempt.status === 'success') {
-      getServiceInfo();
+      refreshServiceInfoAttempt();
     }
-  }, [serviceInfoAttempt, getServiceInfo]);
+  }, [serviceInfoAttempt, refreshServiceInfoAttempt]);
 
   return null;
 };

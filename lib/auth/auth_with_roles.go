@@ -850,7 +850,7 @@ Outer:
 		// one of the specified <resource>:<verb> pairs (e.g. `node:list|token:create`
 		// would be satisfied by either a user that can list nodes *or* create tokens).
 	Verbs:
-		for _, s := range strings.Split(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
+		for s := range strings.SplitSeq(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
 			rv := strings.Split(s, ":")
 			if len(rv) != 2 {
 				continue Verbs
@@ -875,7 +875,7 @@ Outer:
 		sups := make(map[string]types.AlertSeverity)
 
 		for _, alert := range alerts {
-			for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
+			for id := range strings.SplitSeq(alert.Metadata.Labels[types.AlertSupersedes], ",") {
 				if sups[id] < alert.Spec.Severity {
 					sups[id] = alert.Spec.Severity
 				}
@@ -3483,6 +3483,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
 		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		joinToken:     a.context.Identity.GetIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
 		// identity.
 		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,

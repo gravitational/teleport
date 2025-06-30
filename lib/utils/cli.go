@@ -306,7 +306,7 @@ const (
 )
 
 // Color formats the string in a terminal escape color
-func Color(color int, v interface{}) string {
+func Color(color int, v any) string {
 	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
 }
 
@@ -336,54 +336,6 @@ func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 		optFunc(opt)
 	}
 	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
-}
-
-// UpdateAppUsageTemplate updates usage template for kingpin applications by
-// pre-parsing the arguments then applying any changes to the usage template if
-// necessary.
-func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
-	app.UsageTemplate(createUsageTemplate(
-		withCommandPrintfWidth(app, args),
-	))
-}
-
-// withCommandPrintfWidth returns a usage template option that
-// updates command printf width if longer than default.
-func withCommandPrintfWidth(app *kingpin.Application, args []string) func(*usageTemplateOptions) {
-	return func(opt *usageTemplateOptions) {
-		var commands []*kingpin.CmdModel
-
-		// When selected command is "help", skip the "help" arg
-		// so the intended command is selected for calculation.
-		if len(args) > 0 && args[0] == "help" {
-			args = args[1:]
-		}
-
-		appContext, err := app.ParseContext(args)
-		switch {
-		case appContext == nil:
-			slog.WarnContext(context.Background(), "No application context found")
-			return
-
-		// Note that ParseContext may return the current selected command that's
-		// causing the error. We should continue in those cases when appContext is
-		// not nil.
-		case err != nil:
-			slog.InfoContext(context.Background(), "Error parsing application context", "error", err)
-		}
-
-		if appContext.SelectedCommand != nil {
-			commands = appContext.SelectedCommand.Model().FlattenedCommands()
-		} else {
-			commands = app.Model().FlattenedCommands()
-		}
-
-		for _, command := range commands {
-			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
-				opt.commandPrintfWidth = len(command.FullCommand)
-			}
-		}
-	}
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when

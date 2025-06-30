@@ -101,7 +101,7 @@ func newTestingUsageReporter(
 func createDummyEvents(start, count int) []*TestEvent {
 	var ret []*TestEvent
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ret = append(ret, &TestEvent{
 			count: start + i,
 		})
@@ -113,7 +113,7 @@ func createDummyEvents(start, count int) []*TestEvent {
 func compareUsageEvents(t *testing.T, reporter *UsageReporter[TestEvent], inputs []*TestEvent, outputs []*SubmittedEvent[TestEvent]) {
 	require.Len(t, outputs, len(inputs))
 
-	for i := 0; i < len(inputs); i++ {
+	for i := range inputs {
 		input := inputs[i]
 		output := outputs[i]
 

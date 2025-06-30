@@ -74,7 +74,7 @@ func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequ
 		contents, err := encodeDatabaseResource(db)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "error while list databases", "error", err)
-			return mcp.NewToolResultError(FormatErrorMessage(nil, err).Error()), nil
+			return mcp.NewToolResultError(FormatErrorMessage(err).Error()), nil
 		}
 		res = append(res, mcp.EmbeddedResource{Type: "resource", Resource: contents})
 	}
@@ -111,7 +111,7 @@ func (s *RootServer) RegisterDatabase(db *Database) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	uri := db.ResourceURI().String()
+	uri := db.ResourceURI().WithoutParams().String()
 	s.availableDatabases[uri] = db
 	s.AddResource(mcp.NewResource(uri, fmt.Sprintf("%s Database", db.DB.GetName()), mcp.WithMIMEType(databaseResourceMIMEType)), s.GetDatabaseResource)
 }
@@ -124,7 +124,7 @@ func (s *RootServer) ServeStdio(ctx context.Context, in io.Reader, out io.Writer
 func buildDatabaseResource(db *Database) DatabaseResource {
 	return DatabaseResource{
 		Metadata:    db.DB.GetMetadata(),
-		URI:         db.ResourceURI().String(),
+		URI:         db.ResourceURI().WithoutParams().String(),
 		Protocol:    db.DB.GetProtocol(),
 		ClusterName: db.ClusterName,
 	}

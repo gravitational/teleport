@@ -36,6 +36,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 
 	return &collection[types.StaticTokens, staticTokensIndex]{
 		store: newStore(
+			types.KindStaticTokens,
 			types.StaticTokens.Clone,
 			map[staticTokensIndex]func(types.StaticTokens) string{
 				staticTokensNameIndex: types.StaticTokens.GetName,
@@ -91,6 +92,7 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 
 	return &collection[types.ProvisionToken, provisionTokenIndex]{
 		store: newStore(
+			types.KindToken,
 			types.ProvisionToken.Clone,
 			map[provisionTokenIndex]func(types.ProvisionToken) string{
 				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,

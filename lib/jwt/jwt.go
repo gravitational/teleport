@@ -194,7 +194,7 @@ func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error
 // wrapping it in an opaque signer if necessary.
 func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
 	// Create a signer with configured private key and algorithm.
-	var signer interface{}
+	var signer any
 	switch priv.(type) {
 	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
 		signer = priv
