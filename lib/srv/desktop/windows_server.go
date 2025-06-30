@@ -103,7 +103,6 @@ type WindowsService struct {
 	middleware *authz.Middleware
 
 	ca *winpki.CertificateStoreClient
-	lc *winpki.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
 	ldapConfigured  bool
@@ -342,7 +341,6 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
-		lc:          winpki.NewLDAPClient(cfg.LDAPConfig),
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
@@ -358,7 +356,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
 		Logger:      slog.Default(),
 		ClusterName: s.clusterName,
-		LC:          s.lc,
+		LC:          winpki.NewLDAPClient(cfg.LDAPConfig),
 	})
 
 	if err := s.startServiceHeartbeat(); err != nil {
@@ -1117,7 +1115,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		entries, err := s.lc.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid}, tc)
+		lc := winpki.NewLDAPClient(s.cfg.LDAPConfig)
+		entries, err := lc.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid}, tc)
 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
