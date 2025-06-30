@@ -69,12 +69,17 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func pathForFile(t *testing.T, name string) string {
+// TestingT is a subset of *testing.T's interface. It is intentionally *NOT*
+// compatible with testify's require and assert packages to avoid accidentally
+// bringing those packages into production code.
+type TestingT interface {
+	Fatalf(format string, args ...any)
+	Name() string
+}
+
+func pathForFile(t TestingT, name string) string {
 	pathComponents := []string{
 		"testdata",
 		t.Name(),
@@ -98,35 +103,37 @@ func ShouldSet() bool {
 
 // SetNamed writes the supplied data to a named golden file for the current
 // test.
-func SetNamed(t *testing.T, name string, data []byte) {
+func SetNamed(t TestingT, name string, data []byte) {
 	p := pathForFile(t, name)
 	dir := filepath.Dir(p)
 
-	err := os.MkdirAll(dir, 0o755)
-	require.NoError(t, err)
-
-	err = os.WriteFile(p, data, 0o644)
-	require.NoError(t, err)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("failed to MkdirAll(%q): %v", dir, err)
+	}
+	if err := os.WriteFile(p, data, 0o644); err != nil {
+		t.Fatalf("failed to WriteFile(%q): %v", p, err)
+	}
 }
 
 // Set writes the supplied data to the golden file for the current test.
-func Set(t *testing.T, data []byte) {
+func Set(t TestingT, data []byte) {
 	SetNamed(t, "", data)
 }
 
 // GetNamed returns the contents of a named golden file for the current test. If
 // the specified golden file does not exist for the test, the test will be
 // failed.
-func GetNamed(t *testing.T, name string) []byte {
+func GetNamed(t TestingT, name string) []byte {
 	p := pathForFile(t, name)
 	data, err := os.ReadFile(p)
-	require.NoError(t, err)
-
+	if err != nil {
+		t.Fatalf("failed to read golden file: %v", err)
+	}
 	return data
 }
 
 // Get returns the contents of the golden file for the current test. If there is
 // no golden file for the test, the test will be failed.
-func Get(t *testing.T) []byte {
+func Get(t TestingT) []byte {
 	return GetNamed(t, "")
 }
