@@ -300,6 +300,14 @@ type mockIdentityService struct {
 	mock.Mock
 }
 
+func (m *mockIdentityService) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	result := m.Called(ctx, id, loadSigningKeys)
+	if fn, ok := result.Get(0).(func(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)); ok {
+		return fn(ctx, id, loadSigningKeys)
+	}
+	return getResultAs[types.CertAuthority](result, 0), result.Error(1)
+}
+
 func (m *mockIdentityService) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 	result := m.Called(ctx, id, withSecrets)
 	if fn, ok := result.Get(0).(func(context.Context, string, bool) (types.SAMLConnector, error)); ok {

@@ -92,6 +92,7 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 		Clock:               fix.clock,
 		IdentityService:     &fix.identityService,
 		AssignmentService:   &fix.assignments,
+		ClusterName:         "test-cluster",
 	})
 	require.NoError(t, err, "creating test harness")
 

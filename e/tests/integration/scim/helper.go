@@ -1,14 +1,19 @@
 package scim
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"maps"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -114,4 +119,84 @@ func mergeJSONMaps(base, overrides map[string]any) map[string]any {
 	merged := maps.Clone(base)
 	maps.Copy(merged, overrides)
 	return merged
+}
+
+func createGenericSCIMPluginOauth(t *testing.T, sut *common.SUT) (string, string) {
+	t.Helper()
+	var pluginClient = pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
+	plugin := &types.PluginV1{
+		SubKind: types.PluginSubkindAccess,
+		Metadata: types.Metadata{
+			Labels: map[string]string{
+				plugins.HostedPluginLabel: "true",
+			},
+			Name: "generic",
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Scim{
+				Scim: &types.PluginSCIMSettings{
+					SamlConnectorName: "okta-pre-created-test",
+				},
+			},
+		},
+	}
+	clientID := uuid.NewString()
+	clientSecret := uuid.NewString()
+
+	var req = &pluginsv1.CreatePluginRequest{
+		Plugin: plugin,
+		StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+			buildOauthCreds(clientID, clientSecret),
+		},
+	}
+	_, err := pluginClient.CreatePlugin(t.Context(), req)
+	require.NoError(t, err)
+	return clientID, clientSecret
+}
+
+func buildOauthCreds(clientID, clientSecret string) *types.PluginStaticCredentialsV1 {
+	return &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "oauth-generic-token-name" + uuid.NewString(),
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+			OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+				ClientId:     clientID,
+				ClientSecret: clientSecret,
+			},
+		}},
+	}
+}
+
+func buildURL(host, path string) url.URL {
+	return url.URL{Scheme: "https", Host: host, Path: path}
+}
+
+func insecureTransport() *http.Transport {
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+}
+
+func newBearerClient(token string) *http.Client {
+	return &http.Client{
+		Transport: &bearerAuthTransport{
+			Token:     token,
+			Transport: insecureTransport(),
+		},
+	}
+}
+
+func mustHTTPGet(t *testing.T, client *http.Client, url string) *http.Response {
+	resp, err := client.Get(url)
+	require.NoError(t, err)
+	return resp
+}
+
+func mustGetToken(t *testing.T, config clientcredentials.Config, ctx context.Context) *oauth2.Token {
+	token, err := config.Token(ctx)
+	require.NoError(t, err)
+	return token
 }

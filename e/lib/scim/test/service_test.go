@@ -362,6 +362,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 		IdentityService:     &mockIdentityService{},
 		Clock:               clock,
 		AssignmentService:   &mockAssignmentsService{},
+		ClusterName:         "test-cluster",
 	})
 	require.NoError(t, err)
 

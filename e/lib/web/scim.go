@@ -10,9 +10,11 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -70,6 +72,9 @@ func (p *Plugin) registerSCIMHandlers() {
 			p.h.WithUnauthenticatedHighLimiter(
 				p.wrapSCIMRequest(p.scimLogRequest)))
 	}
+
+	p.h.POST("/webapi/plugin/:plugin_name/token",
+		p.h.WithUnauthenticatedHighLimiter(p.getToken))
 }
 
 func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, httprouter.Params) error) httplib.HandlerFunc {
@@ -378,6 +383,30 @@ func (p *Plugin) scimLogRequest(w http.ResponseWriter, r *http.Request, params h
 	)
 
 	return trace.NotImplemented(http.MethodPatch)
+}
+
+func (p *Plugin) getToken(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	authClient, err := p.getAuthClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pluginClient := pluginspb.NewPluginServiceClient(authClient.GetConnection())
+
+	resp, err := pluginClient.CreatePluginOauthToken(r.Context(), &pluginspb.CreatePluginOauthTokenRequest{
+		ClientId:     r.FormValue("client_id"),
+		ClientSecret: r.FormValue("client_secret"),
+		GrantType:    r.FormValue("grant_type"),
+		PluginName:   params.ByName("plugin_name"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiResp := &ui.OauthTokenResponse{
+		AccessToken: resp.GetAccessToken(),
+		TokenType:   resp.GetTokenType(),
+		ExpiresIn:   resp.GetExpiresIn(),
+	}
+	return uiResp, nil
 }
 
 func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte) {

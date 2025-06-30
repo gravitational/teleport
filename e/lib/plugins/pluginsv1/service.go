@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"crypto"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -65,6 +66,7 @@ type ServiceConfig struct {
 	PluginStaticCredentialsService services.PluginStaticCredentials
 	Logger                         *slog.Logger
 	Handlers                       map[types.PluginType]pluginHandler
+	KeyStoreManager                KeyStoreManager
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -96,7 +98,16 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("plugin %s is disabled but is not a supported plugin", pluginType)
 		}
 	}
+	if cfg.KeyStoreManager == nil {
+		return trace.BadParameter("keyStoreManager must be set")
+	}
 	return nil
+}
+
+// KeyStoreManager defines methods to get signers using the server's keystore.
+type KeyStoreManager interface {
+	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
 // Service implements pluginspb.PluginServiceServer.
@@ -113,6 +124,7 @@ type Service struct {
 	logger                         *slog.Logger
 	httpClient                     *http.Client
 	handlers                       map[types.PluginType]pluginHandler
+	keyStoreManager                KeyStoreManager
 }
 
 // NewService creates a new plugins service from the given config.
@@ -133,6 +145,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		httpClient: &http.Client{
 			Timeout: 1 * time.Minute,
 		},
+		keyStoreManager: cfg.KeyStoreManager,
 	}, nil
 }
 

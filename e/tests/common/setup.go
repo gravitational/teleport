@@ -40,6 +40,7 @@ type SUT struct {
 func InitSUT(t *testing.T, opts ...option) *SUT {
 	options := &sutOptions{
 		license: "../../fixtures/license-eub.pem",
+		clock:   clockwork.NewRealClock(),
 	}
 
 	for _, opt := range opts {
@@ -55,9 +56,8 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 		},
 	})
 
-	clock := clockwork.NewRealClock()
 	cfg := newInstanceConfig(t)
-	cfg.Clock = clock
+	cfg.Clock = options.clock
 	teleport := helpers.NewInstance(t, cfg)
 
 	teleport.ProcessProvider = &entProcessProvider{}
@@ -70,7 +70,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	}
 
 	serviceConfig.Auth.HostedPlugins.Enabled = true
-	serviceConfig.Clock = clock
+	serviceConfig.Clock = options.clock
 	serviceConfig.Testing.HTTPTransport = options.HTTPTransport
 	err := teleport.CreateEx(t, nil, serviceConfig)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 
 	sut := SUT{
 		Teleport:         teleport,
-		Clock:            clock,
+		Clock:            options.clock,
 		DataDir:          serviceConfig.DataDir,
 		ProxyAddr:        serviceConfig.Proxy.WebAddr.String(),
 		AuthListenerAddr: serviceConfig.Auth.ListenAddr.String(),

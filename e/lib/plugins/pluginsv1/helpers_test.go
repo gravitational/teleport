@@ -89,7 +89,7 @@ func createSuite(t *testing.T) *suite {
 		PluginService:                  pluginService,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              pluginAuthorizers,
-	})
+		KeyStoreManager:                authServer.AuthServer.GetKeyStore()})
 	require.NoError(t, err)
 
 	return &suite{

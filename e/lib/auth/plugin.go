@@ -373,6 +373,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		HTTPClient: &http.Client{
 			Transport: p.HTTPTransport,
 		},
+		ClusterName: clusterName.GetClusterName(),
+		Clock:       p.authServer.AuthServer.GetClock(),
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")
@@ -686,6 +688,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCre
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              authorizers,
 		Logger:                         p.logger,
+		KeyStoreManager:                p.authServer.AuthServer.GetKeyStore(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

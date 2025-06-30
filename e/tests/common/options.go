@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -14,6 +15,7 @@ type sutOptions struct {
 	samlConnector string
 	license       string
 	HTTPTransport http.RoundTripper
+	clock         clockwork.Clock
 }
 
 type option func(*sutOptions)
@@ -47,5 +49,12 @@ func WithSAMLConnector(connector string) func(*sutOptions) {
 func WithLicense(license string) func(*sutOptions) {
 	return func(o *sutOptions) {
 		o.license = license
+	}
+}
+
+// WithClock sets the clock for the SUT.
+func WithClock(clock clockwork.Clock) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.clock = clock
 	}
 }

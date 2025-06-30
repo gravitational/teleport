@@ -54,6 +54,8 @@ type Config struct {
 	AccessListGetter accessListGetter
 	// AssignmentService is used to fetch Okta assignments.
 	AssignmentService common.OktaAssignmentService
+	// ClusterName is the name of the cluster this service is running in.
+	ClusterName string
 }
 type accessListGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
@@ -113,6 +115,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.AssignmentService == nil {
 		return trace.BadParameter("missing assignment service")
 	}
+
+	if cfg.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
 	return nil
 }
 
@@ -129,6 +135,7 @@ type LocksService interface {
 
 type IdentityService interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
 }
 
 // UsersService is an abstraction over the user database used by the SCIM
