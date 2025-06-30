@@ -5380,21 +5380,18 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	return nil
 }
 
-func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
+func (a *Server) streamWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) stream.Stream[types.WindowsDesktop] {
 	var done bool
 	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
 		if done {
 			return nil, io.EOF
 		}
-		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-			Limit:    50,
-			StartKey: startKey,
-		})
+		resp, err := a.ListWindowsDesktops(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		startKey = resp.NextKey
-		done = startKey == ""
+		req.StartKey = resp.NextKey
+		done = req.StartKey == ""
 		return resp.Desktops, nil
 	})
 }
@@ -5428,7 +5425,7 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 	}
 
 	desktops := stream.FilterMap(
-		a.streamWindowsDesktops(ctx, ""),
+		a.streamWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{Limit: 50}),
 		func(d types.WindowsDesktop) (struct{}, bool) {
 			return struct{}{}, d.NonAD()
 		},

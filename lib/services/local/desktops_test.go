@@ -114,6 +114,7 @@ func TestListWindowsDesktops(t *testing.T) {
 }
 
 func TestListWindowsDesktops_Filters(t *testing.T) {
+
 	t.Parallel()
 
 	ctx := context.Background()
@@ -147,7 +148,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 	tests := []struct {
 		name    string
 		filter  types.ListWindowsDesktopsRequest
-		wantErr bool
+		assert  require.ErrorAssertionFunc
+		wantLen int
 	}{
 		{
 			name: "NOK non-matching host id and name",
@@ -158,12 +160,14 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 					Name:   "no-match",
 				},
 			},
-			wantErr: true,
+			assert:  require.NoError,
+			wantLen: 0,
 		},
 		{
 			name:    "NOK invalid limit",
 			filter:  types.ListWindowsDesktopsRequest{},
-			wantErr: true,
+			assert:  require.NoError,
+			wantLen: 3,
 		},
 		{
 			name: "matching host id",
@@ -171,6 +175,18 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 				Limit:                5,
 				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: "test-host-id"},
 			},
+			assert:  require.NoError,
+			wantLen: 2,
+		},
+		{
+			name: "matching host id, mismatching labels",
+			filter: types.ListWindowsDesktopsRequest{
+				Limit:                5,
+				Labels:               map[string]string{"doesnot": "exist"},
+				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: "test-host-id"},
+			},
+			assert:  require.NoError,
+			wantLen: 0,
 		},
 		{
 			name: "matching name",
@@ -178,6 +194,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 				Limit:                5,
 				WindowsDesktopFilter: types.WindowsDesktopFilter{Name: "banana"},
 			},
+			assert:  require.NoError,
+			wantLen: 2,
 		},
 		{
 			name: "with search",
@@ -185,6 +203,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 				Limit:          5,
 				SearchKeywords: []string{"env", "test"},
 			},
+			assert:  require.NoError,
+			wantLen: 2,
 		},
 		{
 			name: "with labels",
@@ -192,6 +212,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 				Limit:  5,
 				Labels: testLabel,
 			},
+			assert:  require.NoError,
+			wantLen: 2,
 		},
 		{
 			name: "with predicate",
@@ -199,6 +221,8 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 				Limit:               5,
 				PredicateExpression: `labels.env == "test"`,
 			},
+			assert:  require.NoError,
+			wantLen: 2,
 		},
 	}
 
@@ -207,12 +231,10 @@ func TestListWindowsDesktops_Filters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			resp, err := service.ListWindowsDesktops(ctx, tc.filter)
+			tc.assert(t, err)
 
-			if tc.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Len(t, resp.Desktops, 2)
+			if resp != nil {
+				require.Len(t, resp.Desktops, tc.wantLen)
 			}
 		})
 	}
