@@ -19,13 +19,18 @@ package service
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/srv"
 )
 
@@ -49,6 +54,13 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer conn.Close()
 
+	dangerousCache, err := process.NewLocalCache(conn.Client, cache.ForRelay(), []string{teleport.ComponentRelay})
+	if err != nil {
+		return err
+	}
+	defer dangerousCache.Close()
+
+	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
 	relayServer.Store(&presencev1.RelayServer{
 		Kind:    apitypes.KindRelayServer,
@@ -57,7 +69,14 @@ func (process *TeleportProcess) runRelayService() error {
 		Metadata: &headerv1.Metadata{
 			Name: process.Config.HostUUID,
 		},
-		Spec: &presencev1.RelayServer_Spec{},
+		Spec: &presencev1.RelayServer_Spec{
+			ProxyIds:    []string(nil),
+			Hostname:    process.Config.Hostname,
+			RelayGroup:  process.Config.Relay.RelayGroup,
+			PeerAddr:    "",
+			Nonce:       nonce,
+			Terminating: false,
+		},
 	})
 
 	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
@@ -79,7 +98,9 @@ func (process *TeleportProcess) runRelayService() error {
 	defer hb.Close()
 
 	process.BroadcastEvent(Event{Name: RelayReady})
-	log.InfoContext(process.ExitContext(), "The relay service has successfully started.")
+	log.InfoContext(process.ExitContext(), "The relay service has successfully started.",
+		"nonce", nonce,
+	)
 
 	exitEvent, _ := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
 	ctx, _ := exitEvent.Payload.(context.Context)
@@ -94,6 +115,23 @@ func (process *TeleportProcess) runRelayService() error {
 		log.InfoContext(ctx, "Stopping the relay service.")
 	}
 
+	{
+		r := proto.CloneOf(relayServer.Load())
+		r.GetSpec().Terminating = true
+		relayServer.Store(r)
+	}
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		// minimum shutdown grace time
+		ctx, cancel := context.WithTimeout(egCtx, time.Minute)
+		defer cancel()
+		<-ctx.Done()
+		return nil
+	})
+	warnOnErr(egCtx, eg.Wait(), log)
+
+	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)
 
 	log.InfoContext(ctx, "The relay service has stopped.")

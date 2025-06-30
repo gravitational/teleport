@@ -1102,8 +1102,20 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{
 						types.Wildcard,
 					},
+					NodeLabels: types.Labels{
+						types.Wildcard: []string{
+							types.Wildcard,
+						},
+					},
+					KubernetesLabels: types.Labels{
+						types.Wildcard: []string{
+							types.Wildcard,
+						},
+					},
 					Rules: []types.Rule{
-						// TODO(espadolini): define permissions for relay role
+						types.NewRule(types.KindRelayServer, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubeServer, services.RO()),
 					},
 				},
 			},
