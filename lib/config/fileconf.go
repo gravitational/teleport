@@ -2561,12 +2561,14 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	if hasAD && wds.LDAP.Addr == "" {
+	ldapConfigOK := wds.LDAP.Addr != "" || (wds.LDAP.Domain != "" && wds.LDAP.LocateServer)
+
+	if hasAD && !ldapConfigOK {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration must also be specified")
 	}
 
-	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+	if wds.Discovery.BaseDN != "" && !ldapConfigOK {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
 			"ldap configuration must also be specified")
 	}
@@ -2600,7 +2602,7 @@ type WindowsHost struct {
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
-	Addr string `yaml:"addr"`
+	Addr string `yaml:"addr,omitempty"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
@@ -2615,9 +2617,10 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
-	// Automatically locate the LDAP server using DNS SRV records if Domain is set.
+	// LocateServer enables LDAP server location using DNS SRV records.
+	// When enabled, Domain must be set, and Addr can be left empty.
 	LocateServer bool `yaml:"locate_server,omitempty"`
-	// Optionally use LDAP site to locate servers from a specific logical site if locate_server is enabled.
+	// Site is an LDAP site to locate servers from a specific logical site, if LocateServer is enabled.
 	Site string `yaml:"site,omitempty"`
 }
 
