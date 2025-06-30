@@ -13,6 +13,10 @@ like:
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="GitLab"!)
+
 ## Prerequisites
 
 - At least two groups in GitLab with users assigned. In our examples below,
@@ -53,7 +57,65 @@ to each of these groups.
    `https://gitlab.com/.well-known/openid-configuration`. If you are self
    hosting the issuer address is the path to your GitLab instance.
 
-## Step 2/4. Configure Teleport
+## Step 2/4. Create Teleport Roles
+
+We are going to create 2 roles, privileged role admin who is able to login as
+root and is capable of administrating the cluster and non-privileged dev.
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: admin
+spec:
+  options:
+    max_session_ttl: 24h
+  allow:
+    logins: [root]
+    node_labels:
+      "*": "*"
+    rules:
+      - resources: ["*"]
+        verbs: ["*"]
+```
+
+The developer role:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  options:
+    max_session_ttl: 24h
+  allow:
+    logins: [ "{{email.local(external.email)}}", ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
+- Developers can log in as `ubuntu` user
+- Notice the `{{external.email}}` login. It configures Teleport to look at the
+  *"email"* GitLab claim and use that field as an allowed login for each user.
+  The `email.local(external.trait)` function removes the `@domain` and preserves
+  the username prefix. For full details on how variable expansion works in
+  Teleport roles, see the [Access Controls
+  Reference](../../../reference/access-controls/roles.mdx).
+- Developers also do not have any "allow rules" i.e. they will not be able to
+  see/replay past sessions or re-configure the Teleport cluster.
+
+Create both roles on the Auth Service:
+
+```code
+$ tctl create -f admin.yaml
+$ tctl create -f dev.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+## Step 3/4. Configure Teleport
 
 ### Create a OIDC Connector
 
@@ -133,64 +195,6 @@ Create the connector using `tctl` tool:
 ```code
 $ tctl create -f oidc.yaml
 ```
-
-## Step 3/4. Create Teleport Roles
-
-We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
-
-The developer role:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [ "{{email.local(external.email)}}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
-- Developers can log in as `ubuntu` user
-- Notice the `{{external.email}}` login. It configures Teleport to look at the
-  *"email"* GitLab claim and use that field as an allowed login for each user.
-  The `email.local(external.trait)` function removes the `@domain` and preserves
-  the username prefix. For full details on how variable expansion works in
-  Teleport roles, see the [Access Controls
-  Reference](../../../reference/access-controls/roles.mdx).
-- Developers also do not have any "allow rules" i.e. they will not be able to
-  see/replay past sessions or re-configure the Teleport cluster.
-
-Create both roles on the Auth Service:
-
-```code
-$ tctl create -f admin.yaml
-$ tctl create -f dev.yaml
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 ## Step 4/4. Enable default OIDC authentication
 

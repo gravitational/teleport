@@ -40,13 +40,16 @@ var (
 	apiV1Response string
 	//go:embed data/apis_rbac.authorization.k8s.io_v1.json
 	apiRBACV1Response string
+	//go:embed data/api_authorization.k8s.io_v1.json
+	apiAuthzV1Response string
 )
 
 const (
-	apiEndpoint     = "/api"
-	apiV1Endpoint   = "/api/v1"
-	apisEndpoint    = "/apis"
-	apiRBACEndpoint = "/apis/rbac.authorization.k8s.io/v1"
+	apiEndpoint      = "/api"
+	apiV1Endpoint    = "/api/v1"
+	apisEndpoint     = "/apis"
+	apiRBACEndpoint  = "/apis/rbac.authorization.k8s.io/v1"
+	apiAuthzEndpoint = "/apis/authorization.k8s.io/v1"
 )
 
 func (s *KubeMockServer) discoveryEndpoint(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
@@ -59,6 +62,9 @@ func (s *KubeMockServer) discoveryEndpoint(w http.ResponseWriter, req *http.Requ
 		return nil, nil
 	case apiRBACEndpoint:
 		w.Write([]byte(apiRBACV1Response))
+		return nil, nil
+	case apiAuthzEndpoint:
+		w.Write([]byte(apiAuthzV1Response))
 		return nil, nil
 	case apisEndpoint:
 		w.Write(apisDiscovery(s.crds))
@@ -107,6 +113,19 @@ func apisDiscovery(crds map[GVP]*CRD) []byte {
 				Versions: []version{
 					{
 						GroupVersion: "rbac.authorization.k8s.io/v1",
+						Version:      "v1",
+					},
+				},
+			},
+			{
+				Name: "authorization.k8s.io",
+				PreferredVersion: version{
+					GroupVersion: "authorization.k8s.io/v1",
+					Version:      "v1",
+				},
+				Versions: []version{
+					{
+						GroupVersion: "authorization.k8s.io/v1",
 						Version:      "v1",
 					},
 				},

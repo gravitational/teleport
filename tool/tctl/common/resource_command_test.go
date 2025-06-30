@@ -281,7 +281,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := 0; i < totalDBServices; i++ {
+	for i := range totalDBServices {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -362,7 +362,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalIntegrations; i++ {
+		for i := range totalIntegrations {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -476,7 +476,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalDiscoveryConfigs; i++ {
+		for i := range totalDiscoveryConfigs {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -1344,8 +1344,8 @@ func TestFormatAmbiguousDeleteMessage(t *testing.T) {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected interface{}) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+func requireEqual(expected any) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual any, msgAndArgs ...any) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }

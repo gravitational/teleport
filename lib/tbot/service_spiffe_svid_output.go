@@ -32,13 +32,14 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -53,12 +54,13 @@ const (
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.SPIFFESVIDOutput
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
 	resolver       reversetunnelclient.Resolver
+	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
@@ -94,6 +96,10 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+
 	jitter := retryutils.DefaultJitter
 	var res *machineidv1pb.SignX509SVIDsResponse
 	var privateKey crypto.Signer
@@ -104,10 +110,8 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
-			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
-			if backoffTime > time.Minute {
-				backoffTime = time.Minute
-			}
+			s.statusReporter.Report(readyz.Unhealthy)
+			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
@@ -156,6 +160,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 			failures++
 			continue
 		}
+		s.statusReporter.Report(readyz.Healthy)
 		failures = 0
 	}
 }
@@ -311,7 +316,7 @@ func (s *SPIFFESVIDOutputService) render(
 
 func generateJWTSVIDs(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt *apiclient.Client,
 	svid config.SVIDRequest,
 	reqs []config.JWTSVID,
 	ttl time.Duration,
@@ -363,7 +368,7 @@ func generateJWTSVIDs(
 // call.
 func generateSVID(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt *apiclient.Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {

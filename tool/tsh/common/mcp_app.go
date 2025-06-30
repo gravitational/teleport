@@ -37,14 +37,26 @@ import (
 	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
+func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCommand {
+	cmd := &mcpConnectCommand{
+		CmdClause: parent.Command("connect", "Connect to an MCP server.").Hidden(),
+		cf:        cf,
+	}
+
+	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
+	return cmd
+}
+
 func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
 	cmd := &mcpListCommand{
-		CmdClause: parent.Command("ls", "List available MCP server applications"),
+		CmdClause: parent.Command("ls", "List available MCP server applications."),
 		cf:        cf,
 	}
 
@@ -53,6 +65,21 @@ func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	cmd.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	return cmd
+}
+
+func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigCommand {
+	cmd := &mcpConfigCommand{
+		CmdClause: parent.Command("config", "Print client configuration details."),
+		cf:        cf,
+	}
+
+	cmd.Flag("all", "Select all MCP servers. Mutually exclusive with --labels or --query.").Short('R').BoolVar(&cf.ListAll)
+	cmd.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
+	cmd.clientConfig.addToCmd(cmd.CmdClause)
+	cmd.Alias(mcpConfigHelp)
 	return cmd
 }
 
@@ -123,6 +150,20 @@ func (c *mcpListCommand) print() error {
 }
 
 func fetchMCPServers(ctx context.Context, tc *client.TeleportClient, auth apiclient.GetResourcesClient) ([]types.Application, error) {
+	if auth == nil {
+		var clusterClient *client.ClusterClient
+		var err error
+		err = client.RetryWithRelogin(ctx, tc, func() error {
+			clusterClient, err = tc.ConnectToCluster(ctx)
+			return trace.Wrap(err)
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+		auth = clusterClient.AuthClient
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"fetchMCPServers",
@@ -215,4 +256,182 @@ func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWith
 	}
 	_, err := fmt.Fprintln(w, t.AsBuffer().String())
 	return trace.Wrap(err)
+}
+
+type mcpConfigCommand struct {
+	*kingpin.CmdClause
+	clientConfig mcpClientConfigFlags
+	cf           *CLIConf
+
+	mcpServerApps []types.Application
+
+	// fetchFunc is for fetching MCP servers, defaults to fetchMCPServers. Can
+	// be mocked in tests.
+	fetchFunc func(context.Context, *client.TeleportClient, apiclient.GetResourcesClient) ([]types.Application, error)
+}
+
+func (c *mcpConfigCommand) run() error {
+	if err := c.checkSelectorFlags(); err != nil {
+		return trace.Wrap(err)
+	}
+	switch {
+	case c.clientConfig.isSet():
+		return trace.Wrap(c.updateClientConfig())
+	default:
+		return trace.Wrap(c.printJSONWithHint())
+	}
+}
+
+func (c *mcpConfigCommand) checkSelectorFlags() error {
+	// Some of them can technically be used together but make them mutually
+	// exclusively for simplicity.
+	var mutuallyExclusiveSelectors int
+	for _, selectorEnabled := range []bool{
+		c.cf.ListAll,
+		c.cf.AppName != "",
+		c.cf.PredicateExpression != "",
+		c.cf.Labels != "",
+	} {
+		if selectorEnabled {
+			mutuallyExclusiveSelectors++
+		}
+	}
+
+	switch mutuallyExclusiveSelectors {
+	case 0:
+		return trace.BadParameter("no selector specified. Please provide the MCP server name or use one of the following flags: --all, --labels, or --query.")
+	case 1:
+		return nil
+	default:
+		return trace.BadParameter("only one selector is allowed. Specify either the MCP server name or one of --all, --labels, or --query flags.")
+	}
+}
+
+func (c *mcpConfigCommand) fetchAndPrintResult() error {
+	if err := c.fetch(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	printList := fmt.Sprintf(`Found MCP servers:
+%v
+
+`, strings.Join(slices.Collect(types.ResourceNames(c.mcpServerApps)), "\n"))
+	_, err := fmt.Fprint(c.cf.Stdout(), printList)
+	return trace.Wrap(err)
+}
+
+func (c *mcpConfigCommand) fetch() error {
+	if c.cf.AppName != "" {
+		c.cf.PredicateExpression = makeNamePredicate(c.cf.AppName)
+	}
+	if c.fetchFunc == nil {
+		c.fetchFunc = fetchMCPServers
+	}
+
+	tc, err := makeClient(c.cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.mcpServerApps, err = c.fetchFunc(c.cf.Context, tc, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(c.mcpServerApps) == 0 {
+		return trace.NotFound("no MCP servers found")
+	}
+	return nil
+}
+
+func (c *mcpConfigCommand) addMCPServersToConfig(config claudeConfig) error {
+	for _, app := range c.mcpServerApps {
+		localName := mcpServerAppConfigPrefix + app.GetName()
+		err := config.PutMCPServer(localName, makeLocalMCPServer(c.cf, []string{"mcp", "connect", app.GetName()}))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *mcpConfigCommand) printJSONWithHint() error {
+	if err := c.fetchAndPrintResult(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	config := claude.NewConfig()
+	if err := c.addMCPServersToConfig(config); err != nil {
+		return trace.Wrap(err)
+	}
+
+	w := c.cf.Stdout()
+	if _, err := fmt.Fprintln(w, "Here is a sample JSON configuration for launching Teleport MCP servers:"); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := config.Write(w, claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := fmt.Fprintln(w, ""); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(c.clientConfig.printHint(w))
+}
+
+func (c *mcpConfigCommand) updateClientConfig() error {
+	if err := c.fetchAndPrintResult(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	config, err := c.clientConfig.loadConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.addMCPServersToConfig(config); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := config.Save(claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(greedy52) update hint once auto-reconnection is handled.
+	_, err = fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
+%s
+
+Teleport MCP servers will be prefixed with "teleport-mcp-" in this
+configuration.
+
+You may need to restart your client to reload these new configurations. If you
+encounter a "disconnected" error when tsh session expires, you may also need to
+restart your client after logging in a new tsh session.
+`, config.Path())
+	return trace.Wrap(err)
+}
+
+const mcpServerAppConfigPrefix = "teleport-mcp-"
+
+// mcpConnectCommand implements `tsh mcp connect` command.
+type mcpConnectCommand struct {
+	*kingpin.CmdClause
+	cf *CLIConf
+}
+
+func (c *mcpConnectCommand) run() error {
+	_, err := initLogger(c.cf, utils.LoggingForMCP, getLoggingOptsForMCPServer(c.cf))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc, err := makeClient(c.cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.NonInteractive = true
+
+	serverConn, err := tc.DialMCPServer(c.cf.Context, c.cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(utils.ProxyConn(c.cf.Context, utils.CombinedStdio{}, serverConn))
 }

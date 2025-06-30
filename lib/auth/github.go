@@ -338,7 +338,7 @@ func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client htt
 
 	const retries = 3
 	var resp *http.Response
-	for i := 0; i < retries; i++ {
+	for i := range retries {
 		var err error
 		var urlErr *url.Error
 

@@ -62,7 +62,7 @@ func (s *ProvisioningService) PatchToken(
 ) (types.ProvisionToken, error) {
 	const iterLimit = 3
 
-	for i := 0; i < iterLimit; i++ {
+	for range iterLimit {
 		existing, err := s.GetToken(ctx, tokenName)
 		if err != nil {
 			return nil, trace.Wrap(err)

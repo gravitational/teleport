@@ -38,6 +38,7 @@ func newUserLoginStateCollection(upstream services.UserLoginStates, w types.Watc
 
 	return &collection[*userloginstate.UserLoginState, userLoginStateIndex]{
 		store: newStore(
+			types.KindUserLoginState,
 			(*userloginstate.UserLoginState).Clone,
 			map[userLoginStateIndex]func(*userloginstate.UserLoginState) string{
 				userLoginStateNameIndex: func(r *userloginstate.UserLoginState) string {

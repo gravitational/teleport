@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -47,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -70,7 +69,7 @@ type TLSServerConfig struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation services.RotationGetter
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	// Log is the logger.
 	Log *slog.Logger
 	// Selectors is a list of resource monitor selectors.
@@ -141,6 +140,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.InventoryHandle == nil {
 		return trace.BadParameter("missing parameter InventoryHandle")
 	}
+	if c.ConnectedProxyGetter == nil {
+		return trace.BadParameter("missing parameter ConnectedProxyGetter")
+	}
 
 	if err := c.validateLabelKeys(); err != nil {
 		return trace.Wrap(err)
@@ -166,9 +168,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
 	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
-	}
+
 	return nil
 }
 
@@ -238,7 +238,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.Middleware{
+	authMiddleware := &authz.Middleware{
 		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 		// EnableCredentialsForwarding is set to true to allow the proxy to forward
@@ -247,8 +247,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		// to be able to replace the client identity with the header payload when
 		// the request is forwarded from a Teleport Proxy.
 		EnableCredentialsForwarding: true,
+		Handler:                     fwd,
 	}
-	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given

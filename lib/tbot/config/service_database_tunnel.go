@@ -59,7 +59,7 @@ func (s *DatabaseTunnelService) Type() string {
 	return DatabaseTunnelServiceType
 }
 
-func (s *DatabaseTunnelService) MarshalYAML() (interface{}, error) {
+func (s *DatabaseTunnelService) MarshalYAML() (any, error) {
 	type raw DatabaseTunnelService
 	return withTypeHeader((*raw)(s), DatabaseTunnelServiceType)
 }

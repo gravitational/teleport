@@ -106,7 +106,7 @@ func NewFakeJira(author jira.UserDetails, concurrency int) *FakeJira {
 				Description: issueInput.Fields.Description,
 				Type:        *issueInput.Fields.Type,
 			},
-			Properties: make(map[string]interface{}),
+			Properties: make(map[string]any),
 		}
 		if issueInput.Fields.Project != nil {
 			issue.Fields.Project = *issueInput.Fields.Project

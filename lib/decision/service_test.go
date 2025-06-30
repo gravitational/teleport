@@ -36,6 +36,8 @@ func TestLockTargetConversion(t *testing.T) {
 		AccessRequest:  "request",
 		Device:         "device",
 		ServerID:       "server",
+		JoinToken:      "jointoken",
+		BotInstanceID:  "botinstance",
 	}
 
 	ignores := []string{

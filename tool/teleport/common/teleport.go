@@ -581,6 +581,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationSAMLIdPGCPWorkforce.Flag("pool-provider-name", "Name for the new workforce identity pool provider.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolProviderName)
 	integrationSAMLIdPGCPWorkforce.Flag("idp-metadata-url", "Teleport SAML IdP metadata endpoint.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.SAMLIdPMetadataURL)
 
+	integrationConfAWSRATrustAnchor := integrationConfigureCmd.Command("awsra-trust-anchor", "Configure AWS IAM Roles Anywhere Integration by creating resources in AWS.")
+	integrationConfAWSRATrustAnchor.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Cluster)
+	integrationConfAWSRATrustAnchor.Flag("name", "Integration name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Name)
+	integrationConfAWSRATrustAnchor.Flag("trust-anchor", "AWS Roles Anywhere Trust Anchor name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchor)
+	integrationConfAWSRATrustAnchor.Flag("trust-anchor-cert-b64", "AWS Roles Anywhere Trust Anchor's certificate, encoded in base64.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchorCertBase64)
+	integrationConfAWSRATrustAnchor.Flag("sync-profile", "The AWS IAM Roles Anywhere Profile name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncProfile)
+	integrationConfAWSRATrustAnchor.Flag("sync-role", "The AWS IAM Role name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncRole)
+	integrationConfAWSRATrustAnchor.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.AutoConfirm)
+
 	tpmCmd := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCmd := tpmCmd.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
@@ -760,6 +769,8 @@ Examples:
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
 		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
+	case integrationConfAWSRATrustAnchor.FullCommand():
+		err = onIntegrationConfAWSRATrustAnchor(ctx, ccf)
 	case tpmIdentifyCmd.FullCommand():
 		var query *tpm.QueryRes
 		query, err = tpm.Query(context.Background(), slog.Default())

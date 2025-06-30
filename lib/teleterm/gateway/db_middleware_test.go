@@ -102,8 +102,7 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			hasCalledOnExpiredCert := false
 

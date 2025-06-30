@@ -27,14 +27,14 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,13 +64,15 @@ func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalPro
 // connections to a remote database service. It is an authenticating tunnel and
 // will automatically issue and renew certificates as needed.
 type DatabaseTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.DatabaseTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg             *config.BotConfig
+	cfg                *config.DatabaseTunnelService
+	proxyPingCache     *proxyPingCache
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
 }
 
 // buildLocalProxyConfig initializes the service, fetching any initial information and setting
@@ -78,6 +80,19 @@ type DatabaseTunnelService struct {
 func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnproxy.LocalProxyConfig, err error) {
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/buildLocalProxyConfig")
 	defer span.End()
+
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
+			}
+		}
+	}
 
 	// Determine the roles to use for the impersonated db access user. We fall
 	// back to all the roles the bot has if none are configured.
@@ -162,7 +177,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		Cert:               *dbCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
-	if client.IsALPNConnUpgradeRequired(
+	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
 		s.botCfg.Insecure,
@@ -221,10 +236,16 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+	s.statusReporter.Report(readyz.Healthy)
+
 	select {
 	case <-ctx.Done():
 		return nil
 	case err := <-errCh:
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		return trace.Wrap(err, "local proxy failed")
 	}
 }

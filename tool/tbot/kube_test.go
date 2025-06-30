@@ -70,9 +70,9 @@ func TestGetKubeCredentialData(t *testing.T) {
 	data, err := getCredentialData(idFile, clock.Now())
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(data, &parsed))
-	status := parsed["status"].(map[string]interface{})
+	status := parsed["status"].(map[string]any)
 	require.NotNil(t, status)
 
 	require.Equal(t, string(certBytes), status["clientCertificateData"])

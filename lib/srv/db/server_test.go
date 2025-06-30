@@ -159,7 +159,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 
 		// Connect the maximum allowed number of clients.
-		for i := int64(0); i < connLimit; i++ {
+		for range connLimit {
 			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
 			require.NoError(t, err)
 
@@ -183,7 +183,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 			}
 		})
 		// Connect the maximum allowed number of clients.
-		for i := int64(0); i < connLimit; i++ {
+		for range connLimit {
 			mysqlConn, err := testCtx.mysqlClient(user, "mysql", dbUser)
 			require.NoError(t, err)
 
@@ -208,7 +208,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 		// Mongo driver behave different from MySQL and Postgres. In this case we just want to hit the limit
 		// by creating some DB connections.
-		for i := int64(0); i < 2*connLimit; i++ {
+		for range 2 * connLimit {
 			mongoConn, err := testCtx.mongoClient(ctx, user, "mongo", dbUser)
 
 			if err == nil {
@@ -261,7 +261,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
@@ -453,7 +453,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -527,7 +526,7 @@ func TestTrackActiveConnections(t *testing.T) {
 
 	// Create a few connections, increasing the active connections. Keep track
 	// of the closer functions, so we can close them later.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(i + 1)
 		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 		require.NoError(t, err)
@@ -542,7 +541,7 @@ func TestTrackActiveConnections(t *testing.T) {
 	}
 
 	// For each connection we close, the active connections should drop too.
-	for i := 0; i < numActiveConnections; i++ {
+	for i := range numActiveConnections {
 		expectedActiveConnections := int32(numActiveConnections - (i + 1))
 		require.NoError(t, closeFuncs[i]())
 

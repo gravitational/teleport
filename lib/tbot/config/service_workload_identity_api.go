@@ -66,7 +66,7 @@ func (o *WorkloadIdentityAPIService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
-func (o *WorkloadIdentityAPIService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityAPIService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityAPIService
 	return withTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
 }

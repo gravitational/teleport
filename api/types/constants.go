@@ -658,6 +658,9 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// KindRelayServer is the resource kind for a Relay service heartbeat.
+	KindRelayServer = "relay_server"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -875,6 +878,15 @@ const (
 
 	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
+
+	// AWSRolesAnywhereProfileNameOverrideLabel indicates the name of the AWS IAM Roles Anywhere Profile's tag key
+	// that Teleport will use to override the name of the discovered profile.
+	// Ensure this name is unique and valid DNS label.
+	AWSRolesAnywhereProfileNameOverrideLabel = "TeleportApplicationName"
+
+	// AWSRolesAnywhereProfileARNLabel is the label key to store the Profile ARN when creating an Application
+	// resource from an AWS IAM Roles Anywhere Profile.
+	AWSRolesAnywhereProfileARNLabel = TeleportNamespace + "/aws-roles-anywhere-profile-arn"
 
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
 	// Also added by discovery service to indicate the type of discovered
@@ -1435,6 +1447,15 @@ var KubernetesResourcesKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+}
+
+// KubernetesResourceSelfSubjectAccessReview is a Kubernetes resource that
+// represents a self-subject access review. This gets injected in the allow section in the roles.
+var KubernetesResourceSelfSubjectAccessReview = KubernetesResource{
+	Kind:     "selfsubjectaccessreviews",
+	Name:     Wildcard,
+	Verbs:    []string{"create"},
+	APIGroup: "authorization.k8s.io",
 }
 
 // KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds

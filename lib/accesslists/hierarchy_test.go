@@ -87,7 +87,7 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	numAcls := accesslist.MaxAllowedDepth + 2 // Extra 2 to test exceeding the max depth
 
 	acls := make([]*accesslist.AccessList, numAcls)
-	for i := 0; i < numAcls; i++ {
+	for i := range numAcls {
 		acls[i] = newAccessList(t, fmt.Sprintf("acl%d", i+1), clock)
 	}
 
@@ -97,7 +97,7 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	}
 
 	// Create members up to MaxAllowedDepth
-	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
+	for i := range accesslist.MaxAllowedDepth {
 		member := newAccessListMember(t, acls[i].GetName(), acls[i+1].GetName(), accesslist.MembershipKindList, clock)
 		acls[i+1].Status.MemberOf = append(acls[i+1].Status.MemberOf, acls[i].GetName())
 		accessListAndMembersGetter.members[acls[i].GetName()] = []*accesslist.AccessListMember{member}
@@ -135,13 +135,13 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
 	rootAcl := newAccessList(t, "root", clock)
 	nestedAcls := make([]*accesslist.AccessList, 0, accesslist.MaxAllowedDepth)
-	for i := 0; i < accesslist.MaxAllowedDepth+1; i++ {
+	for i := range accesslist.MaxAllowedDepth + 1 {
 		acl := newAccessList(t, fmt.Sprintf("acl-%d", i), clock)
 		nestedAcls = append(nestedAcls, acl)
 	}
 	rootAclMember := newAccessListMember(t, rootAcl.GetName(), nestedAcls[0].GetName(), accesslist.MembershipKindList, clock)
 	members := make([]*accesslist.AccessListMember, 0, accesslist.MaxAllowedDepth-1)
-	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
+	for i := range accesslist.MaxAllowedDepth {
 		member := newAccessListMember(t, nestedAcls[i].GetName(), nestedAcls[i+1].GetName(), accesslist.MembershipKindList, clock)
 		nestedAcls[i+1].Status.MemberOf = append(nestedAcls[i+1].Status.MemberOf, nestedAcls[i].GetName())
 		members = append(members, member)
@@ -155,7 +155,7 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 			rootAcl.GetName(): rootAcl,
 		},
 	}
-	for i := 0; i < accesslist.MaxAllowedDepth+1; i++ {
+	for i := range accesslist.MaxAllowedDepth + 1 {
 		if i < accesslist.MaxAllowedDepth {
 			accessListAndMembersGetter.members[nestedAcls[i].GetName()] = []*accesslist.AccessListMember{members[i]}
 		}
@@ -195,7 +195,7 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	}
 
 	// Create the members for the first hierarchy.
-	for i := 0; i < Length; i++ {
+	for i := range Length {
 		member := newAccessListMember(t, nestedAcls1[i].GetName(), nestedAcls1[i+1].GetName(), accesslist.MembershipKindList, clock)
 		nestedAcls1[i+1].Status.MemberOf = append(nestedAcls1[i+1].Status.MemberOf, nestedAcls1[i].GetName())
 		accessListAndMembersGetter.members[nestedAcls1[i].GetName()] = []*accesslist.AccessListMember{member}
@@ -203,7 +203,7 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	}
 
 	// Create the members for the second hierarchy.
-	for i := 0; i < Length; i++ {
+	for i := range Length {
 		member := newAccessListMember(t, nestedAcls2[i].GetName(), nestedAcls2[i+1].GetName(), accesslist.MembershipKindList, clock)
 		nestedAcls2[i+1].Status.MemberOf = append(nestedAcls2[i+1].Status.MemberOf, nestedAcls2[i].GetName())
 		accessListAndMembersGetter.members[nestedAcls2[i].GetName()] = []*accesslist.AccessListMember{member}

@@ -151,7 +151,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	unlock, err := utils.FSTryWriteLock(uploadPath)
 Loop:
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		switch {
 		case err == nil:
 			break Loop

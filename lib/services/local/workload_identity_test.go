@@ -148,7 +148,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*workloadidentityv1pb.WorkloadIdentity{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := 0; i < 49; i++ {
+	for i := range 49 {
 		created, err := service.CreateWorkloadIdentity(
 			ctx,
 			newValidWorkloadIdentity(fmt.Sprintf("%d", i)),

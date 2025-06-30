@@ -816,12 +816,7 @@ func TestUpdater_Update(t *testing.T) {
 					return nil
 				},
 				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
-					for _, r := range tt.linkedRevisions {
-						if r == rev {
-							return true, nil
-						}
-					}
-					return false, nil
+					return slices.Contains(tt.linkedRevisions, rev), nil
 				},
 			}
 			updater.Process = &testProcess{

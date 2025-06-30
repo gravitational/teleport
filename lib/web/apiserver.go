@@ -1191,7 +1191,7 @@ type userStatusResponse struct {
 	Message             string                         `json:"message"` // Always set to "ok"
 }
 
-func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (any, error) {
 	return userStatusResponse{
 		RequiresDeviceTrust: c.cfg.Session.GetTrustedDeviceRequirement(),
 		HasDeviceExtensions: c.cfg.Session.GetHasDeviceExtensions(),
@@ -1214,7 +1214,7 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 
 	params := httprouter.Params{}
 
-	handleFunc := httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	handleFunc := httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		http.NotFound(w, r)
 		return nil, nil
 	})
@@ -1531,7 +1531,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 // traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
 // disabled then the forwarding is a noop.
-func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
+func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (any, error) {
 	body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "Failed to read traces request", "error", err)
@@ -1598,7 +1598,7 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	return nil, nil
 }
 
-func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var err error
 	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient, h.logger)
 	if err != nil {
@@ -1630,7 +1630,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}, nil
 }
 
-func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	cacheKey := "find"
 	if group != "" {
@@ -1666,7 +1666,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	return resp, nil
 }
 
-func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	authClient := h.cfg.ProxyClient
 	connectorName := p.ByName("connector")
 
@@ -1757,7 +1757,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 }
 
 // getWebConfig returns configuration for the web application.
-func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	httplib.SetWebConfigHeaders(w.Header())
 
 	authProviders := []webclient.WebConfigAuthProvider{}
@@ -2035,11 +2035,11 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 }
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.
-func (h *Handler) wellKnownJWKS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) wellKnownJWKS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	return h.jwks(r.Context(), types.JWTSigner, true)
 }
 
-func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	authPrefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2080,7 +2080,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	return response.RedirectURL
 }
 
-func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	logger := h.logger.With("auth", "github")
 	logger.DebugContext(r.Context(), "Console login start")
 
@@ -2228,7 +2228,7 @@ func BuildDeviceWebRedirectPath(dwt *types.DeviceWebToken, clientRedirectURL str
 	return redirectPath, nil
 }
 
-func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	installerName := p.ByName("name")
@@ -2410,7 +2410,7 @@ type CreateSessionResponse struct {
 	// SessionExpiresIn is the seconds before the session itself expires.
 	SessionExpiresIn int `json:"sessionExpiresIn,omitempty"`
 	// SessionExpires is when this session expires.
-	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	SessionExpires time.Time `json:"sessionExpires"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.
@@ -2464,7 +2464,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 // # Response
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
-func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req *CreateSessionReq
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2530,7 +2530,7 @@ func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
 // Response:
 //
 // {"message": "ok"}
-func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to retrieve user client, SAML single logout will be skipped for user",
@@ -2560,7 +2560,7 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 		// The WebUI will redirect the user to this URL to initiate the SAML SLO on the IdP side. This is safe because this URL
 		// is hard-coded in the auth connector and can't be modified by the end user. Additionally, the user's Teleport session has already
 		// been invalidated by this point so there is nothing to hijack.
-		return map[string]interface{}{"samlSloUrl": user.GetSAMLIdentities()[0].SAMLSingleLogoutURL}, nil
+		return map[string]any{"samlSloUrl": user.GetSAMLIdentities()[0].SAMLSingleLogoutURL}, nil
 	}
 
 	return OK(), nil
@@ -2608,7 +2608,7 @@ type renewSessionRequest struct {
 //   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
-func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	req := renewSessionRequest{}
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2647,7 +2647,7 @@ type changeUserAuthenticationRequest struct {
 	WebauthnCreationResponse *wantypes.CredentialCreationResponse `json:"webauthnCreationResponse"`
 }
 
-func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req changeUserAuthenticationRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2726,7 +2726,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 
 // createResetPasswordToken allows a UI user to reset a user's password.
 // This handler is also required for after creating new users.
-func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (any, error) {
 	var req authclient.CreateUserTokenRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2753,7 +2753,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}, nil
 }
 
-func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	result, err := h.getResetPasswordToken(r.Context(), p.ByName("token"))
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to fetch a reset password token", "error", err)
@@ -2764,7 +2764,7 @@ func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Req
 	return result, nil
 }
 
-func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (interface{}, error) {
+func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (any, error) {
 	token, err := h.auth.proxyClient.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2803,7 +2803,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 //
 // {"webauthn_challenge": {...}, "totp_challenge": true}
 // {"webauthn_challenge": {...}} // passwordless
-func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req *client.MFAChallengeRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2854,7 +2854,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 // # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
-func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req *client.AuthenticateSSHUserRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2881,7 +2881,7 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 // Successful response:
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
-func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	req := &client.AuthenticateWebUserRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2927,7 +2927,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 // Successful response:
 //
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
-func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (any, error) {
 	// Get a client to the Auth Server with the logged in users identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := c.GetClient()
@@ -2964,7 +2964,7 @@ type getClusterInfoResponse struct {
 }
 
 // getClusterInfo returns the information about the cluster in the :site param
-func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 	clusterDetails, err := ui.GetClusterDetails(ctx, site)
 	if err != nil {
@@ -2998,7 +2998,7 @@ type getSiteNamespacesResponse struct {
 // Successful response:
 //
 // {"namespaces": [{..namespace resource...}]}
-func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	return getSiteNamespacesResponse{
 		Namespaces: []types.Namespace{types.DefaultNamespace()},
 	}, nil
@@ -3125,7 +3125,7 @@ func (h *Handler) getUserGroupLookup(ctx context.Context, clt apiclient.GetResou
 
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
-func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := sctx.GetUserClient(request.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3227,7 +3227,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.
-func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -3277,7 +3277,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 const iso8601MilliFormat = "2006-01-02T15:04:05.000Z0700"
 
 // notificationsGet returns a paginated list of notifications for a user.
-func (h *Handler) notificationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) notificationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3320,7 +3320,7 @@ type GetNotificationsResponse struct {
 }
 
 // notificationsUpsertLastSeenTimestamp upserts a user's last seen notification timestamp.
-func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3357,7 +3357,7 @@ type UpsertUserLastSeenNotificationRequest struct {
 }
 
 // notificationsUpsertNotificationState upserts a user notification state.
-func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3399,7 +3399,7 @@ type getLoginAlertsResponse struct {
 }
 
 // clusterLoginAlertsGet returns a list of on-login alerts for the user.
-func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of alerts.
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -3427,7 +3427,7 @@ func (h *Handler) getClusterLocks(
 	p httprouter.Params,
 	sessionCtx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-) (interface{}, error) {
+) (any, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -3454,7 +3454,7 @@ func (h *Handler) createClusterLock(
 	p httprouter.Params,
 	sessionCtx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-) (interface{}, error) {
+) (any, error) {
 	var req *createLockReq
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -3502,7 +3502,7 @@ func (h *Handler) deleteClusterLock(
 	p httprouter.Params,
 	sessionCtx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-) (interface{}, error) {
+) (any, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -3556,7 +3556,7 @@ func (h *Handler) siteNodeConnect(
 	sessionCtx *SessionContext,
 	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -3691,7 +3691,7 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	var req ui.SetDefaultAuthConnectorRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -3733,7 +3733,7 @@ func (h *Handler) podConnect(
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	q := r.URL.Query()
 	if q.Get("params") == "" {
 		return nil, trace.BadParameter("missing params")
@@ -4011,7 +4011,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 // clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a site.
 //
 // GET /v1/webapi/sites/:site/sessions
-func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4075,7 +4075,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
-func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	values := r.URL.Query()
 
 	var eventTypes []string
@@ -4110,7 +4110,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
-func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	searchSessionEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
 			From:     from,
@@ -4125,7 +4125,7 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 
 // clusterEventsList returns a list of audit events obtained using the provided
 // searchEvents method.
-func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
+func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (any, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4239,7 +4239,7 @@ type eventsListGetResponse struct {
 
 // hostCredentials sends a registration token and metadata to the Auth Server
 // and gets back SSH and TLS certificates.
-func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -4269,7 +4269,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 // # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
-func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req client.HeadlessLoginReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -4338,7 +4338,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 //	{
 //	    "certificate_authorities": ["AQ==", "Ag=="]
 //	}
-func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var validateRequestRaw authclient.ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
 		return nil, trace.Wrap(err)
@@ -4376,13 +4376,13 @@ func (h *Handler) String() string {
 const currentSiteShortcut = "-current-"
 
 // ContextHandler is a handler called with the auth context, what means it is authenticated and ready to work
-type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
+type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error)
 
 // ClusterHandler is a authenticated handler that is called for some existing remote cluster
-type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error)
+type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error)
 
 // ClusterWebsocketHandler is a authenticated websocket handler that is called for some existing remote cluster
-type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite, ws *websocket.Conn) (interface{}, error)
+type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite, ws *websocket.Conn) (any, error)
 
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
 // (the same as WithAuth), as well as to grab the remoteSite (which can represent this local cluster
@@ -4390,7 +4390,7 @@ type ClusterWebsocketHandler func(w http.ResponseWriter, r *http.Request, p http
 //
 // WithClusterAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4557,7 +4557,7 @@ func (r clusterClientProvider) UserClientForCluster(ctx context.Context, cluster
 
 // ClusterClientHandler is an authenticated handler which can get a client for
 // any remote cluster.
-type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Params, *SessionContext, ClusterClientProvider) (interface{}, error)
+type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Params, *SessionContext, ClusterClientProvider) (any, error)
 
 // WithClusterClientProvider wraps a ClusterClientHandler to ensure that a
 // request is authenticated to this proxy (the same as WithAuth), and passes a
@@ -4565,7 +4565,7 @@ type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Pa
 // this instead of WithClusterAuth when the remote cluster cannot be encoded in
 // the path or multiple clusters may need to be accessed from a single handler.
 func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		sctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4579,13 +4579,13 @@ func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.
 }
 
 // ProvisionTokenHandler is a authenticated handler that is called for some existing Token
-type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnelclient.RemoteSite, token types.ProvisionToken) (interface{}, error)
+type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnelclient.RemoteSite, token types.ProvisionToken) (any, error)
 
 // WithProvisionTokenAuth ensures that request is authenticated with a provision token.
 // Provision tokens, when used like this are invalidated as soon as used.
 // Doesn't matter if the underlying response was a success or an error.
 func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		ctx := r.Context()
 
 		creds, err := roundtrip.ParseAuthHeaders(r)
@@ -4691,7 +4691,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // Authenticated requests require both a session cookie as well as a bearer token.
 // WithAuth also provides CSRF protection by requiring the bearer token to be present.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		sctx, err := h.AuthenticateRequest(w, r, true /* check bearer token */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4707,7 +4707,7 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 // be used for non-state-changing requests or when other CSRF mitigations
 // are applied.
 func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		sctx, err := h.AuthenticateRequest(w, r, false /* check bearer token */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4732,7 +4732,7 @@ func (h *Handler) WithUnauthenticatedHighLimiter(fn httplib.HandlerFunc) httprou
 }
 
 func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc func(fn httplib.HandlerFunc) httplib.HandlerFunc) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		if _, _, err := h.authenticateRequestWithCluster(w, r, p); err != nil {
 			// retry with user auth
 			if _, err = h.AuthenticateRequest(w, r, true /* check token */); err != nil {
@@ -4748,7 +4748,7 @@ func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc fu
 // WithLimiter adds IP-based rate limiting to fn.
 // Limits are applied to all requests, authenticated or not.
 func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		return h.WithLimiterHandlerFunc(fn)(w, r, p)
 	})
 }
@@ -4757,7 +4757,7 @@ func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // This should only be used on functions which are CPU constrained, and don't use disk or other services.
 // Limits are applied to all requests, authenticated or not.
 func (h *Handler) WithHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		return h.WithHighLimiterHandlerFunc(fn)(w, r, p)
 	})
 }
@@ -4765,7 +4765,7 @@ func (h *Handler) WithHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		err := rateLimitRequest(r, h.limiter)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4778,7 +4778,7 @@ func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.Handler
 // but provides a higher rate limit.  This should only be used for requests which are only CPU bound (no disk or other
 // resources used).
 func (h *Handler) WithHighLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		err := rateLimitRequest(r, h.highLimiter)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4981,12 +4981,12 @@ func createHostPort(netAddr utils.NetAddr, port int) string {
 	return netAddr.String()
 }
 
-func message(msg string) interface{} {
-	return map[string]interface{}{"message": msg}
+func message(msg string) any {
+	return map[string]any{"message": msg}
 }
 
 // OK is a response that indicates request was successful.
-func OK() interface{} {
+func OK() any {
 	return message("ok")
 }
 
@@ -5144,7 +5144,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 const robots = `User-agent: *
 Disallow: /`
 
-func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(http.StatusOK)
@@ -5195,7 +5195,7 @@ func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
 		return nil
 	}
 
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		sctx, err := h.AuthenticateRequest(w, r, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -460,7 +460,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
 				TransformService: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
-					return []byte(fmt.Sprintf("[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings()))
+					return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 				},
 				ValidateBinary: validator.IsExecutable,
 				Template:       autoupdate.DefaultCDNURITemplate,
@@ -715,7 +715,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
 				TransformService: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
-					return []byte(fmt.Sprintf("[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings()))
+					return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
@@ -852,7 +852,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
 				TransformService: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
-					return []byte(fmt.Sprintf("[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings()))
+					return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
@@ -922,7 +922,7 @@ func TestLocalInstaller_IsLinked(t *testing.T) {
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
 				TransformService: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
-					return []byte(fmt.Sprintf("[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings()))
+					return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
@@ -1108,7 +1108,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
 				TransformService: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
-					return []byte(fmt.Sprintf("[service=%s][path=%s][flags=%s]", string(b), filepath.Base(pathDir), flags.Strings()))
+					return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), filepath.Base(pathDir), flags.Strings())
 				},
 			}
 			ctx := context.Background()

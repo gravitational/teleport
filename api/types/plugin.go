@@ -770,6 +770,17 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+)
+
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 
 	// Handle legacy records that pre-date the polymorphic Credentials settings

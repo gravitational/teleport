@@ -96,7 +96,7 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 	}
 }
 
-func (o *SSHHostOutput) MarshalYAML() (interface{}, error) {
+func (o *SSHHostOutput) MarshalYAML() (any, error) {
 	type raw SSHHostOutput
 	return withTypeHeader((*raw)(o), SSHHostOutputType)
 }

@@ -63,7 +63,7 @@ func TestUserGroups(t *testing.T) {
 	require.NoError(t, p.userGroups.DeleteAllUserGroups(t.Context()))
 
 	var expected []types.UserGroup
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		ug, err := types.NewUserGroup(
 			types.Metadata{
 				Name: "ug-" + strconv.Itoa(i+1),

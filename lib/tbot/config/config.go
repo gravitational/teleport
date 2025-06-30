@@ -175,12 +175,17 @@ type BotConfig struct {
 	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
 	Services ServiceConfigs `yaml:"services,omitempty"`
 
-	Debug      bool   `yaml:"debug"`
-	AuthServer string `yaml:"auth_server,omitempty"`
-	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
-	// explicitly point to a Teleport proxy.
-	// Example: "example.teleport.sh:443"
-	ProxyServer        string             `yaml:"proxy_server,omitempty"`
+	Debug       bool   `yaml:"debug"`
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
+	// AuthServerAddressMode controls whether it's permissible to provide a
+	// proxy server address as an auth server address. This is unsupported in
+	// the tbot binary as of v19, but we maintain support for cases where tbot
+	// is embedded in a binary which does not differentiate between address types
+	// such as tctl or the Kubernetes operator.
+	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
+
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 	Oneshot            bool               `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
@@ -226,6 +231,25 @@ func (conf *BotConfig) Address() (string, AddressKind) {
 		return "", AddressKindUnspecified
 	}
 }
+
+// AuthServerAddressMode controls the behavior when a proxy address is given
+// as an auth server address.
+type AuthServerAddressMode int
+
+const (
+	// AuthServerMustBeAuthServer means that only an actual auth server address
+	// may be given.
+	AuthServerMustBeAuthServer AuthServerAddressMode = iota
+
+	// WarnIfAuthServerIsProxy means that a proxy address will be accepted as an
+	// auth server address, but we will log a warning that this is going away in
+	// v19.
+	WarnIfAuthServerIsProxy
+
+	// AllowProxyAsAuthServer means that a proxy address will be accepted as an
+	// auth server address.
+	AllowProxyAsAuthServer
+)
 
 func (conf *BotConfig) CipherSuites() []uint16 {
 	if conf.FIPS {
@@ -496,7 +520,7 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
+func withTypeHeader[T any](payload T, payloadType string) (any, error) {
 	header := struct {
 		Type    string `yaml:"type"`
 		Payload T      `yaml:",inline"`

@@ -16,6 +16,10 @@ The following steps configure an example SAML authentication connector matching
 Microsoft Entra ID groups with security roles. You can choose to configure other
 options.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="Microsoft Entra ID"!)
+
 ## Prerequisites
 
 Before you get started, you’ll need:
@@ -110,7 +114,52 @@ Before you get started, you’ll need:
 
      ![Add a transformed username](../../../../img/azuread/azuread-8c-usernameclaim.png)
 
-## Step 2/3. Create a SAML connector
+
+## Step 2/3. Create a new Teleport role
+
+Create a Teleport role resource that will use external username data from the
+Azure AD connector to determine which Linux logins to allow on a host.
+
+Create a file called `dev.yaml` with the following content:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  options:
+    max_session_ttl: 24h
+  allow:
+    # only allow login as either ubuntu or the 'windowsaccountname' claim
+    logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+Users with the `dev` role are only allowed to log in to nodes with the `access:
+relaxed` Teleport label. They can log in as either `ubuntu` or a username that
+is passed in from the Azure AD connector using the `windowsaccountname`
+attribute.
+
+The login
+<nobr>`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`</nobr>
+configures Teleport to look at the
+`http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname`
+attribute and use that field as an allowed login for each user. Since the name
+of the attribute contains characters besides letters, numbers, and underscores,
+you must use double quotes (`"`) and square brackets (`[]`) around the name of
+the attribute.
+
+Create the role:
+
+```code
+$ tctl create dev.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+## Step 3/3. Create a SAML connector
 
 Now, create a SAML connector resource using `tctl`.
 
@@ -174,51 +223,6 @@ To create the connector using the `tctl` tool, run the following command:
 ```code
 $ tctl create -f azure-connector.yaml
 ```
-
-## Step 3/3. Create a new Teleport role
-
-Create a Teleport role resource that will use external username data from the
-Azure AD connector to determine which Linux logins to allow on a host.
-
-Create a file called `dev.yaml` with the following content:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    # only allow login as either ubuntu or the 'windowsaccountname' claim
-    logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-Users with the `dev` role are only allowed to log in to nodes with the `access:
-relaxed` Teleport label. They can log in as either `ubuntu` or a username that
-is passed in from the Azure AD connector using the `windowsaccountname`
-attribute.
-
-The login
-<nobr>`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`</nobr>
-configures Teleport to look at the
-`http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname`
-attribute and use that field as an allowed login for each user. Since the name
-of the attribute contains characters besides letters, numbers, and underscores,
-you must use double quotes (`"`) and square brackets (`[]`) around the name of
-the attribute.
-
-Create the role:
-
-```code
-$ tctl create dev.yaml
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Token encryption (Optional)

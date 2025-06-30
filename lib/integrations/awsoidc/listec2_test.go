@@ -75,10 +75,7 @@ func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.De
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := m.pageSize * requestedPage
-	if sliceEnd > totalInstances {
-		sliceEnd = totalInstances
-	}
+	sliceEnd := min(m.pageSize*requestedPage, totalInstances)
 
 	ret := &ec2.DescribeInstancesOutput{
 		Reservations: []ec2Types.Reservation{{
@@ -106,7 +103,7 @@ func TestListEC2(t *testing.T) {
 		totalEC2s := 203
 
 		allInstances := make([]ec2Types.Instance, 0, totalEC2s)
-		for i := 0; i < totalEC2s; i++ {
+		for i := range totalEC2s {
 			allInstances = append(allInstances, ec2Types.Instance{
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
 				InstanceId:       aws.String(fmt.Sprintf("i-12345678%d", i)),

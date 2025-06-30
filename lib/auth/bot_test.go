@@ -169,7 +169,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	certs := result.Certs
 
 	// Renew the cert a bunch of times.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Ensure the state of the bot instance before renewal is sane.
 		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
@@ -1234,7 +1234,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 
 	require.NotEqual(t, initialInstanceA, initialInstanceB)
 
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		_, certsA, err = renewBotCerts(ctx, srv, certsA.TLS, bot.Status.UserName, resultA.PrivateKey)
 		require.NoError(t, err)
 

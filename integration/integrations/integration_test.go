@@ -185,7 +185,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	// Tests two full pages + 1 item to prevent off by one errors.
 	pageSize := 10
 	totalItems := pageSize*2 + 1
-	for i := 0; i < totalItems; i++ {
+	for i := range totalItems {
 		createIntegrationReq := ui.Integration{
 			Name:    fmt.Sprintf("aws-integration-%d", i),
 			SubKind: types.IntegrationSubKindAWSOIDC,

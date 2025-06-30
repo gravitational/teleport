@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // CRLSet is a collection of CRLs.
@@ -69,8 +70,10 @@ func (b *CRLSet) Stale() <-chan struct{} {
 // CRLCache streams CRLs from the revocations service and caches them. It
 // provides a mechanism to inform consumers when a new CRL is available.
 type CRLCache struct {
-	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
-	logger            *slog.Logger
+	revocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	logger             *slog.Logger
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
 
 	mu     sync.Mutex
 	crlSet *CRLSet
@@ -80,8 +83,10 @@ type CRLCache struct {
 
 // CRLCacheConfig is the configuration for a CRLCache.
 type CRLCacheConfig struct {
-	RevocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
-	Logger            *slog.Logger
+	RevocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	Logger             *slog.Logger
+	BotIdentityReadyCh <-chan struct{}
+	StatusReporter     readyz.Reporter
 }
 
 // NewCRLCache creates a new CRLCache.
@@ -92,10 +97,15 @@ func NewCRLCache(cfg CRLCacheConfig) (*CRLCache, error) {
 	case cfg.Logger == nil:
 		return nil, trace.BadParameter("missing Logger")
 	}
+	if cfg.StatusReporter == nil {
+		cfg.StatusReporter = readyz.NoopReporter()
+	}
 	return &CRLCache{
-		revocationsClient: cfg.RevocationsClient,
-		logger:            cfg.Logger,
-		initialized:       make(chan struct{}),
+		revocationsClient:  cfg.RevocationsClient,
+		logger:             cfg.Logger,
+		botIdentityReadyCh: cfg.BotIdentityReadyCh,
+		statusReporter:     cfg.StatusReporter,
+		initialized:        make(chan struct{}),
 	}, nil
 }
 
@@ -106,6 +116,19 @@ func (m *CRLCache) String() string {
 }
 
 func (m *CRLCache) Run(ctx context.Context) error {
+	if m.botIdentityReadyCh != nil {
+		select {
+		case <-m.botIdentityReadyCh:
+		default:
+			m.logger.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-m.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+
 	for {
 		m.logger.InfoContext(
 			ctx,
@@ -131,6 +154,7 @@ func (m *CRLCache) Run(ctx context.Context) error {
 				"error", err,
 				"backoff", trustBundleInitFailureBackoff,
 			)
+			m.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		}
 		select {
 		case <-ctx.Done():
@@ -152,6 +176,7 @@ func (m *CRLCache) watch(ctx context.Context) error {
 		return trace.Wrap(err, "opening CRL stream")
 	}
 
+	m.statusReporter.Report(readyz.Healthy)
 	for {
 		res, err := stream.Recv()
 		if err != nil {

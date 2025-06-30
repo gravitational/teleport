@@ -293,7 +293,6 @@ func TestGatewayCRUD(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -320,7 +319,6 @@ func TestGatewayCRUD(t *testing.T) {
 			nameToGateway := make(map[string]gateway.Gateway, len(tt.gatewayNamesToCreate))
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
-				gatewayName := gatewayName
 				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
 					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
 					TargetUser:            "alice",
@@ -473,7 +471,6 @@ func TestRetryWithRelogin(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

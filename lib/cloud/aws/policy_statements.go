@@ -534,3 +534,40 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 		Resources: allResources,
 	}
 }
+
+// StatementForAWSRolesAnywhereSyncRoleTrustRelationship returns the Trust Relationship which allows its usage from the given Trust Anchor ARN.
+// See https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html#getting-started-step2
+func StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, accountID, trustAnchorID string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"sts:AssumeRole",
+			"sts:SetSourceIdentity",
+			"sts:TagSession",
+		},
+		Principals: map[string]SliceOrString{
+			"Service": []string{"rolesanywhere.amazonaws.com"},
+		},
+		Conditions: map[string]StringOrMap{
+			"ArnEquals": {
+				"aws:SourceArn": []string{
+					fmt.Sprintf("arn:aws:rolesanywhere:%s:%s:trust-anchor/%s", region, accountID, trustAnchorID),
+				},
+			},
+		},
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRolePolicy returns the policy required to perform the sync operation, which imports Roles Anywhere Profiles into Teleport AWS Apps.
+func StatementForAWSRolesAnywhereSyncRolePolicy() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rolesanywhere:ListProfiles",
+			"rolesanywhere:ListTagsForResource",
+			"rolesanywhere:ImportCrl",
+			"iam:GetRole",
+		},
+		Resources: allResources,
+	}
+}

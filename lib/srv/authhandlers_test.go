@@ -112,8 +112,7 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
 		Addr:     "1.2.3.4:22",
@@ -396,8 +395,7 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 func TestRBACJoinMFA(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	const clusterName = "localhost"
 	const username = "testuser"

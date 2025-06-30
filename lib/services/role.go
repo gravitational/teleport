@@ -174,6 +174,9 @@ func RoleWithVersionForUser(u types.User, v string) types.Role {
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			MCP: &types.MCPPermissions{
+				Tools: []string{types.Wildcard},
+			},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -612,6 +615,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
 		r.SetImpersonateConditions(condition, outCond)
+
+		if mcp := r.GetMCPPermissions(condition); mcp != nil {
+			mcp.Tools = applyValueTraitsSlice(mcp.Tools, traits, "mcp.tools")
+			r.SetMCPPermissions(condition, mcp)
+		}
 	}
 
 	return r, nil
@@ -1095,10 +1103,8 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
 func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
-	for _, l := range selectors {
-		if l == roleARN {
-			return true, "matched"
-		}
+	if slices.Contains(selectors, roleARN) {
+		return true, "matched"
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
@@ -1233,7 +1239,7 @@ func (set RoleSet) RoleNames() []string {
 
 // Roles returns the list underlying roles this RoleSet is based on.
 func (set RoleSet) Roles() []types.Role {
-	return append([]types.Role{}, set...)
+	return slices.Clone(set)
 }
 
 // HasRole checks if the role set has the role
@@ -2393,10 +2399,8 @@ func NewLoginMatcher(login string) RoleMatcher {
 // Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
-	for _, login := range logins {
-		if l.login == login {
-			return true, nil
-		}
+	if slices.Contains(logins, l.login) {
+		return true, nil
 	}
 	return false, nil
 }
@@ -2414,10 +2418,8 @@ func NewWindowsLoginMatcher(login string) RoleMatcher {
 // Match matches a Windows Desktop login against a role.
 func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetWindowsLogins(typ)
-	for _, login := range logins {
-		if l.login == login {
-			return true, nil
-		}
+	if slices.Contains(logins, l.login) {
+		return true, nil
 	}
 	return false, nil
 }
@@ -2435,10 +2437,8 @@ func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
 // Match matches an AWS Role ARN login against a role.
 func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	awsRoles := role.GetAWSRoleARNs(typ)
-	for _, awsRole := range awsRoles {
-		if l.awsRole == awsRole {
-			return true, nil
-		}
+	if slices.Contains(awsRoles, l.awsRole) {
+		return true, nil
 	}
 	return false, nil
 }
@@ -3158,7 +3158,7 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 
 type boolParser bool
 
-func (p boolParser) Parse(string) (interface{}, error) {
+func (p boolParser) Parse(string) (any, error) {
 	return predicate.BoolPredicate(func() bool {
 		return bool(p)
 	}), nil

@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/ThalesIgnite/crypto11"
@@ -352,17 +353,12 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		activePublicKeys = append(activePublicKeys, publicKey)
 	}
 	keyIsActive := func(signer crypto.Signer) bool {
-		publicKey, ok := signer.Public().(publicKey)
+		pub, ok := signer.Public().(publicKey)
 		if !ok {
 			// unknown key type... we don't know what this is, so don't delete it
 			return true
 		}
-		for _, k := range activePublicKeys {
-			if publicKey.Equal(k) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(activePublicKeys, func(pk publicKey) bool { return pub.Equal(pk) })
 	}
 	signers, err := p.ctx.FindKeyPairs(nil, []byte(p.hostUUID))
 	if err != nil {
@@ -397,7 +393,7 @@ func (k keyID) marshal() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	buf = append(append([]byte{}, pkcs11Prefix...), buf...)
+	buf = slices.Concat(pkcs11Prefix, buf)
 	return buf, nil
 }
 

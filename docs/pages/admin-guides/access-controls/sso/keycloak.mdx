@@ -14,6 +14,10 @@ administrators to define policies like:
 The following steps configure an example SAML authentication connector matching
 Keycloak groups. You can choose to configure other options.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="Keycloak"!)
+
 ## Prerequisites
 
 Before you get started, you’ll need:
@@ -89,7 +93,47 @@ Before you get started, you’ll need:
 
    This enables using the username inside Teleport roles as the <nobr>`{{external.username}}`</nobr> property.
 
-## Step 2/3. Create a SAML connector
+## Step 2/3. Create a new Teleport role
+
+Create a Teleport role resource that will use external username data from the
+Keycloak connector to determine which Linux logins to allow on a host.
+
+Create a file called `dev.yaml` with the following content:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  options:
+    max_session_ttl: 24h
+  allow:
+    # only allow login as either ubuntu or the 'windowsaccountname' claim
+    logins: [ '{{external.username}}', ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+Users with the `dev` role are only allowed to log in to nodes with the `access:
+relaxed` Teleport label. They can log in as either `ubuntu` or a username that
+is passed in from the keycloak connector using the `username`
+attribute.
+
+The login
+<nobr>`{{external.username}}`</nobr>
+configures Teleport to look at the `username`
+attribute and use that field as an allowed login for each user.
+
+Create the role:
+
+```code
+$ tctl create dev.yaml
+```
+
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
+
+## Step 3/3. Create a SAML connector
 
 Now, create a SAML connector resource using `tctl`.
 
@@ -159,46 +203,6 @@ To create the connector using the `tctl` tool, run the following command:
 ```code
 $ tctl create -f keycloak-connector.yaml
 ```
-
-## Step 3/3. Create a new Teleport role
-
-Create a Teleport role resource that will use external username data from the
-Keycloak connector to determine which Linux logins to allow on a host.
-
-Create a file called `dev.yaml` with the following content:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    # only allow login as either ubuntu or the 'windowsaccountname' claim
-    logins: [ '{{external.username}}', ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-Users with the `dev` role are only allowed to log in to nodes with the `access:
-relaxed` Teleport label. They can log in as either `ubuntu` or a username that
-is passed in from the keycloak connector using the `username`
-attribute.
-
-The login
-<nobr>`{{external.username}}`</nobr>
-configures Teleport to look at the `username`
-attribute and use that field as an allowed login for each user.
-
-Create the role:
-
-```code
-$ tctl create dev.yaml
-```
-
-(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Client Certificate Signature validation (Recommended)
 

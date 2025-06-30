@@ -205,7 +205,7 @@ loop:
 					if err := jpeg.Encode(buf, screen, nil); err != nil {
 						return frameCount, trace.Wrap(err)
 					}
-					for i := 0; i < int(framesToEmit); i++ {
+					for range int(framesToEmit) {
 						err := movie.AddFrame(buf.Bytes())
 						if errors.Is(err, mjpeg.ErrTooLarge) {
 							// this file can't get any larger - time to open a new file

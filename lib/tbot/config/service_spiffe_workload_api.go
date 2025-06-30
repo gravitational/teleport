@@ -136,7 +136,7 @@ func (s *SPIFFEWorkloadAPIService) Type() string {
 	return SPIFFEWorkloadAPIServiceType
 }
 
-func (s *SPIFFEWorkloadAPIService) MarshalYAML() (interface{}, error) {
+func (s *SPIFFEWorkloadAPIService) MarshalYAML() (any, error) {
 	type raw SPIFFEWorkloadAPIService
 	return withTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
 }
