@@ -134,7 +134,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 			index = botInstanceActiveAtIndex
 			keyFn = keyForActiveAtIndex
 		default:
-			return nil, "", trace.BadParameter("unsupported sort field: %s", sort.Field)
+			return nil, "", trace.BadParameter("unsupported sort. got field %s but expected bot_name or active_at_latest", sort.Field)
 		}
 	}
 
@@ -145,11 +145,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			if sort != nil && (sort.Field != "bot_name" || sort.IsDesc != false) {
-				return nil, "", trace.BadParameter("cache is unhealthy, only bot_name:asc is supported, but got %s (desc = %t)", sort.Field, sort.IsDesc)
-			}
-
-			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, nil) // Upstream does not support sorting
+			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
 			return matchBotInstance(b, botName, search)

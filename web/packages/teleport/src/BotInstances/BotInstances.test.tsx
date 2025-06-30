@@ -100,16 +100,33 @@ describe('BotInstances', () => {
     expect(screen.getByText('Error: server error')).toBeInTheDocument();
   });
 
-  it('Shows an unhealthy cache error state', async () => {
-    server.use(
-      listBotInstancesError(400, 'cache is unhealthy for some reason')
-    );
+  it('Shows an unsupported sort error state', async () => {
+    const testErrorMessage =
+      'unsupported sort. only bot_name:asc is supported, but got blah (desc = true)';
+    server.use(listBotInstancesError(400, testErrorMessage));
 
     render(<BotInstances />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(screen.getByText('Service is degraded')).toBeInTheDocument();
+    expect(screen.getByText(`Error: ${testErrorMessage}`)).toBeInTheDocument();
+
+    server.use(
+      listBotInstancesSuccess({
+        bot_instances: [],
+        next_page_token: '',
+      })
+    );
+
+    const resetButton = screen.getByText('Reset sort');
+    expect(resetButton).toBeInTheDocument();
+    fireEvent.click(resetButton);
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    expect(
+      screen.queryByText(`Error: ${testErrorMessage}`)
+    ).not.toBeInTheDocument();
   });
 
   it('Shows a list', async () => {

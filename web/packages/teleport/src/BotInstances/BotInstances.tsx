@@ -153,7 +153,7 @@ export function BotInstances() {
     [history, location.pathname, location.search]
   );
 
-  const hasUnhealthyCacheError = isUnhealthyCacheError(error);
+  const hasUnsupportedSortError = isUnsupportedSortError(error);
 
   return (
     <FeatureBox>
@@ -168,7 +168,7 @@ export function BotInstances() {
         </Box>
       ) : undefined}
 
-      {isError && hasUnhealthyCacheError ? (
+      {isError && hasUnsupportedSortError ? (
         <Alert
           kind="warning"
           primaryAction={{
@@ -177,13 +177,12 @@ export function BotInstances() {
               handleSortChanged({ fieldName: 'bot_name', dir: 'ASC' });
             },
           }}
-          details="The bot instance cache is unhealthy - only sort by bot name ascending is supported. Please reset the sort, or try again later."
         >
-          {'Service is degraded'}
+          {`Error: ${error.message}`}
         </Alert>
       ) : undefined}
 
-      {isError && !hasUnhealthyCacheError ? (
+      {isError && !hasUnsupportedSortError ? (
         <Alert kind="danger">{`Error: ${error.message}`}</Alert>
       ) : undefined}
 
@@ -258,6 +257,6 @@ const InfoGuideReferenceLinks = {
   },
 };
 
-const isUnhealthyCacheError = (error: Error) => {
-  return error?.message && error.message.includes('cache is unhealthy');
+const isUnsupportedSortError = (error: Error) => {
+  return error?.message && error.message.includes('unsupported sort');
 };

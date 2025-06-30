@@ -470,9 +470,12 @@ func TestBotInstanceListWithSort(t *testing.T) {
 	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
-	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{})
+	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
+		Field:  "test_field",
+		IsDesc: true,
+	})
 	require.Error(t, err)
-	require.Equal(t, "sorting is not implemented", err.Error())
+	require.Equal(t, "unsupported sort. only bot_name:asc is supported, but got test_field (desc = true)", err.Error())
 
 	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil)
 	require.NoError(t, err)
