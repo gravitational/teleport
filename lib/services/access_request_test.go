@@ -3543,3 +3543,230 @@ func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]str
 	}
 	return g
 }
+
+func TestReviewRoleTraitsInterpolation(t *testing.T) {
+	ctx := context.Background()
+	type reviewer struct {
+		allowed []string
+		denied  []string
+		traits  map[string][]string
+	}
+	const (
+		rudyReviewer   = "rudyReviewer"
+		rickyRequester = "rickyRequester"
+	)
+
+	roles := roleMap(t, 4)
+	clock := clockwork.NewFakeClock()
+	identity := tlsca.Identity{
+		Expires: clock.Now().UTC().Add(8 * time.Hour),
+	}
+
+	tts := []struct {
+		desc           string
+		requestor      string
+		reviewer       reviewer
+		requestedRoles []string
+		canReview      bool
+	}{
+		{
+			desc:           "matching allow review roles",
+			requestedRoles: []string{"role1", "role2"},
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+			},
+			canReview: true,
+		},
+		{
+			desc: "unmatched requested and allowed review role",
+			reviewer: reviewer{
+				allowed: []string{"role1"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			requestedRoles: []string{"role1", "role2"},
+			canReview:      false,
+		},
+		{
+			desc: "review allow role granted by trait",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			requestedRoles: []string{"role1", "role2"},
+			canReview:      true,
+		},
+		{
+			desc: "review allow role granted by multiple traits",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}", "{{external.other_roles}}"},
+				traits: map[string][]string{
+					"roles":       {"role2"},
+					"other_roles": {"role3"},
+				},
+			},
+			requestedRoles: []string{"role1", "role2", "role3"},
+			canReview:      true,
+		},
+		{
+			desc: "incorrect traits reference",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}", "{{external.non-existent}}"},
+				traits: map[string][]string{
+					"roles":       {"role2"},
+					"other_roles": {"role3"},
+				},
+			},
+			requestedRoles: []string{"role1", "role2", "role3"},
+			canReview:      false,
+		},
+		{
+			desc: "incorrect expression",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{}}", ""},
+				traits: map[string][]string{
+					"roles":       {"role2"},
+					"other_roles": {"role3"},
+				},
+			},
+			requestedRoles: []string{"role1", "role2", "role3"},
+			canReview:      false,
+		},
+		{
+			desc: "incorrect expression does not affect matched roles",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{}}", ""},
+			},
+			requestedRoles: []string{"role1"},
+			canReview:      true,
+		},
+		{
+			desc:           "matching deny review roles",
+			requestedRoles: []string{"role1", "role2"},
+			reviewer: reviewer{
+				allowed: []string{"role1"},
+				denied:  []string{"role1"},
+			},
+			canReview: false,
+		},
+		{
+			desc: "review deny role granted by trait",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+				denied: []string{"role1"},
+			},
+			requestedRoles: []string{"role1", "role2"},
+			canReview:      false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			g := &mockGetter{
+				roles: func() map[string]types.Role {
+					roles["req"] = mustRequestRole(t, "req", tt.requestedRoles)
+					roles["rev"] = mustReviewRole(t, "rev", tt.reviewer.allowed, tt.reviewer.denied)
+					return roles
+				}(),
+				userStates: map[string]*userloginstate.UserLoginState{
+					rudyReviewer: mustUserLoginState(t, rudyReviewer, "rev", tt.reviewer.traits),
+				},
+				users: map[string]types.User{
+					rickyRequester: mustUser(t, rickyRequester, []string{"req"}),
+				},
+			}
+			req, err := types.NewAccessRequest("some-id", rickyRequester, tt.requestedRoles...)
+			require.NoError(t, err, "scenario=%q", tt.desc)
+
+			validator, err := newRequestValidator(ctx, clock, g, rickyRequester, WithExpandVars(true))
+			require.NoError(t, err, "scenario=%q", tt.desc)
+			require.NoError(t, validator.validate(ctx, req, identity), "scenario=%q", tt.desc)
+
+			checker, err := NewReviewPermissionChecker(ctx, g, rudyReviewer, nil)
+			require.NoError(t, err, "scenario=%q", tt.desc)
+
+			canReview, err := checker.CanReviewRequest(req)
+			require.NoError(t, err, "scenario=%q", tt.desc)
+			if tt.canReview {
+				require.True(t, canReview, "scenario=%q", tt.desc)
+			} else {
+				require.False(t, canReview, "scenario=%q", tt.desc)
+			}
+		})
+	}
+}
+
+func mustUser(t *testing.T, name string, roles []string) types.User {
+	t.Helper()
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetRoles(roles)
+	require.NoError(t, err)
+	return user
+}
+
+func mustRequestRole(t *testing.T, name string, allowedRoles []string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: allowedRoles,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
+
+func mustReviewRole(t *testing.T, name string, allowed []string, denied []string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles:          allowed,
+				PreviewAsRoles: allowed,
+			},
+		},
+		Deny: types.RoleConditions{
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles:          denied,
+				PreviewAsRoles: denied,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
+
+func mustUserLoginState(t *testing.T, name, role string, traits map[string][]string) *userloginstate.UserLoginState {
+	t.Helper()
+	uls, err := userloginstate.New(header.Metadata{
+		Name: name,
+	}, userloginstate.Spec{
+		Roles:  []string{role},
+		Traits: traits,
+	})
+	require.NoError(t, err)
+	return uls
+}
+
+func roleMap(t *testing.T, count int) map[string]types.Role {
+	t.Helper()
+	roleMap := make(map[string]types.Role, count)
+	for i := range count {
+		role, err := types.NewRole("role"+strconv.Itoa(i), types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		})
+		require.NoError(t, err)
+		roleMap[role.GetName()] = role
+	}
+	return roleMap
+}
