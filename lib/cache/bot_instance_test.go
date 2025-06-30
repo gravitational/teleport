@@ -360,7 +360,7 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 		IsDesc: true,
 	})
 	require.Error(t, err)
-	require.Equal(t, "unsupported sort. only bot_name:asc is supported, but got bot_name (desc = true)", err.Error())
+	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"bot_name\" (desc = true)", err.Error())
 
 	// sort ascending by active_at_latest
 	_, _, err = p.cache.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
@@ -368,6 +368,6 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 		IsDesc: false,
 	})
 	require.Error(t, err)
-	require.Equal(t, "unsupported sort. only bot_name:asc is supported, but got active_at_latest (desc = false)", err.Error())
+	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"active_at_latest\" (desc = false)", err.Error())
 
 }

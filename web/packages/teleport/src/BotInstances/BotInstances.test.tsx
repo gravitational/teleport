@@ -105,7 +105,7 @@ describe('BotInstances', () => {
 
   it('Shows an unsupported sort error state', async () => {
     const testErrorMessage =
-      'unsupported sort. only bot_name:asc is supported, but got blah (desc = true)';
+      'unsupported sort, only bot_name:asc is supported, but got "blah" (desc = true)';
     server.use(listBotInstancesError(400, testErrorMessage));
 
     render(<BotInstances />, { wrapper: makeWrapper() });

@@ -135,7 +135,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 			index = botInstanceActiveAtIndex
 			keyFn = keyForActiveAtIndex
 		default:
-			return nil, "", trace.BadParameter("unsupported sort. got field %s but expected bot_name or active_at_latest", sort.Field)
+			return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", sort.Field)
 		}
 	}
 

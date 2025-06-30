@@ -475,7 +475,7 @@ func TestBotInstanceListWithSort(t *testing.T) {
 		IsDesc: true,
 	})
 	require.Error(t, err)
-	require.Equal(t, "unsupported sort. only bot_name:asc is supported, but got test_field (desc = true)", err.Error())
+	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"test_field\" (desc = true)", err.Error())
 
 	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil)
 	require.NoError(t, err)
