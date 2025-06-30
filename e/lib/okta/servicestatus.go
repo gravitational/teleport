@@ -88,6 +88,24 @@ func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time,
 	ReportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
+func (s *serviceStatus) UpdateSystemLogExporter(ctx context.Context, now time.Time, err error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	sle := s.details.SystemLogExportDetails
+	if err != nil {
+		sle.StatusCode = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR
+		sle.Error = formatError(err).Error()
+		sle.LastFailed = &now
+	} else {
+		sle.StatusCode = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS
+		sle.Error = ""
+		sle.LastSuccessful = &now
+	}
+	s.propagateErrors(err)
+	ReportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
+}
+
 func (s *serviceStatus) propagateErrors(err error) {
 	const statusError = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR
 
@@ -95,7 +113,8 @@ func (s *serviceStatus) propagateErrors(err error) {
 	case err == nil:
 		if s.details.AppGroupSyncDetails.StatusCode != statusError &&
 			s.details.UsersSyncDetails.StatusCode != statusError &&
-			s.details.AccessListsSyncDetails.StatusCode != statusError {
+			s.details.AccessListsSyncDetails.StatusCode != statusError &&
+			s.details.SystemLogExportDetails.StatusCode != statusError {
 			s.code = types.PluginStatusCode_RUNNING
 		}
 
@@ -190,6 +209,10 @@ func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV
 			Error:        syncErrorMsg,
 			GroupFilters: params.SyncSettings.GroupFilters,
 			AppFilters:   params.SyncSettings.AppFilters,
+		},
+		SystemLogExportDetails: &types.PluginOktaStatusSystemLogExporter{
+			Enabled: params.SyncSettings.GetEnableSystemLogExport(),
+			Error:   syncErrorMsg,
 		},
 	}
 }

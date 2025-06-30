@@ -649,6 +649,7 @@ func (s *Service) StartSystemLogExporter(ctx context.Context, cfg StartIntegrati
 			GetCreds:           cfg.GetCreds,
 			ClusterFeatures:    cfg.ClusterFeatures,
 			BootstrapStartDate: cfg.BootstrapStartDate,
+			ReportStatus:       s.serviceStatus.UpdateSystemLogExporter,
 		},
 	)
 	if err != nil {

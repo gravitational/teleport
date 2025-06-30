@@ -59,7 +59,11 @@ type Service struct {
 	getCreds          accessgraph.ClientCredentialsGetter
 	startDate         time.Time
 	orgURL            string
+	reportStatus      ReportStatusFunc
 }
+
+// ReportStatusFunc is a function that reports the status of the Okta AuditLogs service.
+type ReportStatusFunc func(ctx context.Context, now time.Time, err error)
 
 // Config are configuration options for [Service].
 type Config struct {
@@ -81,6 +85,8 @@ type Config struct {
 	ClusterFeatures func() proto.Features
 	// BootstrapStartDate is the date to start syncing from.
 	BootstrapStartDate time.Time
+	// ReportStatus is the reporter to use for reporting status updates.
+	ReportStatus ReportStatusFunc
 }
 
 // Validate validates the options.
@@ -98,6 +104,10 @@ func (o *Config) Validate() error {
 	}
 	if o.ClusterFeatures == nil {
 		return trace.BadParameter("missing cluster features")
+	}
+
+	if o.ReportStatus == nil {
+		return trace.BadParameter("missing report status function")
 	}
 
 	return nil
@@ -151,6 +161,7 @@ func New(ctx context.Context, opts Config) (*Service, error) {
 		hostID:            opts.HostID,
 		getCreds:          opts.GetCreds,
 		orgURL:            u.Host,
+		reportStatus:      opts.ReportStatus,
 	}, nil
 }
 
@@ -288,6 +299,7 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 	eGroup.Go(func() (err error) {
 		defer cancel()
 		err = s.exportAuditLogs(ctx, client)
+		s.reportStatus(ctx, s.clock.Now(), err)
 		return trace.Wrap(err)
 	})
 
@@ -371,6 +383,8 @@ func (s *Service) exportAuditLogs(ctx context.Context, client accessgraphv1alpha
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Error polling audit logs", "error", err)
 		}
+
+		s.reportStatus(ctx, s.clock.Now(), err)
 
 		if len(evts) > 0 {
 			sendErr := stream.Send(

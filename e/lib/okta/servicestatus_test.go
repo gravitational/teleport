@@ -49,6 +49,9 @@ func newTestServiceStatus() (*serviceStatus, *mockStatusSink) {
 			AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
 				Enabled: true,
 			},
+			SystemLogExportDetails: &types.PluginOktaStatusSystemLogExporter{
+				Enabled: true,
+			},
 		},
 	}
 
@@ -237,6 +240,15 @@ func TestServiceStatusDetectsTimeout(t *testing.T) {
 			name:     "App+Group Sync",
 			setError: func(s *serviceStatus, err error) { s.UpdateAppGroupSync(ctx, time.Time{}, 0, 0, err) },
 			getError: func(s *mockStatusSink) string { return s.status.GetOkta().AppGroupSyncDetails.Error },
+		},
+		{
+			name: "system log exporter",
+			setError: func(s *serviceStatus, err error) {
+				s.UpdateSystemLogExporter(ctx, time.Time{}, err)
+			},
+			getError: func(s *mockStatusSink) string {
+				return s.status.GetOkta().SystemLogExportDetails.Error
+			},
 		},
 	}
 
