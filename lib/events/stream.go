@@ -1004,22 +1004,23 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
-	var streamVersion uint64 = ProtoStreamV1
-	var headerSize int64 = ProtoStreamV1PartHeaderSize
-	if s.encrypted {
-		streamVersion = ProtoStreamV2
-		headerSize = ProtoStreamV2PartHeaderSize
-	}
-	// when the slice was created, the first bytes were reserved
-	// for the protocol version number and size of the slice in bytes
-	binary.BigEndian.PutUint64(data[0:], streamVersion)
-	binary.BigEndian.PutUint64(data[Int64Size:], uint64(wroteBytes-headerSize))
-	binary.BigEndian.PutUint64(data[Int64Size*2:], uint64(paddingBytes))
-	if s.encrypted {
-		binary.BigEndian.PutUint64(data[Int64Size*3:], 0)
-		data[Int64Size*3] |= ProtoStreamFlagEncrypted
+
+	// TODO (eriktate): stop writing new recordings with ProtoStreamV1 in v19
+	partHeader := PartHeader{
+		ProtoVersion: ProtoStreamV1,
+		PartSize:     uint64(wroteBytes - ProtoStreamV1PartHeaderSize),
+		PaddingSize:  uint64(paddingBytes),
 	}
 
+	if s.encrypted {
+		partHeader.ProtoVersion = ProtoStreamV2
+		partHeader.PartSize = uint64(wroteBytes - ProtoStreamV2PartHeaderSize)
+		partHeader.Flags = ProtoStreamFlagEncrypted
+	}
+
+	// when the slice was created, the first bytes were reserved
+	// for the protocol version number and size of the slice in bytes
+	copy(data, partHeader.Bytes())
 	return bytes.NewReader(data), nil
 }
 
@@ -1179,6 +1180,65 @@ func (r *ProtoReader) GetStats() ProtoReaderStats {
 	return r.stats
 }
 
+// PartHeader is the structured representation of the binary header prepending each part of a ProtoStream output
+type PartHeader struct {
+	ProtoVersion uint64
+	PartSize     uint64
+	PaddingSize  uint64
+	Flags        ProtoStreamFlag
+}
+
+// Bytes returns the binary representation of a PartHeader formatted to be included in a ProtoStream
+func (h PartHeader) Bytes() []byte {
+	var buf [ProtoStreamV2PartHeaderSize]byte
+	binary.BigEndian.PutUint64(buf[:], h.ProtoVersion)
+	binary.BigEndian.PutUint64(buf[Int64Size:], h.PartSize)
+	binary.BigEndian.PutUint64(buf[Int64Size*2:], h.PaddingSize)
+	if h.ProtoVersion == 1 {
+		return buf[:ProtoStreamV1PartHeaderSize]
+	}
+	binary.BigEndian.PutUint64(buf[Int64Size*3:], 0)
+	buf[Int64Size*3] = h.Flags
+	return buf[:]
+}
+
+// ParsePartHeader parses a PartHeader from the given io.Reader
+func ParsePartHeader(r io.Reader) (PartHeader, error) {
+	var header PartHeader
+	var buf [Int64Size]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		if errors.Is(err, io.EOF) {
+			return header, trace.Wrap(err)
+		}
+		return header, trace.ConvertSystemError(err)
+	}
+
+	header.ProtoVersion = binary.BigEndian.Uint64(buf[:])
+	if header.ProtoVersion > ProtoStreamV2 {
+		return PartHeader{}, trace.BadParameter("unsupported protocol version %v", header.ProtoVersion)
+	}
+
+	// read size of this gzipped part as encoded by V1 protocol version
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.PartSize = binary.BigEndian.Uint64(buf[:])
+	// read padding size (could be 0)
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.PaddingSize = binary.BigEndian.Uint64(buf[:])
+	if header.ProtoVersion == 1 {
+		return header, nil
+	}
+
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.Flags = buf[0]
+	return header, nil
+}
+
 // Read returns next event or io.EOF in case of the end of the parts
 func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// periodic checks of context after fixed amount of iterations
@@ -1206,7 +1266,8 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			if _, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size]); err != nil {
+			header, err := ParsePartHeader(r.reader)
+			if err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
 					r.state = protoReaderStateEOF
@@ -1214,44 +1275,21 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				}
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			protocolVersion := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			if protocolVersion > ProtoStreamV2 {
-				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
-			}
-			// read size of this gzipped part as encoded by V1 protocol version
-			if _, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size]); err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			// read padding size (could be 0)
-			if _, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size]); err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
 
-			var encrypted bool
-			if protocolVersion > 1 {
-				if _, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size]); err != nil {
-					return nil, r.setError(trace.ConvertSystemError(err))
-				}
-				flags := r.sizeBytes[0]
-				encrypted = flags&ProtoStreamFlagEncrypted != 0
-			}
-
-			reader := r.reader
-			if encrypted {
+			r.padding = int64(header.PaddingSize)
+			reader := io.LimitReader(r.reader, int64(header.PartSize))
+			if header.Flags&ProtoStreamFlagEncrypted != 0 {
 				if r.decrypter == nil {
 					return nil, r.setError(trace.Errorf("reading encrypted protos without decrypter"))
 				}
 
-				var err error
-				reader, err = r.decrypter.WithDecryption(ctx, r.reader)
+				reader, err = r.decrypter.WithDecryption(ctx, reader)
 				if err != nil {
 					return nil, r.setError(trace.Wrap(err))
 				}
 			}
 
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(reader, int64(partSize))))
+			gzipReader, err := newGzipReader(io.NopCloser(reader))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
@@ -1263,8 +1301,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateCurrent:
 			// the record consists of length of the protobuf encoded
 			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size]); err != nil {
 				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
@@ -1310,13 +1347,11 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
-			_, err = io.ReadFull(r.gzipReader, r.messageBytes[:messageSize])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(r.messageBytes[:messageSize])
-			if err != nil {
+			if err := oneof.Unmarshal(r.messageBytes[:messageSize]); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			event, err := apievents.FromOneOf(oneof)

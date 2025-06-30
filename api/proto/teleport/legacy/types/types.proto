@@ -2449,7 +2449,7 @@ message SessionRecordingConfigV2 {
   // Status is the SessionRecordingConfig status containing active encryption keys
   SessionRecordingConfigStatus Status = 6 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "status"
+    (gogoproto.jsontag) = "status,omitempty"
   ];
 }
 
@@ -2477,7 +2477,7 @@ message SessionRecordingConfigSpecV2 {
   // Encryption configures if and how session recordings should be encrypted.
   SessionRecordingEncryptionConfig encryption = 3 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "encryption"
+    (gogoproto.jsontag) = "encryption,omitempty"
   ];
 }
 

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -470,6 +471,87 @@ func TestSummarization_Unknown(t *testing.T) {
 			require.NoError(t, err)
 
 			mockSummarizer.AssertExpectations(t)
+		})
+	}
+}
+
+func TestPartHeader(t *testing.T) {
+	cases := []struct {
+		name               string
+		partHeader         events.PartHeader
+		expectedErr        error
+		expectedPartHeader *events.PartHeader // if different than starting part
+	}{
+		{
+			name: "v1 part header",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV1,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr: nil,
+			expectedPartHeader: &events.PartHeader{
+				ProtoVersion: events.ProtoStreamV1,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				// no flags
+			},
+		},
+		{
+			name: "v2 part header encrypted",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV2,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr:        nil,
+			expectedPartHeader: nil,
+		},
+		{
+			name: "v2 part header unencrypted",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV2,
+				PartSize:     1234,
+				PaddingSize:  4321,
+			},
+			expectedErr:        nil,
+			expectedPartHeader: nil,
+		},
+		{
+			name: "invalid version",
+			partHeader: events.PartHeader{
+				ProtoVersion: 3,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr:        trace.BadParameter("unsupported protocol version %v", 3),
+			expectedPartHeader: nil,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(c.partHeader.Bytes())
+			switch c.partHeader.ProtoVersion {
+			case events.ProtoStreamV1:
+				require.Equal(t, events.ProtoStreamV1PartHeaderSize, buf.Len())
+			case events.ProtoStreamV2:
+				require.Equal(t, events.ProtoStreamV2PartHeaderSize, buf.Len())
+			}
+
+			header, err := events.ParsePartHeader(buf)
+			if c.expectedErr != nil {
+				require.ErrorIs(t, err, c.expectedErr)
+				return
+			}
+			expected := c.partHeader
+			if c.expectedPartHeader != nil {
+				expected = *c.expectedPartHeader
+			}
+			require.Equal(t, expected, header)
 		})
 	}
 }
