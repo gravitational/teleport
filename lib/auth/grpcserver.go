@@ -4591,6 +4591,39 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.Windo
 	}, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (g *GRPCServer) ListWindowsDesktops(ctx context.Context, req *authpb.ListWindowsDesktopsRequest) (*authpb.ListWindowsDesktopsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+		Limit:                int(req.Limit),
+		StartKey:             req.StartKey,
+		PredicateExpression:  req.PredicateExpression,
+		Labels:               req.Labels,
+		SearchKeywords:       req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &authpb.ListWindowsDesktopsResponse{
+		Desktops: make([]*types.WindowsDesktopV3, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		if v3, ok := d.(*types.WindowsDesktopV3); ok {
+			out.Desktops = append(out.Desktops, v3)
+		}
+	}
+
+	return out, nil
+}
+
 // CreateWindowsDesktop registers a new Windows desktop host.
 func (g *GRPCServer) CreateWindowsDesktop(ctx context.Context, desktop *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

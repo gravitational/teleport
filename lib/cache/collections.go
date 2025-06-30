@@ -2196,7 +2196,21 @@ var _ executor[types.Lock, services.LockGetter] = lockExecutor{}
 type windowsDesktopServicesExecutor struct{}
 
 func (windowsDesktopServicesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WindowsDesktopService, error) {
-	return cache.Presence.GetWindowsDesktopServices(ctx)
+	resources, err := client.GetResourcesWithFilters(ctx, cache.Presence, proto.ListResourcesRequest{ResourceType: types.KindWindowsDesktopService})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktopSvcs := make([]types.WindowsDesktopService, 0, len(resources))
+	for _, resource := range resources {
+		desktopSvc, ok := resource.(types.WindowsDesktopService)
+		if !ok {
+			return nil, trace.BadParameter("unexpected resource %T", resource)
+		}
+		desktopSvcs = append(desktopSvcs, desktopSvc)
+	}
+
+	return desktopSvcs, nil
 }
 
 func (windowsDesktopServicesExecutor) upsert(ctx context.Context, cache *Cache, resource types.WindowsDesktopService) error {
@@ -2243,7 +2257,33 @@ var _ executor[types.WindowsDesktopService, windowsDesktopServiceGetter] = windo
 type windowsDesktopsExecutor struct{}
 
 func (windowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WindowsDesktop, error) {
-	return cache.WindowsDesktops.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	var start string
+	var desktops []types.WindowsDesktop
+	for {
+		req := types.ListWindowsDesktopsRequest{
+			// A non zero limit is required by older versions.
+			Limit:    apidefaults.DefaultChunkSize,
+			StartKey: start,
+		}
+
+		resp, err := cache.WindowsDesktops.ListWindowsDesktops(ctx, req)
+		if err != nil {
+			// TODO(tross): DELETE in V21.0.0
+			if trace.IsNotImplemented(err) {
+				return cache.WindowsDesktops.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		desktops = append(desktops, resp.Desktops...)
+		start = resp.NextKey
+		if resp.NextKey == "" {
+			break
+		}
+	}
+
+	return desktops, nil
 }
 
 func (windowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.WindowsDesktop) error {

@@ -3889,6 +3889,57 @@ func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.Database
 	return out, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	resp, err := c.grpc.ListWindowsDesktops(ctx, &proto.ListWindowsDesktopsRequest{
+		Limit:                int32(req.Limit),
+		StartKey:             req.StartKey,
+		Labels:               req.Labels,
+		PredicateExpression:  req.PredicateExpression,
+		SearchKeywords:       req.SearchKeywords,
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &types.ListWindowsDesktopsResponse{
+		Desktops: make([]types.WindowsDesktop, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		out.Desktops = append(out.Desktops, d)
+	}
+
+	return out, nil
+}
+
+// ListWindowsDesktopServices returns a page of Windows desktop services.
+func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	resp, err := c.grpc.ListResources(ctx, &proto.ListResourcesRequest{
+		Limit:               int32(req.Limit),
+		StartKey:            req.StartKey,
+		Labels:              req.Labels,
+		PredicateExpression: req.PredicateExpression,
+		SearchKeywords:      req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &types.ListWindowsDesktopServicesResponse{
+		DesktopServices: make([]types.WindowsDesktopService, 0, len(resp.Resources)),
+		NextKey:         resp.NextKey,
+	}
+
+	for _, r := range resp.Resources {
+		out.DesktopServices = append(out.DesktopServices, r.GetWindowsDesktopService())
+	}
+
+	return out, nil
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{})

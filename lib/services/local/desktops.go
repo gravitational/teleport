@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -38,8 +39,65 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 	return &WindowsDesktopService{Backend: backend}
 }
 
-// GetWindowsDesktops returns all Windows desktops matching filter.
+func (s *WindowsDesktopService) getWindowsDesktop(ctx context.Context, name, hostID string) (types.WindowsDesktop, error) {
+	key := backend.NewKey(windowsDesktopsPrefix, hostID, name)
+	item, err := s.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	desktop, err := s.itemToWindowsDesktop(item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return desktop, nil
+}
+
+func (*WindowsDesktopService) itemToWindowsDesktop(item *backend.Item) (types.WindowsDesktop, error) {
+	desktop, err := services.UnmarshalWindowsDesktop(
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+		services.WithResourceID(item.ID),
+	)
+	return desktop, trace.Wrap(err)
+}
+
+func (s *WindowsDesktopService) getWindowsDesktopsForHostID(ctx context.Context, hostID string) ([]types.WindowsDesktop, error) {
+	startKey := backend.ExactKey(windowsDesktopsPrefix, hostID)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var desktops []types.WindowsDesktop
+	for _, item := range result.Items {
+		desktop, err := s.itemToWindowsDesktop(&item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		desktops = append(desktops, desktop)
+	}
+
+	return desktops, nil
+}
+
+// GetWindowsDesktops returns all Windows desktops matching the specified filter.
+// Most callers should prefer ListWindowsDesktops instead, as it supports pagination.
 func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	// TODO(zmb3,espadolini): implement this via ListWindowsDesktops
+
+	// do a point-read instead of a range-read if a filter is provided
+	if filter.HostID != "" && filter.Name != "" {
+		desktop, err := s.getWindowsDesktop(ctx, filter.Name, filter.HostID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []types.WindowsDesktop{desktop}, nil
+	}
+	if filter.HostID != "" {
+		return s.getWindowsDesktopsForHostID(ctx, filter.HostID)
+	}
+
 	startKey := backend.ExactKey(windowsDesktopsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -48,8 +106,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
-		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		desktop, err := s.itemToWindowsDesktop(&item)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -57,10 +114,6 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 			continue
 		}
 		desktops = append(desktops, desktop)
-	}
-	// If both HostID and Name are set in the filter only one desktop should be expected
-	if filter.HostID != "" && filter.Name != "" && len(desktops) == 0 {
-		return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", filter.HostID, filter.Name)
 	}
 
 	return desktops, nil
@@ -175,24 +228,41 @@ func (s *WindowsDesktopService) DeleteAllWindowsDesktops(ctx context.Context) er
 // ListWindowsDesktops returns all Windows desktops matching filter.
 func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	reqLimit := req.Limit
-	if reqLimit <= 0 {
-		return nil, trace.BadParameter("nonpositive parameter limit")
+	if reqLimit <= 0 || reqLimit > defaults.DefaultChunkSize {
+		reqLimit = defaults.DefaultChunkSize
 	}
 
-	rangeStart := backend.NewKey(windowsDesktopsPrefix, req.StartKey)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopsPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:   types.KindWindowsDesktop,
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 	}
-
 	if req.PredicateExpression != "" {
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		filter.PredicateExpression = expression
+	}
+
+	var rangeStart, rangeEnd backend.Key
+	switch {
+	case req.Name != "" && req.HostID != "":
+		rangeStart = backend.NewKey(windowsDesktopsPrefix, req.HostID, req.Name)
+		rangeEnd = rangeStart
+	case req.HostID != "":
+		rangeStart = backend.ExactKey(windowsDesktopsPrefix, req.HostID)
+		rangeEnd = backend.RangeEnd(rangeStart)
+	default:
+		rangeStart = backend.ExactKey(windowsDesktopsPrefix)
+		rangeEnd = backend.RangeEnd(rangeStart)
+	}
+
+	if req.StartKey != "" {
+		k := backend.NewKey(windowsDesktopsPrefix, req.StartKey)
+		if k.Compare(rangeStart) > 0 {
+			rangeStart = k
+		}
 	}
 
 	// Get most limit+1 results to determine if there will be a next key.
@@ -204,8 +274,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 				break
 			}
 
-			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			desktop, err := s.itemToWindowsDesktop(&item)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -227,11 +296,6 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 		return nil, trace.Wrap(err)
 	}
 
-	// If both HostID and Name are set in the filter only one desktop should be expected
-	if req.HostID != "" && req.Name != "" && len(desktops) == 0 {
-		return nil, trace.NotFound("windows desktop \"%s/%s\" doesn't exist", req.HostID, req.Name)
-	}
-
 	var nextKey string
 	if len(desktops) > reqLimit {
 		nextKey = backend.GetPaginationKey(desktops[len(desktops)-1])
@@ -247,8 +311,8 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 
 func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	reqLimit := req.Limit
-	if reqLimit <= 0 {
-		return nil, trace.BadParameter("nonpositive parameter limit")
+	if reqLimit <= 0 || reqLimit > defaults.DefaultChunkSize {
+		reqLimit = defaults.DefaultChunkSize
 	}
 
 	rangeStart := backend.NewKey(windowsDesktopServicesPrefix, req.StartKey)
@@ -276,8 +340,11 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 				break
 			}
 
-			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			desktop, err := services.UnmarshalWindowsDesktopService(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
+			)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
