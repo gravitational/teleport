@@ -65,10 +65,25 @@ func WithAccessListLabels(labels map[string]string) AccessListToResourceFunc {
 	}
 }
 
+// WithMemberAddedBy sets the name of the user who added the member to the access list.
+func WithMemberAddedBy(name string) AccessListToResourceFunc {
+	return func(o *accessListToResourceOptions) {
+		o.memberAddedBy = name
+	}
+}
+
+// WithAccessListName sets the name of the access list.
+func WithAccessListName(name string) AccessListToResourceFunc {
+	return func(o *accessListToResourceOptions) {
+		o.accessListName = name
+	}
+}
+
 // AccessListFromResource decodes an SCIM group resource into a Teleport Access List.
 func AccessListFromResource(r *scimpb.Resource, opts ...AccessListToResourceFunc) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	options := accessListToResourceOptions{
-		clock: clockwork.NewRealClock(),
+		clock:          clockwork.NewRealClock(),
+		accessListName: r.Id,
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -81,7 +96,7 @@ func AccessListFromResource(r *scimpb.Resource, opts ...AccessListToResourceFunc
 	acl := &accesslist.AccessList{
 		ResourceHeader: header.ResourceHeader{
 			Metadata: header.Metadata{
-				Name:     r.Id,
+				Name:     options.accessListName,
 				Labels:   maps.Clone(options.accessListLabels),
 				Revision: r.GetMeta().GetVersion(),
 			},
@@ -105,6 +120,7 @@ func AccessListFromResource(r *scimpb.Resource, opts ...AccessListToResourceFunc
 				AccessList: acl.GetName(),
 				Name:       m.Value,
 				Joined:     options.clock.Now(),
+				AddedBy:    options.memberAddedBy,
 			},
 		}
 		members[i] = newMember
@@ -119,6 +135,8 @@ type accessListToResourceOptions struct {
 	clock            clockwork.Clock
 	accessListLabels map[string]string
 	grants           accesslist.Grants
+	memberAddedBy    string
+	accessListName   string
 }
 
 // member holds a SCIM group membership record as per RFC 7643 Section 4.2
@@ -153,4 +171,25 @@ func getAttr(attrs map[string]any, key string) (string, error) {
 		return "", trace.BadParameter("invalid attribute type %T", untypedValue)
 	}
 	return value, nil
+}
+
+// GetGroupDisplayName extracts the display name from an SCIM group resource.
+func GetGroupDisplayName(r *scimpb.Resource) (string, error) {
+	group, err := decodeGroupResource(r.Attributes.AsMap())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return group.DisplayName, nil
+}
+
+// ToSCIMGroups converts a slice of group names into a slice of SCIM group representations.
+func ToSCIMGroups(groups []string) []any {
+	if groups == nil {
+		return nil
+	}
+	scimGroups := make([]any, 0, len(groups))
+	for _, group := range groups {
+		scimGroups = append(scimGroups, map[string]any{"value": group})
+	}
+	return scimGroups
 }

@@ -346,3 +346,11 @@ func (m *mockAssignmentsService) ListOktaAssignments(ctx context.Context, page i
 	result := m.Called(ctx, page, nextToken)
 	return getResultAs[[]types.OktaAssignment](result, 0), result.String(1), result.Error(2)
 }
+
+func (m *mockAccessListService) GetAccessListMember(ctx context.Context, accessListName string, memberName string) (*accesslist.AccessListMember, error) {
+	result := m.Called(ctx, accessListName, memberName)
+	if fn, ok := result.Get(0).(func(context.Context, string, string) (*accesslist.AccessListMember, error)); ok {
+		return fn(ctx, accessListName, memberName)
+	}
+	return getResultAs[*accesslist.AccessListMember](result, 0), result.Error(1)
+}

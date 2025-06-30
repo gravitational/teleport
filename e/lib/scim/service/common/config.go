@@ -189,6 +189,8 @@ type AccessListsService interface {
 	// DeleteAccessList deletes a specific AccessList. It is assumed that the delete will
 	// cascade onto the AccessListMembers associated with the deleted list.
 	DeleteAccessList(ctx context.Context, accessList string) error
+	// GetAccessListMember fetches a specific access list member by name
+	GetAccessListMember(ctx context.Context, accessListName string, memberName string) (*accesslist.AccessListMember, error)
 }
 
 // Static assertion that AccessListsService is a subset of services.AccessLists

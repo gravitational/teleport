@@ -22,6 +22,16 @@ func New(config common.Config, plugin *types.PluginV1, resourceType string) (com
 		}, nil
 	case "ServiceProviderConfig":
 		return &serviceProviderConfigHandler{}, nil
+	case "Users":
+		return &userHandler{
+			Config: config,
+			Plugin: plugin,
+		}, nil
+	case "Groups":
+		return &groupHandler{
+			Config: config,
+			Plugin: plugin,
+		}, nil
 	default:
 		return nil, trace.BadParameter("unsupported resource type: %v", resourceType)
 	}

@@ -18,6 +18,7 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 )
 
@@ -199,4 +200,25 @@ func mustGetToken(t *testing.T, config clientcredentials.Config, ctx context.Con
 	token, err := config.Token(ctx)
 	require.NoError(t, err)
 	return token
+}
+
+func createPluginSCIMClient(t *testing.T, sut *common.SUT, scimToken string, plugin string) scimsdk.Client {
+	t.Helper()
+	u := url.URL{
+		Scheme: "https",
+		Path:   "/v1/webapi/scim/" + plugin,
+		Host:   sut.ProxyAddr,
+	}
+	scimClient, err := scimsdk.New(&scimsdk.Config{
+		Endpoint:        u.String(),
+		Token:           scimToken,
+		IntegrationType: "generic",
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return scimClient
 }

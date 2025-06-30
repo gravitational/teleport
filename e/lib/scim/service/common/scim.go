@@ -13,6 +13,9 @@ const (
 	GroupNameAttribute = "groupName"
 	// GroupDisplayNameAttribute is the attribute name for the group display name.
 	GroupDisplayNameAttribute = "displayName"
+
+	// ExternalIDLabel is the label used to store the external ID of a resource.
+	ExternalIDLabel = "scim/external_id"
 )
 
 const (
