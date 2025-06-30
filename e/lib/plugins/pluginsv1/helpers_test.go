@@ -2,7 +2,6 @@ package pluginsv1
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"testing"
 	"time"
@@ -84,20 +83,21 @@ func createSuite(t *testing.T) *suite {
 	require.NoError(t, err)
 	pluginAuthorizers := plugins.NewAuthorizerSet()
 
+	serviceUnderTest, err := NewService(ServiceConfig{
+		Authorizer:                     authorizer,
+		AuthServer:                     authServer.AuthServer,
+		PluginService:                  pluginService,
+		PluginStaticCredentialsService: pluginStaticCredentialsService,
+		PluginAuthorizers:              pluginAuthorizers,
+	})
+	require.NoError(t, err)
+
 	return &suite{
 		authorizer:                     authorizer,
 		pluginService:                  pluginService,
 		pluginStaticCredentialsService: pluginStaticCredentialsService,
 		pluginAuthorizers:              pluginAuthorizers,
-		svc: &Service{
-			emitter:                        authServer.AuthServer,
-			authorizer:                     authorizer,
-			authServer:                     authServer.AuthServer,
-			pluginService:                  pluginService,
-			pluginStaticCredentialsService: pluginStaticCredentialsService,
-			pluginAuthorizers:              pluginAuthorizers,
-			logger:                         slog.Default(),
-		},
+		svc:                            serviceUnderTest,
 	}
 }
 

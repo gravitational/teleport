@@ -19,16 +19,13 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/api/cloud"
-	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 )
 
 // getStaticPlugins returns the list of integrations that use an API key
@@ -67,6 +64,7 @@ type ServiceConfig struct {
 	PluginService                  services.Plugins
 	PluginStaticCredentialsService services.PluginStaticCredentials
 	Logger                         *slog.Logger
+	Handlers                       map[types.PluginType]pluginHandler
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -88,6 +86,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+	if cfg.Handlers == nil {
+		cfg.Handlers = maps.Clone(defaultPluginHandlers)
 	}
 	staticPlugins := getStaticPlugins()
 	for _, pluginType := range cfg.DisabledPlugins {
@@ -111,6 +112,7 @@ type Service struct {
 	pluginStaticCredentialsService services.PluginStaticCredentials
 	logger                         *slog.Logger
 	httpClient                     *http.Client
+	handlers                       map[types.PluginType]pluginHandler
 }
 
 // NewService creates a new plugins service from the given config.
@@ -127,6 +129,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
 		logger:                         cfg.Logger,
+		handlers:                       cfg.Handlers,
 		httpClient: &http.Client{
 			Timeout: 1 * time.Minute,
 		},
@@ -167,7 +170,12 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("Plugin must be set")
 	}
 
-	if err := validatePlugin(plugin); err != nil {
+	handler, ok := s.handlers[plugin.GetType()]
+	if !ok {
+		return nil, trace.BadParameter("missing validator for plugin type %q", plugin.GetType())
+	}
+
+	if err := handler.validatePlugin(plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -278,6 +286,76 @@ func (s *Service) pluginToProtobufStruct(ctx context.Context, plugin types.Plugi
 	return &str
 }
 
+// pluginHandler defines an interface to abstract away plugin-type-specific
+// differences in handling, so that the common pathway for creating/updating/deleting
+// Plugin resources is less cluttered
+type pluginHandler interface {
+	// validatePlugin checks that the supplied plugin resource is valid for a given plugin
+	// type.
+	validatePlugin(*types.PluginV1) error
+
+	// updatePlugin updates the [newP] plugin based on the implications of any changes
+	// between the [oldP] and [newP] plugin resources. In most cases this will be simply
+	// preserving the plugin resources's status block against user edits, but individual
+	// plugins may have more complex rewriting rules.
+	updatePlugin(newP, oldP *types.PluginV1) error
+}
+
+// defaultHandler defines a default handler for plugin creation and updating.
+type defaultHandler struct{}
+
+// updatePlugin implements [pluginHandler] for the default handler.
+func (defaultHandler) validatePlugin(*types.PluginV1) error {
+	return nil
+}
+
+// updatePlugin implements [pluginHandler] for the default handler. Simply
+// preserves the old status block in the new plugin record
+func (defaultHandler) updatePlugin(newP, oldP *types.PluginV1) error {
+	return trace.Wrap(newP.SetStatus(oldP.GetStatus()))
+}
+
+// pluginHandlerFn allows a validation function to act as a plugin handler,
+// inheriting upgrade behavior from [defaultHandler].
+type pluginHandlerFn struct {
+	defaultHandler
+	fn func(*types.PluginV1) error
+}
+
+// validatePlugin implements [pluginHandler] for [pluginHandlerFn]. Invokes the
+// contained function on the supplied Plugin resource.
+func (h pluginHandlerFn) validatePlugin(p *types.PluginV1) error {
+	return h.fn(p)
+}
+
+// defaultPluginHandlers is the default set of plugin validation handlers for the known plugin types.
+var defaultPluginHandlers = map[types.PluginType]pluginHandler{
+	types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraTenantID},
+	types.PluginTypeEmail:             pluginHandlerFn{fn: validateEmailPlugin},
+	types.PluginTypeAWSIdentityCenter: awsicPluginHandler{},
+
+	// Any plugin resource type using the default handler implicitly passes
+	// validation. Consider adding explicit validation for this plugin type to
+	// ensure that user-controlled input parameters (e.g., URL, AWS Region) are
+	// properly validated.
+	types.PluginTypeDatadog:    defaultHandler{},
+	types.PluginTypeDiscord:    defaultHandler{},
+	types.PluginTypeGitlab:     defaultHandler{},
+	types.PluginTypeGithub:     defaultHandler{},
+	types.PluginTypeJamf:       defaultHandler{},
+	types.PluginTypeJira:       defaultHandler{},
+	types.PluginTypeMattermost: defaultHandler{},
+	types.PluginTypeMSTeams:    defaultHandler{},
+	types.PluginTypeNetIQ:      defaultHandler{},
+	types.PluginTypeOkta:       defaultHandler{},
+	types.PluginTypeOpenAI:     defaultHandler{},
+	types.PluginTypeOpsgenie:   defaultHandler{},
+	types.PluginTypePagerDuty:  defaultHandler{},
+	types.PluginTypeSCIM:       defaultHandler{},
+	types.PluginTypeServiceNow: defaultHandler{},
+	types.PluginTypeSlack:      defaultHandler{},
+}
+
 // UpdatePlugin updates the specified plugin instance.
 func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginRequest) (*types.PluginV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -311,7 +389,12 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		return nil, trace.BadParameter("unsupported old plugin type %T", req.Plugin)
 	}
 
-	if err := rewritePlugin(inPlugin, oldPluginV1); err != nil {
+	handler, ok := defaultPluginHandlers[inPlugin.GetType()]
+	if !ok {
+		return nil, trace.BadParameter("no validator for plugin type %s", inPlugin.GetType())
+	}
+
+	if err := handler.updatePlugin(inPlugin, oldPluginV1); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -322,7 +405,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		}
 	}
 
-	if err := validatePlugin(inPlugin); err != nil {
+	if err := handler.validatePlugin(inPlugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -370,48 +453,6 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	}
 
 	return out, nil
-}
-
-// rewritePlugin updates the [new] plugin based on the implications of any changes
-// between the [old] and [new] plugin resources. In most cases this will be simply
-// preserving the plugin resources's status block against user edits, but individual
-// plugins may have more complex rewriting rules.
-func rewritePlugin(new, old *types.PluginV1) error {
-	switch new.GetType() {
-	case types.PluginTypeAWSIdentityCenter:
-		return trace.Wrap(rewriteAWSICPlugin(new, old))
-	}
-
-	return trace.Wrap(new.SetStatus(old.GetStatus()))
-}
-
-// rewriteAWSICPlugin checks for changes in the group import filter list, and if
-// any changes are detected it will set the plugin group import status to
-// REIMPORT_REQUESTED which will trigger a new group import when the plugin is
-// next restarted.
-func rewriteAWSICPlugin(new, old *types.PluginV1) error {
-	oldSettings := old.Spec.GetAwsIc()
-	newSettings := new.Spec.GetAwsIc()
-	if oldSettings == nil || newSettings == nil {
-		return trace.BadParameter("old and new plugins must both be AWS Identity Center integrations")
-	}
-
-	oldStatus := old.GetStatus()
-
-	filtersEq := func(a, b *types.AWSICResourceFilter) bool {
-		return a.Include.Equal(b.Include)
-	}
-
-	if !slices.EqualFunc(oldSettings.GroupSyncFilters, newSettings.GroupSyncFilters, filtersEq) {
-		if oldStatus.GetAwsIc() == nil {
-			oldStatus.SetDetails(&types.PluginStatusV1_AwsIc{AwsIc: &types.PluginAWSICStatusV1{GroupImportStatus: &types.AWSICGroupImportStatus{}}})
-		}
-		if oldStatus.GetAwsIc().GroupImportStatus == nil {
-			oldStatus.GetAwsIc().GroupImportStatus = &types.AWSICGroupImportStatus{}
-		}
-		oldStatus.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
-	}
-	return trace.Wrap(new.SetStatus(oldStatus))
 }
 
 // updatePluginWithLiveCredentials will update the plugin with live credentials if needed.
@@ -916,47 +957,8 @@ func (s *Service) checkResourceCleanupPermissions(ctx context.Context, pluginTyp
 	return nil
 }
 
-func validatePlugin(p *types.PluginV1) error {
-	if p == nil {
-		return trace.BadParameter("no plugin resource supplied")
-	}
-
-	switch p.GetType() {
-	case types.PluginTypeEntraID:
-		return trace.Wrap(validateEntraTenantID(p.Spec.GetEntraId()))
-	case types.PluginTypeEmail:
-		return trace.Wrap(validateEmailPlugin(p.Spec.GetEmail()))
-	case types.PluginTypeAWSIdentityCenter:
-		return trace.Wrap(validateAWSICPlugin(p.Spec.GetAwsIc()))
-	case types.PluginTypeDatadog,
-		types.PluginTypeDiscord,
-		types.PluginTypeGitlab,
-		types.PluginTypeGithub,
-		types.PluginTypeJamf,
-		types.PluginTypeJira,
-		types.PluginTypeMattermost,
-		types.PluginTypeMSTeams,
-		types.PluginTypeNetIQ,
-		types.PluginTypeOkta,
-		types.PluginTypeOpenAI,
-		types.PluginTypeOpsgenie,
-		types.PluginTypePagerDuty,
-		types.PluginTypeSCIM,
-		types.PluginTypeServiceNow,
-		types.PluginTypeSlack:
-
-		// A known plugin resource type with no explicit validator implicitly
-		// passes validation. Consider adding explicit validation for this plugin
-		// type ensuring that user-controlled input parameters (e.g., URL,
-		// AWS Region) are properly validated.
-		return nil
-
-	default:
-		return trace.BadParameter("missing validator for plugin type %q", p.GetType())
-	}
-}
-
-func validateEntraTenantID(settings *types.PluginEntraIDSettings) error {
+func validateEntraTenantID(plugin *types.PluginV1) error {
+	settings := plugin.Spec.GetEntraId()
 	if settings == nil {
 		return trace.BadParameter("missing EntraID settings")
 	}
@@ -976,7 +978,8 @@ func validateEntraTenantID(settings *types.PluginEntraIDSettings) error {
 	return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
 }
 
-func validateEmailPlugin(settings *types.PluginEmailSettings) error {
+func validateEmailPlugin(plugin *types.PluginV1) error {
+	settings := plugin.Spec.GetEmail()
 	if settings == nil {
 		return trace.BadParameter("missing email settings")
 	}
@@ -991,35 +994,5 @@ func validateEmailPlugin(settings *types.PluginEmailSettings) error {
 	if cloud.IsCloudEnv() {
 		return trace.Errorf("email plugin with smtp is unsupported on Cloud-Hosted Teleport")
 	}
-	return nil
-}
-
-func validateAWSICPlugin(settings *types.PluginAWSICSettings) error {
-	if settings == nil {
-		return trace.BadParameter("missing AWS IC settings")
-	}
-
-	if err := settings.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cloudaws.ValidateAWSRegion(settings.Region); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if url, err := icutils.EnsureSCIMEndpoint(settings.ProvisioningSpec.BaseUrl); err != nil {
-		return trace.Wrap(err)
-	} else {
-		settings.ProvisioningSpec.BaseUrl = url
-	}
-
-	if _, err := icfilters.New(settings.GroupSyncFilters); err != nil {
-		return trace.Wrap(err, "malformed Group Sync Filters")
-	}
-
-	if _, err := icfilters.New(settings.AwsAccountsFilters); err != nil {
-		return trace.Wrap(err, "malformed Account Sync Filters")
-	}
-
 	return nil
 }
