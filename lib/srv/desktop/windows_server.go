@@ -258,7 +258,7 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.LDAPConfig.Addr != "" {
+	if cfg.LDAPConfig.Addr != "" || cfg.LDAPConfig.LocateServer {
 		if err := cfg.LDAPConfig.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
