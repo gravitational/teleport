@@ -3475,7 +3475,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
 	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
-	if err != nil {
+	switch {
+	case errors.Is(err, errNotIntegrationApp):
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
@@ -3602,13 +3604,17 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	return certs, nil
 }
 
+var (
+	errNotIntegrationApp = fmt.Errorf("target resource is not an application with an associated integration")
+)
+
 func generateAWSConfigCredentialProcessCredentials(ctx context.Context,
 	a *Server,
 	req certRequest,
 	notAfter time.Time,
 ) (string, error) {
 	if req.appName == "" || req.awsRoleARN == "" {
-		return "", nil
+		return "", errNotIntegrationApp
 	}
 
 	appInfo, err := getAppServerByName(ctx, a, req.appName)
@@ -3619,7 +3625,7 @@ func generateAWSConfigCredentialProcessCredentials(ctx context.Context,
 	// Only integrations can generate credentials.
 	integrationName := appInfo.GetIntegration()
 	if integrationName == "" {
-		return "", nil
+		return "", errNotIntegrationApp
 	}
 
 	integration, err := a.GetIntegration(ctx, integrationName)
