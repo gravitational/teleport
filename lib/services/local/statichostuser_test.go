@@ -93,7 +93,7 @@ func TestGetStaticHostUser(t *testing.T) {
 		{
 			name: "object does not exist",
 			key:  "dummy",
-			assertErr: func(t assert.TestingT, err error, msgAndArgs ...interface{}) bool {
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
 				return assert.True(t, trace.IsNotFound(err), msgAndArgs...)
 			},
 		},
@@ -116,7 +116,7 @@ func TestGetStaticHostUser(t *testing.T) {
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 					protocmp.Transform(),
 				}
-				require.Equal(t, "", cmp.Diff(tc.wantObj, obj, cmpOpts...))
+				require.Empty(t, cmp.Diff(tc.wantObj, obj, cmpOpts...))
 			}
 		})
 	}
@@ -178,7 +178,7 @@ func TestDeleteStaticHostUser(t *testing.T) {
 		{
 			name: "object does not exist",
 			key:  "dummy",
-			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
 				require.True(t, trace.IsNotFound(err), msgAndArgs...)
 			},
 		},
@@ -214,12 +214,12 @@ func TestListStaticHostUsers(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
 			})
 
@@ -238,12 +238,12 @@ func TestListStaticHostUsers(t *testing.T) {
 					}
 				}
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
 			})
 		})
@@ -282,7 +282,7 @@ func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
 }
 
 func prepopulateStaticHostUsers(t *testing.T, service services.StaticHostUser, count int) {
-	for i := 0; i < count; i++ {
+	for i := range count {
 		_, err := service.CreateStaticHostUser(context.Background(), getStaticHostUser(i))
 		require.NoError(t, err)
 	}

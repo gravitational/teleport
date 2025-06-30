@@ -25,10 +25,12 @@ import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
 import makeUserContext from './makeUserContext';
 import {
+  CreateUserVariables,
   ExcludeUserField,
   ResetPasswordType,
   User,
   UserContext,
+  type UpdateUserVariables,
 } from './types';
 
 const cache = {
@@ -58,8 +60,8 @@ const service = {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
-  fetchUsers() {
-    return api.get(cfg.getUsersUrl()).then(makeUsers);
+  fetchUsers(signal?: AbortSignal) {
+    return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
   },
 
   /**
@@ -69,7 +71,7 @@ const service = {
    * @param user
    * @returns user
    */
-  updateUser(user: User, excludeUserField: ExcludeUserField) {
+  updateUser({ user, excludeUserField }: UpdateUserVariables) {
     return api
       .put(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
       .then(makeUser);
@@ -82,11 +84,7 @@ const service = {
    * @param user
    * @returns user
    */
-  createUser(
-    user: User,
-    excludeUserField: ExcludeUserField,
-    mfaResponse?: MfaChallengeResponse
-  ) {
+  createUser({ user, excludeUserField, mfaResponse }: CreateUserVariables) {
     return api
       .post(
         cfg.getUsersUrl(),

@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -72,6 +73,18 @@ type Claims struct {
 	InstanceID string `json:"-"`
 }
 
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c Claims) JoinAttrs() *workloadidentityv1pb.JoinAttrsOracle {
+	attrs := &workloadidentityv1pb.JoinAttrsOracle{
+		TenancyId:     c.TenancyID,
+		CompartmentId: c.CompartmentID,
+		InstanceId:    c.InstanceID,
+	}
+	return attrs
+}
+
 // Region extracts the region from an instance's claims.
 func (c Claims) Region() string {
 	region, err := ParseRegionFromOCID(c.InstanceID)
@@ -107,7 +120,7 @@ func (p principal) getClaims() Claims {
 
 type authenticateClientResult struct {
 	ErrorMessage string    `json:"errorMessage,omitempty"`
-	Principal    principal `json:"principal,omitempty"`
+	Principal    principal `json:"principal"`
 }
 
 type authenticateClientResponse struct {
@@ -167,7 +180,7 @@ func (l *oracleLogger) LogLevel() int {
 }
 
 // Log logs v with the provided format if the current log level is loglevel
-func (l *oracleLogger) Log(logLevel int, format string, v ...interface{}) error {
+func (l *oracleLogger) Log(logLevel int, format string, v ...any) error {
 	if !l.logger.Handler().Enabled(context.Background(), slog.LevelDebug) {
 		return nil
 	}

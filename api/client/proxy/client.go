@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/asn1"
 	"net"
 	"slices"
@@ -299,22 +300,17 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		dialCtx,
 		cfg.ProxyAddress,
 		append([]grpc.DialOption{
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: creds, clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
-					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
 					interceptors.GRPCClientUnaryErrorInterceptor,
 				)...,
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
-					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
 					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,
@@ -444,6 +440,17 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 	}
 
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
+}
+
+// ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
+// The caller is required to pass a valid desktop certificate.
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, windowsDesktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
+	session, err := c.transport.ProxyWindowsDesktopSession(ctx, cluster, desktopName, windowsDesktopCert, rootCAs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
 }
 
 // Ping measures the round trip latency of sending a message to the Proxy.

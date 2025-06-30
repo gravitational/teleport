@@ -26,10 +26,16 @@ import { SharedColors, SharedStyles } from './types';
 // by changing the minimum width on a per-view basis (Main.tsx).
 const sidebarWidth = 256;
 
+// breakpointsPx exists because while styled-system requires breakpoints to be defined as strings
+// with units, some components in our project read a container width and compare it against a
+// breakpoint – they need breakpoints to be defined as numbers.
 export const breakpointsPx = {
   small: 600,
   medium: 1024,
   large: 1280,
+  700: 700,
+  900: 900,
+  1200: 1200,
 } as const;
 
 // Styles that are shared by all themes.
@@ -53,6 +59,9 @@ export const sharedStyles: SharedStyles = {
     small: `${breakpointsPx.small}px`,
     medium: `${breakpointsPx.medium}px`,
     large: `${breakpointsPx.large}px`,
+    700: `${breakpointsPx[700]}px`,
+    900: `${breakpointsPx[900]}px`,
+    1200: `${breakpointsPx[1200]}px`,
   },
   topBarHeight: [44, 56, 72],
   /**

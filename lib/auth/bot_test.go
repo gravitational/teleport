@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/token"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -129,6 +128,8 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},
@@ -168,7 +169,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	certs := result.Certs
 
 	// Renew the cert a bunch of times.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Ensure the state of the bot instance before renewal is sane.
 		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
@@ -239,6 +240,8 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},
@@ -376,6 +379,8 @@ func TestRegisterBotInstance(t *testing.T) {
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},
@@ -515,6 +520,8 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},
@@ -579,6 +586,8 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},
@@ -643,6 +652,8 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 
 	botName := "botty"
 	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: botName,
 		},
@@ -906,9 +917,9 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
-		if token == k8sTokenName {
-			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
@@ -934,6 +945,8 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 
 	botName := "bot"
 	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: botName,
 		},
@@ -1059,9 +1072,9 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
-		if token == k8sTokenName {
-			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
@@ -1088,6 +1101,8 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: botName,
 		},
@@ -1165,6 +1180,8 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	require.NoError(t, err)
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},
@@ -1217,7 +1234,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 
 	require.NotEqual(t, initialInstanceA, initialInstanceB)
 
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		_, certsA, err = renewBotCerts(ctx, srv, certsA.TLS, bot.Status.UserName, resultA.PrivateKey)
 		require.NoError(t, err)
 

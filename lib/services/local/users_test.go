@@ -1401,7 +1401,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 			devices = nil
 		case i == 1:
 			devices = append(devices, dev2)
-			for j := 0; j < 20; j++ {
+			for range 20 {
 				dev, err := services.NewTOTPDevice(uuid.NewString(), base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 				require.NoError(t, err, "creating otp device failed")
 				devices = append(devices, dev)
@@ -1595,9 +1595,9 @@ func TestCompareAndSwapUser(t *testing.T) {
 	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
 	require.NoError(err)
 
-	currentBob, err = identity.GetUser(ctx, "bob", false)
+	bob2, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob2))
+	require.True(services.UsersEquals(currentBob, bob1))
 
 	item, err := identity.Backend.Get(ctx, backend.NewKey(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
 	require.NoError(err)

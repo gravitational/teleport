@@ -30,7 +30,7 @@ jobs:
     name: Prettier, ESLint, & TSC
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
@@ -41,7 +41,6 @@ jobs:
 
       - name: Install JS dependencies
         run: |
-          npm install -g corepack@0.31.0
           pnpm install --frozen-lockfile
 
       - name: Build WASM

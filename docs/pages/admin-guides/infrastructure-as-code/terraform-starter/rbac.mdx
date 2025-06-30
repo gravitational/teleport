@@ -85,7 +85,7 @@ production.
    <TabItem label="OIDC">
 
    ```code
-   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone --branch=branch/v(=teleport.major_version=)
    $ cp -R teleport-clone/examples/terraform-starter/env_role env_role
    $ cp -R teleport-clone/examples/terraform-starter/oidc oidc
    $ rm -rf teleport-clone
@@ -94,7 +94,7 @@ production.
    <TabItem label="SAML">
 
    ```code
-   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone --branch=branch/v(=teleport.major_version=)
    $ cp -R teleport-clone/examples/terraform-starter/env_role env_role
    $ cp -R teleport-clone/examples/terraform-starter/saml saml
    $ rm -rf teleport-clone
@@ -286,7 +286,7 @@ If you plan to skip this step, make sure to remove the `module "saml"` or
    authentication connectors:
 
    - [AD FS](../../../admin-guides/access-controls/sso/adfs.mdx#step-13-configure-adfs)
-   - [GitLab](../../../admin-guides/access-controls/sso/gitlab.mdx#configure-gitlab)
+   - [GitLab](../../../admin-guides/access-controls/sso/gitlab.mdx#step-14-configure-gitlab)
    - [Google
      Workspace](../../../admin-guides/access-controls/sso/google-workspace.mdx#step-14-configure-google-workspace)
    - [OneLogin](../../../admin-guides/access-controls/sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)

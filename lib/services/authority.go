@@ -22,6 +22,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"slices"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
@@ -68,12 +69,14 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
-	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
 	case types.SPIFFECA:
 		err = checkSPIFFECA(ca)
+	case types.AWSRACA:
+		err = checkAWSRACA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -90,6 +93,17 @@ func checkSPIFFECA(cai types.CertAuthority) error {
 	}
 	if len(ca.Spec.ActiveKeys.JWT) == 0 {
 		return trace.BadParameter("certificate authority missing JWT key pairs")
+	}
+	return nil
+}
+
+func checkAWSRACA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
 	return nil
 }
@@ -261,7 +275,7 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = append([]byte{}, pair.Cert...)
+		out[i] = slices.Clone(pair.Cert)
 	}
 	return out
 }
@@ -271,7 +285,7 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
 	out := make([][]byte, 0, len(pairs))
 	for _, pair := range pairs {
-		out = append(out, append([]byte{}, pair.PublicKey...))
+		out = append(out, slices.Clone(pair.PublicKey))
 	}
 	return out
 }

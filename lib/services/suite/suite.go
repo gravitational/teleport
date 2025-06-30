@@ -122,14 +122,11 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		if err != nil {
 			panic(err)
 		}
-		keyPEM, err = keys.MarshalPrivateKey(signer)
+		key, err = keys.NewPrivateKey(signer)
 		if err != nil {
 			panic(err)
 		}
-		key, err = keys.NewPrivateKey(signer, keyPEM)
-		if err != nil {
-			panic(err)
-		}
+		keyPEM = key.PrivateKeyPEM()
 	}
 
 	ca := &types.CertAuthorityV2{
@@ -157,7 +154,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add TLS keys if necessary.
 	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 			Signer: key.Signer,
 			Entity: pkix.Name{
@@ -178,7 +175,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add JWT keys if necessary.
 	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)
@@ -211,7 +208,7 @@ type ServicesTestSuite struct {
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
-	ChangesC      chan interface{}
+	ChangesC      chan any
 	Clock         *clockwork.FakeClock
 }
 
@@ -223,7 +220,7 @@ func (s *ServicesTestSuite) Users() services.UsersService {
 }
 
 func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
-	require.EqualValuesf(t, len(a), len(b), "a: %#v b: %#v", a, b)
+	require.Lenf(t, a, len(b), "a: %#v b: %#v", a, b)
 
 	sort.Sort(services.Users(a))
 	sort.Sort(services.Users(b))
@@ -732,7 +729,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(out, v2))
 
-	// Test delete all tokens
+	// Test delete tokens
 	tok, err = types.NewProvisionToken("token1", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
@@ -745,7 +742,10 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tokens, 2)
 
-	err = s.ProvisioningS.DeleteAllTokens()
+	err = s.ProvisioningS.DeleteToken(ctx, tokens[0].GetName())
+	require.NoError(t, err)
+
+	err = s.ProvisioningS.DeleteToken(ctx, tokens[1].GetName())
 	require.NoError(t, err)
 
 	tokens, err = s.ProvisioningS.GetTokens(ctx)
@@ -1446,7 +1446,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 	lock, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 	require.NoError(t, err)
 
-	for i := 0; i < renewals; i++ {
+	for range renewals {
 		select {
 		case <-lock.Renewed():
 			continue
@@ -1469,7 +1469,7 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 	ctx := context.Background()
 	const locks int64 = 50
 	const iters = 5
-	for i := 0; i < iters; i++ {
+	for i := range iters {
 		cfg := services.SemaphoreLockConfig{
 			Service: s.PresenceS,
 			Expiry:  time.Hour,
@@ -1484,13 +1484,13 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 		// background keepalive activity.
 		cancelCtx, cancel := context.WithCancel(ctx)
 		acquireErrs := make(chan error, locks)
-		for i := int64(0); i < locks; i++ {
+		for range locks {
 			go func() {
 				_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
 				acquireErrs <- err
 			}()
 		}
-		for i := int64(0); i < locks; i++ {
+		for range locks {
 			require.NoError(t, <-acquireErrs)
 		}
 		cancel()
@@ -1524,7 +1524,7 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(t *testing.T) {
 	var success int64
 	var failure int64
 	var wg sync.WaitGroup
-	for i := int64(0); i < attempts; i++ {
+	for range attempts {
 		wg.Add(1)
 		go func() {
 			_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
@@ -1577,7 +1577,7 @@ func (s *ServicesTestSuite) SemaphoreLock(t *testing.T) {
 
 	timeout := time.After(time.Second)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		select {
 		case <-lock.Done():
 			t.Fatalf("Unexpected lock failure: %v", lock.Wait())

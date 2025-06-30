@@ -74,7 +74,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 		{
 			name:  uiDiscoverResourceSelectionEvent + "/invalid resource",
 			event: uiDiscoverResourceSelectionEvent,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %v", err)
 			},
 			req: DiscoverEventData{
@@ -87,7 +87,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 		{
 			name:  uiDiscoverResourceSelectionEvent + "/invalid status",
 			event: uiDiscoverResourceSelectionEvent,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %v", err)
 			},
 			req: DiscoverEventData{

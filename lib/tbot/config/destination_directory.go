@@ -475,7 +475,7 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	return unlock, trace.Wrap(err)
 }
 
-func (dm *DestinationDirectory) MarshalYAML() (interface{}, error) {
+func (dm *DestinationDirectory) MarshalYAML() (any, error) {
 	type raw DestinationDirectory
 	return withTypeHeader((*raw)(dm), DestinationDirectoryType)
 }

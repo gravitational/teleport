@@ -162,7 +162,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			a := newTestAuthServer(ctx, t)
 
 			allClusters := make(map[string]types.RemoteCluster)
-			for i := 0; i < tt.clustersTotal; i++ {
+			for i := range tt.clustersTotal {
 				rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%03d", i))
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
@@ -296,7 +296,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
+		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster-1"))
 		resp, err := a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -360,10 +360,18 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, osshCAs, 1)
 		require.Equal(t, localClusterName, osshCAs[0].GetName())
+
+		// verify that we reject an attempt to re-register the leaf cluster
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
+			Token: validToken,
+			CAs:   []types.CertAuthority{leafClusterCA},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "already registered")
 	})
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
+		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster-2"))
 		resp, err := a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},

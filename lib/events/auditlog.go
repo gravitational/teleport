@@ -203,6 +203,9 @@ type AuditLog struct {
 	// localLog is a local events log used
 	// to emit audit events if no external log has been specified
 	localLog *FileLog
+
+	// decrypter wraps session replay with decryption
+	decrypter DecryptionWrapper
 }
 
 // AuditLogConfig specifies configuration for AuditLog server
@@ -247,6 +250,9 @@ type AuditLogConfig struct {
 
 	// Context is audit log context
 	Context context.Context
+
+	// Decrypter wraps session replay with decryption
+	Decrypter DecryptionWrapper
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -304,6 +310,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,
+		decrypter:       cfg.Decrypter,
 	}
 	// create a directory for audit logs, audit log does not create
 	// session logs before migrations are run in case if the directory
@@ -487,6 +494,23 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
+func (l *AuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	g := l.log.With("event_type", req.EventTypes, "limit", req.Limit)
+	g.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = defaults.EventsIterationLimit
+	}
+	if limit > defaults.EventsMaxIterationLimit {
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+	}
+	req.Limit = limit
+	if l.ExternalLog != nil {
+		return l.ExternalLog.SearchUnstructuredEvents(ctx, req)
+	}
+	return l.localLog.SearchUnstructuredEvents(ctx, req)
+}
+
 func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.Date, "chunk", req.Chunk, "cursor", req.Cursor)
 	if l.ExternalLog != nil {
@@ -572,7 +596,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			return
 		}
 
-		protoReader := NewProtoReader(rawSession)
+		protoReader := NewProtoReader(rawSession, l.decrypter)
 		defer protoReader.Close()
 
 		firstEvent := true

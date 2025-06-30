@@ -34,7 +34,7 @@ type pyroscopeLogger struct {
 	l *slog.Logger
 }
 
-func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
+func (l pyroscopeLogger) Infof(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
 		return
 	}
@@ -42,7 +42,7 @@ func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
 	l.l.Info(fmt.Sprintf(format, args...))
 }
 
-func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
+func (l pyroscopeLogger) Debugf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}
@@ -51,7 +51,7 @@ func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
 	l.l.Debug(fmt.Sprintf(format, args...))
 }
 
-func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
+func (l pyroscopeLogger) Errorf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
 		return
 	}
@@ -132,7 +132,8 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		logger.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
 	} else {
 		process.OnExit("pyroscope.profiler", func(payload any) {
-			profiler.Flush(payload == nil)
+			// Observed rare and inconsistent panics, short term solution is to not wait for flush
+			profiler.Flush(false)
 			_ = profiler.Stop()
 		})
 	}

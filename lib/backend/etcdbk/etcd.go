@@ -340,10 +340,10 @@ func (b *EtcdBackend) checkVersion(ctx context.Context) error {
 				return trace.BadParameter("failed to parse etcd version %q: %v", status.Version, err)
 			}
 
-			min := semver.New(teleport.MinimumEtcdVersion)
-			if ver.LessThan(*min) {
+			minEtcdVersion := semver.Version{Major: 3, Minor: 3, Patch: 0}
+			if ver.LessThan(minEtcdVersion) {
 				return trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
-					status.Version, n, teleport.MinimumEtcdVersion)
+					status.Version, n, minEtcdVersion)
 			}
 
 			return nil
@@ -479,7 +479,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 
 	clients := make([]*clientv3.Client, 0, b.cfg.ClientPoolSize)
-	for i := 0; i < b.cfg.ClientPoolSize; i++ {
+	for range b.cfg.ClientPoolSize {
 		clt, err := clientv3.New(clientv3.Config{
 			Context:            ctx,
 			Endpoints:          b.nodes,

@@ -36,7 +36,7 @@ running Teleport on UNIX variants other than Linux \[1].
 | - | - | - | - | - | - |
 | Linux v2.6.23+ (RHEL/CentOS 7+, Rocky Linux 8+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
 | macOS 11+  (Big Sur)| yes | yes | yes | yes | yes |
-| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | no |
+| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | yes |
 
 \[1] *Teleport is written in Go and many of these system requirements are due to the requirements
 of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
@@ -46,7 +46,7 @@ of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
 
 \[3] *Enhanced Session Recording requires Linux kernel v5.8+*.
 
-\[4] *Teleport server does not run on Windows yet, but `tsh`, `tctl`, and Teleport Connect (the Teleport desktop clients)
+\[4] *Teleport server does not run on Windows yet, but `tsh`, `tbot`, `tctl`, and Teleport Connect (the Teleport desktop clients)
 support most features on Windows 10 and later.*
 
 ## Linux
@@ -639,7 +639,7 @@ the image is customized in order to improve the experience of running `tbot` in 
 container environment.
 
 To learn more, read the
-[Deploying Machine ID on Kubernetes](./enroll-resources/machine-id/deployment/kubernetes.mdx)
+[Deploying Machine ID on Kubernetes](machine-workload-identity/machine-id/deployment/kubernetes.mdx)
 guide.
 
 ### Running Teleport on Docker
@@ -729,7 +729,7 @@ Service on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+method](enroll-resources/agents/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -910,7 +910,7 @@ security.
 </TabItem>
 </Tabs>
 
-## Windows (`tsh` and `tctl` clients only)
+## Windows (`tsh`, `tbot`, and `tctl` clients only)
 
 (!docs/pages/includes/install-windows.mdx!)
 
@@ -956,4 +956,4 @@ infrastructure. Get started with enrolling resources in your Teleport cluster:
 - [Databases](enroll-resources/database-access/database-access.mdx)
 - [Applications](enroll-resources/application-access/introduction.mdx)
 - [Remote desktops](enroll-resources/desktop-access/introduction.mdx)
-- [Machine ID](enroll-resources/machine-id/introduction.mdx)
+- [Machine ID](machine-workload-identity/machine-id/introduction.mdx)

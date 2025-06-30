@@ -20,7 +20,11 @@ package rollout
 
 import (
 	"context"
+	"time"
 
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -47,4 +51,42 @@ type Client interface {
 
 	// GetClusterMaintenanceConfig loads the current maintenance config singleton.
 	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
+
+	// ListAutoUpdateAgentReports lists the autoupdate_agent_report resources
+	// so the controller can measure the rollout progress.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, nextKey string) ([]*autoupdatepb.AutoUpdateAgentReport, string, error)
+}
+
+func getAllReports(ctx context.Context, clt Client) ([]*autoupdatepb.AutoUpdateAgentReport, error) {
+	var reports []*autoupdatepb.AutoUpdateAgentReport
+
+	// this is an in-memory client, we go for the max page size
+	const pageSize = 0
+	var pageToken string
+	for {
+		page, nextToken, err := clt.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, page...)
+		if nextToken == "" {
+			return reports, nil
+		}
+		pageToken = nextToken
+	}
+}
+
+func getAllValidReports(ctx context.Context, clt Client, now time.Time) ([]*autoupdatepb.AutoUpdateAgentReport, error) {
+	allReports, err := getAllReports(ctx, clt)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err, "getting all reports")
+	}
+
+	validReports := make([]*autoupdatepb.AutoUpdateAgentReport, len(allReports))
+	for _, report := range allReports {
+		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= constants.AutoUpdateAgentReportPeriod {
+			validReports = append(validReports, report)
+		}
+	}
+	return validReports, nil
 }

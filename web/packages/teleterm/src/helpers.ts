@@ -22,9 +22,11 @@ import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import {
   CheckReport,
   RouteConflictReport,
+  SSHConfigurationReport,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import {
@@ -75,6 +77,15 @@ export function resourceOneOfIsKube(
   kube: Kube;
 } {
   return resource.oneofKind === 'kube';
+}
+
+export function resourceOneOfIsWindowsDesktop(
+  resource: PaginatedResource['resource']
+): resource is {
+  oneofKind: 'windowsDesktop';
+  windowsDesktop: WindowsDesktop;
+} {
+  return resource.oneofKind === 'windowsDesktop';
 }
 
 export function ptyEventOneOfIsStart(
@@ -183,4 +194,13 @@ export function reportOneOfIsRouteConflictReport(
   routeConflictReport: RouteConflictReport;
 } {
   return report.oneofKind === 'routeConflictReport';
+}
+
+export function reportOneOfIsSSHConfigurationReport(
+  report: CheckReport['report']
+): report is {
+  oneofKind: 'sshConfigurationReport';
+  sshConfigurationReport: SSHConfigurationReport;
+} {
+  return report.oneofKind === 'sshConfigurationReport';
 }

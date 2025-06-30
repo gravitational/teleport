@@ -16,18 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';
-
 import {
   InfoExternalTextLink,
+  InfoGuideConfig,
   InfoParagraph,
   InfoTitle,
   InfoUl,
   ReferenceLink,
   ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import cfg from 'teleport/config';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
@@ -309,3 +311,15 @@ export const getRdsIamAuthnHref = (id: AwsRdsGuideIds) => {
     return 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL';
   }
 };
+
+export function getDiscoverInfoGuideConfig(
+  guide: JSX.Element
+): InfoGuideConfig {
+  if (!guide) {
+    return;
+  }
+  return {
+    guide: guide,
+    title: 'Overview',
+  };
+}

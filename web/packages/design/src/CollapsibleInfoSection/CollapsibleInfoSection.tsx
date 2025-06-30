@@ -16,18 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  PropsWithChildren,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { PropsWithChildren, useId, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Button, Text } from 'design';
 import { BoxProps } from 'design/Box';
 import { Minus, Plus } from 'design/Icon';
+import { useElementSize } from 'design/utils/useElementSize';
 
 type CollapsibleInfoSectionProps = {
   /* defaultOpen is optional and determines whether the section is open or closed initially */
@@ -60,24 +55,9 @@ export const CollapsibleInfoSection = ({
 }: PropsWithChildren<CollapsibleInfoSectionProps>) => {
   const contentId = useId();
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [contentHeight, setContentHeight] = useState(0);
   const [shouldRenderContent, setShouldRenderContent] = useState(defaultOpen);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (!contentRef.current || !shouldRenderContent) {
-      return;
-    }
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        if (entry.target === contentRef.current) {
-          setContentHeight(entry.contentRect.height);
-        }
-      }
-    });
-    ro.observe(contentRef.current);
-    return () => ro.disconnect();
-  }, [contentRef, shouldRenderContent]);
+  const [contentRef, { height: contentHeight }] =
+    useElementSize<HTMLDivElement>({ height: defaultOpen ? undefined : 0 });
 
   return (
     <Box {...boxProps}>
@@ -92,8 +72,14 @@ export const CollapsibleInfoSection = ({
         aria-expanded={isOpen}
         aria-controls={contentId}
       >
-        {isOpen ? <Minus size="small" /> : <Plus size="small" />}
-        <Text>{isOpen ? closeLabel : openLabel}</Text>
+        {isOpen ? (
+          <Minus size="small" style={{ transition: 'color 200ms ease' }} />
+        ) : (
+          <Plus size="small" style={{ transition: 'color 200ms ease' }} />
+        )}
+        <Text style={{ transition: 'color 200ms ease' }}>
+          {isOpen ? closeLabel : openLabel}
+        </Text>
       </ToggleButton>
       <ContentWrapper
         id={contentId}
@@ -146,9 +132,14 @@ const Bar = styled.div`
   background: ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
 `;
 
-const ContentWrapper = styled.div<{ $isOpen: boolean; $contentHeight: number }>`
+const ContentWrapper = styled.div<{
+  $isOpen: boolean;
+  $contentHeight?: number;
+}>`
   overflow: hidden;
-  height: ${props => (props.$isOpen ? `${props.$contentHeight}px` : '0')};
+  ${props =>
+    typeof props.$contentHeight === 'number' &&
+    `height: ${props.$isOpen ? `${props.$contentHeight}px` : '0'};`};
   will-change: height;
   transition: height 200ms ease;
   transform-origin: top;

@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -50,6 +51,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -310,12 +312,7 @@ func TestMonitor(t *testing.T) {
 			resp, err := http.Get(endpoint)
 			require.NoError(t, err)
 			resp.Body.Close()
-			for _, c := range statusCodes {
-				if resp.StatusCode == c {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(statusCodes, resp.StatusCode)
 		}
 	}
 
@@ -830,6 +827,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"h2",
 				"acme-tls/1",
 				"teleport-tcp-ping",
+				"teleport-mcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -850,6 +848,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh-grpc",
 				"teleport-proxy-grpc",
 				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -870,6 +869,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			acmeEnabled: false,
 			wantNextProtos: []string{
 				"teleport-tcp-ping",
+				"teleport-mcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -893,6 +893,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh-grpc",
 				"teleport-proxy-grpc",
 				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -964,7 +965,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 
 	timeout := time.After(10 * time.Second)
 	step := cfg.MaxRetryPeriod / 5.0
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		// wait for connection to fail
 		select {
 		case duration := <-process.Config.Testing.ConnectFailureC:
@@ -1038,7 +1039,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Set the Node's major version to be greater than the Auth Service's,
 	// which should make the version check fail.
-	currentVersion := semver.Version{Major: teleport.SemVersion.Major + 1}
+	currentVersion := semver.Version{Major: api.VersionMajor + 1}
 	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
@@ -1309,7 +1310,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a error channel to collect the errors from the gRPC servers.
 	errC := make(chan error, 2)
 	t.Cleanup(func() {
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errC
 			if errors.Is(err, net.ErrClosed) {
 				continue
@@ -1401,7 +1402,6 @@ func TestProxyGRPCServers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

@@ -25,7 +25,7 @@ import { ButtonPrimary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Indicator } from 'design/Indicator';
 import Text from 'design/Text';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 
 import useResources from 'teleport/components/useResources';
@@ -37,6 +37,7 @@ import { Access } from 'teleport/services/user';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
+import { RoleDiffState } from '../Roles';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorDialog } from './RoleEditorDialog';
 import { unableToUpdatePreviewMessage } from './Shared';
@@ -49,12 +50,12 @@ const defaultGetAccessGraphRoleTesterEnabled =
 export default {
   title: 'Teleport/Roles/Role Editor',
   decorators: [
-    (Story, { parameters }) => {
+    (Story, { args, parameters }) => {
       const ctx = createTeleportContext();
       if (parameters.acl) {
         ctx.storeUser.getRoleAccess = () => parameters.acl;
       }
-      if (parameters.roleTesterEnabled) {
+      if (args.roleDiffEnabled) {
         cfg.isPolicyEnabled = true;
         storageService.getAccessGraphRoleTesterEnabled = () => true;
       }
@@ -86,10 +87,12 @@ const parseHandler = http.post(
   cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
   () =>
     HttpResponse.json({
-      resource: withDefaults({
-        metadata: { name: 'dummy-role' },
-        version: RoleVersion.V7,
-      }),
+      resource: withDefaults(
+        {
+          metadata: { name: 'dummy-role' },
+        },
+        RoleVersion.V8
+      ),
     })
 );
 
@@ -303,70 +306,48 @@ export const noAccess: StoryObj = {
 };
 
 export const Dialog: StoryObj = {
-  render() {
-    const [open, setOpen] = useState(false);
-    const resources = useResources([], {});
-    return (
-      <>
-        <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
-        <RoleEditorDialog
-          resources={resources}
-          open={open}
-          onClose={() => setOpen(false)}
-          onSave={async () => setOpen(false)}
-        />
-      </>
-    );
-  },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
-  },
-};
-
-export const DialogWithPolicyEnabled: StoryObj = {
-  render() {
-    const [open, setOpen] = useState(false);
-    const resources = useResources([], {});
-    const [roleDiffAttempt, mockGetDiff] = useAsync(() => wait(1000));
-    return (
-      <>
-        <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
-        <RoleEditorDialog
-          resources={resources}
-          roleDiffProps={getRoleDiffProps(roleDiffAttempt, mockGetDiff)}
-          open={open}
-          onClose={() => setOpen(false)}
-          onSave={async () => setOpen(false)}
-        />
-      </>
-    );
-  },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
-    roleTesterEnabled: true,
-  },
-};
-
-export const AccessGraphError: StoryObj = {
-  render() {
+  render({
+    roleDiffEnabled,
+    roleDiffState,
+    accessGraphError,
+  }: {
+    roleDiffEnabled: boolean;
+    roleDiffState: RoleDiffState;
+    accessGraphError: boolean;
+  }) {
     const [open, setOpen] = useState(false);
     const resources = useResources([], {});
     const [roleDiffAttempt, mockGetDiff] = useAsync(async () => {
       await wait(1000);
-      throw new Error(unableToUpdatePreviewMessage, {
-        cause: new Error("There's a raccoon in the router"),
-      });
+      if (accessGraphError) {
+        throw new Error(unableToUpdatePreviewMessage, {
+          cause: new Error("There's a raccoon in the router"),
+        });
+      }
     });
+    const roleDiffProps = {
+      roleDiffElement: (
+        <Flex
+          flex="1"
+          alignItems="center"
+          justifyContent="center"
+          flexDirection="column"
+          gap="2"
+        >
+          <Text typography="h1">Access Graph Placeholder</Text>
+          {roleDiffAttempt.status === 'processing' && <Indicator />}
+        </Flex>
+      ),
+      updateRoleDiff: mockGetDiff,
+      roleDiffAttempt,
+      roleDiffState,
+    };
     return (
       <>
         <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
         <RoleEditorDialog
           resources={resources}
-          roleDiffProps={getRoleDiffProps(roleDiffAttempt, mockGetDiff)}
+          roleDiffProps={roleDiffEnabled ? roleDiffProps : undefined}
           open={open}
           onClose={() => setOpen(false)}
           onSave={async () => setOpen(false)}
@@ -378,29 +359,20 @@ export const AccessGraphError: StoryObj = {
     msw: {
       handlers: [yamlifyHandler, parseHandler],
     },
-    roleTesterEnabled: true,
+  },
+  argTypes: {
+    roleDiffState: {
+      control: { type: 'select' },
+      options: Object.values(RoleDiffState).filter(s => typeof s === 'string'),
+      mapping: RoleDiffState,
+    },
+  },
+  args: {
+    roleDiffEnabled: false,
+    roleDiffState: RoleDiffState.Disabled,
+    accessGraphError: false,
   },
 };
-
-const getRoleDiffProps = (
-  roleDiffAttempt: Attempt<unknown>,
-  getRoleDiff: () => void
-) => ({
-  roleDiffElement: (
-    <Flex
-      flex="1"
-      alignItems="center"
-      justifyContent="center"
-      flexDirection="column"
-      gap="2"
-    >
-      <Text typography="h1">Access Graph Placeholder</Text>
-      {roleDiffAttempt.status === 'processing' && <Indicator />}
-    </Flex>
-  ),
-  updateRoleDiff: getRoleDiff,
-  roleDiffAttempt,
-});
 
 const dummyRoleYaml = `kind: role
 metadata:
@@ -418,9 +390,6 @@ spec:
     - command
     - network
     forward_agent: false
-    idp:
-      saml:
-        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     ssh_port_forwarding:
@@ -432,7 +401,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v8
 `;
 
 // This role contains an unsupported field. Not that it really matters, since
@@ -454,9 +423,6 @@ spec:
     - command
     - network
     forward_agent: false
-    idp:
-      saml:
-        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     ssh_port_forwarding:
@@ -468,5 +434,5 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v8
 `;

@@ -29,8 +29,10 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/jonboulle/clockwork"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -57,7 +59,7 @@ func (f *fakeIDP) issueToken(
 		IssuedAt: jwt.NewNumericDate(issuedAt),
 		Expiry:   jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]interface{}{
+	customClaims := map[string]any{
 		"oidc.circleci.com/project-id":  projectID,
 		"oidc.circleci.com/context-ids": contextIDs,
 	}
@@ -90,7 +92,7 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 	t.Cleanup(srv.Close)
 	orgURL := "/org/" + organizationID
 	providerMux.HandleFunc(orgURL+"/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		response := map[string]interface{}{
+		response := map[string]any{
 			"claims_supported": []string{
 				"sub",
 				"aud",
@@ -195,10 +197,12 @@ func TestValidateToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			claims, err := ValidateToken(
-				ctx, clockwork.NewRealClock(), fake.issuerURLTemplate(), realOrgID, tt.token,
+				ctx, fake.issuerURLTemplate(), realOrgID, tt.token,
 			)
 			tt.assertError(t, err)
-			require.Equal(t, tt.want, claims)
+			require.Empty(t,
+				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
+			)
 		})
 	}
 }

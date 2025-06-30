@@ -250,6 +250,8 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 
 	// Create bot
 	bot := &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
@@ -312,9 +314,10 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 		Insecure: clt.Config().InsecureSkipVerify,
 	}
 
-	// When invoked only with auth address, tbot will try both joining as an auth and as a proxy.
+	// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
 	// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
 	cfg.AuthServer = addr.String()
+	cfg.AuthServerAddressMode = config.AllowProxyAsAuthServer
 
 	// Insecure joining is not compatible with CA pinning
 	if !cfg.Insecure {

@@ -110,7 +110,7 @@ func TestMockBackendLister_List(t *testing.T) {
 		pageToken = nextToken
 	}
 
-	require.Equal(t, "", pageToken)
+	require.Empty(t, pageToken)
 
 	pageToken = ""
 	results, nextToken, err := mock.List(ctx, 2, pageToken)
@@ -126,7 +126,7 @@ func TestMockBackendLister_List(t *testing.T) {
 	results, nextToken, err = mock.List(ctx, 2, nextToken)
 	require.NoError(t, err)
 	require.Equal(t, []int{5}, results)
-	require.Equal(t, "", nextToken)
+	require.Empty(t, nextToken)
 }
 
 type mockBackendLister struct {
@@ -144,10 +144,7 @@ func (s *mockBackendLister) List(ctx context.Context, pageSize int, pageToken st
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	endIndex := startIndex + pageSize
-	if endIndex > len(s.items) {
-		endIndex = len(s.items)
-	}
+	endIndex := min(startIndex+pageSize, len(s.items))
 	items := s.items[startIndex:endIndex]
 	if endIndex < len(s.items) {
 		return items, strconv.Itoa(endIndex), nil

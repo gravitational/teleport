@@ -16,21 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
   BulkAction,
   FilterKind,
   IncludedResourceMode,
   ResourceAvailabilityFilter,
   UnifiedResources as SharedUnifiedResources,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
+import {
+  getResourceId,
+  openStatusInfoPanel,
+} from 'shared/components/UnifiedResources/shared/StatusInfo';
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
@@ -43,6 +50,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
+import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useNoMinWidth } from 'teleport/Main';
 import {
@@ -55,6 +63,7 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ResourceActionButton } from './ResourceActionButton';
+import { StatusInfo } from './StatusInfo';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -179,7 +188,7 @@ export function ClusterResources({
           clusterId,
           {
             search: params.search,
-            query: params.query,
+            query: buildPredicateExpression(params.statuses, params.query),
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
             kinds: params.kinds,
@@ -205,6 +214,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
+        params.statuses,
         teleCtx.resourceService,
       ]
     ),
@@ -245,10 +255,27 @@ export function ClusterResources({
     clear();
   }
 
+  const { setInfoGuideConfig } = useInfoGuide();
+  function onShowStatusInfo(resource: UnifiedResourceDefinition) {
+    openStatusInfoPanel({
+      isEnterprise: cfg.edition === 'ent',
+      resource,
+      setInfoGuideConfig,
+      guide: (
+        <StatusInfo
+          resource={resource}
+          clusterId={clusterId}
+          key={getResourceId(resource)}
+        />
+      ),
+    });
+  }
+
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        onShowStatusInfo={onShowStatusInfo}
         bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}

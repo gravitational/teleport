@@ -30,10 +30,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 const (
@@ -99,7 +100,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
 
-	networkStackConfig, err := newWindowsNetworkStackConfig(device, clt)
+	networkStackConfig, err := newNetworkStackConfig(ctx, device, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}
@@ -108,12 +109,20 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "creating network stack")
 	}
 
-	osConfigProvider, err := newRemoteOSConfigProvider(
-		clt,
-		tunName,
-		networkStackConfig.ipv6Prefix.String(),
-		networkStackConfig.dnsIPv6.String(),
-	)
+	if err := clt.ReportNetworkStackInfo(ctx, &vnetv1.NetworkStackInfo{
+		InterfaceName: tunName,
+		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+	}); err != nil {
+		return trace.Wrap(err, "reporting network stack info to client application")
+	}
+
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+		clt:           clt,
+		tunName:       tunName,
+		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		dnsIPv6:       networkStackConfig.dnsIPv6.String(),
+		addDNSAddress: networkStack.addDNSAddress,
+	})
 	if err != nil {
 		return trace.Wrap(err, "creating OS config provider")
 	}
@@ -146,22 +155,6 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		}
 	})
 	return trace.Wrap(g.Wait(), "running VNet admin process")
-}
-
-func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
-	appProvider := newRemoteAppProvider(clt)
-	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
-	ipv6Prefix, err := newIPv6Prefix()
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new IPv6 prefix")
-	}
-	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-	return &networkStackConfig{
-		tunDevice:          tun,
-		ipv6Prefix:         ipv6Prefix,
-		dnsIPv6:            dnsIPv6,
-		tcpHandlerResolver: appResolver,
-	}, nil
 }
 
 func authenticateUserProcess(ctx context.Context, clt *clientApplicationServiceClient, userSID string) error {

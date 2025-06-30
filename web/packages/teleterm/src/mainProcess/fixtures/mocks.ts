@@ -109,7 +109,7 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve(undefined);
   }
 
-  forceFocusWindow() {}
+  async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
     return true;
@@ -173,6 +173,10 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   refreshClusterList() {}
+
+  async selectDirectoryForDesktopSession() {
+    return '';
+  }
 }
 
 export const makeRuntimeSettings = (

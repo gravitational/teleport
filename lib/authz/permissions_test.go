@@ -142,8 +142,8 @@ func TestContextLockTargets(t *testing.T) {
 		{
 			role: types.RoleNode,
 			want: []types.LockTarget{
-				{Node: "node", ServerID: "node"},
-				{Node: "node.cluster", ServerID: "node.cluster"},
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
 				{User: "node.cluster"},
 				{Role: "role1"},
 				{Role: "role2"},
@@ -869,7 +869,6 @@ func TestContext_GetAccessState(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			// Prepare AuthPreference.
 			spec := test.authSpec
@@ -934,7 +933,7 @@ func TestCheckIPPinning(t *testing.T) {
 			clientAddr: "127.0.0.1:0",
 			pinnedIP:   "127.0.0.1",
 			pinIP:      true,
-			wantErr:    ErrIPPinningMismatch.Error(),
+			wantErr:    ErrIPPinningNotAllowed.Error(),
 		},
 		{
 			desc:       "correct IP pinning",

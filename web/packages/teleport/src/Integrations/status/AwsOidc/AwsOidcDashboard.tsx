@@ -60,7 +60,7 @@ export function AwsOidcDashboard() {
   return (
     <>
       <AwsOidcHeader integration={integration} />
-      <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
+      <FeatureBox maxWidth={1440} margin="auto" gap={3}>
         {integration && (
           <>
             <AwsOidcTitle integration={integration} />

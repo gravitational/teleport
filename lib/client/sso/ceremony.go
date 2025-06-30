@@ -64,10 +64,47 @@ func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 	}
 }
 
+// SAMLCeremony handles SAML login ceremony.
+type SAMLCeremony struct {
+	clientCallbackURL   string
+	Init                SAMLCeremonyInit
+	HandleRequest       func(ctx context.Context, redirectURL, postformData string) error
+	GetCallbackResponse func(ctx context.Context) (*authclient.SSHLoginResponse, error)
+}
+
+// SAMLCeremonyInit initializes an SAML based SSO login ceremony.
+type SAMLCeremonyInit func(ctx context.Context, clientCallbackURL string) (redirectURL, postformData string, err error)
+
+// Run the SAML SSO ceremony.
+func (c *SAMLCeremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error) {
+	redirectURL, postformData, err := c.Init(ctx, c.clientCallbackURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := c.HandleRequest(ctx, redirectURL, postformData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.GetCallbackResponse(ctx)
+	return resp, trace.Wrap(err)
+}
+
+// NewCLISAMLCeremony creates a new CLI SAML SSO ceremony from the given redirector.
+func NewCLISAMLCeremony(rd *Redirector, init SAMLCeremonyInit) *SAMLCeremony {
+	return &SAMLCeremony{
+		clientCallbackURL:   rd.ClientCallbackURL,
+		Init:                init,
+		HandleRequest:       rd.OpenLoginURL,
+		GetCallbackResponse: rd.WaitForResponse,
+	}
+}
+
 // Ceremony is a customizable SSO MFA ceremony.
 type MFACeremony struct {
 	close               func()
 	ClientCallbackURL   string
+	ProxyAddress        string
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
 	GetCallbackMFAToken func(ctx context.Context) (string, error)
 }
@@ -75,6 +112,11 @@ type MFACeremony struct {
 // GetClientCallbackURL returns the client callback URL.
 func (m *MFACeremony) GetClientCallbackURL() string {
 	return m.ClientCallbackURL
+}
+
+// GetProxyAddress returns the proxy address the client is connected to.
+func (m *MFACeremony) GetProxyAddress() string {
+	return m.ProxyAddress
 }
 
 // Run the SSO MFA ceremony.
@@ -111,6 +153,7 @@ func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 	return &MFACeremony{
 		close:             rd.Close,
 		ClientCallbackURL: rd.ClientCallbackURL,
+		ProxyAddress:      rd.ProxyAddr,
 		HandleRedirect:    rd.OpenRedirect,
 		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
 			loginResp, err := rd.WaitForResponse(ctx)
@@ -132,6 +175,7 @@ func NewConnectMFACeremony(rd *Redirector) mfa.SSOMFACeremony {
 	return &MFACeremony{
 		close:             rd.Close,
 		ClientCallbackURL: rd.ClientCallbackURL,
+		ProxyAddress:      rd.ProxyAddr,
 		HandleRedirect: func(ctx context.Context, redirectURL string) error {
 			// Connect handles redirect on the Electron side.
 			return nil

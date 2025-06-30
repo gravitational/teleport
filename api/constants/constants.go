@@ -34,10 +34,6 @@ const (
 	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
-	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
-	// recording feature.
-	EnhancedRecordingMinKernel = "5.8.0"
-
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"
@@ -189,6 +185,18 @@ var SystemConnectors = []string{
 	PasswordlessConnector,
 	HeadlessConnector,
 }
+
+// OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).
+type OIDCPKCEMode string
+
+const (
+	// OIDCPKCEModeUnknown indicates an unknown or uninitialized state of the PKCE mode.
+	OIDCPKCEModeUnknown OIDCPKCEMode = ""
+	// OIDCPKCEModeEnabled indicates that PKCE is enabled for the OIDC flow.
+	OIDCPKCEModeEnabled OIDCPKCEMode = "enabled"
+	// OIDCPKCEModeDisabled indicates that PKCE is disabled for the OIDC flow.
+	OIDCPKCEModeDisabled OIDCPKCEMode = "disabled"
+)
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -409,6 +417,9 @@ const (
 	// TraitGitHubOrgs is the name of the variable to specify the GitHub
 	// organizations for GitHub integration.
 	TraitGitHubOrgs = "github_orgs"
+	// TraitMCPTools is the name of the variable to specify the MCP tools for
+	// MCP servers.
+	TraitMCPTools = "mcp_tools"
 )
 
 const (
@@ -535,4 +546,16 @@ const (
 	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
 	// specifically using the `terraform` join method.
 	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
+	// EnvVarGitlabIDTokenEnvVar is the environment variable that specifies the name of the environment variable
+	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
+	// GitLab CI job.
+	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
 )
+
+// MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
+const MaxPIVPINCacheTTL = time.Hour
+
+// AutoUpdateAgentReportPeriod is the period of the autoupdate agent reporting
+// routine running in every auth server. Any report older than this period should
+// be considered stale.
+const AutoUpdateAgentReportPeriod = time.Minute

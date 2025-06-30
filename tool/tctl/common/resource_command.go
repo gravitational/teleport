@@ -50,6 +50,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -184,7 +185,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateVersion:                  rc.createAutoUpdateVersion,
 		types.KindGitServer:                          rc.createGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.createAutoUpdateAgentRollout,
+		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
+		types.KindSigstorePolicy:                     rc.createSigstorePolicy,
+		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -207,7 +211,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDynamicWindowsDesktop:              rc.updateDynamicWindowsDesktop,
 		types.KindGitServer:                          rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
+		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
+		types.KindSigstorePolicy:                     rc.updateSigstorePolicy,
+		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 	}
 	rc.config = config
 
@@ -1223,6 +1230,65 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 	return nil
 }
 
+func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.SigstorePolicyResourceServiceClient()
+	if rc.IsForced() {
+		if _, err := c.UpsertSigstorePolicy(
+			ctx,
+			&workloadidentityv1pb.UpsertSigstorePolicyRequest{
+				SigstorePolicy: r,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if _, err := c.CreateSigstorePolicy(
+			ctx,
+			&workloadidentityv1pb.CreateSigstorePolicyRequest{
+				SigstorePolicy: r,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Fprintf(
+		rc.stdout,
+		types.KindSigstorePolicy+" %q has been created\n",
+		r.GetMetadata().GetName(),
+	)
+	return nil
+}
+
+func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.SigstorePolicyResourceServiceClient()
+	if _, err = c.UpdateSigstorePolicy(
+		ctx,
+		&workloadidentityv1pb.UpdateSigstorePolicyRequest{
+			SigstorePolicy: r,
+		},
+	); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(
+		rc.stdout,
+		types.KindSigstorePolicy+" %q has been updated\n",
+		r.GetMetadata().GetName(),
+	)
+	return nil
+}
+
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1581,6 +1647,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 		case types.IntegrationSubKindGitHub:
 			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
+		case types.IntegrationSubKindAWSRolesAnywhere:
+			existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -2153,6 +2221,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
 			rc.ref.Name,
 		)
+	case types.KindSigstorePolicy:
+		c := client.SigstorePolicyResourceServiceClient()
+		if _, err := c.DeleteSigstorePolicy(
+			ctx,
+			&workloadidentityv1pb.DeleteSigstorePolicyRequest{
+				Name: rc.ref.Name,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(
+			rc.stdout,
+			types.KindSigstorePolicy+" %q has been deleted\n",
+			rc.ref.Name,
+		)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2178,6 +2261,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
+	case types.KindHealthCheckConfig:
+		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3450,6 +3535,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateAgentRolloutCollection{version}, nil
+	case types.KindAutoUpdateAgentReport:
+		if rc.ref.Name != "" {
+			report, err := client.GetAutoUpdateAgentReport(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &autoUpdateAgentReportCollection{reports: []*autoupdatev1pb.AutoUpdateAgentReport{report}}, nil
+		}
+
+		var reports []*autoupdatev1pb.AutoUpdateAgentReport
+		var nextToken string
+		for {
+			resp, token, err := client.ListAutoUpdateAgentReports(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			reports = append(reports, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &autoUpdateAgentReportCollection{reports: reports}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
@@ -3535,6 +3643,68 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return collection, nil
+	case types.KindSigstorePolicy:
+		c := client.SigstorePolicyResourceServiceClient()
+		if rc.ref.Name != "" {
+			r, err := c.GetSigstorePolicy(
+				ctx,
+				&workloadidentityv1pb.GetSigstorePolicyRequest{
+					Name: rc.ref.Name,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return namedResourceCollection{types.ProtoResource153ToLegacy(r)}, nil
+		}
+		var collection namedResourceCollection
+		var pageToken string
+		for {
+			resp, err := c.ListSigstorePolicies(
+				ctx,
+				&workloadidentityv1pb.ListSigstorePoliciesRequest{
+					PageToken: pageToken,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			collection = slices.Grow(collection, len(resp.GetSigstorePolicies()))
+			for _, r := range resp.GetSigstorePolicies() {
+				collection = append(collection, types.ProtoResource153ToLegacy(r))
+			}
+			pageToken = resp.GetNextPageToken()
+			if pageToken == "" {
+				break
+			}
+		}
+		return collection, nil
+	case types.KindHealthCheckConfig:
+		if rc.ref.Name != "" {
+			cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &healthCheckConfigCollection{
+				items: []*healthcheckconfigv1.HealthCheckConfig{cfg},
+			}, nil
+		}
+		var items []*healthcheckconfigv1.HealthCheckConfig
+		var token string
+		for {
+			page, nextToken, err := client.ListHealthCheckConfigs(ctx, 0, token)
+			token = nextToken
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			items = append(items, page...)
+			if token == "" {
+				break
+			}
+		}
+		return &healthCheckConfigCollection{
+			items: items,
+		}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -4001,6 +4171,21 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 	}
 
 	fmt.Println("autoupdate_agent_rollout has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	report, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentReport](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = client.UpsertAutoUpdateAgentReport(ctx, report)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_agent_report has been created")
 	return nil
 }
 

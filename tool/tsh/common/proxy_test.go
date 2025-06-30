@@ -71,7 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -250,17 +250,30 @@ func TestWithRsync(t *testing.T) {
 	_, err := exec.LookPath("rsync")
 	require.NoError(t, err)
 
-	s := newTestSuite(t)
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
 
-	// login and get host info
-	tshHome, _ := mustLoginLegacy(t, s)
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Username})
+
+	connector := mockConnector(t)
+	serverOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node01"),
+		testserver.WithClusterName(t, "root"),
+	}
+
+	process := testserver.MakeTestServer(t, serverOpts...)
+	tshHome, _ := mustLogin(t, process, accessUser, connector.GetName())
 
 	testBin, err := os.Executable()
 	require.NoError(t, err)
 
-	host, port, err := net.SplitHostPort(s.root.Config.SSH.Addr.String())
+	host, port, err := net.SplitHostPort(process.Config.SSH.Addr.String())
 	require.NoError(t, err)
-	proxyAddr, err := s.root.ProxyWebAddr()
+	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
 
 	var mockHeadlessAddr string
@@ -298,7 +311,7 @@ func TestWithRsync(t *testing.T) {
 			name: "with headless tsh",
 			setup: func(t *testing.T, dir string) {
 				// setup webauthn for headless auth
-				asrv := s.root.GetAuthServer()
+				asrv := process.GetAuthServer()
 				ctx := context.Background()
 
 				_, err = asrv.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
@@ -323,7 +336,7 @@ func TestWithRsync(t *testing.T) {
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
-					Name: s.user.GetName(),
+					Name: accessUser.GetName(),
 				})
 				require.NoError(t, err)
 				tokenID := token.GetName()
@@ -384,7 +397,7 @@ func TestWithRsync(t *testing.T) {
 					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
-						Username:       s.user.GetName(),
+						Username:       accessUser.GetName(),
 						TTL:            time.Hour,
 						Compatibility:  constants.CertificateFormatStandard,
 						RouteToCluster: clusterName.GetClusterName(),
@@ -406,7 +419,7 @@ func TestWithRsync(t *testing.T) {
 
 					// send login response to the client
 					resp := authclient.SSHLoginResponse{
-						Username:    s.user.GetName(),
+						Username:    accessUser.GetName(),
 						Cert:        sshCert,
 						TLSCert:     tlsCert,
 						HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
@@ -427,7 +440,7 @@ func TestWithRsync(t *testing.T) {
 					"rsync",
 					// ensure headless tsh will be used to authenticate
 					"-e",
-					fmt.Sprintf("%s ssh -d --insecure --headless --proxy=%s --user=%s", testBin, proxyAddr, s.user.GetName()),
+					fmt.Sprintf("%s ssh -d --insecure --headless --proxy=%s --user=%s", testBin, proxyAddr, accessUser.GetName()),
 					src,
 					fmt.Sprintf("%s:%s", host, dst),
 				)
@@ -513,7 +526,6 @@ func TestProxySSH(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := newTestSuite(t, tc.opts...)
@@ -698,21 +710,21 @@ func TestTSHProxyTemplate(t *testing.T) {
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
-	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
+	require.NoError(t, os.WriteFile(tshConfigFile, fmt.Appendf(nil, `
 proxy_templates:
 - template: '^(\w+)\.(root):(.+)$'
   proxy: "%v"
   host: "$1:$3"
-`, s.root.Config.Proxy.WebAddr.Addr)), 0o644))
+`, s.root.Config.Proxy.WebAddr.Addr), 0o644))
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
+	err = os.WriteFile(sshConfigFile, fmt.Appendf(nil, `
 Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
-`, tshPath)), 0o644)
+`, tshPath), 0o644)
 	require.NoError(t, err)
 
 	// Connect to "rootnode" with OpenSSH.
@@ -936,7 +948,7 @@ func TestList(t *testing.T) {
 				var results []result
 				require.NoError(t, json.Unmarshal(out, &results))
 
-				require.Equal(t, len(expected), len(results))
+				require.Len(t, expected, len(results))
 				for _, res := range results {
 					node, ok := expected[res.Cluster]
 					require.True(t, ok, "expected node to be present for cluster %s", res.Cluster)
@@ -1505,7 +1517,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	privateKey, err := keys.NewPrivateKey(key)
 	require.NoError(t, err)
 	// Identity files only support a single key for SSH/TLS
 	keyRing := client.NewKeyRing(privateKey, privateKey)
@@ -1553,7 +1565,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", port,
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, tshArgs)
@@ -1631,7 +1643,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo)",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, fooTshArgs, setHomePath(tshHome))
@@ -1647,7 +1659,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", fooNoTargetPortProxyPort, // No target port.
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo no target port)",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, fooNoTargetPortTshArgs, setHomePath(tshHome))
@@ -1664,7 +1676,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (bar)",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, barTshArgs, setHomePath(tshHome))

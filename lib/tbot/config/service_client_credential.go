@@ -139,7 +139,7 @@ func (o *UnstableClientCredentialOutput) CheckAndSetDefaults() error {
 
 // MarshalYAML enables the yaml package to correctly marshal the Destination
 // as YAML including the type header.
-func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
+func (o *UnstableClientCredentialOutput) MarshalYAML() (any, error) {
 	type raw UnstableClientCredentialOutput
 	return withTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
 }

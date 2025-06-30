@@ -100,21 +100,12 @@ export function Notification({
     // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
     if (content.kind === 'text') {
       return (
-        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
-          <DialogHeader>
-            <DialogTitle>{content.title}</DialogTitle>
-          </DialogHeader>
-          <DialogContent>{content.textContent}</DialogContent>
-          <DialogFooter>
-            <ButtonSecondary
-              onClick={() => setShowTextContentDialog(false)}
-              size="small"
-              className={IGNORE_CLICK_CLASSNAME}
-            >
-              Close
-            </ButtonSecondary>
-          </DialogFooter>
-        </Dialog>
+        <TextNotificationDialog
+          showTextContentDialog={showTextContentDialog}
+          setShowTextContentDialog={setShowTextContentDialog}
+          title={content.title}
+          content={content.textContent}
+        />
       );
     }
     return null;
@@ -229,23 +220,57 @@ export function Notification({
         </ContentContainer>
       </Container>
       {content.kind === 'text' && (
-        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
-          <DialogHeader>
-            <DialogTitle>{content.title}</DialogTitle>
-          </DialogHeader>
-          <DialogContent>{content.textContent}</DialogContent>
-          <DialogFooter>
-            <ButtonSecondary
-              onClick={() => setShowTextContentDialog(false)}
-              size="small"
-              className={IGNORE_CLICK_CLASSNAME}
-            >
-              Close
-            </ButtonSecondary>
-          </DialogFooter>
-        </Dialog>
+        <TextNotificationDialog
+          showTextContentDialog={showTextContentDialog}
+          setShowTextContentDialog={setShowTextContentDialog}
+          title={content.title}
+          content={content.textContent}
+        />
       )}
     </>
+  );
+}
+
+function TextNotificationDialog({
+  showTextContentDialog,
+  setShowTextContentDialog,
+  title,
+  content = '',
+}: {
+  showTextContentDialog: boolean;
+  setShowTextContentDialog: (show: boolean) => void;
+  title: string;
+  content: string;
+}) {
+  // The json response contains the text content with escaped newlines, so we need to replace
+  // these escaped newlines (\\n) in the response with actual newlines (\n).
+  const processedContent = content.replace(/\\n/g, '\n');
+
+  return (
+    <Dialog
+      open={showTextContentDialog}
+      className={IGNORE_CLICK_CLASSNAME}
+      dialogCss={() => ({
+        width: '100%',
+        maxWidth: '800px',
+      })}
+    >
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <DialogContent>
+        <div style={{ whiteSpace: 'pre-wrap' }}>{processedContent}</div>
+      </DialogContent>
+      <DialogFooter>
+        <ButtonSecondary
+          onClick={() => setShowTextContentDialog(false)}
+          size="small"
+          className={IGNORE_CLICK_CLASSNAME}
+        >
+          Close
+        </ButtonSecondary>
+      </DialogFooter>
+    </Dialog>
   );
 }
 

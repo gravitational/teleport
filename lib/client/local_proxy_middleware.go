@@ -142,7 +142,7 @@ func (c *CertChecker) SetCert(cert tls.Certificate) {
 
 // GetOrIssueCert gets the CertChecker's certificate, or issues a new
 // certificate if the it is invalid (e.g. expired) or missing.
-func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, error) {
+func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate, err error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
@@ -150,7 +150,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 		return c.cert, nil
 	}
 
-	cert, err := c.certIssuer.IssueCert(ctx)
+	cert, err = c.certIssuer.IssueCert(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -232,20 +232,20 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddDatabaseKeyRing(newKey); err != nil {
+		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddDatabaseKeyRing(result.KeyRing); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = newKey
+		keyRing = result.KeyRing
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -299,20 +299,20 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddAppKeyRing(newKey); err != nil {
+		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddAppKeyRing(result.KeyRing); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = newKey
+		keyRing = result.KeyRing
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

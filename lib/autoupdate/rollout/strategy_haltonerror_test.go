@@ -23,11 +23,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -134,22 +136,72 @@ func Test_canStartHaltOnError(t *testing.T) {
 func Test_progressGroupsHaltOnError(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
 	log := utils.NewSlogLoggerForTests()
-	strategy, err := newHaltOnErrorStrategy(log)
-	require.NoError(t, err)
 
+	fewSecondsAgo := clock.Now().Add(-3 * time.Second)
 	fewMinutesAgo := clock.Now().Add(-5 * time.Minute)
 	yesterday := testSaturday
 	canStartToday := everyWeekday
 	cannotStartToday := everyWeekdayButSunday
 	ctx := context.Background()
 
+	startVersion := "1.2.3"
+	targetVersion := "1.2.4"
+	otherVersion := "1.2.5"
+
 	group1Name := "group1"
 	group2Name := "group2"
 	group3Name := "group3"
 
+	testReports := []*autoupdate.AutoUpdateAgentReport{
+		{
+			Metadata: &headerv1.Metadata{Name: "auth1"},
+			Spec: &autoupdate.AutoUpdateAgentReportSpec{
+				Timestamp: timestamppb.New(fewSecondsAgo),
+				Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
+					group1Name: {
+						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 4},
+							targetVersion: {Count: 5},
+							otherVersion:  {Count: 1},
+						},
+					},
+					group2Name: {
+						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 5},
+							targetVersion: {Count: 5},
+						},
+					},
+				},
+			},
+		},
+		{
+			// This report is expired, it must be ignored
+			Metadata: &headerv1.Metadata{Name: "auth2"},
+			Spec: &autoupdate.AutoUpdateAgentReportSpec{
+				Timestamp: timestamppb.New(fewMinutesAgo),
+				Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
+					group1Name: {
+						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 123},
+							targetVersion: {Count: 123},
+							otherVersion:  {Count: 123},
+						},
+					},
+					group2Name: {
+						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 123},
+							targetVersion: {Count: 123},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name             string
 		initialState     []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+		reports          []*autoupdate.AutoUpdateAgentReport
 		rolloutStartTime *timestamppb.Timestamp
 		expectedState    []*autoupdate.AutoUpdateAgentRolloutStatusGroup
 	}{
@@ -492,6 +544,172 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "single group unstarted -> unstarted with reports",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(yesterday),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       cannotStartToday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+			reports: testReports,
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonCannotStart,
+					ConfigDays:       cannotStartToday,
+					ConfigStartHour:  matchingStartHour,
+					// Group1 is the catch-all group, so it should count group2 agents
+					PresentCount:  20,
+					UpToDateCount: 10,
+				},
+			},
+		},
+		{
+			name: "single group active -> active with reports",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					StartTime:        timestamppb.New(fewMinutesAgo),
+					LastUpdateTime:   timestamppb.New(fewMinutesAgo),
+					LastUpdateReason: updateReasonCanStart,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					InitialCount:     25,
+					UpToDateCount:    0,
+					PresentCount:     10,
+				},
+			},
+			reports: testReports,
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					StartTime:        timestamppb.New(fewMinutesAgo),
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonUpdateInProgress,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					// Group1 is the catch-all group, so it should count group2 agents
+					PresentCount:  20,
+					UpToDateCount: 10,
+					// InitialCount must not be changed during active -> active transitions
+					InitialCount: 25,
+				},
+			},
+		},
+		{
+			name: "single group unstarted -> active",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(yesterday),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					PresentCount:     12,
+					UpToDateCount:    3,
+				},
+			},
+			reports: testReports,
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					StartTime:        timestamppb.New(clock.Now()),
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonCanStart,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					// InitialCount must be set during unstarted -> active transition
+					InitialCount:  20,
+					PresentCount:  20,
+					UpToDateCount: 10,
+				},
+			},
+		},
+		{
+			name: "first group done, second should activate, third should not progress, with reports",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
+					StartTime:        timestamppb.New(yesterday),
+					LastUpdateTime:   timestamppb.New(yesterday),
+					LastUpdateReason: updateReasonUpdateComplete,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					InitialCount:     10,
+					PresentCount:     8,
+					UpToDateCount:    5,
+				},
+				{
+					Name:             group2Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(yesterday),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					ConfigWaitHours:  24,
+					PresentCount:     2,
+					UpToDateCount:    2,
+				},
+				{
+					Name:             group3Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(yesterday),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					ConfigWaitHours:  0,
+				},
+			},
+			reports: testReports,
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             group1Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
+					StartTime:        timestamppb.New(yesterday),
+					LastUpdateTime:   timestamppb.New(yesterday),
+					LastUpdateReason: updateReasonUpdateComplete,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					InitialCount:     10,
+					PresentCount:     10,
+					UpToDateCount:    5,
+				},
+				{
+					Name:             group2Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					StartTime:        timestamppb.New(clock.Now()),
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonCanStart,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					ConfigWaitHours:  24,
+					InitialCount:     10,
+					PresentCount:     10,
+					UpToDateCount:    5,
+				},
+				{
+					Name:             group3Name,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonPreviousGroupsNotDone,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+					ConfigWaitHours:  0,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -500,13 +718,108 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 				State:     0,
 				StartTime: tt.rolloutStartTime,
 			}
-			err := strategy.progressRollout(ctx, nil, status, clock.Now())
+			spec := &autoupdate.AutoUpdateAgentRolloutSpec{
+				StartVersion:  startVersion,
+				TargetVersion: targetVersion,
+			}
+
+			stubs := mockClientStubs{}
+			if tt.reports == nil {
+				stubs.reportsAnswers = []callAnswer[[]*autoupdate.AutoUpdateAgentReport]{
+					{
+						result: []*autoupdate.AutoUpdateAgentReport{},
+						err:    trace.NotFound("no report"),
+					},
+				}
+			} else {
+				stubs.reportsAnswers = []callAnswer[[]*autoupdate.AutoUpdateAgentReport]{
+					{
+						result: tt.reports,
+						err:    nil,
+					},
+				}
+			}
+			clt := newMockClient(t, stubs)
+			strategy, err := newHaltOnErrorStrategy(log, clt)
+			require.NoError(t, err)
+			err = strategy.progressRollout(ctx, spec, status, clock.Now())
 			require.NoError(t, err)
 			// We use require.Equal instead of Elements match because group order matters.
 			// It's not super important for time-based, but is crucial for halt-on-error.
 			// So it's better to be more conservative and validate order never changes for
 			// both strategies.
 			require.Equal(t, tt.expectedState, tt.initialState)
+		})
+	}
+}
+
+func TestCountCatchAll(t *testing.T) {
+	countByGroup := map[string]int{
+		"dev":   10,
+		"stage": 25,
+		"prod":  33,
+	}
+	upToDateByGroup := map[string]int{
+		"dev":   5,
+		"stage": 12,
+		"prod":  1,
+	}
+
+	tests := []struct {
+		name             string
+		rolloutStatus    *autoupdate.AutoUpdateAgentRolloutStatus
+		expectedCount    int
+		expectedUpToDate int
+	}{
+		{
+			name: "all group hit",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "dev"},
+					{Name: "stage"},
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["prod"],
+		},
+		{
+			name: "one group miss",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "dev"},
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+		{
+			name: "only catch-all group hit",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+		{
+			name: "no common group",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "foobar"},
+				},
+			},
+			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, upToDate := countCatchAll(tt.rolloutStatus, countByGroup, upToDateByGroup)
+			require.Equal(t, tt.expectedCount, count)
+			require.Equal(t, tt.expectedUpToDate, upToDate)
 		})
 	}
 }

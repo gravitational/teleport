@@ -26,11 +26,9 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	versionUtil "k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/apimachinery/pkg/version"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/internal"
 )
 
 // WebsocketRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -70,7 +68,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if w.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(w.ctx, header); err != nil {
+		if header, err = internal.IdentityForwardingHeaders(w.ctx, header); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -111,22 +109,4 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	return wsResp, nil
-}
-
-var kubeExecSubprotocolV5MinVersion = func() *versionUtil.Version {
-	const kubeExecSubprotocolV5Version = "v1.30.0"
-	return versionUtil.MustParse(kubeExecSubprotocolV5Version)
-}()
-
-func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
-	if serverVersion == nil {
-		return false
-	}
-
-	parsedVersion, err := versionUtil.ParseSemantic(serverVersion.GitVersion)
-	if err != nil {
-		return false
-	}
-
-	return parsedVersion.AtLeast(kubeExecSubprotocolV5MinVersion)
 }

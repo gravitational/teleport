@@ -109,6 +109,11 @@ func (s *X509OverridesService) requireEnterprise() error {
 	return trace.AccessDenied("SPIFFE X.509 issuer overrides are only available with an enterprise license")
 }
 
+// SignX509IssuerCSR implements [workloadidentityv1pb.X509OverridesServiceServer].
+func (s *X509OverridesService) SignX509IssuerCSR(ctx context.Context, req *workloadidentityv1pb.SignX509IssuerCSRRequest) (*workloadidentityv1pb.SignX509IssuerCSRResponse, error) {
+	return nil, s.requireEnterprise()
+}
+
 // GetX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) GetX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.GetX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
 	if err := s.authorizeAccessToKind(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbRead); err != nil {

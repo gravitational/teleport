@@ -68,9 +68,6 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
-
-			sb.StopTimer() // stop timer while running setup
-
 			// configure the backend instance
 			var bk backend.Backend
 			var err error
@@ -106,10 +103,10 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := 0; i < labelCount; i++ {
+	for i := range labelCount {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for i := 0; i < count; i++ {
+	for range count {
 		name := uuid.New().String()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{

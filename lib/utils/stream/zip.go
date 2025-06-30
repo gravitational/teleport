@@ -77,7 +77,8 @@ func (z *ZipStreams[T, V]) Process() error {
 
 	for hasLeader && hasFollower {
 		cmp := z.compareKeys(leaderItem, followerItem)
-		if cmp == -1 {
+		switch cmp {
+		case -1:
 			// leader > follower - follower is missing
 			if err := z.onMissing(leaderItem); err != nil {
 				return trace.Wrap(err)
@@ -87,13 +88,13 @@ func (z *ZipStreams[T, V]) Process() error {
 			if hasLeader {
 				leaderItem = z.leader.Item()
 			}
-		} else if cmp == 1 {
+		case 1:
 			// leader < follower - advancde
 			hasFollower = z.follower.Next()
 			if hasFollower {
 				followerItem = z.follower.Item()
 			}
-		} else {
+		default:
 			// leader == follower
 			if err := z.onEqualKeys(leaderItem, followerItem); err != nil {
 				return trace.Wrap(err)

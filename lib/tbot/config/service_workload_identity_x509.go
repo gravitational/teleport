@@ -122,7 +122,7 @@ func (o *WorkloadIdentityX509Service) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityX509Service into YAML.
-func (o *WorkloadIdentityX509Service) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityX509Service) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityX509Service
 	return withTypeHeader((*raw)(o), WorkloadIdentityX509OutputType)
 }
@@ -143,5 +143,7 @@ func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (o *WorkloadIdentityX509Service) GetCredentialLifetime() CredentialLifetime {
-	return o.CredentialLifetime
+	lt := o.CredentialLifetime
+	lt.skipMaxTTLValidation = true
+	return lt
 }

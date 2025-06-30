@@ -248,7 +248,7 @@ func isXMLOfLocalName(data []byte, wantLocalName string) bool {
 
 // unmarshalXMLChildNode decodes the XML-encoded data and stores the child node
 // with the specified name to v, where v is a pointer to an AWS SDK v2 struct.
-func unmarshalXMLChildNode(v interface{}, data []byte, childName string) error {
+func unmarshalXMLChildNode(v any, data []byte, childName string) error {
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	st, err := smithyxml.FetchRootElement(decoder)
 	if err != nil {

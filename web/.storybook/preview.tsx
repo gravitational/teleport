@@ -17,6 +17,7 @@
  */
 
 import { Preview } from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { ComponentType, PropsWithChildren } from 'react';
@@ -123,6 +124,15 @@ function UserDecorator(props: PropsWithChildren<UserDecoratorProps>) {
   return props.children;
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
+
 const preview: Preview = {
   args: {
     userContext: false,
@@ -140,11 +150,13 @@ const preview: Preview = {
   loaders: [mswLoader],
   decorators: [
     (Story, meta) => (
-      <UserDecorator userContext={meta.args.userContext}>
-        <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
-          <Story />
-        </ThemeDecorator>
-      </UserDecorator>
+      <QueryClientProvider client={queryClient}>
+        <UserDecorator userContext={meta.args.userContext}>
+          <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
+            <Story />
+          </ThemeDecorator>
+        </UserDecorator>
+      </QueryClientProvider>
     ),
   ],
   globalTypes: {

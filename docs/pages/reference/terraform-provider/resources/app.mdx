@@ -70,6 +70,7 @@ Optional:
 - `identity_center` (Attributes) IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps. (see [below for nested schema](#nested-schema-for-specidentity_center))
 - `insecure_skip_verify` (Boolean) InsecureSkipVerify disables app's TLS certificate verification.
 - `integration` (String) Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+- `mcp` (Attributes) MCP contains MCP server related configurations. (see [below for nested schema](#nested-schema-for-specmcp))
 - `public_addr` (String) PublicAddr is the public address the application is accessible at.
 - `required_app_names` (List of String) RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.
 - `rewrite` (Attributes) Rewrite is a list of rewriting rules to apply to requests and responses. (see [below for nested schema](#nested-schema-for-specrewrite))
@@ -83,6 +84,15 @@ Optional:
 Optional:
 
 - `external_id` (String) ExternalID is the AWS External ID used when assuming roles in this app.
+- `roles_anywhere_profile` (Attributes) RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps. (see [below for nested schema](#nested-schema-for-specawsroles_anywhere_profile))
+
+### Nested Schema for `spec.aws.roles_anywhere_profile`
+
+Optional:
+
+- `accept_role_session_name` (Boolean) Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName
+- `profile_arn` (String) ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.
+
 
 
 ### Nested Schema for `spec.cors`
@@ -121,6 +131,15 @@ Optional:
 - `assignment_name` (String) AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.
 - `name` (String) Name is the human-readable name of the Permission Set.
 
+
+
+### Nested Schema for `spec.mcp`
+
+Optional:
+
+- `args` (List of String) Args to execute with the command.
+- `command` (String) Command to launch stdio-based MCP servers.
+- `run_as_host_user` (String) RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.
 
 
 ### Nested Schema for `spec.rewrite`

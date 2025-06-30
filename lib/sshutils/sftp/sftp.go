@@ -31,6 +31,7 @@ import (
 	"os"
 	"path" // SFTP requires UNIX-style path separators
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,38 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+)
+
+// SFTP request methods.
+const (
+	// MethodGet opens a file for reading.
+	MethodGet = "Get"
+	// MethodPut opens a file for writing.
+	MethodPut = "Put"
+	// MethodOpen opens a file.
+	MethodOpen = "Open"
+	// MethodSetStat sets a file's stats.
+	MethodSetStat = "Setstat"
+	// MethodRename renames a file.
+	MethodRename = "Rename"
+	// MethodRmdir removes a directory.
+	MethodRmdir = "Rmdir"
+	// MethodMkdir creates a directory.
+	MethodMkdir = "Mkdir"
+	// MethodLink creates a hard link.
+	MethodLink = "Link"
+	// MethodSymlink creates a symbolic link.
+	MethodSymlink = "Symlink"
+	// MethodRemove deletes a file.
+	MethodRemove = "Remove"
+	// MethodList lists directory entries.
+	MethodList = "List"
+	// MethodStat gets a directory entry's stat info.
+	MethodStat = "Stat"
+	// MethodLstat gets a directory entry's stat info, without following symbolic links.
+	MethodLstat = "Lstat"
+	// MethodReadlink gets the target of a symbolic link.
+	MethodReadlink = "Readlink"
 )
 
 // Options control aspects of a file transfer
@@ -73,34 +106,67 @@ type Config struct {
 	Log *slog.Logger
 }
 
-// FileSystem describes file operations to be done either locally or over SFTP
+// File is the file interface required for [FileSystem].
+type File interface {
+	sftp.WriterAtReaderAt
+	io.ReadWriteCloser
+	// Name returns the name of the file.
+	Name() string
+	// Stat returns the files stat info.
+	Stat() (fs.FileInfo, error)
+}
+
+// FileSystem describes file operations to be done either locally or over SFTP.
+//
+// Note: errors returned by a FileSystem should not be `trace.Wrap()`ed so the
+// sftp package can parse os errors.
 type FileSystem interface {
-	// Type returns whether the filesystem is "local" or "remote"
+	// Type returns whether the filesystem is "local" or "remote".
 	Type() string
-	// Glob returns matching files of a glob pattern
-	Glob(ctx context.Context, pattern string) ([]string, error)
-	// Stat returns info about a file
-	Stat(ctx context.Context, path string) (os.FileInfo, error)
-	// ReadDir returns information about files contained within a directory
-	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
-	// Open opens a file
-	Open(ctx context.Context, path string) (fs.File, error)
-	// Create creates a new file
-	Create(ctx context.Context, path string, size int64) (io.WriteCloser, error)
-	// Mkdir creates a directory
-	Mkdir(ctx context.Context, path string) error
-	// Chmod sets file permissions
-	Chmod(ctx context.Context, path string, mode os.FileMode) error
-	// Chtimes sets file access and modification time
-	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
+	// Glob returns matching files of a glob pattern.
+	Glob(pattern string) ([]string, error)
+	// Stat returns info about a file.
+	Stat(path string) (os.FileInfo, error)
+	// ReadDir returns information about files contained within a directory.
+	ReadDir(path string) ([]os.FileInfo, error)
+	// Open opens a file for reading.
+	Open(path string) (File, error)
+	// Create creates a new file for writing.
+	Create(path string, size int64) (File, error)
+	// Mkdir creates a directory.
+	Mkdir(path string) error
+	// Chmod sets file permissions.
+	Chmod(path string, mode os.FileMode) error
+	// Chtimes sets file access and modification time.
+	Chtimes(path string, atime, mtime time.Time) error
+	// OpenFile opens a file with the given flags.
+	OpenFile(path string, flags int) (File, error)
+	// Rename renames a file.
+	Rename(oldpath, newpath string) error
+	// Lstat returns info about a file or symlink.
+	Lstat(name string) (os.FileInfo, error)
+	// RemoveAll recursively removes a file or directory.
+	RemoveAll(path string) error
+	// Link creates a new link.
+	Link(oldname, newname string) error
+	// Symlink creates a new symlink.
+	Symlink(oldname, newname string) error
+	// Remove removes a file or (empty) directory.
+	Remove(name string) error
+	// Chown changes a file's owner and/or group.
+	Chown(name string, uid, gid int) error
+	// Truncate truncates a file's contents.
+	Truncate(name string, size int64) error
+	// Readlink gets the destination for a symlink.
+	Readlink(name string) (string, error)
+	// Getwd gets the current working directory.
+	Getwd() (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
 func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error) {
-	for _, srcPath := range src {
-		if srcPath == "" {
-			return nil, trace.BadParameter("source path is empty")
-		}
+	if slices.Contains(src, "") {
+		return nil, trace.BadParameter("source path is empty")
 	}
 	if dst == "" {
 		return nil, trace.BadParameter("destination path is empty")
@@ -110,7 +176,7 @@ func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error)
 		srcPaths: src,
 		dstPath:  dst,
 		srcFS:    &localFS{},
-		dstFS:    &remoteFS{},
+		dstFS:    &RemoteFS{},
 		opts:     opts,
 	}
 	c.setDefaults()
@@ -130,7 +196,7 @@ func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	c := &Config{
 		srcPaths: []string{src},
 		dstPath:  dst,
-		srcFS:    &remoteFS{},
+		srcFS:    &RemoteFS{},
 		dstFS:    &localFS{},
 		opts:     opts,
 	}
@@ -177,7 +243,7 @@ func CreateHTTPUploadConfig(req HTTPTransferRequest) (*Config, error) {
 			fileName: req.Src,
 			fileSize: fileSize,
 		},
-		dstFS: &remoteFS{},
+		dstFS: &RemoteFS{},
 	}
 	c.setDefaults()
 
@@ -197,7 +263,7 @@ func CreateHTTPDownloadConfig(req HTTPTransferRequest) (*Config, error) {
 	c := &Config{
 		srcPaths: []string{req.Src},
 		dstPath:  req.Dst,
-		srcFS:    &remoteFS{},
+		srcFS:    &RemoteFS{},
 		dstFS: &httpFS{
 			writer:   req.HTTPResponse,
 			fileName: req.Dst,
@@ -290,7 +356,7 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 		return trace.Wrap(err)
 	}
 
-	if err := c.initFS(sshClient, sftpClient); err != nil {
+	if err := c.initFS(sftpClient); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -304,16 +370,16 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 }
 
 // initFS ensures the source and destination filesystems are ready to transfer
-func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
+func (c *Config) initFS(client *sftp.Client) error {
 	var haveRemoteFS bool
-	srcFS, srcOK := c.srcFS.(*remoteFS)
+	srcFS, srcOK := c.srcFS.(*RemoteFS)
 	if srcOK {
-		srcFS.c = client
+		srcFS.Client = client
 		haveRemoteFS = true
 	}
-	dstFS, dstOK := c.dstFS.(*remoteFS)
+	dstFS, dstOK := c.dstFS.(*RemoteFS)
 	if dstOK {
-		dstFS.c = client
+		dstFS.Client = client
 		haveRemoteFS = true
 	}
 	// this will only happen in tests
@@ -408,7 +474,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		// specified a file path containing glob pattern characters but
 		// means the literal path without globbing, in which case we'll
 		// use the raw source path as the sole match below.
-		matches, err := c.srcFS.Glob(ctx, srcPath)
+		matches, err := c.srcFS.Glob(srcPath)
 		if err != nil {
 			return trace.Wrap(err, "error matching glob pattern %q", srcPath)
 		}
@@ -424,7 +490,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		matchedPaths = append(matchedPaths, matches...)
 
 		for _, match := range matches {
-			fi, err := c.srcFS.Stat(ctx, match)
+			fi, err := c.srcFS.Stat(match)
 			if err != nil {
 				return trace.Wrap(err, "could not access %s path %q", c.srcFS.Type(), match)
 			}
@@ -440,7 +506,7 @@ func (c *Config) transfer(ctx context.Context) error {
 	// validate destination path and create it if necessary
 	var dstIsDir bool
 	c.dstPath = path.Clean(c.dstPath)
-	dstInfo, err := c.dstFS.Stat(ctx, c.dstPath)
+	dstInfo, err := c.dstFS.Stat(c.dstPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return trace.NotFound("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
@@ -448,10 +514,10 @@ func (c *Config) transfer(ctx context.Context) error {
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory
 		if len(matchedPaths) > 1 {
-			if err := c.dstFS.Mkdir(ctx, c.dstPath); err != nil {
+			if err := c.dstFS.Mkdir(c.dstPath); err != nil {
 				return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
-			if err := c.dstFS.Chmod(ctx, c.dstPath, defaults.DirectoryPermissions); err != nil {
+			if err := c.dstFS.Chmod(c.dstPath, defaults.DirectoryPermissions); err != nil {
 				return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
 			dstIsDir = true
@@ -498,15 +564,15 @@ func (c *Config) transfer(ctx context.Context) error {
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	c.Log.DebugContext(ctx, "transferring contents of directory", "source_fs", c.srcFS.Type(), "source_path", srcPath, "dest_fs", c.dstFS.Type(), "dest_path", dstPath)
 
-	err := c.dstFS.Mkdir(ctx, dstPath)
+	err := c.dstFS.Mkdir(dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
-	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+	if err := c.dstFS.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
 		return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
-	infos, err := c.srcFS.ReadDir(ctx, srcPath)
+	infos, err := c.srcFS.ReadDir(srcPath)
 	if err != nil {
 		return trace.Errorf("error reading %s directory %q: %w", c.srcFS.Type(), srcPath, err)
 	}
@@ -529,7 +595,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	// set modification and access times last so creating sub dirs/files
 	// doesn't update the times
 	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(ctx, dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Errorf("error changing times of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 		}
@@ -542,19 +608,19 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	c.Log.DebugContext(ctx, "transferring file", "source_fs", c.srcFS.Type(), "source_file", srcPath, "dest_fs", c.dstFS.Type(), "dest_file", dstPath)
 
-	srcFile, err := c.srcFS.Open(ctx, srcPath)
+	srcFile, err := c.srcFS.Open(srcPath)
 	if err != nil {
 		return trace.Errorf("error opening %s file %q: %w", c.srcFS.Type(), srcPath, err)
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
+	dstFile, err := c.dstFS.Create(dstPath, srcFileInfo.Size())
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 	defer dstFile.Close()
 
-	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+	if err := c.dstFS.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
 		return trace.Errorf("error setting permissions of %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
@@ -590,7 +656,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 
 	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(ctx, dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Errorf("error changing times of %s file %q: %w", c.dstFS.Type(), dstPath, err)
 		}
@@ -696,4 +762,162 @@ type NonRecursiveDirectoryTransferError struct {
 
 func (n *NonRecursiveDirectoryTransferError) Error() string {
 	return fmt.Sprintf("%q is a directory, but the recursive option was not passed", n.Path)
+}
+
+func setstat(req *sftp.Request, fs FileSystem) error {
+	attrFlags := req.AttrFlags()
+	attrs := req.Attributes()
+
+	if attrFlags.Acmodtime {
+		atime := time.Unix(int64(attrs.Atime), 0)
+		mtime := time.Unix(int64(attrs.Mtime), 0)
+
+		err := fs.Chtimes(req.Filepath, atime, mtime)
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.Permissions {
+		err := fs.Chmod(req.Filepath, attrs.FileMode())
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.UidGid {
+		err := fs.Chown(req.Filepath, int(attrs.UID), int(attrs.GID))
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.Size {
+		err := fs.Truncate(req.Filepath, int64(attrs.Size))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// HandleFilecmd handles file command requests. If filesys is nil, the local
+// filesystem will be used.
+func HandleFilecmd(req *sftp.Request, filesys FileSystem) error {
+	if filesys == nil {
+		filesys = localFS{}
+	}
+	switch req.Method {
+	case MethodSetStat:
+		return setstat(req, filesys)
+	case MethodRename:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return filesys.Rename(req.Filepath, req.Target)
+	case MethodRmdir:
+		fi, err := filesys.Lstat(req.Filepath)
+		if err != nil {
+			return err
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("%q is not a directory", req.Filepath)
+		}
+		return filesys.RemoveAll(req.Filepath)
+	case MethodMkdir:
+		return filesys.Mkdir(req.Filepath)
+	case MethodLink:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return filesys.Link(req.Target, req.Filepath)
+	case MethodSymlink:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return filesys.Symlink(req.Target, req.Filepath)
+	case MethodRemove:
+		fi, err := filesys.Lstat(req.Filepath)
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			return fmt.Errorf("%q is a directory", req.Filepath)
+		}
+		return filesys.Remove(req.Filepath)
+	default:
+		return sftp.ErrSSHFxOpUnsupported
+	}
+}
+
+// listerAt satisfies [sftp.listerAt].
+type listerAt []fs.FileInfo
+
+func (l listerAt) ListAt(ls []fs.FileInfo, offset int64) (int, error) {
+	if offset >= int64(len(l)) {
+		return 0, io.EOF
+	}
+	n := copy(ls, l[offset:])
+	if n < len(ls) {
+		return n, io.EOF
+	}
+
+	return n, nil
+}
+
+// fileName satisfies [fs.FileInfo] but only knows a file's name. This
+// is necessary when handling 'readlink' requests in sftpHandler.FileList,
+// as only the file's name is known after a readlink call.
+type fileName string
+
+func (f fileName) Name() string {
+	return string(f)
+}
+
+func (f fileName) Size() int64 {
+	return 0
+}
+
+func (f fileName) Mode() fs.FileMode {
+	return 0
+}
+
+func (f fileName) ModTime() time.Time {
+	return time.Time{}
+}
+
+func (f fileName) IsDir() bool {
+	return false
+}
+
+func (f fileName) Sys() any {
+	return nil
+}
+
+// HandleFilelist handles file list requests. If filesys is nil, the local
+// filesystem will be used.
+func HandleFilelist(req *sftp.Request, filesys FileSystem) (sftp.ListerAt, error) {
+	if filesys == nil {
+		filesys = localFS{}
+	}
+	switch req.Method {
+	case MethodList:
+		entries, err := filesys.ReadDir(req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt(entries), nil
+	case MethodStat:
+		fi, err := filesys.Stat(req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt{fi}, nil
+	case MethodReadlink:
+		dst, err := filesys.Readlink(req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt{fileName(dst)}, nil
+	default:
+		return nil, sftp.ErrSSHFxOpUnsupported
+	}
 }

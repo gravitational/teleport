@@ -13,12 +13,16 @@ allows Teleport administrators to define policies like:
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
 
+## How it works
+
+(!docs/pages/includes/sso/how-it-works.mdx idp="ADFS"!)
+
 ## Prerequisites
 
 - ADFS installation with Admin access and users assigned to at least two groups.
 - Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 

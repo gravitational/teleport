@@ -22,12 +22,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
@@ -45,6 +48,7 @@ import (
 // lib/tbot/config
 var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodAzure,
+	types.JoinMethodAzureDevops,
 	types.JoinMethodCircleCI,
 	types.JoinMethodGCP,
 	types.JoinMethodGitHub,
@@ -56,6 +60,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
 	types.JoinMethodBitbucket,
+	types.JoinMethodBoundKeypair,
 }
 
 // BotResourceName returns the default name for resources associated with the
@@ -166,7 +171,9 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
+	if err := authCtx.MaybeAccessToKind(
+		types.KindBot, types.VerbRead,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -188,6 +195,14 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err, "converting from resources")
 	}
 
+	if err := authCtx.CheckAccessToResource153(
+		bot, types.VerbRead,
+	); err != nil {
+		// Return NotFound rather than Forbidden to avoid leaking existence of
+		// bot.
+		return nil, trace.NotFound("bot %q not found", req.BotName)
+	}
+
 	return bot, nil
 }
 
@@ -200,7 +215,11 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
+	// Check generally if this user may have the ability to list bots - ignoring
+	// where conditions.
+	if err := authCtx.MaybeAccessToKind(
+		types.KindBot, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -241,6 +260,14 @@ func (bs *BotService) ListBots(
 			)
 			continue
 		}
+
+		// Check if user can access this specific Bot.
+		if err := authCtx.CheckAccessToResource153(
+			bot, types.VerbList,
+		); err != nil {
+			continue
+		}
+
 		bots = append(bots, bot)
 	}
 
@@ -255,11 +282,18 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
+
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbCreate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -366,15 +400,20 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbCreate, types.VerbUpdate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// Support reused MFA for bulk tctl create requests.
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
@@ -418,15 +457,20 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbUpdate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -456,8 +500,8 @@ func (bs *BotService) UpdateBot(
 	}
 
 	for _, path := range req.UpdateMask.Paths {
-		switch {
-		case path == "spec.roles":
+		switch path {
+		case "spec.roles":
 			if slices.Contains(req.Bot.Spec.Roles, "") {
 				return nil, trace.BadParameter(
 					"spec.roles: must not contain empty strings",
@@ -466,7 +510,7 @@ func (bs *BotService) UpdateBot(
 			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
 				Roles: req.Bot.Spec.Roles,
 			})
-		case path == "spec.traits":
+		case "spec.traits":
 			traits := map[string][]string{}
 			for _, t := range req.Bot.Spec.Traits {
 				if len(t.Values) == 0 {
@@ -478,6 +522,10 @@ func (bs *BotService) UpdateBot(
 				traits[t.Name] = append(traits[t.Name], t.Values...)
 			}
 			user.SetTraits(traits)
+		case "spec.max_session_ttl":
+			opts := role.GetOptions()
+			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
+			role.SetOptions(opts)
 		default:
 			return nil, trace.BadParameter("update_mask: unsupported path %q", path)
 		}
@@ -544,6 +592,18 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	return bs.backend.DeleteRole(ctx, role.GetName())
 }
 
+// dummyBotWithName returns a dummy bot with the given name. This is used
+// for evaluating RBAC for the Delete RPC
+func dummyBotWithName(name string) *pb.Bot {
+	return &pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+}
+
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
 // not exist.
 func (bs *BotService) DeleteBot(
@@ -559,16 +619,17 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if req.BotName == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
+	}
+
+	if err := authCtx.CheckAccessToResource153(
+		dummyBotWithName(req.BotName), types.VerbDelete,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	err = trace.NewAggregate(
@@ -596,6 +657,27 @@ func (bs *BotService) DeleteBot(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// setKindAndVersion patches for the fact that when this API was originally
+// introduced, we did not enforce that the Kind/Version fields were set.
+// This is largely not an issue since someone would need to invoke the API
+// directly (as tctl will require that they are set). However, we do need these
+// fields to be set correctly for authz to work properly.
+//
+// TODO(noah): In the future, we should commit to a breaking change to validate
+// that these fields are set correctly.
+func setKindAndVersion(b *pb.Bot) error {
+	if b == nil {
+		return trace.BadParameter("bot: must be non-nil")
+	}
+	if b.Kind == "" {
+		b.Kind = types.KindBot
+	}
+	if b.Version == "" {
+		b.Version = types.V1
+	}
+	return nil
 }
 
 func validateBot(b *pb.Bot) error {
@@ -652,7 +734,8 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			RoleName: role.GetName(),
 		},
 		Spec: &pb.BotSpec{
-			Roles: role.GetImpersonateConditions(types.Allow).Roles,
+			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
+			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
 		},
 	}
 
@@ -684,9 +767,17 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User, types.Role, error) {
 	// Setup role
 	resourceName := BotResourceName(bot.Metadata.Name)
+
+	// Continue to use the legacy max session TTL (12 hours) as the default, but
+	// allow overrides via the optional bot spec field.
+	maxSessionTTL := defaults.DefaultBotMaxSessionTTL
+	if bot.Spec.MaxSessionTtl != nil {
+		maxSessionTTL = bot.Spec.MaxSessionTtl.AsDuration()
+	}
+
 	role, err := types.NewRole(resourceName, types.RoleSpecV6{
 		Options: types.RoleOptions{
-			MaxSessionTTL: types.Duration(12 * time.Hour),
+			MaxSessionTTL: types.NewDuration(maxSessionTTL),
 		},
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
@@ -721,9 +812,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 
 	// First copy in the labels from the Bot resource
 	userMeta.Labels = map[string]string{}
-	for k, v := range bot.Metadata.Labels {
-		userMeta.Labels[k] = v
-	}
+	maps.Copy(userMeta.Labels, bot.Metadata.Labels)
 	// Then set these labels over the top - we exclude these when converting
 	// back.
 	userMeta.Labels[types.BotLabel] = bot.Metadata.Name

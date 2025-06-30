@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/signal"
@@ -150,20 +151,9 @@ func newSession(ctx context.Context,
 			}
 
 		}
-		// new session!
-	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0
-		// clients shouldn't set TELEPORT_SESSION when they aren't joining
-		// a session, and won't need to once all supported Proxy/Node
-		// versions set the session ID for new sessions
-		sid, ok := ns.env[sshutils.SessionEnvVar]
-		if !ok {
-			sid = string(session.NewID())
-		}
-		ns.id = session.ID(sid)
-	}
 
-	ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+	}
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
@@ -237,9 +227,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 		}
 	}
 	// pass environment variables set by client
-	for key, val := range ns.env {
-		envs[key] = val
-	}
+	maps.Copy(envs, ns.env)
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
 		log.WarnContext(ctx, "Failed to set environment variables", "error", err)

@@ -23,8 +23,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
@@ -43,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
@@ -52,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/terraformcloud"
@@ -72,6 +76,43 @@ type AzureParams struct {
 	// ClientID is the client ID of the managed identity for Teleport to assume
 	// when authenticating a node.
 	ClientID string
+}
+
+// GitlabParams is the parameters specific to the gitlab join method.
+type GitlabParams struct {
+	// EnvVarName is the name of the environment variable that contains the
+	// IDToken. If unset, this will default to "TBOT_GITLAB_JWT".
+	EnvVarName string
+}
+
+// GetSignerFunc is a function that fetches a keypair from bound keypair client
+// state.
+type GetSignerFunc func(pubKey string) (crypto.Signer, error)
+
+// KeygenFunc is a function to generate a new keypair for bound keypair joining.
+// Clients will generally need to store this for future use, so this function
+// should include some mechanism for storage and retrieval.
+type KeygenFunc func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error)
+
+// BoundKeypairParams are parameters specific to bound-keypair joining.
+type BoundKeypairParams struct {
+	// InitialJoinSecret is a one-time-use joining token for use on first join.
+	// May be unset if a keypair was registered with Auth out of band.
+	InitialJoinSecret string
+
+	// PreviousJoinState is the previous join state document provided by Auth
+	// alongside the previous set of certs. If this is initial registration, it
+	// can be empty.
+	PreviousJoinState []byte
+
+	// GetSigner is a function that fetches a signer from the client keystore.
+	GetSigner GetSignerFunc
+
+	// RequestNewKeypair is a callback function used to request a new keypair.
+	// This may be called at initial onboarding when `InitialJoinSecret` is set,
+	// or on any join (including the initial join) if `RotateAfter` is set on
+	// the backing token and its value has elapsed.
+	RequestNewKeypair KeygenFunc
 }
 
 // RegisterParams specifies parameters
@@ -143,6 +184,10 @@ type RegisterParams struct {
 	// containing TF Cloud's Workload Identity Token when using Terraform Cloud
 	// joining.
 	TerraformCloudAudienceTag string
+	// GitlabParams is the parameters specific to the gitlab join method.
+	GitlabParams GitlabParams
+	// BoundKeypairParams contains parameters specific to bound keypair joining.
+	BoundKeypairParams *BoundKeypairParams
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -181,6 +226,21 @@ func (r *RegisterParams) verifyAuthOrProxyAddress() error {
 	return nil
 }
 
+// BoundKeypairRegistrationResult is the result from a successful bound keypair
+// registration attempt. This contains additional values clients are expected to
+// store for subsequent join attempts.
+type BoundKeypairRegisterResult struct {
+	// BoundPublicKey is the public key trusted by the server after the join
+	// attempt, and can be used to confirm the current public key after
+	// registration or rotation.
+	BoundPublicKey string
+
+	// JoinState is a serialized join state JWT. This should be committed to the
+	// bound keypair client state and provided via `BoundKeypairParams` on the
+	// next join attempt.
+	JoinState []byte
+}
+
 // RegisterResult contains the certificates and the private key generated during
 // the registration process.
 type RegisterResult struct {
@@ -190,6 +250,9 @@ type RegisterResult struct {
 	// generated according to the current signature algorithm suite configured
 	// in the cluster.
 	PrivateKey crypto.Signer
+	// BoundKeypair contains additional results from bound keypair registration
+	// attempts. This is only set when bound keypair joining is used.
+	BoundKeypair *BoundKeypairRegisterResult
 }
 
 // Register is used to get signed certificates when a node, proxy, or bot is
@@ -230,7 +293,9 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGitLab:
-		params.IDToken, err = gitlab.NewIDTokenSource(os.Getenv).GetIDToken()
+		params.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
+			EnvVarName: params.GitlabParams.EnvVarName,
+		}).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -263,6 +328,15 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		params.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodAzureDevops:
+		params.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodBoundKeypair:
+		if params.BoundKeypairParams == nil {
+			return nil, trace.BadParameter("bound keypair parameters are required")
 		}
 	}
 
@@ -361,7 +435,9 @@ func registerThroughProxy(
 	case types.JoinMethodIAM,
 		types.JoinMethodAzure,
 		types.JoinMethodTPM,
-		types.JoinMethodOracle:
+		types.JoinMethodOracle,
+		types.JoinMethodBoundKeypair:
+
 		// These join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
@@ -388,6 +464,15 @@ func registerThroughProxy(
 			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodOracle:
 			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
+		case types.JoinMethodBoundKeypair:
+			// Bound keypair joining needs to set additional fields on the
+			// result, so it constructs the struct internally.
+			result, err := registerUsingBoundKeypairMethod(ctx, joinServiceClient, token, hostKeys, params)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return result, nil
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -476,6 +561,15 @@ func registerThroughAuthClient(
 		certs, err = registerUsingAzureMethod(ctx, client, token, hostKeys, params)
 	case types.JoinMethodTPM:
 		certs, err = registerUsingTPMMethod(ctx, client, token, hostKeys, params)
+	case types.JoinMethodBoundKeypair:
+		// Bound keypair joining has additional return values, so it constructs
+		// its RegisterResult internally.
+		result, err := registerUsingBoundKeypairMethod(ctx, client, token, hostKeys, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return result, nil
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
@@ -660,6 +754,11 @@ type joinServiceClient interface {
 		tokenReq *types.RegisterUsingTokenRequest,
 		challengeResponse client.RegisterOracleChallengeResponseFunc,
 	) (*proto.Certs, error)
+	RegisterUsingBoundKeypairMethod(
+		ctx context.Context,
+		req *proto.RegisterUsingBoundKeypairInitialRequest,
+		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
+	) (*client.BoundKeypairRegistrationResponse, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -838,6 +937,122 @@ func registerUsingOracleMethod(
 			}, nil
 		})
 	return certs, trace.Wrap(err)
+}
+
+// sshPubKeyFromSigner returns the public key of the given signer in ssh
+// authorized_keys format.
+func sshPubKeyFromSigner(signer crypto.Signer) (string, error) {
+	sshKey, err := ssh.NewPublicKey(signer.Public())
+	if err != nil {
+		return "", trace.Wrap(err, "creating SSH public key from signer")
+	}
+
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshKey))), nil
+}
+
+// registerUsingBoundKeypairMethod performs bound keypair-type registration and
+// handles the joining ceremony.
+func registerUsingBoundKeypairMethod(
+	ctx context.Context,
+	client joinServiceClient,
+	token string,
+	hostKeys *newHostKeys,
+	params RegisterParams,
+) (*RegisterResult, error) {
+	bkParams := params.BoundKeypairParams
+
+	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
+		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
+		InitialJoinSecret: bkParams.InitialJoinSecret,
+		PreviousJoinState: bkParams.PreviousJoinState,
+	}
+
+	regResponse, err := client.RegisterUsingBoundKeypairMethod(
+		ctx,
+		initReq,
+		func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
+			switch kind := resp.GetResponse().(type) {
+			case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
+				signer, err := bkParams.GetSigner(kind.Challenge.PublicKey)
+				if err != nil {
+					return nil, trace.Wrap(err, "could not lookup signer for public key %+v", kind.Challenge.PublicKey)
+				}
+
+				alg, err := jwt.AlgorithmForPublicKey(signer.Public())
+				if err != nil {
+					return nil, trace.Wrap(err, "determining signing algorithm for public key")
+				}
+
+				opts := (&jose.SignerOptions{}).WithType("JWT")
+				key := jose.SigningKey{
+					Algorithm: alg,
+					Key:       signer,
+				}
+
+				joseSigner, err := jose.NewSigner(key, opts)
+				if err != nil {
+					return nil, trace.Wrap(err, "creating signer")
+				}
+
+				jws, err := joseSigner.Sign([]byte(kind.Challenge.Challenge))
+				if err != nil {
+					return nil, trace.Wrap(err, "signing challenge")
+				}
+
+				serialized, err := jws.CompactSerialize()
+				if err != nil {
+					return nil, trace.Wrap(err, "serializing signed challenge")
+				}
+
+				return &proto.RegisterUsingBoundKeypairMethodRequest{
+					Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
+						ChallengeResponse: &proto.RegisterUsingBoundKeypairChallengeResponse{
+							Solution: []byte(serialized),
+						},
+					},
+				}, nil
+			case *proto.RegisterUsingBoundKeypairMethodResponse_Rotation:
+				if bkParams.RequestNewKeypair == nil {
+					return nil, trace.BadParameter("RequestNewKeypair is required")
+				}
+
+				slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
+
+				newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(kind.Rotation.SignatureAlgorithmSuite))
+				if err != nil {
+					return nil, trace.Wrap(err, "requesting new keypair")
+				}
+
+				newPubkey, err := sshPubKeyFromSigner(newSigner)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return &proto.RegisterUsingBoundKeypairMethodRequest{
+					Payload: &proto.RegisterUsingBoundKeypairMethodRequest_RotationResponse{
+						RotationResponse: &proto.RegisterUsingBoundKeypairRotationResponse{
+							PublicKey: newPubkey,
+						},
+					},
+				}, nil
+			default:
+				// Note: certs variant is handled by RegisterUsingBoundKeypairMethod()
+				return nil, trace.BadParameter("received unexpected challenge response: %v", resp.GetResponse())
+			}
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Implementation note, callers are expected to call
+	return &RegisterResult{
+		PrivateKey: hostKeys.privateKey,
+		Certs:      regResponse.Certs,
+		BoundKeypair: &BoundKeypairRegisterResult{
+			BoundPublicKey: regResponse.BoundPublicKey,
+			JoinState:      regResponse.JoinState,
+		},
+	}, nil
 }
 
 // readCA will read in CA that will be used to validate the certificate that

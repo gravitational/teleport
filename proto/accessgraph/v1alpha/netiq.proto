@@ -150,6 +150,18 @@ message NetIQResourceAssignmentRef {
   string mapping_description = 4;
   // status_code is the status code of the role assignment.
   uint32 status_code = 5;
+  // entitlements is the list of entitlement values associated with the resource.
+  repeated Entitlement entitlements = 6;
+}
+
+// Entitlement represents an entitlement value in the Identity Vault.
+message Entitlement {
+  // id is the unique identifier of the resource.
+  string id = 1;
+  // name is the name of the resource.
+  string name = 2;
+  // value is the value of the entitlement.
+  string value = 3;
 }
 
 // NetIQMemberAssignmentRef represents a NetIQ resource assignment reference.

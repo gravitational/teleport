@@ -13,8 +13,8 @@ read/write ratio, mutability, etc.).
 | Data type               | Description                                                                                                                                 | Supported storage backends                                                                             |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB                |
-| audit events            | JSON-encoded events from the audit log (e.g. user logins, RBAC changes)                                                                     | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, GCP Firestore |
-| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
+| audit events            | Events from the audit log (e.g. user logins, RBAC changes)                                                                                  | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, Amazon S3, GCP Firestore |
+| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, Amazon S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                     |
 
 ## Cluster state
@@ -654,6 +654,12 @@ Service reads these parameters to configure its interactions with S3:
 - `use_s3_virtual_style_addressing` - Whether to use virtual-host-style instead of path-style URLs for the
   bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
   without a custom endpoint set, this option has no effect.
+
+- `complete_initiators` - When specified, Teleport will only complete uploads
+initiated by the specified set of initiators. This is helpful in scenarios where
+software other than Teleport is initiating multipart uploads in the recordings
+bucket. This should be set to the display name of the initiator(s) you want to
+allow.
 
 ### S3 IAM policy
 
@@ -1469,7 +1475,7 @@ teleport:
 </Admonition>
 
 Teleport can use [CockroachDB](https://www.cockroachlabs.com/) as a storage backend
-to achieve high availability and survive regional failures. You must take steps to 
+to achieve high availability and survive regional failures. You must take steps to
 protect access to CockroachDB in this configuration because that is where Teleport
 secrets like keys and user records will be stored.
 

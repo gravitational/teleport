@@ -321,6 +321,9 @@ export type SharedStyles = {
     small: string;
     medium: string;
     large: string;
+    700: string;
+    900: string;
+    1200: string;
   };
   topBarHeight: number[];
   /**

@@ -144,7 +144,6 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        $Env:COREPACK_INTEGRITY_KEYS = '{"npm":[{"expires":"2025-01-29T00:00:00.000Z","keyid":"SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1Olb3zMAFFxXKHiIkQO5cJ3Yhl5i6UPp+IhuteBJbuHcA5UogKo0EWtlWwW6KSaKoTNEYL7JlCQiVnkhBktUgg=="},{"expires":null,"keyid":"SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY6Ya7W++7aUPzvMTrezH6Ycx3c+HOKYCcNGybJZSCJq/fd7Qa8uuAKtdIkUQtQiEKERhAmE5lMMJhP8OkDOa2g=="}]}'
         corepack enable pnpm
         Write-Host "::endgroup::"
     }
@@ -162,6 +161,25 @@ function Enable-Node {
     )
     begin {
         $Env:Path = "$ToolchainDir/node;$Env:Path"
+    }
+}
+
+function Install-WasmPack {
+    <#
+    .SYNOPSIS
+        Builds and installs wasm-pack and dependent tooling.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $WasmPackVersion
+    )
+    begin {
+        Write-Host "::group::Installing wasm-pack $WasmPackVersion"
+        # TODO(camscale): Don't hard-code wasm-binden-cli version
+        cargo install wasm-bindgen-cli --locked --version 0.2.99
+        cargo install wasm-pack --locked --version "$WasmPackVersion"
+        Write-Host "::endgroup::"
     }
 }
 
@@ -188,6 +206,41 @@ function Install-Wintun {
         }
         Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
         Move-Item -Force -Path "$InstallDir/wintun/bin/amd64/wintun.dll" -Destination "$InstallDir/wintun.dll"
+        Write-Host "::endgroup::"
+    }
+}
+
+function Compile-Message-File {
+    <#
+    .SYNOPSIS
+        Compiles msgfile.mc into msgfile.dll in the supplied directory.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $MessageFile,
+        [Parameter(Mandatory)]
+        [string] $CompileDir
+    )
+    begin {
+        Write-Host "::group::Compiling msgfile.dll to $CompileDir..."
+        New-Item -Path "$CompileDir" -ItemType Directory -Force | Out-Null
+        $SDKRegistry = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v10.0"
+        $SDKInstallationDir = $(Get-Item $SDKRegistry).GetValue("InstallationFolder")
+        $SDKVersion = $(Get-Item $SDKRegistry).GetValue("ProductVersion")
+        $SDKBinDir = "${SDKInstallationDir}bin\${SDKVersion}.0\x64\"
+
+        # Compile .mc to .rc.
+        .$SDKBinDir\mc.exe -h "$CompileDir" -r "$CompileDir" "$MessageFile"
+
+        # Compile .rc to .res in the same directory as the input file.
+        $MessageFileBasename = $(Get-Item $MessageFile).Basename
+        .$SDKBinDir\rc.exe "$CompileDir\$MessageFileBasename.rc"
+
+        # Compile .res to .dll.
+        $LinkExe = vswhere.exe -find **\Hostx64\x64\link.exe | Select -First 1
+        .$LinkExe -dll -noentry -out:"$CompileDir\$MessageFileBasename.dll" "$CompileDir\$MessageFileBasename.res" /MACHINE:X64
+
         Write-Host "::endgroup::"
     }
 }
@@ -295,6 +348,9 @@ function Install-BuildRequirements {
 
         $GoVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-go-version).TrimStart("go")
         Install-Go -GoVersion "$GoVersion" -ToolchainDir "$InstallDirectory"
+
+        $WasmPackVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-wasm-pack-version).Trim()
+        Install-WasmPack -WasmPackVersion "$WasmPackVersion"
     }
     Write-Host $("All build requirements installed in {0:g}" -f $CommandDuration)
 }
@@ -370,11 +426,12 @@ function Build-Tsh {
     $BinaryName = "tsh.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
@@ -403,11 +460,12 @@ function Build-Tctl {
     $BinaryName = "tctl.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tctl..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
@@ -504,7 +562,9 @@ function Build-Connect {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
         Install-Wintun -InstallDir "$TeleportSourceDirectory\wintun"
+        Compile-Message-File -MessageFile "$TeleportSourceDirectory\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$TeleportSourceDirectory\msgfile"
         $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
+        $env:CONNECT_MSGFILE_DLL_PATH = "$TeleportSourceDirectory\msgfile\msgfile.dll"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
         pnpm install --frozen-lockfile
         pnpm build-term

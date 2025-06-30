@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -782,6 +783,35 @@ func TestValidateClientRedirect(t *testing.T) {
 				},
 			}
 			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowTrue, settings))
+		}
+	})
+
+	t.Run("SSOMFAWeb", func(t *testing.T) {
+		const ssoTestFlowFalse = false
+		settings := &types.SSOClientRedirectSettings{
+			AllowedHttpsHostnames: []string{
+				"allowed.domain.invalid",
+			},
+		}
+
+		// Only allow web mfa redirect as a relative path.
+		require.NoError(t, ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", ssoTestFlowFalse, settings))
+
+		for _, badURL := range []string{
+			"localhost:12345" + sso.WebMFARedirect,
+			"http://localhost:12345" + sso.WebMFARedirect,
+			"https://localhost:12345" + sso.WebMFARedirect,
+			"127.0.0.1:12345" + sso.WebMFARedirect,
+			"http://127.0.0.1:12345" + sso.WebMFARedirect,
+			"https://127.0.0.1:12345" + sso.WebMFARedirect,
+			"allowed.domain.invalid" + sso.WebMFARedirect,
+			"http://allowed.domain.invalid" + sso.WebMFARedirect,
+			"https://allowed.domain.invalid" + sso.WebMFARedirect,
+			"not.allowed.domain.invalid" + sso.WebMFARedirect,
+			"http://not.allowed.domain.invalid" + sso.WebMFARedirect,
+			"https://not.allowed.domain.invalid" + sso.WebMFARedirect,
+		} {
+			require.Error(t, ValidateClientRedirect(badURL+"?channel_id=", ssoTestFlowFalse, settings))
 		}
 	})
 }

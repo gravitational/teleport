@@ -66,7 +66,7 @@ func (o *WorkloadIdentityAPIService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
-func (o *WorkloadIdentityAPIService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityAPIService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityAPIService
 	return withTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
 }
@@ -82,5 +82,7 @@ func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (o *WorkloadIdentityAPIService) GetCredentialLifetime() CredentialLifetime {
-	return o.CredentialLifetime
+	lt := o.CredentialLifetime
+	lt.skipMaxTTLValidation = true
+	return lt
 }

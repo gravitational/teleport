@@ -91,7 +91,6 @@ func TestUpdateBotLogins(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 
 		const botName = "test"
 
@@ -105,6 +104,8 @@ func TestUpdateBotLogins(t *testing.T) {
 			}
 
 			bot := &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -200,7 +201,6 @@ func TestUpdateBotRoles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 
 		const botName = "test"
 
@@ -210,6 +210,8 @@ func TestUpdateBotRoles(t *testing.T) {
 			}
 
 			bot := &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -257,6 +259,8 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	// Create an initial bot
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},

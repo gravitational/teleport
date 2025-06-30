@@ -18,10 +18,12 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -67,7 +69,7 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
 	var errContains = func(contains string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		return func(t require.TestingT, err error, msgAndArgs ...any) {
 			require.ErrorContains(t, err, contains, msgAndArgs...)
 		}
 	}
@@ -104,6 +106,12 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 					},
 					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
+						X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
+							MaximumTtl: durationpb.New(time.Hour * 24 * 14),
+						},
+						Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
+							MaximumTtl: durationpb.New(time.Hour * 24),
+						},
 					},
 				},
 			},
@@ -304,6 +312,44 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 				},
 			},
 			requireErr: errContains(`unknown identifier: "does_not_exist"`),
+		},
+		{
+			name: "maximum x509 ttl too large",
+			in: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/example",
+						X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
+							MaximumTtl: durationpb.New(time.Hour * 24 * 365),
+						},
+					},
+				},
+			},
+			requireErr: errContains(`spec.spiffe.x509.maximum_ttl: must be less than 336h0m0s`),
+		},
+		{
+			name: "maximum jwt ttl too large",
+			in: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/example",
+						Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
+							MaximumTtl: durationpb.New(time.Hour * 24 * 365),
+						},
+					},
+				},
+			},
+			requireErr: errContains(`spec.spiffe.jwt.maximum_ttl: must be less than 24h0m0s`),
 		},
 	}
 

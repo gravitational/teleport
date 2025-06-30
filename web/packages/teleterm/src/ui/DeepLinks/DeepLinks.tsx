@@ -20,7 +20,6 @@ import { useEffect, useMemo } from 'react';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { useVnetContext } from 'teleterm/ui/Vnet';
 
 import * as launchDeepLinkModule from './launchDeepLink';
@@ -39,14 +38,12 @@ export const DeepLinks = ({
 }) => {
   const appCtx = useAppContext();
   const logger = useLogger('DeepLinks');
-  const connections = useConnectionsContext();
   const vnet = useVnetContext();
   const auxCtx = useMemo(
     () => ({
       vnet: { isSupported: vnet.isSupported },
-      connections: { open: connections.open },
     }),
-    [vnet.isSupported, connections.open]
+    [vnet.isSupported]
   );
 
   useEffect(() => {

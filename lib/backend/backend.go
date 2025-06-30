@@ -162,10 +162,7 @@ func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit i
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		end := limit
-		if len(rslt.Items) < end {
-			end = len(rslt.Items)
-		}
+		end := min(len(rslt.Items), limit)
 		stop, err := fn(rslt.Items[0:end])
 		if err != nil {
 			return trace.Wrap(err)
@@ -189,18 +186,21 @@ func IterateRange(ctx context.Context, bk Backend, startKey, endKey Key, limit i
 // 2. allow individual backends to expose custom streaming methods s.t. the most performant
 // impl for a given backend may be used.
 func StreamRange(ctx context.Context, bk Backend, startKey, endKey Key, pageSize int) stream.Stream[Item] {
-	return stream.PageFunc[Item](func() ([]Item, error) {
-		if startKey.components == nil {
+	var done bool
+	return stream.PageFunc(func() ([]Item, error) {
+		if done {
 			return nil, io.EOF
 		}
-		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize+1)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(rslt.Items) < pageSize {
-			startKey = Key{}
+		if len(rslt.Items) > pageSize {
+			startKey = rslt.Items[pageSize].Key
+			clear(rslt.Items[pageSize:])
+			rslt.Items = rslt.Items[:pageSize]
 		} else {
-			startKey = nextKey(rslt.Items[pageSize-1].Key)
+			done = true
 		}
 		return rslt.Items, nil
 	})
@@ -304,7 +304,7 @@ type Config struct {
 // Params type defines a flexible unified back-end configuration API.
 // It is just a map of key/value pairs which gets populated by `storage` section
 // in Teleport YAML config.
-type Params map[string]interface{}
+type Params map[string]any
 
 // GetString returns a string value stored in Params map, or an empty string
 // if nothing is found
@@ -320,10 +320,10 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// nextKey returns the next possible key.
-// If used with a key prefix, this will return
-// the end of the range for that key prefix.
-func nextKey(key Key) Key {
+const noEnd = "\x00"
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key Key) Key {
 	end := make([]byte, len(key.s))
 	copy(end, key.s)
 	for i := len(end) - 1; i >= 0; i-- {
@@ -337,13 +337,6 @@ func nextKey(key Key) Key {
 	return Key{noEnd: true}
 }
 
-var noEnd = []byte{0}
-
-// RangeEnd returns end of the range for given key.
-func RangeEnd(key Key) Key {
-	return nextKey(key)
-}
-
 // HostID is a derivation of a KeyedItem that allows the host id
 // to be included in the key.
 type HostID interface {
@@ -354,20 +347,6 @@ type HostID interface {
 // KeyedItem represents an item from which a pagination key can be derived.
 type KeyedItem interface {
 	GetName() string
-}
-
-// NextPaginationKey returns the next pagination key.
-// For items that implement HostID, the next key will also
-// have the HostID part.
-func NextPaginationKey(ki KeyedItem) string {
-	var key Key
-	if h, ok := ki.(HostID); ok {
-		key = internalKey(h.GetHostID(), h.GetName())
-	} else {
-		key = NewKey(ki.GetName())
-	}
-
-	return nextKey(key).String()
 }
 
 // GetPaginationKey returns the pagination key given item.
@@ -386,7 +365,7 @@ func GetPaginationKey(ki KeyedItem) string {
 func MaskKeyName(keyName string) string {
 	maskedBytes := []byte(keyName)
 	hiddenBefore := int(0.75 * float64(len(keyName)))
-	for i := 0; i < hiddenBefore; i++ {
+	for i := range hiddenBefore {
 		maskedBytes[i] = '*'
 	}
 	return string(maskedBytes)

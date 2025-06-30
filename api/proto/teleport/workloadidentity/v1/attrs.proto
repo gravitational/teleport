@@ -18,6 +18,7 @@ package teleport.workloadidentity.v1;
 
 import "teleport/trait/v1/trait.proto";
 import "teleport/workloadidentity/v1/join_attrs.proto";
+import "teleport/workloadidentity/v1/sigstore.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
@@ -111,6 +112,8 @@ message WorkloadAttrsDockerContainer {
   string image = 2;
   // The labels attached to the container.
   map<string, string> labels = 3;
+  // The exact image digest the container is running.
+  string image_digest = 4;
 }
 
 // Attributes sourced from the Systemd workload attestor.
@@ -119,6 +122,12 @@ message WorkloadAttrsSystemd {
   bool attested = 1;
   // The systemd service name.
   string service = 2;
+}
+
+// Attributes sourced from the Sigstore workload attestor.
+message WorkloadAttrsSigstore {
+  // Verificiation payloads.
+  repeated SigstoreVerificationPayload payloads = 1;
 }
 
 // The attributes provided by `tbot` regarding the workload's attestation.
@@ -135,6 +144,8 @@ message WorkloadAttrs {
   WorkloadAttrsDocker docker = 4;
   // The Systemd-specific attributes.
   WorkloadAttrsSystemd systemd = 5;
+  // The Sigstore-specific attributes.
+  WorkloadAttrsSigstore sigstore = 6;
 }
 
 // Attributes related to the user/bot making the request for a workload

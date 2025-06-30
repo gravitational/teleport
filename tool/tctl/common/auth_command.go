@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -51,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -220,6 +220,7 @@ var allowedCertificateTypes = []string{
 	"openssh",
 	"saml-idp",
 	"github",
+	"awsra",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -301,7 +302,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI authCommandCl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -404,7 +405,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
@@ -413,7 +414,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
 		OmitCDP:            a.omitCDP,
-		AuthClient:         clusterAPI,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -530,7 +530,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -643,7 +643,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-	tplVars := map[string]interface{}{
+	tplVars := map[string]any{
 		"files":     strings.Join(filesWritten, ", "),
 		"password":  password,
 		"output":    output,
@@ -890,7 +890,7 @@ func generateKeyRing(ctx context.Context, clusterAPI certificateSigner, purpose 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

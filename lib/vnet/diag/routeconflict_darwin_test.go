@@ -1,5 +1,4 @@
 //go:build darwin
-// +build darwin
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.

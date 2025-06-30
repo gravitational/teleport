@@ -28,7 +28,6 @@ beforeEach(() => {
 
 const auxCtx: AuxContext = {
   vnet: { isSupported: true },
-  connections: { open: jest.fn() },
 };
 
 describe('parse errors', () => {

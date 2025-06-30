@@ -41,10 +41,10 @@ type RawRecipientsMap map[string][]string
 // The input can be one of the following:
 // "key" = "value"
 // "key" = ["multiple", "values"]
-func (r *RawRecipientsMap) UnmarshalTOML(in interface{}) error {
+func (r *RawRecipientsMap) UnmarshalTOML(in any) error {
 	*r = make(RawRecipientsMap)
 
-	recipientsMap, ok := in.(map[string]interface{})
+	recipientsMap, ok := in.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected type for recipients %T", in)
 	}
@@ -53,7 +53,7 @@ func (r *RawRecipientsMap) UnmarshalTOML(in interface{}) error {
 		switch val := v.(type) {
 		case string:
 			(*r)[k] = []string{val}
-		case []interface{}:
+		case []any:
 			for _, str := range val {
 				str, ok := str.(string)
 				if !ok {
@@ -117,7 +117,7 @@ type Recipient struct {
 	// values are "User" or "Channel".
 	Kind string
 	// Data allows MessagingBot to store required data for the recipient
-	Data interface{}
+	Data any
 }
 
 // RecipientSet is a Set of Recipient. Recipient items are deduplicated based on Recipient.ID

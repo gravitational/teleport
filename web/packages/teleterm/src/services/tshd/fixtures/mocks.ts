@@ -43,12 +43,6 @@ export class MockTshClient implements TshdClient {
       roles: [],
       applicableRoles: [],
     });
-  getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
   assumeRole = () => new MockedUnaryCall({});
   deleteAccessRequest = () => new MockedUnaryCall({});
   getAccessRequests = () =>
@@ -95,6 +89,8 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
+  listDatabaseServers = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () =>
     new MockedUnaryCall({
       userPreferences: {
@@ -115,14 +111,22 @@ export class MockTshClient implements TshdClient {
     });
   startHeadlessWatcher = () => new MockedUnaryCall({});
   getApp = () => new MockedUnaryCall({ app: makeApp() });
+  connectToDesktop = undefined;
+  setSharedDirectoryForDesktopSession = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
-  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
+  getServiceInfo = () =>
+    new MockedUnaryCall({
+      appDnsZones: [],
+      clusters: [],
+      sshConfigured: false,
+      vnetSshConfigPath:
+        '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+    });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
-
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
@@ -131,4 +135,5 @@ export class MockVnetClient implements VnetClient {
       },
     });
   }
+  autoConfigureSSH = () => new MockedUnaryCall({});
 }

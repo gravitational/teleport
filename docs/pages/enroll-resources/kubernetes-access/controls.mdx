@@ -35,19 +35,25 @@ clusters:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v8
 spec:
   allow:
     kubernetes_labels:
       'region': '*'
       'platform': 'minikube'
     kubernetes_resources:
-      - kind: pod
+      - kind: pods
         namespace: "production"
         name: "^webapp-[a-z0-9-]+$"
-      - kind: pod
+        api_group: ""
+      - kind: pods
         namespace: "development"
         name: "*"
+        api_group: ""
+      - kind: deployments
+        namespace: "development"
+        name: "*"
+        api_group: "apps"
     kubernetes_groups:
     - developers
     kubernetes_users:
@@ -475,7 +481,131 @@ spec:
 ### `kubernetes_resources`
 
 The `kubernetes_resources` field enables a Teleport role to configure access to
-specific resources in a Kubernetes cluster:
+specific resources in a Kubernetes cluster.
+
+The value of this field is a list of mappings, where each mapping is described as follows:
+
+#### Role V8
+
+<Admonition type="warning">
+Role V8 added support for managing access to any kubernetes resource kind, including custom resource definitions (CRDs).
+To do so it has multiple changes to the way the `kubernetes_resources` section is handled compared to prior role versions:
+
+- the `kind` field must always specify the plural form of the resource kind
+- the `api_group` field must be set for resources not found in the core API group
+- `kind: namespaces` now matches namespace resources, it no longer matches resources within the namespace
+- the `namespace` field when set and with a value of anything but `*` will not match cluster-wide resources.
+
+As this behavior differs from earlier role versions, if you migrate a role to V8 from a previous version you will
+likely need to adjust the `kubernetes_resources` section.
+</Admonition>
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      - kind: pods
+        api_group: ""
+        namespace: production
+        name: webapp
+        verbs: ["*"]
+      - kind: deployments
+        api_group: apps
+        namespace: development
+        name: "*"
+    # ...
+```
+
+- `kind`: The kind of resource to enable access to. It can be `*` or
+  the plural form of the kind (e.g. `pods`, `deployments`, `cronjobs`, `mycustomresources`).
+  If the resource has a group, it must be specified in the `api_group` field, for example,
+  while `pods` doesn't need a group, `deployments` require the `api_group` field be set to `apps`.
+  <Admonition type="tip">
+  The full list of available resources, along with their api group can be found by running the following command:
+
+  ```bash
+  kubectl api-resources --namespaced=true -o=name
+  kubectl api-resources --namespaced=false -o=name
+  ```
+
+  - If the line has a `.`, then the kind is the first element before the `.` and the api group is everything after the first `.`.
+  - If the line doesn't have a `.`, then the kind is the full element and there is no api group.
+  </Admonition>
+
+  <Admonition type="warning">
+  - The `namespaces` kind doesn't include all the namespaced resources, it only covers the namespace itself.
+    This behavior is different from earlier role versions where it covered the resource itself and everything in the namespace,
+    which means that if you migrate an existing role to V8 from a prior version you will likely need to adjust the `kubernetes_resources` section.
+  - The kind, including `*` now enforces the `namespace` field. To match a cluster-wide resource, the `namespace` field must be empty or `*`.
+    This behavior is different from earlier role versions where it included cluster-wide resources regardless of the `namespace` field.
+  </Admonition>
+
+- `api_group`: The API group of the resource. In `kube-access`, in the example above, the `pods` resource being in a core resource
+  has `""` for api_group, the value is set to `apps` for the `deployments` resource kind. A wildcard can be used to match any API groups.
+
+- `namespace`: The Kubernetes namespace in which to allow access to a resource. Must be empty or `*` for cluster-wide resources. Any other value,
+  including other wildcards, will only match namespaced resources.
+  In the `kube-access` role, we are allowing access to a pod in the `production` namespace.
+
+  <Admonition type="tip">
+  Note that when using the wildcard `*`, it will match any resources, including cluster-wide ones (based on kind/api_group).
+  Using empty string `""` will match only cluster-wide resources.
+  Any other value, like `^.+$` will only match namespaced resources and exclude cluster-wide resources.
+  </Admonition>
+
+
+- `name`: The name of the pod to allow access to. In `kube-access`, this is
+  the `webapp` pod.
+
+- `verbs`: The operations to allow on the resource. Currently, Teleport supports:
+
+  | Verb | Grants access to |
+  | ---- | ----------- |
+  | `*` | All operations |
+  | `get` | Read a resource |
+  | `list` | List resources |
+  | `create` | Create a resource |
+  | `update` | Update a resource |
+  | `patch` | Patch a resource |
+  | `delete` | Delete a resource |
+  | `deletecollection` | Delete a collection of resources |
+  | `watch` | Watch resources |
+  | `portforward` | Create portforward requests for Pods |
+  | `exec` | Execute commands in Pods |
+
+For the `namespace`, `name` and `api_group` fields, you can add a wildcard character
+(`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
+matches pods named `pod-1-a` and `pod-2-c`. As with `kubernetes_labels`, if a
+value begins with `^` and ends in `$`, the Kubernetes Service will treat it as a
+regular expression using Go's `re2` syntax (see the `re2`
+[README](https://github.com/google/re2/wiki/Syntax)).
+
+<Admonition type="tip">
+For a user to access a pod named in a role's `kubernetes_resources` field, the user
+must be assigned a Teleport role that contains at least one value within
+`kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes
+roles to allow or deny access. Read the next section for an explanation of how the
+Kubernetes Service evaluates Teleport roles in order to allow or deny access to
+pods in a cluster.
+</Admonition>
+
+#### Role V7
+
+<Admonition type="tip">
+Role V7 added support for more `kind` values. It uses singular names while later role
+versions use the plural form.
+</Admonition>
+
+<Admonition type="warning">
+The wildcard (`*`) and `namespace` kinds have special meaning, when using those, pay extra
+attention to the intent and the difference of behavior with later versions.
+</Admonition>
 
 ```yaml
 kind: role
@@ -485,28 +615,37 @@ version: v7
 spec:
   allow:
     kubernetes_labels:
-      '*':'*'
+      "*": "*"
     kubernetes_resources:
       - kind: pod
-        namespace: "production"
-        name: "webapp"
-        verbs: ['*']
+        namespace: production
+        name: webapp
+        verbs: ["*"]
     # ...
 ```
-
-The value of this field is a list of mappings, where each mapping has four
-fields:
 
 - `kind`: The kind of resource to enable access to. Currently, Teleport supports
 the following kinds:
 
+  <Admonition type="warning">
+  The `*` kind behavior slightly differs from later versions. In V7, it allows access to all resources
+  including the cluster-wide ones regardless of the `namespace` field.
+  In later role versions, the `namespace` field is enforced, which means that when upgrading you may need to adjust
+  your resources, especially on the deny side.
+  </Admonition>
+  <Admonition type="warning">
+  The `namespace` kind covers the `namespace` resource as well as all resources within it.
+  This behavior is different from later role versions where it only covers the resource itself which means that
+  when upgrading you may need to adjust your resources, especially on the deny side.
+  </Admonition>
+
   | Kind | Grants access to |
   | ---- | ----------- |
-  | `*` | All resources |
+  | `*` | All resources, including cluster-wide ones regardless of the `namespace` field |
   | `pod` | Pods |
   | `secret` | Secrets |
   | `configmap` | ConfigMaps |
-  | `namespace` | Namespaces and all resources within |
+  | `namespace` | Namespaces and all resources within. |
   | `service` | Services |
   | `serviceaccount` | ServiceAccounts |
   | `kube_node` | Nodes |
@@ -528,6 +667,9 @@ the following kinds:
 - `namespace`: The Kubernetes namespace in which to allow access to a resource.
   In the `kube-access` role, we are allowing access to a pod in the
   `production` namespace.
+  Note that when the `kind` field is set to `*`, the `namespace` field is ignored,
+  which is a different behavior from later role versions where the `namespace` field is
+  enforced.
 
 - `name`: The name of the pod to allow access to. In `kube-access`, this is
   the `webapp` pod.
@@ -555,7 +697,7 @@ value begins with `^` and ends in `$`, the Kubernetes Service will treat it as a
 regular expression using Go's `re2` syntax (see the `re2`
 [README](https://github.com/google/re2/wiki/Syntax)).
 
-<Admonition type="tip" >
+<Admonition type="tip">
 For a user to access a pod named in a role's `kubernetes_resources` field, the user
 must be assigned a Teleport role that contains at least one value within
 `kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes
@@ -563,6 +705,252 @@ roles to allow or deny access. Read the next section for an explanation of how t
 Kubernetes Service evaluates Teleport roles in order to allow or deny access to
 pods in a cluster.
 </Admonition>
+
+#### Role V6
+
+<Admonition type="tip">
+Role V6 introduced the support for the `kubernetes_resources` field, but was restricted
+to only allow access to pods with kind 'pod'. Later role versions extended support to additional resources.
+</Admonition>
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      - kind: pod
+        namespace: production
+        name: webapp
+    # ...
+```
+
+- `kind`: The kind of resource to enable access to. The only supported value is `pod`.
+- `namespace`: The Kubernetes namespace in which to allow access to a resource.
+  In the `kube-access` role, we are allowing access to a pod in the
+  `production` namespace.
+- `name`: The name of the pod to allow access to. In `kube-access`, this is
+  the `webapp` pod.
+
+For both the `namespace` and `name` fields, you can add a wildcard character
+(`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
+matches pods named `pod-1-a` and `pod-2-c`. As with `kubernetes_labels`, if a
+value begins with `^` and ends in `$`, the Kubernetes Service will treat it as a
+regular expression using Go's `re2` syntax (see the `re2`
+[README](https://github.com/google/re2/wiki/Syntax)).
+
+<Admonition type="tip">
+For a user to access a pod named in a role's `kubernetes_resources` field, the user
+must be assigned a Teleport role that contains at least one value within
+`kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes
+roles to allow or deny access. Read the next section for an explanation of how the
+Kubernetes Service evaluates Teleport roles in order to allow or deny access to
+pods in a cluster.
+</Admonition>
+
+#### Examples
+
+##### Full access to namespaced resources except to production
+
+The following roles will grant full access to all namespaced resources in all namespaces
+except the `production` one, where no resources will be accessible.
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v7
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      # In v7, namespace means everything in the namespace.
+      - kind: namespace  # v7 uses singular.
+        name: "*"
+        verbs: ["*"]
+  deny:
+    kubernetes_resources:
+      - kind: namespace  # v7 uses singular.
+        name: production
+        verbs: ["*"]
+    # ...
+```
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      # Grant access to namespaced resources in all namespaces.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: "^.+$"  # Match any namespaced resource, will not match cluster-wide resources.
+        verbs: ["*"]
+      # Grant access to the namespace resource itself.
+      - kind: namespaces  # In v8, namespaces mean the namespace itself. As it is considered a cluster-wide resource, it must be added separately.
+        name: "*"
+        verbs: ["*"]
+  deny:
+    kubernetes_resources:
+      # Deny access to namespaced resources in the production namespace.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: production
+        verbs: ["*"]
+      # Deny access to the namespace resource itself.
+      - kind: namespaces  # v8 uses plural.
+        name: production
+        verbs: ["*"]
+    # ...
+```
+
+Alternatively, this could also be used:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      # Grant full access on everything.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: "*"  # In v8, '*' will match both namespaced and cluster-wide resources.
+        verbs: ["*"]
+  deny:
+    kubernetes_resources:
+      # Deny access to cluster-wide resources.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: ""  # Empty namespace means only cluster-wide resources will match.
+        verbs: ["*"]
+      # Deny access to namespaced resources in the production namespace.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: production
+        verbs: ["*"]
+      # Deny access to the namespace resource itself.
+      - kind: namespaces  # v8 uses plural.
+        name: production
+        verbs: ["*"]
+    # ...
+```
+
+
+##### Full access to dev namespace and all cluster-wide resources except clusterroles
+
+The following roles will grant access to all resources in the `dev` namespace and all cluster-wide resources
+except `clusterroles`.
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v7
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      # In v7, "*" includes cluster-wide resources regardless of the namespace.
+      - kind: "*"
+        name: "*"
+        namespace: dev
+        verbs: ["*"]
+  deny:
+    kubernetes_resources:
+      - kind: clusterrole  # v7 uses singular.
+        name: "*"
+        verbs: ["*"]
+    # ...
+```
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      # Grant access to all resources in the dev namespace.
+      # In v8, "*" doesn't include cluster-wide resources if the namespace is set.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: dev
+        verbs: ["*"]
+      # Grant access to all cluster-wide resources.
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: ""  # Empty namespace means only cluster-wide resources will match.
+        verbs: ["*"]
+  deny:
+    kubernetes_resources:
+      - kind: clusterroles  # v8 uses plural.
+        api_group: "*"
+        name: "*"
+    # ...
+```
+
+##### Full access to everything
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v7
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      - kind: "*"
+        name: "*"
+        namespace: "*"
+        verbs: ["*"]
+    # ...
+```
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      - kind: "*"
+        api_group: "*"
+        name: "*"
+        namespace: "*"  # Wildcard '*' will match both namespaced and cluster-wide resources.
+        verbs: ["*"]
+    # ...
+```
 
 ## How the Kubernetes Service evaluates Teleport roles
 
@@ -658,7 +1046,7 @@ version: v7
 spec:
   allow:
     kubernetes_labels:
-      - "region": "us-east-2"
+      "region": "us-east-2"
     kubernetes_resources:
       - kind: pod
         namespace: "development"

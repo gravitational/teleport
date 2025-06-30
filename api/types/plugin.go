@@ -74,6 +74,8 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeGithub indicates the Github access plugin
+	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
@@ -398,6 +400,17 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_Github:
+		if settings.Github == nil {
+			return trace.BadParameter("missing Github settings")
+		}
+		if err := settings.Github.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Github plugin must be used with the static credentials ref type")
+		}
 	default:
 		return nil
 	}
@@ -556,6 +569,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_Github:
+		return PluginTypeGithub
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
@@ -739,14 +754,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
-
 	return nil
 }
 
@@ -759,6 +769,17 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+)
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 
@@ -961,5 +982,16 @@ func (c *PluginNetIQSettings) Validate() error {
 		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults checks that the required fields for the Github plugin are set.
+func (c *PluginGithubSettings) Validate() error {
+	if c.ClientId == "" {
+		return trace.BadParameter("client_id must be set")
+	}
+	if c.OrganizationName == "" {
+		return trace.BadParameter("organization_name must be set")
+	}
 	return nil
 }

@@ -77,7 +77,7 @@ func (a *Server) MonitorSystemTime(ctx context.Context) error {
 func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 	var counter int
 	var messages []string
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		hello := handle.Hello()
 		handle.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
 			if ref.LastHeartbeat != nil && ref.LastHeartbeat.GetLastMeasurement() != nil {
@@ -94,9 +94,9 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 					)
 					if counter < systemClockMessagesLimit {
 						messages = append(messages, fmt.Sprintf(
-							"%s[%s] is %s",
+							"%v[%v] is %v",
 							hello.GetServerID(),
-							types.SystemRoles(hello.GetServices()).String(),
+							strings.Join(hello.GetServices(), ","),
 							durationText(diff),
 						))
 					}

@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/x509"
@@ -42,13 +43,13 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
@@ -74,7 +75,7 @@ type WorkloadIdentityAPIService struct {
 	crlCache         *workloadidentity.CRLCache
 
 	// client holds the impersonated client for the service
-	client           *authclient.Client
+	client           *apiclient.Client
 	attestor         *workloadattest.Attestor
 	localTrustDomain spiffeid.TrustDomain
 }
@@ -224,7 +225,7 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 
 func (s *WorkloadIdentityAPIService) authenticateClient(
 	ctx context.Context,
-) (*slog.Logger, *workloadidentityv1pb.WorkloadAttrs, error) {
+) (*slog.Logger, *attrs.WorkloadAttrs, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, nil, trace.BadParameter("peer not found in context")
@@ -268,9 +269,7 @@ func (s *WorkloadIdentityAPIService) authenticateClient(
 		)
 		return log, nil, nil
 	}
-	log = log.With(
-		"workload", att,
-	)
+	log = log.With("workload", att)
 
 	return log, att, nil
 }
@@ -429,7 +428,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
 	localBundle *spiffebundle.Bundle,
-	attest *workloadidentityv1pb.WorkloadAttrs,
+	attest *attrs.WorkloadAttrs,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "WorkloadIdentityAPIService/fetchX509SVIDs")
 	defer span.End()
@@ -446,6 +445,10 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
+	if len(creds) == 0 {
+		s.attestor.Failed(ctx, attest)
+	}
+
 	// Convert the private key to PKCS#8 format as per SPIFFE spec.
 	pkcs8PrivateKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
@@ -458,12 +461,17 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 	// format.
 	svids := make([]*workloadpb.X509SVID, len(creds))
 	for i, cred := range creds {
+		var svid bytes.Buffer
+		svid.Write(cred.GetX509Svid().GetCert())
+		for _, c := range cred.GetX509Svid().Chain {
+			svid.Write(c)
+		}
 		svids[i] = &workloadpb.X509SVID{
 			// Required. The SPIFFE ID of the SVID in this entry
 			SpiffeId: cred.SpiffeId,
 			// Required. ASN.1 DER encoded certificate chain. MAY include
 			// intermediates, the leaf certificate (or SVID itself) MUST come first.
-			X509Svid: cred.GetX509Svid().GetCert(),
+			X509Svid: svid.Bytes(),
 			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
 			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
@@ -534,6 +542,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 	// > server SHOULD respond with the "PermissionDenied" gRPC status code.
 	if len(creds) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, attr)
 		return nil, status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",

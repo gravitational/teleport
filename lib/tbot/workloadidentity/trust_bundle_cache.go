@@ -170,10 +170,11 @@ type eventsWatcher interface {
 // preferable to serve the last-good value than to disrupt subscribed workloads
 // ability to communicate.
 type TrustBundleCache struct {
-	federationClient machineidv1pb.SPIFFEFederationServiceClient
-	trustClient      trustv1.TrustServiceClient
-	eventsClient     eventsWatcher
-	clusterName      string
+	federationClient   machineidv1pb.SPIFFEFederationServiceClient
+	trustClient        trustv1.TrustServiceClient
+	eventsClient       eventsWatcher
+	clusterName        string
+	botIdentityReadyCh <-chan struct{}
 
 	logger *slog.Logger
 
@@ -191,11 +192,12 @@ func (m *TrustBundleCache) String() string {
 
 // TrustBundleCacheConfig is the configuration for a TrustBundleCache.
 type TrustBundleCacheConfig struct {
-	FederationClient machineidv1pb.SPIFFEFederationServiceClient
-	TrustClient      trustv1.TrustServiceClient
-	EventsClient     eventsWatcher
-	ClusterName      string
-	Logger           *slog.Logger
+	FederationClient   machineidv1pb.SPIFFEFederationServiceClient
+	TrustClient        trustv1.TrustServiceClient
+	EventsClient       eventsWatcher
+	ClusterName        string
+	Logger             *slog.Logger
+	BotIdentityReadyCh <-chan struct{}
 }
 
 // NewTrustBundleCache creates a new TrustBundleCache.
@@ -213,12 +215,13 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 		return nil, trace.BadParameter("missing Logger")
 	}
 	return &TrustBundleCache{
-		federationClient: cfg.FederationClient,
-		trustClient:      cfg.TrustClient,
-		eventsClient:     cfg.EventsClient,
-		clusterName:      cfg.ClusterName,
-		logger:           cfg.Logger,
-		initialized:      make(chan struct{}),
+		federationClient:   cfg.FederationClient,
+		trustClient:        cfg.TrustClient,
+		eventsClient:       cfg.EventsClient,
+		clusterName:        cfg.ClusterName,
+		logger:             cfg.Logger,
+		botIdentityReadyCh: cfg.BotIdentityReadyCh,
+		initialized:        make(chan struct{}),
 	}, nil
 }
 
@@ -228,6 +231,19 @@ const trustBundleInitFailureBackoff = 10 * time.Second
 // the context is canceled, at which point it will return nil.
 // Implements the tbot Service interface.
 func (m *TrustBundleCache) Run(ctx context.Context) error {
+	if m.botIdentityReadyCh != nil {
+		select {
+		case <-m.botIdentityReadyCh:
+		default:
+			m.logger.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-m.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+
 	for {
 		m.logger.InfoContext(
 			ctx,
@@ -470,7 +486,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 			bundleSet.Local = bundle
 			m.setBundleSet(bundleSet)
 		case types.KindSPIFFEFederation:
-			r153, ok := event.Resource.(types.Resource153Unwrapper)
+			r153, ok := event.Resource.(types.Resource153UnwrapperT[*machineidv1pb.SPIFFEFederation])
 			if !ok {
 				log.WarnContext(
 					ctx,
@@ -479,15 +495,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
-			federation, ok := r153.Unwrap().(*machineidv1pb.SPIFFEFederation)
-			if !ok {
-				log.WarnContext(
-					ctx,
-					"Event did not contain expected type",
-					"got", reflect.TypeOf(event.Resource),
-				)
-				return
-			}
+			federation := r153.UnwrapT()
 			log.DebugContext(
 				ctx,
 				"Processing update for federated trust bundle",

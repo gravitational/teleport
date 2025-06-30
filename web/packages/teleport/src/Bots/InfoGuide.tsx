@@ -18,12 +18,11 @@
 
 import Box from 'design/Box';
 import { Mark } from 'design/Mark';
-
 import {
   InfoExternalTextLink,
   InfoParagraph,
   ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 
 const InfoGuideReferenceLinks = {
   Bots: {

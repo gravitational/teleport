@@ -19,6 +19,7 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { AllUserTraits } from 'teleport/services/user';
 
 import {
@@ -39,7 +40,7 @@ test('Available traits are rendered', async () => {
   render(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={traitsToTraitsOption(userTraits)}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -58,7 +59,7 @@ test('Add and remove Trait', async () => {
   const { rerender } = render(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={configuredTraits}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -76,7 +77,7 @@ test('Add and remove Trait', async () => {
   rerender(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={traitsToTraitsOption(singleTrait)}
         setConfiguredTraits={setConfiguredTraits}
       />

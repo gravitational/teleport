@@ -92,7 +92,7 @@ func TestProxyVersionClient(t *testing.T) {
 			name:            "empty response",
 			pong:            &webclient.PingResponse{},
 			expectedVersion: nil,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, trace.NotImplemented("proxy does not seem to implement RFD-184"))
 			},
 		},
