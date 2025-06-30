@@ -21,8 +21,8 @@ KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERS
 # When TELEPORT_DEBUG is true, set flags so produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
-BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l $(KUBECTL_SETVERSION)"
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l $(KUBECTL_SETVERSION)"
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)'
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)'
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath
