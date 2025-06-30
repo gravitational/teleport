@@ -37,18 +37,12 @@ func GetPath(dataDir string) string {
 	return filepath.Join(dataDir, FileName)
 }
 
-// ExistsLocally checks if dataDir/host_uuid file exists in local storage.
-func ExistsLocally(dataDir string) bool {
-	_, err := ReadFile(dataDir)
-	return err == nil
-}
-
 // ReadFile reads host UUID from the file in the data dir
 func ReadFile(dataDir string) (string, error) {
 	out, err := utils.ReadPath(GetPath(dataDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
+			// do not convert to system error as this loses the ability to compare that it is a permission error
 			return "", trace.Wrap(err)
 		}
 		return "", trace.ConvertSystemError(err)
