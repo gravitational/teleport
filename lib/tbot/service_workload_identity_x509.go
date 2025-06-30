@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -48,6 +49,7 @@ type WorkloadIdentityX509Service struct {
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
 	resolver       reversetunnelclient.Resolver
+	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
@@ -103,6 +105,10 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
 	).RenewalInterval
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+
 	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential
 	var privateKey crypto.Signer
@@ -114,10 +120,8 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
-			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
-			if backoffTime > time.Minute {
-				backoffTime = time.Minute
-			}
+			s.statusReporter.Report(readyz.Unhealthy)
+			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
@@ -177,6 +181,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			failures++
 			continue
 		}
+		s.statusReporter.Report(readyz.Healthy)
 		failures = 0
 	}
 }
