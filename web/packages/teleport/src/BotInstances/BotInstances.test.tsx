@@ -36,6 +36,7 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { listBotInstances } from 'teleport/services/bot/bot';
+import { makeAcl } from 'teleport/services/user/makeAcl';
 import {
   listBotInstancesError,
   listBotInstancesSuccess,
@@ -80,7 +81,7 @@ describe('BotInstances', () => {
       })
     );
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -95,7 +96,7 @@ describe('BotInstances', () => {
   it('Shows an error state', async () => {
     server.use(listBotInstancesError(500, 'server error'));
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -107,7 +108,7 @@ describe('BotInstances', () => {
       'unsupported sort. only bot_name:asc is supported, but got blah (desc = true)';
     server.use(listBotInstancesError(400, testErrorMessage));
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -131,6 +132,31 @@ describe('BotInstances', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('Shows an unauthorised error state', async () => {
+    render(<BotInstances />, {
+      wrapper: makeWrapper(
+        makeAcl({
+          botInstances: {
+            list: false,
+            create: true,
+            edit: true,
+            remove: true,
+            read: true,
+          },
+        })
+      ),
+    });
+
+    expect(
+      screen.getByText(
+        'You do not have permission to access Bot instances. Missing role permissions:',
+        { exact: false }
+      )
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('bot_instance.list')).toBeInTheDocument();
+  });
+
   it('Shows a list', async () => {
     server.use(
       listBotInstancesSuccess({
@@ -152,7 +178,7 @@ describe('BotInstances', () => {
       })
     );
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -186,7 +212,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -259,7 +285,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -321,7 +347,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -358,17 +384,31 @@ describe('BotInstances', () => {
   });
 });
 
-function Wrapper({ children }: PropsWithChildren) {
-  const ctx = createTeleportContext();
-  return (
-    <MemoryRouter>
-      <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
-          <InfoGuidePanelProvider data-testid="blah">
-            <ContextProvider ctx={ctx}>{children}</ContextProvider>
-          </InfoGuidePanelProvider>
-        </ConfiguredThemeProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
-  );
+function makeWrapper(
+  customAcl: ReturnType<typeof makeAcl> = makeAcl({
+    botInstances: {
+      list: true,
+      create: true,
+      edit: true,
+      remove: true,
+      read: true,
+    },
+  })
+) {
+  return ({ children }: PropsWithChildren) => {
+    const ctx = createTeleportContext({
+      customAcl,
+    });
+    return (
+      <MemoryRouter>
+        <QueryClientProvider client={testQueryClient}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            <InfoGuidePanelProvider data-testid="blah">
+              <ContextProvider ctx={ctx}>{children}</ContextProvider>
+            </InfoGuidePanelProvider>
+          </ConfiguredThemeProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+  };
 }
