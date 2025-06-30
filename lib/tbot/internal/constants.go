@@ -30,4 +30,7 @@ const (
 	DatabaseCAPath = "teleport-database-ca.crt"
 
 	IdentityFilePath = "identity"
+
+	// DefaultTLSPrefix is the default prefix in generated TLS certs.
+	DefaultTLSPrefix = "tls"
 )

@@ -36,19 +36,20 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/loop"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
-func ApplicationOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.ApplicationOutput) bot.ServiceBuilder {
+func ApplicationOutputServiceBuilder(botCfg *config.BotConfig, cfg *application.OutputConfig) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &ApplicationOutputService{
-			botAuthClient:      deps.Client,
-			getBotIdentity:     deps.BotIdentity,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+			botAuthClient:             deps.Client,
+			getBotIdentity:            deps.BotIdentity,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: botCfg.CredentialLifetime,
+			cfg:                       cfg,
+			reloadCh:                  deps.ReloadCh,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -61,15 +62,15 @@ func ApplicationOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.Appli
 // ApplicationOutputService generates the artifacts necessary to connect to a
 // HTTP or TCP application using Teleport.
 type ApplicationOutputService struct {
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.ApplicationOutput
-	getBotIdentity     getBotIdentityFn
-	log                *slog.Logger
-	reloadCh           <-chan struct{}
-	identityGenerator  *identity.Generator
-	clientBuilder      *client.Builder
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *application.OutputConfig
+	getBotIdentity            getBotIdentityFn
+	log                       *slog.Logger
+	reloadCh                  <-chan struct{}
+	identityGenerator         *identity.Generator
+	clientBuilder             *client.Builder
 }
 
 func (s *ApplicationOutputService) String() string {
@@ -85,7 +86,7 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 		Service:         s.String(),
 		Name:            "output-renewal",
 		Fn:              s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
@@ -114,7 +115,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),

@@ -24,14 +24,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestApplicationOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[ApplicationOutput]{
+	tests := []testYAMLCase[application.OutputConfig]{
 		{
 			name: "full",
-			in: ApplicationOutput{
+			in: application.OutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				AppName:     "my-app",
@@ -43,7 +44,7 @@ func TestApplicationOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: ApplicationOutput{
+			in: application.OutputConfig{
 				Destination: dest,
 				AppName:     "my-app",
 			},
@@ -53,11 +54,11 @@ func TestApplicationOutput_YAML(t *testing.T) {
 }
 
 func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*ApplicationOutput]{
+	tests := []testCheckAndSetDefaultsCase[*application.OutputConfig]{
 		{
 			name: "valid",
-			in: func() *ApplicationOutput {
-				return &ApplicationOutput{
+			in: func() *application.OutputConfig {
+				return &application.OutputConfig{
 					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
 					AppName:     "app",
@@ -66,8 +67,8 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *ApplicationOutput {
-				return &ApplicationOutput{
+			in: func() *application.OutputConfig {
+				return &application.OutputConfig{
 					Destination: nil,
 					AppName:     "app",
 				}
@@ -76,8 +77,8 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing app_name",
-			in: func() *ApplicationOutput {
-				return &ApplicationOutput{
+			in: func() *application.OutputConfig {
+				return &application.OutputConfig{
 					Destination: memoryDestForTest(),
 				}
 			},

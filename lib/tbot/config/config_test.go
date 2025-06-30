@@ -388,13 +388,33 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			)
 
 			// Now test unmarshalling to see if we get the same object back
-			decoder := yaml.NewDecoder(b)
 			var unmarshalled T
-			require.NoError(t, decoder.Decode(&unmarshalled))
+			decoder := yaml.NewDecoder(b)
+
+			// If the type supports UnmarshalConfig, we'll call it. Otherwise,
+			// we'll do regular YAML unmarshaling.
+			var anyUnmarshalled any = &unmarshalled
+			if uc, ok := (anyUnmarshalled).(interface {
+				UnmarshalConfig(bot.UnmarshalConfigContext, *yaml.Node) error
+			}); ok {
+				trmp := unmarshalYAMLFunc(func(node *yaml.Node) error {
+					return uc.UnmarshalConfig(unmarshalContext{}, node)
+				})
+				require.NoError(t, decoder.Decode(&trmp))
+			} else {
+				require.NoError(t, decoder.Decode(&unmarshalled))
+			}
+
 			require.Equal(t, tt.in, unmarshalled, "unmarshalling did not result in same object as input")
 		})
 	}
 }
+
+// unmarshalYAMLFunc allows you to provide a custom unmarshal function to
+// Decode to test config structs that implement UnmarshalConfig.
+type unmarshalYAMLFunc func(node *yaml.Node) error
+
+func (fn unmarshalYAMLFunc) UnmarshalYAML(node *yaml.Node) error { return fn(node) }
 
 func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 	cfg := &BotConfig{

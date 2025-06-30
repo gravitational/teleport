@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 )
@@ -164,7 +163,7 @@ func writeIdentityFileTLS(
 	defer span.End()
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: config.DefaultTLSPrefix,
+		OutputPath: internal.DefaultTLSPrefix,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatTLS,

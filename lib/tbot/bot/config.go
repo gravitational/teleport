@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"gopkg.in/yaml.v3"
 )
 
 // Config contains the core bot's configuration. The tbot binary's configuration
@@ -78,4 +79,21 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Logger = slog.Default()
 	}
 	return nil
+}
+
+// UnmarshalConfigContext is passed to the UnmarshalConfig method implemented by service
+// config structs. It provides a way to unmarshal destinations without needing
+// to maintain a "registry" using package-global variables or import them all
+// in the service package.
+type UnmarshalConfigContext interface {
+	// ExtractDestination performs surgery on yaml.Node to unmarshal a
+	// destination and then remove key/values from the yaml.Node that specify
+	// the destination. This *hack* allows us to have the bot.Destination as a
+	// field directly on an Output without needing a struct to wrap it for
+	// polymorphic unmarshaling.
+	ExtractDestination(node *yaml.Node) (destination.Destination, error)
+
+	// UnmarshalDestination unmarshals a destination by looking at its "type
+	// header" to determine which destination type it is.
+	UnmarshalDestination(node *yaml.Node) (destination.Destination, error)
 }

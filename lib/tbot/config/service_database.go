@@ -57,9 +57,7 @@ const (
 
 const (
 	// DefaultMongoPrefix is the default prefix in generated MongoDB certs.
-	DefaultMongoPrefix = "mongo"
-	// DefaultTLSPrefix is the default prefix in generated TLS certs.
-	DefaultTLSPrefix        = "tls"
+	DefaultMongoPrefix      = "mongo"
 	DefaultCockroachDirName = "cockroach"
 )
 
@@ -166,13 +164,13 @@ func (o *DatabaseOutput) Describe() []bot.FileDescription {
 	case TLSDatabaseFormat:
 		fds = append(fds, []bot.FileDescription{
 			{
-				Name: DefaultTLSPrefix + ".crt",
+				Name: internal.DefaultTLSPrefix + ".crt",
 			},
 			{
-				Name: DefaultTLSPrefix + ".key",
+				Name: internal.DefaultTLSPrefix + ".key",
 			},
 			{
-				Name: DefaultTLSPrefix + ".cas",
+				Name: internal.DefaultTLSPrefix + ".cas",
 			},
 		}...)
 	}
