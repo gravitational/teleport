@@ -36,6 +36,7 @@ func newIntegrationCollection(upstream services.Integrations, w types.WatchKind)
 
 	return &collection[types.Integration, integrationIndex]{
 		store: newStore(
+			types.KindIntegration,
 			types.Integration.Clone,
 			map[integrationIndex]func(types.Integration) string{
 				integrationNameIndex: types.Integration.GetName,

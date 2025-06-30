@@ -37,6 +37,7 @@ func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.App
 
 	return &collection[types.Application, appIndex]{
 		store: newStore(
+			types.KindApp,
 			func(a types.Application) types.Application {
 				return a.Copy()
 			},
@@ -110,6 +111,7 @@ func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection
 
 	return &collection[types.AppServer, appServerIndex]{
 		store: newStore(
+			types.KindAppServer,
 			types.AppServer.Copy,
 			map[appServerIndex]func(types.AppServer) string{
 				appServerNameIndex: func(u types.AppServer) string {

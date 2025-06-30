@@ -33,6 +33,7 @@ import {
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
+import { EmptyState } from 'teleport/Bots/List/EmptyState/EmptyState';
 import {
   FeatureBox,
   FeatureHeader,
@@ -41,6 +42,7 @@ import {
 import cfg from 'teleport/config';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
+import useTeleport from 'teleport/useTeleport';
 
 import { BotInstancesList } from './List/BotInstancesList';
 
@@ -52,7 +54,12 @@ export function BotInstances() {
   const searchTerm = queryParams.get('search') ?? '';
   const sort = queryParams.get('sort') || 'active_at_latest:desc';
 
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const canListInstances = flags.listBotInstances;
+
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
+    enabled: canListInstances,
     queryKey: ['bot_instances', 'list', searchTerm, pageToken, sort],
     queryFn: () =>
       listBotInstances({
@@ -154,6 +161,18 @@ export function BotInstances() {
   );
 
   const hasUnsupportedSortError = isUnsupportedSortError(error);
+
+  if (!canListInstances) {
+    return (
+      <FeatureBox>
+        <Alert kind="info" mt={4}>
+          You do not have permission to access Bot instances. Missing role
+          permissions: <code>bot_instance.list</code>
+        </Alert>
+        <EmptyState />
+      </FeatureBox>
+    );
+  }
 
   return (
     <FeatureBox>

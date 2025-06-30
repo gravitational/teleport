@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 )
 
 func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.ConditionalAction) (revision string, err error) {
@@ -146,7 +147,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	}
 
 	if n > 1 {
-		backend.AtomicWriteContention.WithLabelValues(teleport.ComponentFirestore).Add(float64(n - 1))
+		backendmetrics.AtomicWriteContention.WithLabelValues(teleport.ComponentFirestore).Add(float64(n - 1))
 	}
 
 	if n > 2 {
