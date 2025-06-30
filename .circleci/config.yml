@@ -33,8 +33,15 @@ jobs:
           name: Setup Environment Variables
           command: |
             TELEPORT_VERSION=$(make print-version)
+            if [ "${ARCH}" = "arm64" ]; then
+              TAG_SUFFIX="-arm64"
+            else
+              TAG_SUFFIX=""
+            fi
+            echo "TAG_SUFFIX=${TAG_SUFFIX}" >> $BASH_ENV
             echo 'export TARBALL_PATH="/tmp/teleport-tarballs"' >> "$BASH_ENV"
             echo "export TELEPORT_VERSION=${TELEPORT_VERSION}" >> "$BASH_ENV"
+
 
       - restore_cache:
           keys:
@@ -78,7 +85,7 @@ jobs:
               --platform linux/${ARCH} \
               --build-arg TELEPORT_VERSION=${TELEPORT_VERSION} \
               --build-arg TELEPORT_RELEASE_INFIX= \
-              -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/platform/teleport:${TELEPORT_VERSION}-${ARCH} build
+              -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/platform/teleport:${TELEPORT_VERSION}${TAG_SUFFIX} build
 
       - when:
           condition: << parameters.push >>
@@ -86,13 +93,24 @@ jobs:
             - aws-ecr/ecr_login
             - aws-ecr/push_image:
                 repo: platform/teleport
-                tag: '${TELEPORT_VERSION}-${ARCH}'
+                tag: '${TELEPORT_VERSION}${TAG_SUFFIX}'
 
 workflows:
   build:
     jobs:
       - build-distroless:
+          name: build-distroless-arm64
           context: org-global
+          filters:
+            branches:
+              ignore:
+                - master
+                - release/*
+      - build-distroless:
+          name: build-distroless-amd64
+          context: org-global
+          arch: amd64
+          resource_class: large
           filters:
             branches:
               ignore:
@@ -102,8 +120,19 @@ workflows:
   build-and-push:
     jobs:
       - build-distroless:
-          name: build-and-push-distroless
+          name: build-and-push-distroless-arm64
           context: org-global
+          push: true
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              <<: *tag-pattern
+      - build-distroless:
+          name: build-and-push-distroless-amd64
+          context: org-global
+          arch: amd64
+          resource_class: large
           push: true
           filters:
             branches:
