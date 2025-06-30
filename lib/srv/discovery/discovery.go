@@ -266,7 +266,10 @@ kubernetes matchers are present.`)
 		c.AWSDatabaseFetcherFactory = factory
 	}
 	if c.GetEC2Client == nil {
-		c.GetEC2Client = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		c.GetEC2Client = func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			if assumeRole != nil {
+				opts = append(opts, awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+			}
 			cfg, err := c.getAWSConfig(ctx, region, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)

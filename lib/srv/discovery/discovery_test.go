@@ -929,7 +929,7 @@ func TestDiscoveryServer(t *testing.T) {
 				OIDCIntegrationClient: tlsServer.Auth(),
 			}
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+				GetEC2Client: func(ctx context.Context, region string, _ *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 					return ec2Client, nil
 				},
 				GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
@@ -1107,7 +1107,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
-	getEC2Client := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+	getEC2Client := func(ctx context.Context, region string, _ *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		return ec2Client, nil
 	}
 

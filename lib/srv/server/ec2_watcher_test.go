@@ -55,14 +55,10 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 }
 
 func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) EC2ClientGetter {
-	return func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
-		var options awsconfig.Options
-		for _, opt := range opts {
-			opt(&options)
-		}
+	return func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		var roleARN string
-		if len(options.AssumeRoles) != 0 {
-			roleARN = options.AssumeRoles[len(options.AssumeRoles)-1].RoleARN
+		if assumeRole != nil {
+			roleARN = assumeRole.RoleARN
 		}
 		return &mockEC2Client{
 			output: m[roleARN],

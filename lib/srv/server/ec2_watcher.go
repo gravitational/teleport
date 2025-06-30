@@ -195,7 +195,7 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 }
 
 // EC2ClientGetter gets an AWS EC2 client for the given region.
-type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
+type EC2ClientGetter func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
 func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client EC2ClientGetter, discoveryConfigName string) ([]Fetcher, error) {
@@ -205,10 +205,7 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 			opts := []awsconfig.OptionsFn{
 				awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
 			}
-			if ar := matcher.AssumeRole; ar != nil {
-				opts = append(opts, awsconfig.WithAssumeRole(ar.RoleARN, ar.ExternalID))
-			}
-			ec2Client, err := getEC2Client(ctx, region, opts...)
+			ec2Client, err := getEC2Client(ctx, region, matcher.AssumeRole, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
