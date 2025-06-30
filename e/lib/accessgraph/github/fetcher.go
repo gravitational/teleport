@@ -415,6 +415,98 @@ func (f *fetcher) extractTokenPermissions(token *github.PersonalAccessToken) []*
 	return permissions
 }
 
+// testRequiredPermissions checks if the fetcher has the required permissions
+// to function correctly. It attempts to list members of the organization,
+// roles, repositories, and audit logs. If any of these operations fail due to
+// insufficient permissions, it returns an error indicating the missing permission.
+// This is used to ensure that the fetcher can operate without running into
+// permission issues during its normal operation.
+func (f *fetcher) testRequiredPermissions(ctx context.Context) error {
+	// Test if the client can list members of the organization.
+	// This is a required permission for the fetcher to work.
+	testCalls := []struct {
+		requiredPermission string
+		f                  func(context.Context) error
+	}{
+		{
+			requiredPermission: "Organization Personal Access Tokens",
+			f: func(ctx context.Context) error {
+				_, _, err := f.client.Organizations.ListFineGrainedPersonalAccessTokens(ctx, f.organizationName, &github.ListFineGrainedPATOptions{})
+				return trace.Wrap(err, "failed to list GitHub tokens")
+			},
+		},
+		{
+			requiredPermission: "Organization members",
+			f: func(ctx context.Context) error {
+				_, _, err := f.client.Organizations.ListMembers(ctx, f.organizationName, &github.ListMembersOptions{PublicOnly: false})
+				return trace.Wrap(err, "failed to list GitHub organization members")
+			},
+		},
+		{
+			requiredPermission: "Organization Roles",
+			f: func(ctx context.Context) error {
+				_, _, err := f.client.Organizations.ListRoles(ctx, f.organizationName)
+				return trace.Wrap(err, "failed to list GitHub organization roles")
+			},
+		},
+		{
+			requiredPermission: "Organization Repositories",
+			f: func(ctx context.Context) error {
+				_, _, err := f.client.Repositories.ListByOrg(ctx, f.organizationName, &github.RepositoryListByOrgOptions{})
+				return trace.Wrap(err, "failed to list GitHub organization repositories")
+			},
+		},
+		{
+			requiredPermission: "Organization Audit Logs",
+			f: func(ctx context.Context) error {
+				opt := github.GetAuditLogOptions{
+					Phrase: toPtr(
+						fmt.Sprintf("created:%s..%s",
+							time.Now().Add(-5*time.Minute).UTC().Format(time.RFC3339),
+							f.clock.Now().UTC().Format(time.RFC3339),
+						),
+					),
+					ListCursorOptions: github.ListCursorOptions{
+						PerPage: 1,
+					},
+				}
+				// Use the appropriate function to get the audit log based on whether
+				// the client is for an enterprise installation or not.
+				getFunc := f.client.Enterprise.GetAuditLog
+				if !f.enterprise {
+					getFunc = f.client.Organizations.GetAuditLog
+				}
+
+				_, _, err := getFunc(ctx, f.organizationName, &opt)
+				return trace.Wrap(err, "failed to poll GitHub audit logs")
+			},
+		},
+	}
+
+	var githubErr *github.ErrorResponse
+	for _, test := range testCalls {
+		if err := test.f(ctx); err != nil && errors.As(err, &githubErr) &&
+			githubErr.Response != nil &&
+			githubErr.Response.StatusCode == http.StatusNotFound {
+			// If the error is a GitHub not found error, it means the user does not have
+			// the required permission to perform the operation.
+			return trace.AccessDenied(
+				"The GitHub application is missing the required read permission for %s. "+
+					"To resolve this, update the application's permissions to allow access to "+
+					"the %s organization.",
+				test.requiredPermission,
+				f.organizationName,
+			)
+		} else if err != nil {
+			return trace.Wrap(err, "failed to test required permissions for fetcher")
+		} else {
+			f.logger.DebugContext(ctx, "Required permission test passed", "permission", test.requiredPermission)
+		}
+	}
+
+	return nil
+}
+
 func toPtr[T any](s T) *T {
 	return &s
 }

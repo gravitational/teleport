@@ -597,10 +597,25 @@ func consumeTillErr[T any, K any](stream grpc.BidiStreamingClient[T, K]) error {
 
 // GithubInstanceConnectionTest tests the connection to a Github instance.
 func GithubInstanceConnectionTest(ctx context.Context, opts GithubConfig) error {
+	const (
+		applicationNotInstalledMessage = "Application is not installed for the organization %s. " +
+			"Please install the application to use Teleport Identity Security."
+	)
 	fetcher, err := newFetcher(slog.Default(), clockwork.NewRealClock(), opts)
-	if err != nil {
+	if errors.Is(err, errApplicationNotInstalled) {
+		return trace.BadParameter(applicationNotInstalledMessage, opts.Organization)
+	} else if err != nil {
 		return trace.Wrap(err, "failed to create github fetcher")
 	}
-	_, err = fetcher.pollGithubState(ctx)
-	return trace.Wrap(err)
+
+	if err = fetcher.testRequiredPermissions(ctx); errors.Is(err, errApplicationNotInstalled) {
+		return trace.BadParameter(applicationNotInstalledMessage, opts.Organization)
+	} else if errors.Is(err, ErrGithubInvalidCredentials) {
+		const invalidCredsMessage = "Invalid Github credentials. " +
+			"Please check your Github app client ID and private key."
+		return trace.BadParameter(invalidCredsMessage)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

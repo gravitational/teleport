@@ -11,6 +11,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var errApplicationNotInstalled = &trace.NotFoundError{Message: "application not installed in the organization"}
+
 type roundTripper struct {
 	transport        http.RoundTripper
 	token            *github.InstallationToken
@@ -98,7 +100,6 @@ func (r *roundTripper) getInstallToken(ctx context.Context, clientID string, pri
 		},
 	})
 	return token, trace.Wrap(err)
-
 }
 
 func (r *roundTripper) getInstallation(ctx context.Context, client *github.Client, orgName string) (int64, error) {
@@ -122,7 +123,7 @@ func (r *roundTripper) getInstallation(ctx context.Context, client *github.Clien
 		}
 		page = rsp.NextPage
 	}
-	return 0, trace.NotFound("installation not found for org: %s", orgName)
+	return 0, trace.Wrap(errApplicationNotInstalled)
 }
 
 type jwtTransport struct {
