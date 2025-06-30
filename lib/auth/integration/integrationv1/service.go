@@ -250,9 +250,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.IntegrationSubKindAWSOIDC:
-		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
-		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
+		// AWS OIDC and Roles Anywhere Integrations can be used as source of credentials to access AWS Web/CLI.
+		// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+		// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
 			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
