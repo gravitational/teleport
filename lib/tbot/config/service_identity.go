@@ -30,20 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 )
 
-const IdentityOutputType = "identity"
-
 const (
-	// HostCAPath is the default filename for the host CA certificate
-	HostCAPath = "teleport-host-ca.crt"
-
-	// UserCAPath is the default filename for the user CA certificate
-	UserCAPath = "teleport-user-ca.crt"
-
-	// DatabaseCAPath is the default filename for the database CA
-	// certificate
-	DatabaseCAPath = "teleport-database-ca.crt"
-
-	IdentityFilePath = "identity"
+	IdentityOutputType = "identity"
+	IdentityFilePath   = internal.IdentityFilePath
 )
 
 // SSHConfigMode controls whether to write an ssh_config file to the
@@ -149,16 +138,16 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 func (o *IdentityOutput) Describe() []bot.FileDescription {
 	var fds = []bot.FileDescription{
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 		{
-			Name: UserCAPath,
+			Name: internal.UserCAPath,
 		},
 		{
-			Name: DatabaseCAPath,
+			Name: internal.DatabaseCAPath,
 		},
 	}
 	if o.SSHConfigMode == SSHConfigModeOn {

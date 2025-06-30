@@ -77,16 +77,16 @@ func (o *ApplicationOutput) GetDestination() destination.Destination {
 func (o *ApplicationOutput) Describe() []bot.FileDescription {
 	out := []bot.FileDescription{
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 		{
-			Name: UserCAPath,
+			Name: internal.UserCAPath,
 		},
 		{
-			Name: DatabaseCAPath,
+			Name: internal.DatabaseCAPath,
 		},
 	}
 	if o.SpecificTLSExtensions {

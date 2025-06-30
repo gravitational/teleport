@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -339,7 +340,7 @@ func (s *KubernetesV2OutputService) render(
 		return trace.Wrap(err, "writing kubeconfig")
 	}
 
-	if err := s.cfg.Destination.Write(ctx, config.HostCAPath, concatCACerts(hostCAs)); err != nil {
+	if err := s.cfg.Destination.Write(ctx, internal.HostCAPath, concatCACerts(hostCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 

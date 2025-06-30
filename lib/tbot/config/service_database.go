@@ -134,16 +134,16 @@ func (o *DatabaseOutput) GetDestination() destination.Destination {
 func (o *DatabaseOutput) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 		{
-			Name: UserCAPath,
+			Name: internal.UserCAPath,
 		},
 		{
-			Name: DatabaseCAPath,
+			Name: internal.DatabaseCAPath,
 		},
 	}
 	switch o.Format {

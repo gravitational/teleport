@@ -91,10 +91,10 @@ func (o *KubernetesV2Output) Describe() []bot.FileDescription {
 			Name: "kubeconfig.yaml",
 		},
 		{
-			Name: IdentityFilePath,
+			Name: internal.IdentityFilePath,
 		},
 		{
-			Name: HostCAPath,
+			Name: internal.HostCAPath,
 		},
 	}
 }

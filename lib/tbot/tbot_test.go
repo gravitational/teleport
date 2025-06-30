@@ -544,7 +544,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destin
 	require.NoError(t, err)
 	certBytes, err := dest.Read(ctx, identity.TLSCertKey)
 	require.NoError(t, err)
-	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
+	hostCABytes, err := dest.Read(ctx, internal.HostCAPath)
 	require.NoError(t, err)
 	_, tlsIdent, _, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
 	require.NoError(t, err)

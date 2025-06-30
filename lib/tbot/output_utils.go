@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 )
 
 const renewalRetryLimit = 5
@@ -131,7 +132,7 @@ func writeIdentityFile(
 	defer span.End()
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: config.IdentityFilePath,
+		OutputPath: internal.IdentityFilePath,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
@@ -210,15 +211,15 @@ func writeTLSCAs(ctx context.Context, dest destination.Destination, hostCAs, use
 	// that mariadb at least does not seem to like being passed more than one
 	// CA so there may be some compat issues to address in the future for the
 	// rare case where a CA rotation is in progress.
-	if err := dest.Write(ctx, config.HostCAPath, concatCACerts(hostCAs)); err != nil {
+	if err := dest.Write(ctx, internal.HostCAPath, concatCACerts(hostCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(ctx, config.UserCAPath, concatCACerts(userCAs)); err != nil {
+	if err := dest.Write(ctx, internal.UserCAPath, concatCACerts(userCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(ctx, config.DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
+	if err := dest.Write(ctx, internal.DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
