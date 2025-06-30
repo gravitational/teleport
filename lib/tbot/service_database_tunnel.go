@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,27 +60,6 @@ func DatabaseTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.Database
 		)
 		return svc, nil
 	}
-}
-
-var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
-
-type alpnProxyMiddleware struct {
-	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy) error
-	onStart         func(ctx context.Context, lp *alpnproxy.LocalProxy) error
-}
-
-func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if a.onNewConnection != nil {
-		return a.onNewConnection(ctx, lp)
-	}
-	return nil
-}
-
-func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if a.onStart != nil {
-		return a.onStart(ctx, lp)
-	}
-	return nil
 }
 
 // DatabaseTunnelService is a service that listens on a local port and forwards
@@ -151,8 +131,8 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	middleware := internal.ALPNProxyMiddleware{
+		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
 			defer span.End()
 
@@ -210,7 +190,7 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	if l == nil {
 		s.log.DebugContext(ctx, "Opening listener for database tunnel.", "listen", s.cfg.Listen)
 		var err error
-		l, err = createListener(ctx, s.log, s.cfg.Listen)
+		l, err = internal.CreateListener(ctx, s.log, s.cfg.Listen)
 		if err != nil {
 			return trace.Wrap(err, "opening listener")
 		}

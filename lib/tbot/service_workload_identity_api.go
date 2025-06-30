@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -229,7 +230,7 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 	}
 	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
-	lis, err := createListener(ctx, s.log, s.cfg.Listen)
+	lis, err := internal.CreateListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
 		return trace.Wrap(err, "creating listener")
 	}

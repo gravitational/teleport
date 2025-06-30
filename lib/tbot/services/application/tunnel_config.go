@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package application
 
 import (
 	"net"
@@ -29,15 +29,11 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
-var (
-	_ ServiceConfig = &ApplicationTunnelService{}
-)
+const TunnelServiceType = "application-tunnel"
 
-const ApplicationTunnelServiceType = "application-tunnel"
-
-// ApplicationTunnelService opens an authenticated tunnel for Application
+// TunnelConfig opens an authenticated tunnel for Application
 // Access.
-type ApplicationTunnelService struct {
+type TunnelConfig struct {
 	// Listen is the address on which database tunnel should listen. Example:
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
@@ -58,25 +54,25 @@ type ApplicationTunnelService struct {
 	Listener net.Listener `yaml:"-"`
 }
 
-func (s *ApplicationTunnelService) Type() string {
-	return ApplicationTunnelServiceType
+func (s *TunnelConfig) Type() string {
+	return TunnelServiceType
 }
 
-func (s *ApplicationTunnelService) MarshalYAML() (any, error) {
-	type raw ApplicationTunnelService
-	return marshaling.WithTypeHeader((*raw)(s), ApplicationTunnelServiceType)
+func (s *TunnelConfig) MarshalYAML() (any, error) {
+	type raw TunnelConfig
+	return marshaling.WithTypeHeader((*raw)(s), TunnelServiceType)
 }
 
-func (s *ApplicationTunnelService) UnmarshalYAML(node *yaml.Node) error {
+func (s *TunnelConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw ApplicationTunnelService
+	type raw TunnelConfig
 	if err := node.Decode((*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *ApplicationTunnelService) CheckAndSetDefaults() error {
+func (s *TunnelConfig) CheckAndSetDefaults() error {
 	switch {
 	case s.Listen == "" && s.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
@@ -89,6 +85,6 @@ func (s *ApplicationTunnelService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *ApplicationTunnelService) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *TunnelConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

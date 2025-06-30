@@ -355,8 +355,8 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case ApplicationTunnelServiceType:
-			v := &ApplicationTunnelService{}
+		case application.TunnelServiceType:
+			v := &application.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

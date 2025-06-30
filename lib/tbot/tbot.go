@@ -233,8 +233,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			botServices = append(botServices, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
 		case *config.UnstableClientCredentialOutput:
 			botServices = append(botServices, ClientCredentialOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.ApplicationTunnelService:
-			botServices = append(botServices, ApplicationTunnelServiceBuilder(b.cfg, svcCfg))
+		case *application.TunnelConfig:
+			botServices = append(botServices, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *config.WorkloadIdentityX509Service:
 			botServices = append(botServices, WorkloadIdentityX509ServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
 		case *config.WorkloadIdentityJWTService:

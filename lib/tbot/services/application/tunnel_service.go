@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package application
 
 import (
 	"cmp"
@@ -35,22 +35,27 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func ApplicationTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.ApplicationTunnelService) bot.ServiceBuilder {
+func TunnelServiceBuilder(
+	cfg *TunnelConfig,
+	connCfg connection.Config,
+	defaultCredentialLifetime bot.CredentialLifetime,
+) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &ApplicationTunnelService{
-			getBotIdentity:     deps.BotIdentity,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			proxyPinger:        deps.ProxyPinger,
-			botClient:          deps.Client,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+			connCfg:                   connCfg,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			getBotIdentity:            deps.BotIdentity,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			proxyPinger:               deps.ProxyPinger,
+			botClient:                 deps.Client,
+			cfg:                       cfg,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -65,15 +70,16 @@ func ApplicationTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.Appli
 // an authenticating tunnel and will automatically issue and renew certificates
 // as needed.
 type ApplicationTunnelService struct {
-	botCfg             *config.BotConfig
-	cfg                *config.ApplicationTunnelService
-	proxyPinger        connection.ProxyPinger
-	log                *slog.Logger
-	botClient          *apiclient.Client
-	getBotIdentity     getBotIdentityFn
-	botIdentityReadyCh <-chan struct{}
-	identityGenerator  *identity.Generator
-	clientBuilder      *client.Builder
+	connCfg                   connection.Config
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *TunnelConfig
+	proxyPinger               connection.ProxyPinger
+	log                       *slog.Logger
+	botClient                 *apiclient.Client
+	getBotIdentity            func() *identity.Identity
+	botIdentityReadyCh        <-chan struct{}
+	identityGenerator         *identity.Generator
+	clientBuilder             *client.Builder
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -84,7 +90,7 @@ func (s *ApplicationTunnelService) Run(ctx context.Context) error {
 	if l == nil {
 		s.log.DebugContext(ctx, "Opening listener for application tunnel", "listen", s.cfg.Listen)
 		var err error
-		l, err = createListener(ctx, s.log, s.cfg.Listen)
+		l, err = internal.CreateListener(ctx, s.log, s.cfg.Listen)
 		if err != nil {
 			return trace.Wrap(err, "opening listener")
 		}
@@ -171,8 +177,8 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
-	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	middleware := internal.ALPNProxyMiddleware{
+		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "ApplicationTunnelService/OnNewConnection")
 			defer span.End()
 
@@ -195,12 +201,12 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		ParentContext:      ctx,
 		Protocols:          []common.Protocol{alpnProtocolForApp(app)},
 		Cert:               *appCert,
-		InsecureSkipVerify: s.botCfg.Insecure,
+		InsecureSkipVerify: s.connCfg.Insecure,
 	}
 	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
-		s.botCfg.Insecure,
+		s.connCfg.Insecure,
 	) {
 		lpConfig.ALPNConnUpgradeRequired = true
 		// If ALPN Conn Upgrade will be used, we need to set the cluster CAs
@@ -221,7 +227,7 @@ func (s *ApplicationTunnelService) issueCert(
 	// session ID may need to change. Once v17 hits, this will be automagically
 	// calculated by the auth server on cert generation, and we can fetch the
 	// routeToApp once.
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -258,5 +264,5 @@ func (s *ApplicationTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *ApplicationTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName)
+	return fmt.Sprintf("%s:%s:%s", TunnelServiceType, s.cfg.Listen, s.cfg.AppName)
 }

@@ -23,15 +23,16 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[ApplicationTunnelService]{
+	tests := []testYAMLCase[application.TunnelConfig]{
 		{
 			name: "full",
-			in: ApplicationTunnelService{
+			in: application.TunnelConfig{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -47,11 +48,11 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*ApplicationTunnelService]{
+	tests := []testCheckAndSetDefaultsCase[*application.TunnelConfig]{
 		{
 			name: "valid",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *application.TunnelConfig {
+				return &application.TunnelConfig{
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
@@ -61,8 +62,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing listen",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *application.TunnelConfig {
+				return &application.TunnelConfig{
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
@@ -71,8 +72,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "listen not url",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *application.TunnelConfig {
+				return &application.TunnelConfig{
 					Listen:  "\x00",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
@@ -82,8 +83,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing app name",
-			in: func() *ApplicationTunnelService {
-				return &ApplicationTunnelService{
+			in: func() *application.TunnelConfig {
+				return &application.TunnelConfig{
 					Listen: "tcp://0.0.0.0:3621",
 					Roles:  []string{"role1", "role2"},
 				}
