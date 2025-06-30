@@ -58,7 +58,10 @@ type WorkloadIdentityX509Service struct {
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityX509Service) String() string {
-	return fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the

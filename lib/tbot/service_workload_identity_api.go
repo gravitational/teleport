@@ -717,5 +717,8 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *WorkloadIdentityAPIService) String() string {
-	return fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen),
+	)
 }
