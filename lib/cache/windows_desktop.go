@@ -38,6 +38,7 @@ func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) 
 
 	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
 		store: newStore(
+			types.KindWindowsDesktopService,
 			types.WindowsDesktopService.Clone,
 			map[windowsDesktopServiceIndex]func(types.WindowsDesktopService) string{
 				windowsDesktopServiceNameIndex: types.WindowsDesktopService.GetName,
@@ -168,6 +169,7 @@ func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) 
 
 	return &collection[types.WindowsDesktop, windowsDesktopIndex]{
 		store: newStore(
+			types.KindWindowsDesktop,
 			types.WindowsDesktop.Copy,
 			map[windowsDesktopIndex]func(types.WindowsDesktop) string{
 				windowsDesktopNameIndex: func(u types.WindowsDesktop) string {
@@ -293,6 +295,7 @@ func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops
 
 	return &collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
 		store: newStore(
+			types.KindDynamicWindowsDesktop,
 			types.DynamicWindowsDesktop.Copy,
 			map[dynamicWindowsDesktopIndex]func(types.DynamicWindowsDesktop) string{
 				dynamicWindowsDesktopNameIndex: types.DynamicWindowsDesktop.GetName,
