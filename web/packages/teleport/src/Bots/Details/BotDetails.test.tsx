@@ -1,0 +1,229 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
+import { PropsWithChildren } from 'react';
+import { MemoryRouter, useHistory } from 'react-router';
+
+import darkTheme from 'design/theme/themes/darkTheme';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+import {
+  fireEvent,
+  render,
+  screen,
+  testQueryClient,
+  waitForElementToBeRemoved,
+  within,
+} from 'design/utils/testing';
+
+import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { getBotError, getBotSuccess } from 'teleport/test/helpers/bots';
+
+import { BotDetails } from './BotDetails';
+
+jest.mock('react-router', () => {
+  const actual = jest.requireActual('react-router');
+  return {
+    ...actual,
+    useHistory: jest.fn(),
+    useParams: jest.fn(() => ({
+      name: 'test-bot-name',
+    })),
+  };
+});
+
+const server = setupServer();
+
+beforeEach(() => {
+  server.listen();
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+
+  jest.clearAllMocks();
+});
+
+afterAll(() => server.close());
+
+describe('BotDetails', () => {
+  it('should show a page error state', async () => {
+    await withLoadingError();
+    expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
+  });
+
+  it('should allow back navigation', async () => {
+    const goBack = jest.fn();
+    jest.mocked(useHistory).mockImplementation(
+      () =>
+        ({
+          goBack,
+        }) as unknown as ReturnType<typeof useHistory>
+    );
+
+    await withLoadingSuccess();
+
+    const backButton = screen.getByLabelText('back');
+    fireEvent.click(backButton);
+
+    expect(goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show page title', async () => {
+    await withLoadingSuccess();
+
+    const pageHeader = screen.getByTestId('page-header');
+    expect(pageHeader).toBeInTheDocument();
+
+    expect(within(pageHeader).getByText('test-bot')).toBeInTheDocument();
+  });
+
+  it('should show bot metadata', async () => {
+    await withLoadingSuccess();
+
+    const panel = screen.getByTestId('config-panel');
+    expect(panel).toBeInTheDocument();
+
+    expect(within(panel).getByText('test-bot')).toBeInTheDocument();
+    expect(within(panel).getByText('12h')).toBeInTheDocument();
+  });
+
+  it('should show bot roles', async () => {
+    await withLoadingSuccess();
+
+    const panel = screen.getByTestId('roles-panel');
+    expect(panel).toBeInTheDocument();
+
+    expect(within(panel).getByText('admin')).toBeInTheDocument();
+    expect(within(panel).getByText('user')).toBeInTheDocument();
+  });
+
+  it('should show bot traits', async () => {
+    await withLoadingSuccess();
+
+    const panel = screen.getByTestId('traits-panel');
+    expect(panel).toBeInTheDocument();
+
+    expect(within(panel).getByText('trait-1')).toBeInTheDocument();
+    expect(within(panel).getByText('value-1')).toBeInTheDocument();
+    expect(within(panel).getByText('value-2')).toBeInTheDocument();
+    expect(within(panel).getByText('value-3')).toBeInTheDocument();
+  });
+
+  it('Shows a docs link', async () => {
+    const onClick = jest.fn(e => {
+      e.preventDefault();
+    });
+
+    await withLoadingSuccess({ onDocsClicked: onClick });
+
+    const docsButton = screen.getByText('View Documentation');
+    fireEvent.click(docsButton);
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show an unauthorised error state', async () => {
+    render(<BotDetails />, {
+      wrapper: makeWrapper({
+        customAcl: makeAcl({
+          bots: {
+            ...defaultAccess,
+            read: false,
+          },
+        }),
+      }),
+    });
+    expect(
+      screen.getByText('You do not have permission to view this bot.')
+    ).toBeInTheDocument();
+  });
+});
+
+const withLoadingError = async () => {
+  server.use(getBotError(500, 'something went wrong'));
+  render(<BotDetails />, { wrapper: makeWrapper() });
+  await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+};
+
+const withLoadingSuccess = async (params?: {
+  onDocsClicked?: (e: unknown) => void;
+  customAcl?: ReturnType<typeof makeAcl>;
+}) => {
+  const { onDocsClicked, customAcl } = params ?? {};
+  server.use(
+    getBotSuccess({
+      status: 'active',
+      kind: 'bot',
+      subKind: '',
+      version: 'v1',
+      metadata: {
+        name: 'test-bot',
+        description: '',
+        labels: new Map(),
+        namespace: '',
+        revision: '',
+      },
+      spec: {
+        roles: ['admin', 'user'],
+        traits: [
+          {
+            name: 'trait-1',
+            values: ['value-1', 'value-2', 'value-3'],
+          },
+        ],
+        max_session_ttl: {
+          seconds: 43200,
+        },
+      },
+    })
+  );
+  render(<BotDetails onDocsLinkClickedForTesting={onDocsClicked} />, {
+    wrapper: makeWrapper({ customAcl }),
+  });
+  await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+};
+
+function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
+  const {
+    customAcl = makeAcl({
+      bots: {
+        ...defaultAccess,
+        read: true,
+      },
+    }),
+  } = params ?? {};
+  return ({ children }: PropsWithChildren) => {
+    const ctx = createTeleportContext({
+      customAcl,
+    });
+    return (
+      <MemoryRouter>
+        <QueryClientProvider client={testQueryClient}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            <ContextProvider ctx={ctx}>{children}</ContextProvider>
+          </ConfiguredThemeProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+  };
+}
