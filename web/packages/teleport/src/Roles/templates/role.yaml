@@ -9,13 +9,6 @@ spec:
     # List of Kubernetes cluster users can access the k8s API
     kubernetes_labels:
       '*': '*'
-    # This role is mapped to Kubernetes 'developer' group.
-    kubernetes_groups:
-    - '{{internal.kubernetes_groups}}'
-    - developer
-    kubernetes_users:
-    - '{{internal.kubernetes_users}}'
-    - 'dev'
 
     # List of Kubernetes resources users can access with this role
     # This example allows access to all resources in all namespaces
@@ -80,4 +73,4 @@ spec:
       # Limits user credentials to 8 hours. After the time to live (TTL) expires,
       # users must re-login
       max_session_ttl: 8h0m0s
-version: v8
+version: v9

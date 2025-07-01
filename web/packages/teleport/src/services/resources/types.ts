@@ -70,6 +70,7 @@ export enum RoleVersion {
   V6 = 'v6',
   V7 = 'v7',
   V8 = 'v8',
+  V9 = 'v9',
 }
 
 /**

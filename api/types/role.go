@@ -312,10 +312,10 @@ type Role interface {
 // When incrementing the role version, make sure to update the
 // role version in the asset file used by the UI.
 // See: web/packages/teleport/src/Roles/templates/role.yaml
-const DefaultRoleVersion = V8
+const DefaultRoleVersion = V9
 
-// NewRole constructs new standard V8 role.
-// This creates a V8 role with V4+ RBAC semantics.
+// NewRole constructs new standard role with the default version.
+// This creates a role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
 	role, err := NewRoleWithVersion(name, DefaultRoleVersion, spec)
 	return role, trace.Wrap(err)
@@ -484,12 +484,12 @@ func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 // This is required to keep compatibility between role versions to avoid breaking changes
 // when using an older role version.
 //
-// For roles v8, it returns the list as it is.
+// For roles v8, V9, it returns the list as it is.
 //
 // For roles <=v7, it maps the legacy teleport Kinds to k8s plurals and sets the APIGroup to wildcard.
 func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V8:
+	case V8, V9:
 		return resources
 	default:
 		v7resources := slices.Clone(resources)
@@ -565,8 +565,8 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 // and append the other supported resources - KubernetesResourcesKinds - for Role v8.
 func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V7, V8:
-		// V7 and v8 uses the same logic for allow and deny.
+	case V7, V8, V9:
+		// V7, V8 and v9 uses the same logic for allow and deny.
 		return r.convertKubernetesResourcesBetweenRoleVersions(resources)
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
@@ -1133,11 +1133,14 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 {
+	switch r.Version {
+	case V3, V4, V5, V6, V7, V8:
+		return
+	default:
 		// When incrementing the role version, make sure to update the
 		// role version in the asset file used by the UI.
 		// See: web/packages/teleport/src/Roles/templates/role.yaml
-		r.Version = V8
+		r.Version = DefaultRoleVersion
 	}
 }
 
@@ -1296,8 +1299,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
-	case V8:
-		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8 roles.
+	case V8, V9:
+		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8, v9 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				// Full access to everything.
@@ -1999,15 +2002,15 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("KubernetesResource kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V8)
+				return trace.BadParameter("KubernetesResource kind %q is not supported in role version %q. Upgrade the role version to >= %q", kubeResource.Kind, roleVersion, V8)
 			}
 			if len(kubeResource.Verbs) != 1 || kubeResource.Verbs[0] != Wildcard {
-				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V8)
+				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to >= %q", roleVersion, Wildcard, V8)
 			}
 			fallthrough
 		case V7:
 			if kubeResource.APIGroup != "" {
-				return trace.BadParameter("API Group %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.APIGroup, roleVersion, V8)
+				return trace.BadParameter("API Group %q is not supported in role version %q. Upgrade the role version to >= %q", kubeResource.APIGroup, roleVersion, V8)
 			}
 			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
@@ -2015,7 +2018,11 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q must include Namespace", kubeResource.Kind)
 			}
+		case V9:
+			// TODO(@creack): Implement v9 validation.
+			fallthrough
 		case V8:
+			// Common validation for V8 and V9.
 			if kubeResource.Kind == "" {
 				return trace.BadParameter("KubernetesResource kind %q is required in role version %q", kubeResource.Kind, roleVersion)
 			}
@@ -2067,7 +2074,7 @@ func validateRequestKubeResources(roleVersion string, kubeResources []RequestKub
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V8)
+				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to >= %q", kubeResource.Kind, roleVersion, V8)
 			}
 		}
 	}

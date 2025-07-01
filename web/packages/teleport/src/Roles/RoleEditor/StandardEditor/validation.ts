@@ -329,6 +329,8 @@ const validKubernetesKind = (
           : `Only core predefined kinds are allowed for role version ${ver}`,
       };
 
+    case RoleVersion.V9:
+    // TODO(@creack): Implement validation for v9.
     case RoleVersion.V8:
       const v7groups = kubernetesResourceKindV7Groups[kind];
       const v8valid =
