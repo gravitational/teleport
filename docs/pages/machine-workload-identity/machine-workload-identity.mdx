@@ -15,9 +15,7 @@ Establish a root certificate authority within your Teleport cluster that issues 
 Key benefits:
 
 - Eliminates long-lived shared secrets
-
 - Establishes a universal form of identity for workloads
-
 - Simplifies infrastructure by reducing authentication methods
 
 The tbot agent manages identity requests and renewals, authenticating to the Teleport cluster using supported join methods. Workloads receive identities either through filesystem/Kubernetes secrets or via the SPIFFE Workload API.
@@ -34,7 +32,7 @@ Workload Identity and Machine ID can work together to create a comprehensive sec
 
 ### CI/CD pipeline with end-to-end authentication
 
-A [CI/CD system](../machine-workload-identity/machine-id/deployment/#cicd) securely deploys services to Kubernetes and establishes secure communication channels between them:
+A [CI/CD system](../machine-workload-identity/machine-id/deployment/#ci/cd) securely deploys services to Kubernetes and establishes secure communication channels between them:
 
 - The pipeline authenticates through the proxy to deploy to Kubernetes and receives credentials to interact with cloud APIs (e.g., to push container images)
 - Services deployed by the pipeline receive SPIFFE identities for mutual TLS. The pipeline manages the identity lifecycle for the services it deploys
