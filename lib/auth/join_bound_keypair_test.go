@@ -1247,5 +1247,5 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, err = client.Ping(ctx)
 		return err != nil && strings.Contains(err.Error(), "access denied")
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }

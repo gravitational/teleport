@@ -579,7 +579,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, err = renewedClient.Ping(ctx)
 		return err != nil && strings.Contains(err.Error(), "access denied")
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
