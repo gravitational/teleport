@@ -596,6 +596,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
+		MultipartHandler:                cfg.MultipartHandler,
 	}
 
 	as := Server{
@@ -836,6 +837,7 @@ type Services struct {
 	services.BackendInfoService
 	services.VnetConfigService
 	RecordingEncryptionManager
+	events.MultipartHandler
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1235,6 +1237,10 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// OverrideAWSCredentialGeneration overrides the generation of AWS credentials for AWS Apps which use the Roles Anywhere Integration.
+	// Used for testing.
+	OverrideAWSCredentialGeneration func() string
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -3211,6 +3217,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
+		botInstanceID:        req.botInstanceID,
+		joinToken:            req.joinToken,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3463,6 +3471,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	var awsCredentialProcessCredentials string
+	if a.OverrideAWSCredentialGeneration != nil {
+		awsCredentialProcessCredentials = a.OverrideAWSCredentialGeneration()
+	}
+
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -3475,15 +3488,16 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:         req.appSessionID,
-			URI:               req.appURI,
-			TargetPort:        req.appTargetPort,
-			PublicAddr:        req.appPublicAddr,
-			ClusterName:       req.appClusterName,
-			Name:              req.appName,
-			AWSRoleARN:        req.awsRoleARN,
-			AzureIdentity:     req.azureIdentity,
-			GCPServiceAccount: req.gcpServiceAccount,
+			SessionID:                       req.appSessionID,
+			URI:                             req.appURI,
+			TargetPort:                      req.appTargetPort,
+			PublicAddr:                      req.appPublicAddr,
+			ClusterName:                     req.appClusterName,
+			Name:                            req.appName,
+			AWSRoleARN:                      req.awsRoleARN,
+			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
+			AzureIdentity:                   req.azureIdentity,
+			GCPServiceAccount:               req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -3675,6 +3689,10 @@ type verifyLocksForUserCertsReq struct {
 	// deviceID is the trusted device ID.
 	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
 	deviceID string
+	// botInstanceID is the bot instance UUID, set only for bots.
+	botInstanceID string
+	// joinMethod is the join token name, set only for non-token bots.
+	joinToken string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -3694,6 +3712,12 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets = append(lockTargets,
 		services.AccessRequestsToLockTargets(req.activeAccessRequests)...,
 	)
+	if req.botInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: req.botInstanceID})
+	}
+	if req.joinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: req.joinToken})
+	}
 
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
