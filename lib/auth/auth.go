@@ -3203,6 +3203,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
+		botInstanceID:        req.botInstanceID,
+		joinToken:            req.joinToken,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3664,6 +3666,10 @@ type verifyLocksForUserCertsReq struct {
 	// deviceID is the trusted device ID.
 	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
 	deviceID string
+	// botInstanceID is the bot instance UUID, set only for bots.
+	botInstanceID string
+	// joinMethod is the join token name, set only for non-token bots.
+	joinToken string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -3683,6 +3689,12 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets = append(lockTargets,
 		services.AccessRequestsToLockTargets(req.activeAccessRequests)...,
 	)
+	if req.botInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: req.botInstanceID})
+	}
+	if req.joinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: req.joinToken})
+	}
 
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
