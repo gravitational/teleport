@@ -246,28 +246,32 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 
 	pid := os.Getpid()
 
-	workloadIdentity := &workloadidentityv1pb.WorkloadIdentity{
-		Kind:    types.KindWorkloadIdentity,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "foo-bar-bizz",
-			Labels: map[string]string{
-				"test": "Test_E2E_SPIFFE_SDS",
-			},
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-				Id: "/foo",
-			},
-			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
-				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-					{
-						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+	_, err = rootClient.WorkloadIdentityResourceServiceClient().
+		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-bar-bizz",
+					Labels: map[string]string{
+						"test": "Test_E2E_SPIFFE_SDS",
+					},
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/foo",
+					},
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
 							{
-								Attribute: "workload.unix.pid",
-								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
-									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
-										Value: fmt.Sprintf("%d", pid),
+								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+									{
+										Attribute: "workload.unix.pid",
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: fmt.Sprintf("%d", pid),
+											},
+										},
 									},
 								},
 							},
@@ -275,11 +279,6 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 					},
 				},
 			},
-		},
-	}
-	_, err = rootClient.WorkloadIdentityResourceServiceClient().
-		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
-			WorkloadIdentity: workloadIdentity,
 		})
 	require.NoError(t, err)
 
