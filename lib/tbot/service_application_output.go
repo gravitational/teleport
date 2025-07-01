@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // ApplicationOutputService generates the artifacts necessary to connect to a
@@ -46,10 +47,14 @@ type ApplicationOutputService struct {
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
 	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 }
 
 func (s *ApplicationOutputService) String() string {
-	return fmt.Sprintf("application-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("application-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *ApplicationOutputService) OneShot(ctx context.Context) error {
@@ -69,6 +74,7 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
