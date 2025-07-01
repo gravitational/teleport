@@ -23,15 +23,16 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 func TestDatabaseTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[DatabaseTunnelService]{
+	tests := []testYAMLCase[database.TunnelConfig]{
 		{
 			name: "full",
-			in: DatabaseTunnelService{
+			in: database.TunnelConfig{
 				Listen:   "tcp://0.0.0.0:3621",
 				Roles:    []string{"role1", "role2"},
 				Service:  "service",
@@ -50,11 +51,11 @@ func TestDatabaseTunnelService_YAML(t *testing.T) {
 func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*DatabaseTunnelService]{
+	tests := []testCheckAndSetDefaultsCase[*database.TunnelConfig]{
 		{
 			name: "valid",
-			in: func() *DatabaseTunnelService {
-				return &DatabaseTunnelService{
+			in: func() *database.TunnelConfig {
+				return &database.TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
 					Service:  "service",
@@ -66,8 +67,8 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing listen",
-			in: func() *DatabaseTunnelService {
-				return &DatabaseTunnelService{
+			in: func() *database.TunnelConfig {
+				return &database.TunnelConfig{
 					Roles:    []string{"role1", "role2"},
 					Service:  "service",
 					Database: "database",
@@ -78,8 +79,8 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing service",
-			in: func() *DatabaseTunnelService {
-				return &DatabaseTunnelService{
+			in: func() *database.TunnelConfig {
+				return &database.TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
 					Database: "database",
@@ -90,8 +91,8 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing database",
-			in: func() *DatabaseTunnelService {
-				return &DatabaseTunnelService{
+			in: func() *database.TunnelConfig {
+				return &database.TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
 					Service:  "service",
@@ -102,8 +103,8 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing username",
-			in: func() *DatabaseTunnelService {
-				return &DatabaseTunnelService{
+			in: func() *database.TunnelConfig {
+				return &database.TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
 					Service:  "service",

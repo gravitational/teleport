@@ -130,7 +130,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	}
 	defer impersonatedClient.Close()
 
-	route, err := GetRouteToDatabase(
+	route, err := getRouteToDatabase(
 		ctx,
 		s.log,
 		impersonatedClient,

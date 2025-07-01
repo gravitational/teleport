@@ -56,7 +56,7 @@ func getDatabase(ctx context.Context, clt *apiclient.Client, name string) (types
 	return db, trace.Wrap(err)
 }
 
-func GetRouteToDatabase(
+func getRouteToDatabase(
 	ctx context.Context,
 	log *slog.Logger,
 	client *apiclient.Client,

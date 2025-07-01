@@ -951,7 +951,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.DatabaseTunnelService{
+			&database.TunnelConfig{
 				Listener: botListener,
 				Service:  "test-database",
 				Database: "mydb",

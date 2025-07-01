@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package database
 
 import (
 	"cmp"
@@ -35,25 +35,28 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func DatabaseTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.DatabaseTunnelService) bot.ServiceBuilder {
+func TunnelServiceBuilder(
+	cfg *TunnelConfig,
+	connCfg connection.Config,
+	defaultCredentialLifetime bot.CredentialLifetime,
+) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &DatabaseTunnelService{
-			botCfg:             botCfg,
-			cfg:                cfg,
-			proxyPinger:        deps.ProxyPinger,
-			botClient:          deps.Client,
-			getBotIdentity:     deps.BotIdentity,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+			connCfg:                   connCfg,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			proxyPinger:               deps.ProxyPinger,
+			botClient:                 deps.Client,
+			getBotIdentity:            deps.BotIdentity,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -67,15 +70,16 @@ func DatabaseTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.Database
 // connections to a remote database service. It is an authenticating tunnel and
 // will automatically issue and renew certificates as needed.
 type DatabaseTunnelService struct {
-	botCfg             *config.BotConfig
-	cfg                *config.DatabaseTunnelService
-	proxyPinger        connection.ProxyPinger
-	log                *slog.Logger
-	botClient          *apiclient.Client
-	getBotIdentity     getBotIdentityFn
-	botIdentityReadyCh <-chan struct{}
-	identityGenerator  *identity.Generator
-	clientBuilder      *client.Builder
+	connCfg                   connection.Config
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *TunnelConfig
+	proxyPinger               connection.ProxyPinger
+	log                       *slog.Logger
+	botClient                 *apiclient.Client
+	getBotIdentity            func() *identity.Identity
+	botIdentityReadyCh        <-chan struct{}
+	identityGenerator         *identity.Generator
+	clientBuilder             *client.Builder
 }
 
 // buildLocalProxyConfig initializes the service, fetching any initial information and setting
@@ -167,12 +171,12 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		ParentContext:      ctx,
 		Protocols:          []common.Protocol{alpnProtocol},
 		Cert:               *dbCert,
-		InsecureSkipVerify: s.botCfg.Insecure,
+		InsecureSkipVerify: s.connCfg.Insecure,
 	}
 	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
-		s.botCfg.Insecure,
+		s.connCfg.Insecure,
 	) {
 		lpConfig.ALPNConnUpgradeRequired = true
 		// If ALPN Conn Upgrade will be used, we need to set the cluster CAs
@@ -243,7 +247,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/getRouteToDatabaseWithImpersonation")
 	defer span.End()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -263,7 +267,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		}
 	}()
 
-	return database.GetRouteToDatabase(ctx, s.log, impersonatedClient, s.cfg.Service, s.cfg.Username, s.cfg.Database)
+	return getRouteToDatabase(ctx, s.log, impersonatedClient, s.cfg.Service, s.cfg.Username, s.cfg.Database)
 }
 
 func (s *DatabaseTunnelService) issueCert(
@@ -274,7 +278,7 @@ func (s *DatabaseTunnelService) issueCert(
 	defer span.End()
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	ident, err := s.identityGenerator.Generate(ctx,
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -292,5 +296,5 @@ func (s *DatabaseTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *DatabaseTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service)
+	return fmt.Sprintf("%s:%s:%s", TunnelServiceType, s.cfg.Listen, s.cfg.Service)
 }
