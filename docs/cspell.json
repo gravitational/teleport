@@ -160,6 +160,8 @@
     "NOPASSWD",
     "NVGJ",
     "Näme",
+    "O_CLOEXEC",
+    "OCID",
     "ODBC",
     "OIDC",
     "OTLP",
