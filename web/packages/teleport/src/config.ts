@@ -183,6 +183,7 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    bot: '/web/bot/:name',
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
@@ -720,6 +721,10 @@ const cfg = {
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotDetailsRoute(name: string) {
+    return generatePath(cfg.routes.bot, { name });
   },
 
   getBotInstancesRoute() {
