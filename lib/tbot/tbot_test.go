@@ -46,7 +46,6 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/gravitational/teleport/api/client"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -55,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -64,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -104,40 +103,8 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 
 // makeBot creates a server-side bot and returns joining parameters.
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
-	ctx := context.TODO()
-	t.Helper()
-
-	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
-				Roles: roles,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
-	require.NoError(t, err)
-	tok, err := types.NewProvisionTokenFromSpec(
-		tokenName,
-		time.Now().Add(10*time.Minute),
-		types.ProvisionTokenSpecV2{
-			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
-		})
-	require.NoError(t, err)
-	err = client.CreateToken(ctx, tok)
-	require.NoError(t, err)
-
-	return &onboarding.Config{
-		TokenValue: tok.GetName(),
-		JoinMethod: types.JoinMethodToken,
-	}, b
+	bot, onboardingCfg := testutils.MakeBot(t, client.APIClient, name, roles...)
+	return onboardingCfg, bot
 }
 
 // defaultBotConfig creates a usable bot config from joining parameters.
