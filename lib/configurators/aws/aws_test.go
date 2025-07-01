@@ -1085,7 +1085,7 @@ func mustGetTargetConfig(t *testing.T, flags configurators.BootstrapFlags, roleT
 	require.NoError(t, fileConfig.CheckAndSetDefaults())
 	serviceCfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fileConfig, serviceCfg))
-	targetCfg, err := getTargetConfig(flags, serviceCfg, roleTarget)
+	targetCfg, err := getTargetConfig(flags, serviceCfg, roleTarget, types.AssumeRole{})
 	require.NoError(t, err)
 	return targetCfg
 }
@@ -1211,6 +1211,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 		identity          awslib.Identity
 		accountID         string
 		partitionID       string
+		assumeRole        types.AssumeRole
 		targetType        awslib.Identity
 		targetName        string
 		targetAccountID   string
@@ -1348,7 +1349,14 @@ func TestAWSPoliciesTarget(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			target, err := policiesTarget(test.flags, test.accountID, test.partitionID, test.identity, test.iamClient)
+			config := ConfiguratorConfig{
+				Flags: test.flags,
+			}
+			identity := test.identity
+			if identity == nil {
+				identity = identityFromArn(t, buildIAMARN(test.partitionID, test.accountID, "user", defaultAttachUser))
+			}
+			target, err := policiesTarget(config, test.assumeRole, identity, test.iamClient)
 			if test.wantErrContains != "" {
 				require.ErrorContains(t, err, test.wantErrContains)
 				return
@@ -1377,6 +1385,9 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 			PublicAddr: []string{"proxy.example.org:443"},
 		},
 		Discovery: config.Discovery{
+			Service: config.Service{
+				EnabledFlag: "yes",
+			},
 			AWSMatchers: []config.AWSMatcher{
 				{
 					Types:   []string{"ec2"},
@@ -1391,11 +1402,17 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 	require.NoError(t, config.ApplyFileConfig(fileConfig, serviceConfig))
 
 	config := ConfiguratorConfig{
-		awsCfg:    &aws.Config{},
-		iamClient: &iamMock{},
-		Identity:  identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
+		awsConfigs: map[string]aws.Config{
+			configCacheKey("", "", ""): {},
+		},
+		iamClients: map[string]iamClient{
+			configCacheKey("", "", ""): &iamMock{},
+		},
+		identities: map[string]awslib.Identity{
+			configCacheKey("", "", ""): identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
+		},
 		ssmClients: map[string]ssmClient{
-			"eu-central-1": &ssmMock{
+			configCacheKey("", "", "eu-central-1"): &ssmMock{
 				t: t,
 				expectedInput: &ssm.CreateDocumentInput{
 					Content:        aws.String(awslib.EC2DiscoverySSMDocument("https://proxy.example.org:443")),
@@ -1409,8 +1426,10 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 			Service:             configurators.DiscoveryService,
 			ForceEC2Permissions: true,
 		},
-		Policies: &policiesMock{
-			upsertArn: "policies-arn",
+		policies: map[string]awslib.Policies{
+			configCacheKey("", "", ""): &policiesMock{
+				upsertArn: "policies-arn",
+			},
 		},
 	}
 	configurator, err := NewAWSConfigurator(config)
@@ -1432,17 +1451,27 @@ func TestAWSConfigurator(t *testing.T) {
 	ctx := context.Background()
 
 	config := ConfiguratorConfig{
-		awsCfg:        &aws.Config{},
-		iamClient:     &iamMock{},
-		Identity:      identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
-		ssmClients:    map[string]ssmClient{"eu-central-1": &ssmMock{}},
+		awsConfigs: map[string]aws.Config{
+			configCacheKey("", "", ""): {},
+		},
+		iamClients: map[string]iamClient{
+			configCacheKey("", "", ""): &iamMock{},
+		},
+		identities: map[string]awslib.Identity{
+			configCacheKey("", "", ""): identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
+		},
+		ssmClients: map[string]ssmClient{
+			configCacheKey("", "", "eu-central-1"): &ssmMock{},
+		},
 		ServiceConfig: &servicecfg.Config{},
 		Flags: configurators.BootstrapFlags{
 			AttachToUser:        "some-user",
 			ForceRDSPermissions: true,
 		},
-		Policies: &policiesMock{
-			upsertArn: "policies-arn",
+		policies: map[string]awslib.Policies{
+			configCacheKey("", "", ""): &policiesMock{
+				upsertArn: "policies-arn",
+			},
 		},
 	}
 
@@ -1750,7 +1779,7 @@ func TestExtractTargetConfig(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := getTargetConfig(tt.flags, tt.cfg, tt.target)
+			got, err := getTargetConfig(tt.flags, tt.cfg, tt.target, types.AssumeRole{})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -1887,7 +1916,7 @@ func (m *ssmMock) CreateDocument(ctx context.Context, input *ssm.CreateDocumentI
 		cmp.Diff(m.expectedInput.Content, input.Content),
 		"Document content diff (-want +got)")
 	require.Empty(m.t,
-		cmp.Diff(m.expectedInput, input, cmpopts.IgnoreFields(ssm.CreateDocumentInput{}, "Content")),
+		cmp.Diff(m.expectedInput, input, cmpopts.IgnoreUnexported(ssm.CreateDocumentInput{})),
 		"Document diff (-want +got)")
 
 	return nil, nil
