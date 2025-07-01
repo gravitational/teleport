@@ -371,6 +371,8 @@ const validKubernetesGroup = (
           : `API Group not supported for role version ${ver}.`,
       };
 
+    case RoleVersion.V9:
+    // TODO(@creack): Implement validation for v9.
     case RoleVersion.V8:
       const v8valid = !!group;
       return {
