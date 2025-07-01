@@ -863,7 +863,7 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
-	require.Equal(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
+	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
