@@ -3677,14 +3677,6 @@ func generateAWSRolesAnywhereCredentials(
 	}
 
 	durationSeconds := int(notAfter.Sub(a.clock.Now()).Seconds())
-	createSession := createsession.CreateSession
-
-	// Replace by the override function if it is set.
-	// This method does an HTTP call to AWS services, so this is useful for mocking that call.
-	// Only used in tests.
-	if a.AWSRolesAnywhereCreateSessionOverride != nil {
-		createSession = a.AWSRolesAnywhereCreateSessionOverride
-	}
 
 	generateCredentialsRequest := awsra.GenerateCredentialsRequest{
 		Clock:                 a.clock,
@@ -3696,7 +3688,13 @@ func generateAWSRolesAnywhereCredentials(
 		AcceptRoleSessionName: acceptRoleSessionName,
 		DurationSeconds:       &durationSeconds,
 		Cache:                 a.Cache,
-		CreateSession:         createSession,
+	}
+
+	// Replace by the override function if it is set.
+	// This method does an HTTP call to AWS services, so this is useful for mocking that call.
+	// Only used in tests.
+	if a.AWSRolesAnywhereCreateSessionOverride != nil {
+		generateCredentialsRequest.CreateSession = a.AWSRolesAnywhereCreateSessionOverride
 	}
 
 	resp, err := awsra.GenerateCredentials(ctx, generateCredentialsRequest)
