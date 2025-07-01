@@ -1435,7 +1435,11 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
-func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, adminClusterRole string, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
+	// TODO(@creack): Move to CheckAndSetDefault? (Doesn't exist yet for Kube.Config.)
+	if adminClusterRole == "" {
+		adminClusterRole = teleport.KubeDefaultAdminClusterRoleName
+	}
 	groups := make(map[string]struct{})
 	users := make(map[string]struct{})
 	var matchedTTL bool
@@ -1451,11 +1455,19 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
-			for _, group := range role.GetKubeGroups(types.Allow) {
-				groups[group] = struct{}{}
-			}
-			for _, user := range role.GetKubeUsers(types.Allow) {
-				users[user] = struct{}{}
+			switch role.GetVersion() {
+			// Up to V8, we use the values from the role.
+			case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
+				for _, group := range role.GetKubeGroups(types.Allow) {
+					groups[group] = struct{}{}
+				}
+				for _, user := range role.GetKubeUsers(types.Allow) {
+					users[user] = struct{}{}
+				}
+			default:
+				// Starting with V9, we don't support setting the group/user from the role and use
+				// a preset value instead.
+				groups[adminClusterRole] = struct{}{}
 			}
 		}
 	}

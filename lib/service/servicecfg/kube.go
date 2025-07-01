@@ -48,6 +48,11 @@ type KubeConfig struct {
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string
 
+	// AdminClusterRoleName is the name of the Kubernetes cluster role that
+	// will be used for impersonation for roles >= v9.
+	// If empty, defaults to the default admin clusterrole.
+	AdminClusterRoleName string
+
 	// Labels are used for RBAC on clusters.
 	StaticLabels  map[string]string
 	DynamicLabels services.CommandLabels

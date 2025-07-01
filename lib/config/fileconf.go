@@ -2432,6 +2432,9 @@ type Kube struct {
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 	// ResourceMatchers match cluster kube_cluster resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+	// AdminClusterRoleName is the name of the Kubernetes cluster role that
+	// will be used for impersonation for roles >= v9.
+	AdminClusterRoleName string `yaml:"admin_clusterrole_name,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
