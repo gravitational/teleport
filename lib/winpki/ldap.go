@@ -175,7 +175,7 @@ func convertLDAPError(err error) error {
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
 func (c *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
-	client, err := c.cfg.CreateConnection(ctx, ldapTlsConfig)
+	client, err := c.cfg.createConnection(ctx, ldapTlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating LDAP client")
 	}
@@ -222,7 +222,7 @@ func (c *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
 func (c *LDAPClient) Create(ctx context.Context, dn string, class string, attrs map[string][]string, ldapTlsConfig *tls.Config) error {
-	client, err := c.cfg.CreateConnection(ctx, ldapTlsConfig)
+	client, err := c.cfg.createConnection(ctx, ldapTlsConfig)
 	if err != nil {
 		return trace.Wrap(err, "creating LDAP client")
 	}
@@ -261,7 +261,7 @@ func (c *LDAPClient) CreateContainer(ctx context.Context, dn string, ldapTlsConf
 // You can browse LDAP on the Windows host to find attributes of existing
 // entries using ADSIEdit.msc.
 func (c *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[string][]string, ldapTlsConfig *tls.Config) error {
-	client, err := c.cfg.CreateConnection(ctx, ldapTlsConfig)
+	client, err := c.cfg.createConnection(ctx, ldapTlsConfig)
 	if err != nil {
 		return trace.Wrap(err, "creating LDAP client")
 	}
@@ -303,10 +303,10 @@ func crlKeyName(caType types.CertAuthType) string {
 	}
 }
 
-// CreateConnection dials an LDAP server using the provided TLS config.
+// createConnection dials an LDAP server using the provided TLS config.
 // The server is either obtained directly from the configuration or
 // discovered via DNS.
-func (c *LDAPConfig) CreateConnection(ctx context.Context, ldapTlsConfig *tls.Config) (*ldap.Conn, error) {
+func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Config) (*ldap.Conn, error) {
 	dnsDialer := net.Dialer{
 		Timeout: ldapDialTimeout,
 	}
