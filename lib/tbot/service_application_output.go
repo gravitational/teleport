@@ -51,7 +51,10 @@ type ApplicationOutputService struct {
 }
 
 func (s *ApplicationOutputService) String() string {
-	return fmt.Sprintf("application-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("application-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *ApplicationOutputService) OneShot(ctx context.Context) error {

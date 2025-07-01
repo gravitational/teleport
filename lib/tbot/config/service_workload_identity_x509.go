@@ -63,6 +63,8 @@ func (s *WorkloadIdentitySelector) CheckAndSetDefaults() error {
 // WorkloadIdentityX509Service is the configuration for the WorkloadIdentityX509Service
 // Emulates the output of https://github.com/spiffe/spiffe-helper
 type WorkloadIdentityX509Service struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
@@ -75,6 +77,11 @@ type WorkloadIdentityX509Service struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o WorkloadIdentityX509Service) GetName() string {
+	return o.Name
 }
 
 // Init initializes the destination.

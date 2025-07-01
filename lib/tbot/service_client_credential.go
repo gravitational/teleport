@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
@@ -46,7 +47,10 @@ type ClientCredentialOutputService struct {
 }
 
 func (s *ClientCredentialOutputService) String() string {
-	return "client-credential-output"
+	return cmp.Or(
+		s.cfg.Name,
+		"client-credential-output",
+	)
 }
 
 func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {

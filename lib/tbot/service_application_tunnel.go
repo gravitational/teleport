@@ -270,5 +270,8 @@ func (s *ApplicationTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *ApplicationTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName),
+	)
 }
