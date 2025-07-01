@@ -75,7 +75,7 @@
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
     "@codemirror/lang-sql": "^6.9.0",
-    "@codemirror/view": "^6.36.7",
+    "@codemirror/view": "^6.38.0",
     "@floating-ui/react": "^0.27.8",
     "@grpc/grpc-js": "1.13.4",
     "@lezer/highlight": "^1.2.1",
