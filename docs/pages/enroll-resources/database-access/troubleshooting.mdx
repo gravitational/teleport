@@ -171,7 +171,7 @@ proxy_service:
   mysql_server_version: "8.0.4"
 ```
 
-## MySQL Prompts for Password Despite Teleport Using Certificate-Based Authentication
+## MySQL prompts for password despite Teleport using certificate-based authentication
 
 When connecting to a MySQL database using Teleport — via either `tsh db connect` or **Teleport Connect** — you may unexpectedly be prompted for a password. This can be confusing, since Teleport is designed to use **certificate-based (mTLS) authentication**, not password-based logins.
 
