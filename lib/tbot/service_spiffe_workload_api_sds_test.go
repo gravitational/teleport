@@ -277,7 +277,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 			},
 		},
 	}
-	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
+	_, err = rootClient.WorkloadIdentityResourceServiceClient().
 		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
 			WorkloadIdentity: workloadIdentity,
 		})
