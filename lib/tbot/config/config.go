@@ -468,12 +468,6 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SPIFFEWorkloadAPIServiceType:
-			v := &SPIFFEWorkloadAPIService{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
 		case DatabaseTunnelServiceType:
 			v := &DatabaseTunnelService{}
 			if err := node.Decode(v); err != nil {
@@ -494,12 +488,6 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case KubernetesV2OutputType:
 			v := &KubernetesV2Output{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case SPIFFESVIDOutputType:
-			v := &SPIFFESVIDOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
