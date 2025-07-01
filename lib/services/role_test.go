@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -10137,6 +10138,112 @@ func TestNewEnumerationResultFromEntities(t *testing.T) {
 			actualAllowed, actualDenied := result.ToEntities()
 			require.Equal(t, test.wantAllowed, actualAllowed)
 			require.Equal(t, test.wantDenied, actualDenied)
+		})
+	}
+}
+
+func TestGetAllowedPreviewAsRole(t *testing.T) {
+	localCluster := "cluster"
+	const rudyReviewer = "rudyReviewer"
+	roles := roleMap(t, 4)
+
+	type reviewer struct {
+		allowed []string
+		denied  []string
+		traits  map[string][]string
+	}
+
+	tests := []struct {
+		name          string
+		reviewer      reviewer
+		expectedRoles []string
+	}{
+		{
+			name: "matching allow preview roles",
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+			},
+			expectedRoles: []string{"role1", "role2"},
+		},
+		{
+			name: "without traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			expectedRoles: []string{"role1"},
+		},
+		{
+			name: "preview roles with traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+			},
+			expectedRoles: []string{"role1", "role2"},
+		},
+		{
+			name: "preview roles with multiple traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1", "{{external.roles}}", "{{external.other_roles}}"},
+				traits: map[string][]string{
+					"roles":       {"role2"},
+					"other_roles": {"role3"},
+				},
+			},
+			expectedRoles: []string{"role1", "role2", "role3"},
+		},
+		{
+			name: "matching deny preview roles",
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+				denied:  []string{"role2"},
+			},
+			expectedRoles: []string{"role1"},
+		},
+		{
+			name: "denied preview roles with traits interpolation",
+			reviewer: reviewer{
+				allowed: []string{"role1", "role2"},
+				traits: map[string][]string{
+					"roles": {"role2"},
+				},
+				denied: []string{"{{external.roles}}"},
+			},
+			expectedRoles: []string{"role1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &mockGetter{
+				roles: func() map[string]types.Role {
+					roles["rev"] = mustReviewRole(t, "rev", tt.reviewer.allowed, tt.reviewer.denied)
+					return roles
+				}(),
+				userStates: map[string]*userloginstate.UserLoginState{
+					rudyReviewer: mustUserLoginState(t, rudyReviewer, "rev", tt.reviewer.traits),
+				},
+				users: map[string]types.User{
+					rudyReviewer: mustUser(t, rudyReviewer, []string{"rev"}),
+				},
+			}
+
+			var roleNames []string
+			for v := range g.roles {
+				roleNames = append(roleNames, v)
+			}
+
+			accessChecker, err := NewAccessChecker(&AccessInfo{
+				Roles:    roleNames,
+				Traits:   tt.reviewer.traits,
+				Username: rudyReviewer,
+			}, localCluster, g)
+			require.NoError(t, err)
+			roles := accessChecker.GetAllowedPreviewAsRoles()
+			require.Equal(t, tt.expectedRoles, roles)
 		})
 	}
 }

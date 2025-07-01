@@ -203,7 +203,9 @@ type AccessChecker interface {
 	// that allowed requesting to the requested Kubernetes resource kind.
 	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
 
-	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
+	// GetAllowedPreviewAsRoles eturns all of the allowed PreviewAsRoles.
+	// It evaluates both statically defined role names and dynamically generated role
+	// names based on user traits.
 	GetAllowedPreviewAsRoles() []string
 
 	// MaxConnections returns the maximum number of concurrent ssh connections
@@ -1290,6 +1292,13 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 	}
 
 	return sudoers, nil
+}
+
+// GetAllowedPreviewAsRoles eturns all of the allowed PreviewAsRoles.
+// It evaluates both statically defined role names and dynamically generated role
+// names based on user traits.
+func (a *accessChecker) GetAllowedPreviewAsRoles() []string {
+	return a.RoleSet.GetAllowedPreviewAsRoles(a.AccessInfo().Traits)
 }
 
 // AccessInfoFromLocalSSHIdentity returns a new AccessInfo populated from the
