@@ -5362,20 +5362,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterBotInstanceServiceServer(server, botInstanceService)
 
-	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
-		KeyStore:   cfg.AuthServer.keyStore,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "workload-identity.service"),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating workload identity service")
-	}
-	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
-
 	spiffeFederationService, err := machineidv1.NewSPIFFEFederationService(machineidv1.SPIFFEFederationServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services.SPIFFEFederations,

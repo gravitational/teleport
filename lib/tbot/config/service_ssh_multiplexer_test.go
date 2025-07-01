@@ -25,6 +25,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func TestSSHMultiplexerService_YAML(t *testing.T) {
 	t.Parallel()
 

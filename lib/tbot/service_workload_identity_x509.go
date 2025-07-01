@@ -40,6 +40,13 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
+const (
+	// pemPrivateKey is the PEM block type for a PKCS 8 encoded private key.
+	pemPrivateKey = "PRIVATE KEY"
+	// pemCertificate is the PEM block type for a DER encoded certificate.
+	pemCertificate = "CERTIFICATE"
+)
+
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
 type WorkloadIdentityX509Service struct {
