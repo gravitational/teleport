@@ -170,3 +170,64 @@ Service even if TLS Routing was not enabled on the Teleport cluster.
 proxy_service:
   mysql_server_version: "8.0.4"
 ```
+
+## MySQL Prompts for Password Despite Teleport Using Certificate-Based Authentication
+
+When connecting to a MySQL database using Teleport — via either `tsh db connect` or **Teleport Connect** — you may unexpectedly be prompted for a password. This can be confusing, since Teleport is designed to use **certificate-based (mTLS) authentication**, not password-based logins.
+
+### Root Cause
+
+This issue is commonly caused by the presence of a local `~/.my.cnf` file on the user's machine. MySQL client tools (which Teleport relies on under the hood) automatically read this file and apply any default connection parameters found inside.
+
+If the file contains a `password` field, the client assumes password authentication should be used, bypassing the Teleport certificate-based mechanism.
+
+**Example:**
+
+```ini
+[client]
+user=someuser
+password=plaintextpassword
+```
+
+This behavior can affect:
+
+* `tsh db connect`
+* Teleport Connect GUI
+* Any other MySQL clients launched by Teleport
+
+To resolve this:
+
+1. **Inspect the configuration file:**
+
+   ```bash
+   cat ~/.my.cnf
+   ```
+
+2. **Remove or comment out any `password` lines:**
+
+   ```bash
+   vi ~/.my.cnf
+   ```
+
+   Update the file:
+
+   ```ini
+   [client]
+   user=someuser
+   # password=plaintextpassword
+   ```
+
+3. **Retry your database connection:**
+
+   ```bash
+   tsh db connect <db-name> --db-user=<username>
+   ```
+
+   Or reconnect using Teleport Connect.
+
+### Additional Notes
+
+* File location: `~/.my.cnf` (on macOS/Linux systems).
+* The file may contain multiple sections like `[client]`, `[client_<custom>]`, etc.
+* Removing the password does **not** affect mTLS-based access — it ensures that certificate-based authentication is respected.
+* MySQL server must also be properly configured to require client certificates for the Teleport database user.
