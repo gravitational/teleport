@@ -93,6 +93,10 @@ export function BotDetails(props: {
         <Alert kind="danger">{`Error: ${error.message}`}</Alert>
       ) : undefined}
 
+      {data === null && (
+        <Alert kind="warning">{`Bot ${params.name} does not exist`}</Alert>
+      )}
+
       {!hasReadPermission && (
         <Alert kind="warning">
           You do not have permission to view this bot.

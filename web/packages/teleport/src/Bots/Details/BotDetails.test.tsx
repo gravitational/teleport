@@ -71,6 +71,13 @@ describe('BotDetails', () => {
     expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
   });
 
+  it('should show a not found error state', async () => {
+    await withLoadingError(404, 'not_found');
+    expect(
+      screen.getByText('Bot test-bot-name does not exist')
+    ).toBeInTheDocument();
+  });
+
   it('should allow back navigation', async () => {
     const goBack = jest.fn();
     jest.mocked(useHistory).mockImplementation(
@@ -159,8 +166,11 @@ describe('BotDetails', () => {
   });
 });
 
-const withLoadingError = async () => {
-  server.use(getBotError(500, 'something went wrong'));
+const withLoadingError = async (
+  status = 500,
+  message = 'something went wrong'
+) => {
+  server.use(getBotError(status, message));
   render(<BotDetails />, { wrapper: makeWrapper() });
   await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 };
