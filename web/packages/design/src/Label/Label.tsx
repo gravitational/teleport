@@ -18,6 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { borderStyle } from 'styled-system';
 
 import { space, SpaceProps } from '../system';
 import { Theme } from '../theme';
@@ -52,6 +53,17 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     };
   }
 
+  if (kind === 'outline') {
+    return {
+      borderColor: theme.colors.interactive.tonal.neutral[0],
+      borderWidth: 1,
+      borderStyle: 'solid',
+      backgroundColor: 'transparent',
+      color: theme.colors.text.main,
+      fontWeight: 400,
+    };
+  }
+
   // default is primary
   return {
     backgroundColor: theme.colors.brand,
@@ -62,6 +74,7 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
 export type LabelKind =
   | 'primary'
   | 'secondary'
+  | 'outline'
   | 'warning'
   | 'danger'
   | 'success';
