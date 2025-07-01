@@ -22,6 +22,7 @@ import Flex from 'design/Flex';
 import { Stars } from 'design/Icon/Icons/Stars';
 import Label from 'design/Label/Label';
 import { fontWeights } from 'design/theme/typography';
+import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
 
 import { ApiBotTrait } from 'teleport/services/bot/types';
@@ -30,8 +31,6 @@ import { Panel } from './Panel';
 
 export function Traits(props: { traits: ApiBotTrait[] }) {
   const { traits } = props;
-
-  const theme = useTheme();
 
   return (
     <Panel title="Traits" testId="traits-panel">
@@ -43,12 +42,7 @@ export function Traits(props: { traits: ApiBotTrait[] }) {
               <tr key={r.name}>
                 <th scope="row">
                   <Flex gap={2}>
-                    {traitsPreset.includes(r.name) ? (
-                      <Stars
-                        size={'small'}
-                        color={theme.colors.interactive.solid.primary.default}
-                      />
-                    ) : undefined}
+                    <MaybeInternalTrait traitName={r.name} />
                     {r.name}
                   </Flex>
                 </th>
@@ -66,6 +60,46 @@ export function Traits(props: { traits: ApiBotTrait[] }) {
         </tbody>
       </TransposedTable>
     </Panel>
+  );
+}
+
+const traitDescriptions: Record<string, string> = {
+  aws_role_arns: 'List of allowed AWS role ARNS',
+  azure_identities: 'List of Azure identities',
+  db_names: 'List of allowed database names',
+  db_roles: 'List of allowed database roles',
+  db_users: 'List of allowed database users',
+  gcp_service_accounts: 'List of GCP service accounts',
+  jwt: 'JWT header used for app access',
+  kubernetes_groups: 'List of allowed Kubernetes groups',
+  kubernetes_users: 'List of allowed Kubernetes users',
+  logins: 'List of allowed logins',
+  windows_logins: 'List of allowed Windows logins',
+  host_user_gid: 'The group ID to use for auto-host-users',
+  host_user_uid: 'The user ID to use for auto-host-users',
+  github_orgs: 'List of allowed GitHub organizations for git command proxy',
+};
+
+function MaybeInternalTrait(props: { traitName: string }) {
+  const theme = useTheme();
+
+  if (!traitsPreset.includes(props.traitName)) return undefined;
+
+  const description = traitDescriptions[props.traitName];
+
+  const star = (
+    <Stars
+      size={'small'}
+      color={theme.colors.interactive.solid.primary.default}
+    />
+  );
+
+  return description ? (
+    <HoverTooltip placement="top" tipContent={`Internal: ${description}`}>
+      {star}
+    </HoverTooltip>
+  ) : (
+    star
   );
 }
 
