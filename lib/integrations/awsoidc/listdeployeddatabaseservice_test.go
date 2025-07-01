@@ -110,8 +110,12 @@ type mockListECSClient struct {
 }
 
 func (m *mockListECSClient) ListServices(ctx context.Context, params *ecs.ListServicesInput, optFns ...func(*ecs.Options)) (*ecs.ListServicesOutput, error) {
-	if aws.ToString(params.Cluster) != m.clusterName || len(m.services) == 0 {
+	if aws.ToString(params.Cluster) != m.clusterName {
 		return nil, trace.NotFound("ECS Cluster not found")
+	}
+
+	if len(m.services) == 0 {
+		return &ecs.ListServicesOutput{}, nil
 	}
 
 	ret := &ecs.ListServicesOutput{}
@@ -149,6 +153,10 @@ func (m *mockListECSClient) DescribeServices(ctx context.Context, params *ecs.De
 	ret := &ecs.DescribeServicesOutput{}
 	if aws.ToString(params.Cluster) != m.clusterName {
 		return ret, nil
+	}
+
+	if len(params.Services) == 0 {
+		return ret, trace.BadParameter("describe services requires at least one service ARN")
 	}
 
 	for _, serviceARN := range params.Services {
@@ -358,6 +366,26 @@ func TestListDeployedDatabaseServices(t *testing.T) {
 			mockClient: func() *mockListECSClient {
 				ret := &mockListECSClient{
 					pageSize: 10,
+				}
+				return ret
+			},
+			respCheck: func(t *testing.T, resp *ListDeployedDatabaseServicesResponse) {
+				require.Empty(t, resp.DeployedDatabaseServices, "expected 0 services")
+				require.Empty(t, resp.NextToken, "expected an empty NextToken")
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "returns empty list when the ECS Cluster exists but has no services",
+			req: ListDeployedDatabaseServicesRequest{
+				Integration:         "my-integration",
+				TeleportClusterName: "my-cluster",
+				Region:              "us-east-1",
+			},
+			mockClient: func() *mockListECSClient {
+				ret := &mockListECSClient{
+					pageSize:    10,
+					clusterName: "my-cluster-teleport",
 				}
 				return ret
 			},

@@ -28,7 +28,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/internal"
 )
 
 // WebsocketRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -68,7 +68,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if w.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(w.ctx, header); err != nil {
+		if header, err = internal.IdentityForwardingHeaders(w.ctx, header); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

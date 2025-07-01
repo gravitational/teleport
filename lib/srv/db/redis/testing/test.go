@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package redis
+package testing
 
 import (
 	"context"
@@ -71,6 +71,8 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	for _, opt := range opts {
 		opt(clientOptions)
 	}
+
+	const protocolV2 = 2
 
 	client := redis.NewClient(&redis.Options{
 		Addr:             config.Address,

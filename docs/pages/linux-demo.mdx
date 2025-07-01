@@ -16,7 +16,7 @@ signing up for a [free trial of Teleport Enterprise
 Cloud](https://goteleport.com/signup/).
 
 ![Architecture of the setup you will complete in this
-guide](../../../img/linux-server-diagram.png)
+guide](../img/linux-server-diagram.png)
 
 We will run the following Teleport services:
 
@@ -111,7 +111,7 @@ Community Edition.
 You should see a welcome screen similar to
 the following:
 
-![Teleport Welcome Screen](../../../img/quickstart/welcome.png)
+![Teleport Welcome Screen](../img/quickstart/welcome.png)
 
 ## Step 3/4. Create a Teleport user and set up multi-factor authentication
 
@@ -147,7 +147,7 @@ Visit the provided URL in order to create your Teleport user.
   will get authentication errors later in this tutorial.
 
   If a user does not already exist, you can create it with `adduser <login>` or
-  use [host user creation](../../enroll-resources/server-access/guides/host-user-creation.mdx).
+  use [host user creation](enroll-resources/server-access/guides/host-user-creation.mdx).
 
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
@@ -193,7 +193,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 Once you finish setting up your user, you will see your SSH server in the
 Teleport Web UI:
 
-![Teleport Web UI showing an SSH server](../../../img/new-ssh-server.png)
+![Teleport Web UI showing an SSH server](../img/new-ssh-server.png)
 
 With Teleport, you can protect all of the resources in your infrastructure
 behind a single identity-aware access proxy, including servers, databases,
@@ -211,4 +211,4 @@ databases, Kubernetes clusters, cloud provider APIs, and Windows desktops.
 Step 4 showed you how to install agents manually, and you can also launch agents
 and enroll resources with them using infrastructure-as-code tools. For example,
 you can use Terraform to declare a pool of Teleport Agents and configure them to
-proxy your infrastructure. Read [Protect Infrastructure with Teleport](../../enroll-resources/agents/agents.mdx) to get started.
+proxy your infrastructure. Read [Protect Infrastructure with Teleport](enroll-resources/agents/agents.mdx) to get started.

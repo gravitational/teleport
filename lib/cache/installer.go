@@ -36,6 +36,7 @@ func newInstallerCollection(upstream services.ClusterConfiguration, w types.Watc
 
 	return &collection[types.Installer, installerIndex]{
 		store: newStore(
+			types.KindInstaller,
 			types.Installer.Clone,
 			map[installerIndex]func(types.Installer) string{
 				installerNameIndex: types.Installer.GetName,
