@@ -243,7 +243,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *config.WorkloadIdentityAPIService:
 			botServices = append(botServices, WorkloadIdentityAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
 		case *config.WorkloadIdentityAWSRAService:
-			botServices = append(botServices, WorkloadIdentityAWSRAServiceBuilder(b.cfg, svcCfg))
+			botServices = append(botServices, WorkloadIdentityAWSRAServiceBuilder(svcCfg))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}

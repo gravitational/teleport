@@ -44,10 +44,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
-func WorkloadIdentityAWSRAServiceBuilder(botCfg *config.BotConfig, cfg *config.WorkloadIdentityAWSRAService) bot.ServiceBuilder {
+func WorkloadIdentityAWSRAServiceBuilder(cfg *config.WorkloadIdentityAWSRAService) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &WorkloadIdentityAWSRAService{
-			botCfg:             botCfg,
 			cfg:                cfg,
 			botAuthClient:      deps.Client,
 			botIdentityReadyCh: deps.BotIdentityReadyCh,
@@ -68,7 +67,6 @@ func WorkloadIdentityAWSRAServiceBuilder(botCfg *config.BotConfig, cfg *config.W
 type WorkloadIdentityAWSRAService struct {
 	botAuthClient      *apiclient.Client
 	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
 	cfg                *config.WorkloadIdentityAWSRAService
 	log                *slog.Logger
 	reloadCh           <-chan struct{}
