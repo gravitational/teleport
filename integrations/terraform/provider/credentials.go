@@ -491,7 +491,7 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
 	}
 	if joinToken == "" {
-		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinToken, constants.EnvVarTerraformJoinToken)
 	}
 	if addr == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformAddress, constants.EnvVarTerraformAddress)
