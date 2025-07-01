@@ -20,10 +20,14 @@ package integrationv1
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -39,7 +43,7 @@ func (s *Service) GenerateAWSRACredentials(ctx context.Context, req *integration
 
 	for _, allowedRole := range []types.SystemRole{types.RoleAuth, types.RoleProxy} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
-			return s.generateAWSRACredentialsWithoutAuthZ(ctx, req)
+			return s.generateAWSRACredentialsWithoutAuthZ(ctx, req, "" /* trustAnchor */)
 		}
 	}
 
@@ -48,14 +52,14 @@ func (s *Service) GenerateAWSRACredentials(ctx context.Context, req *integration
 
 // generateAWSRACredentialsWithoutAuthZ generates a set of AWS credentials which uses the AWS Roles Anywhere integration.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
-	integration, err := s.cache.GetIntegration(ctx, req.GetIntegration())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	spec := integration.GetAWSRolesAnywhereIntegrationSpec()
-	if spec == nil {
-		return nil, trace.BadParameter("integration %q is not an AWSRA integration", req.Integration)
+func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest, trustAnchor string) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
+	if trustAnchor == "" {
+		spec, err := s.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		trustAnchor = spec.TrustAnchorARN
 	}
 
 	var durationSeconds *int
@@ -66,7 +70,7 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 
 	awsCredentials, err := awsra.GenerateCredentials(ctx, awsra.GenerateCredentialsRequest{
 		Clock:                 s.clock,
-		TrustAnchorARN:        spec.TrustAnchorARN,
+		TrustAnchorARN:        trustAnchor,
 		ProfileARN:            req.GetProfileArn(),
 		RoleARN:               req.GetRoleArn(),
 		SubjectCommonName:     req.GetSubjectName(),
@@ -85,5 +89,138 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 		SecretAccessKey: awsCredentials.SecretAccessKey,
 		SessionToken:    awsCredentials.SessionToken,
 		Expiration:      timestamppb.New(awsCredentials.Expiration),
+	}, nil
+}
+
+func (s *Service) getAWSRolesAnywhereIntegrationSpec(ctx context.Context, integrationName string) (*types.AWSRAIntegrationSpecV1, error) {
+	integration, err := s.cache.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec := integration.GetAWSRolesAnywhereIntegrationSpec()
+	if spec == nil {
+		return nil, trace.BadParameter("integration %q is not an AWSRA integration", integrationName)
+	}
+
+	return spec, nil
+}
+
+// AWSRolesAnywhereServiceConfig holds configuration options for the AWSRolesAnywhere Integration gRPC service.
+type AWSRolesAnywhereServiceConfig struct {
+	// IntegrationService is the service that provides access to integration credentials.
+	IntegrationService *Service
+	// Authorizer is the authorizer used to check access to the integration.
+	Authorizer authz.Authorizer
+
+	Clock  clockwork.Clock
+	Logger *slog.Logger
+}
+
+// CheckAndSetDefaults checks the AWSRolesAnywhereServiceConfig fields and returns an error if a required param is not provided.
+// Authorizer and IntegrationService are required params.
+func (s *AWSRolesAnywhereServiceConfig) CheckAndSetDefaults() error {
+	if s.Authorizer == nil {
+		return trace.BadParameter("authorizer is required")
+	}
+
+	if s.IntegrationService == nil {
+		return trace.BadParameter("integration service is required")
+	}
+
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
+	}
+
+	if s.Logger == nil {
+		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsra.service")
+	}
+
+	return nil
+}
+
+// AWSRolesAnywhereService implements the teleport.integration.v1.AWSRolesAnywhereService RPC service.
+type AWSRolesAnywhereService struct {
+	integrationpb.UnimplementedAWSRolesAnywhereServiceServer
+
+	integrationService *Service
+	authorizer         authz.Authorizer
+	logger             *slog.Logger
+	clock              clockwork.Clock
+}
+
+// NewAWSRolesAnywhereService returns a new AWSRolesAnywhereService.
+func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig) (*AWSRolesAnywhereService, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AWSRolesAnywhereService{
+		integrationService: cfg.IntegrationService,
+		logger:             cfg.Logger,
+		authorizer:         cfg.Authorizer,
+		clock:              cfg.Clock,
+	}, nil
+}
+
+var _ integrationpb.AWSRolesAnywhereServiceServer = (*AWSRolesAnywhereService)(nil)
+
+// ListRolesAnywhereProfiles returns a paginated list of Roles Anywhere Profiles.
+func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context, req *integrationpb.ListRolesAnywhereProfilesRequest) (*integrationpb.ListRolesAnywhereProfilesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ListRolesAnywhereProfiles uses the ProfileSync config's Profile and Role.
+	spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustAnchor := spec.TrustAnchorARN
+
+	credentials, err := s.integrationService.generateAWSRACredentialsWithoutAuthZ(ctx, &integrationpb.GenerateAWSRACredentialsRequest{
+		ProfileArn:                    spec.ProfileSyncConfig.ProfileARN,
+		RoleArn:                       spec.ProfileSyncConfig.RoleARN,
+		ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
+		SubjectName:                   authCtx.Identity.GetIdentity().Username,
+	}, trustAnchor)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	trustAnchorARNParsed, err := arn.Parse(trustAnchor)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustAnchorRegion := trustAnchorARNParsed.Region
+
+	listRolesAnywhereClient, err := awsra.NewListRolesAnywhereProfilesClient(ctx, &awsra.AWSClientConfig{
+		Credentials: awsra.Credentials{
+			AccessKeyID:     credentials.AccessKeyId,
+			SecretAccessKey: credentials.SecretAccessKey,
+			SessionToken:    credentials.SessionToken,
+			Expiration:      credentials.Expiration.AsTime(),
+			Version:         1,
+		},
+		Region: trustAnchorRegion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profileList, err := awsra.ListRolesAnywhereProfiles(ctx, listRolesAnywhereClient, awsra.ListRolesAnywhereProfilesRequest{
+		NextToken: req.GetNextPageToken(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &integrationpb.ListRolesAnywhereProfilesResponse{
+		Profiles:      profileList.Profiles,
+		NextPageToken: profileList.NextToken,
 	}, nil
 }
