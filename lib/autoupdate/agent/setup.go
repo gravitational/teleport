@@ -36,7 +36,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/defaults"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
@@ -451,10 +451,10 @@ func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(config.WriteSystemdUnitFile(config.SystemdFlags{
-			EnvironmentFile:          config.SystemdDefaultEnvironmentFile,
+		return trace.Wrap(systemd.WriteUnitFile(systemd.Flags{
+			EnvironmentFile:          systemd.DefaultEnvironmentFile,
 			PIDFile:                  ns.pidFile,
-			FileDescriptorLimit:      config.SystemdDefaultFileDescriptorLimit,
+			FileDescriptorLimit:      systemd.DefaultFileDescriptorLimit,
 			TeleportInstallationFile: filepath.Join(pathDir, "teleport"),
 			TeleportConfigPath:       ns.configFile,
 			FIPS:                     rev.Flags&autoupdate.FlagFIPS != 0,

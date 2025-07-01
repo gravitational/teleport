@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package systemd
 
 import (
 	"io"
@@ -29,16 +29,16 @@ import (
 )
 
 const (
-	// SystemdDefaultEnvironmentFile is the default path to the env file for the systemd unit file config
-	SystemdDefaultEnvironmentFile = "/etc/default/teleport"
-	// SystemdDefaultPIDFile is the default path to the PID file for the systemd unit file config
-	SystemdDefaultPIDFile = "/run/teleport.pid"
-	// SystemdDefaultFileDescriptorLimit is the default max number of open file descriptors for the systemd unit file config
-	SystemdDefaultFileDescriptorLimit = 524288
+	// DefaultEnvironmentFile is the default path to the env file for the systemd unit file config
+	DefaultEnvironmentFile = "/etc/default/teleport"
+	// DefaultPIDFile is the default path to the PID file for the systemd unit file config
+	DefaultPIDFile = "/run/teleport.pid"
+	// DefaultFileDescriptorLimit is the default max number of open file descriptors for the systemd unit file config
+	DefaultFileDescriptorLimit = 524288
 )
 
-// systemdUnitFileTemplate is the systemd unit file configuration template.
-var systemdUnitFileTemplate = template.Must(template.New("").Parse(`[Unit]
+// unitFileTemplate is the systemd unit file configuration template.
+var unitFileTemplate = template.Must(template.New("").Parse(`[Unit]
 Description=Teleport Service
 After=network.target
 
@@ -57,8 +57,8 @@ LimitNOFILE={{ .FileDescriptorLimit }}
 WantedBy=multi-user.target
 `))
 
-// SystemdFlags specifies configuration parameters for a systemd unit file.
-type SystemdFlags struct {
+// Flags specifies configuration parameters for a systemd unit file.
+type Flags struct {
 	// EnvironmentFile is the environment file path provided by the user.
 	EnvironmentFile string
 	// PIDFile is the process ID (PID) file path provided by the user.
@@ -74,7 +74,7 @@ type SystemdFlags struct {
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
-func (f *SystemdFlags) CheckAndSetDefaults() error {
+func (f *Flags) CheckAndSetDefaults() error {
 	if f.TeleportInstallationFile == "" {
 		teleportPath, err := os.Readlink("/proc/self/exe")
 		if err != nil {
@@ -89,13 +89,13 @@ func (f *SystemdFlags) CheckAndSetDefaults() error {
 	return nil
 }
 
-// WriteSystemdUnitFile accepts flags and an io.Writer
+// WriteUnitFile accepts flags and an io.Writer
 // and writes the systemd unit file configuration to it
-func WriteSystemdUnitFile(flags SystemdFlags, dest io.Writer) error {
+func WriteUnitFile(flags Flags, dest io.Writer) error {
 	err := flags.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(systemdUnitFileTemplate.Execute(dest, flags))
+	return trace.Wrap(unitFileTemplate.Execute(dest, flags))
 }

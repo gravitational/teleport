@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package systemd
 
 import (
 	"bytes"
@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-func TestWriteSystemdUnitFile(t *testing.T) {
-	flags := SystemdFlags{
+func TestWriteUnitFile(t *testing.T) {
+	flags := Flags{
 		EnvironmentFile:          "/custom/env/dir/teleport",
 		PIDFile:                  "/custom/pid/dir/teleport.pid",
 		FileDescriptorLimit:      16384,
@@ -37,7 +37,7 @@ func TestWriteSystemdUnitFile(t *testing.T) {
 	}
 
 	stdout := new(bytes.Buffer)
-	err := WriteSystemdUnitFile(flags, stdout)
+	err := WriteUnitFile(flags, stdout)
 	require.NoError(t, err)
 	data := stdout.Bytes()
 	if golden.ShouldSet() {
