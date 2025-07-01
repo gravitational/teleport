@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"log/slog"
 	"os"
 	"path"
@@ -46,7 +47,10 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -121,7 +125,6 @@ func TestSDS_FetchSecrets(t *testing.T) {
 	tests := []struct {
 		name string
 
-		svids         []config.SVIDRequestWithRules
 		resourceNames []string
 
 		wantErr string
@@ -226,15 +229,13 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	// Create a role that allows the bot to issue a SPIFFE SVID.
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleCondition{
+			WorkloadIdentityLabels: map[string]apiutils.Strings{
+				"test": {"Test_E2E_SPIFFE_SDS"},
+			},
+			Rules: []types.Rule{
 				{
-					Path: "/*",
-					DNSSANs: []string{
-						"*",
-					},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
+					Resources: []string{"workload_identity"},
+					Verbs:     []string{types.VerbRead, types.VerbList},
 				},
 			},
 		},
@@ -245,46 +246,52 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 
 	pid := os.Getpid()
 
+	workloadIdentity := &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "foo-bar-bizz",
+			Labels: map[string]string{
+				"test": "Test_E2E_SPIFFE_SDS",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+			},
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "workload.unix.pid",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: fmt.Sprintf("%d", pid),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
+		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: workloadIdentity,
+		})
+	require.NoError(t, err)
+
 	tempDir := t.TempDir()
 	socketPath := "unix://" + path.Join(tempDir, "sock")
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.SPIFFEWorkloadAPIService{
+			&config.WorkloadIdentityAPIService{
 				Listen: socketPath,
-				SVIDs: []config.SVIDRequestWithRules{
-					// Intentionally unmatching PID to ensure this SVID
-					// is not issued.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/bar",
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: ptr(0),
-								},
-							},
-						},
-					},
-					// SVID with rule that matches on PID.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
-							},
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: &pid,
-								},
-							},
-						},
-					},
+				Selector: config.WorkloadIdentitySelector{
+					Name: "foo-bar-bizz",
 				},
 			},
 		},
