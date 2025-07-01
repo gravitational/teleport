@@ -18,6 +18,10 @@
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import {
+  AppUpdateEvent,
+  UpdateCheckResult,
+} from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -206,6 +210,16 @@ export type MainProcessClient = {
     desktopUri: string;
     login: string;
   }): Promise<string>;
+  changeUpdatesSource(
+    source:
+      | { kind: 'auto' }
+      | { kind: 'cluster-override'; clusterUri: RootClusterUri }
+  ): Promise<void>;
+  checkForAppUpdates(): Promise<UpdateCheckResult>;
+  subscribeToAppUpdateEvents: (listener: (args: AppUpdateEvent) => void) => {
+    cleanup: () => void;
+  };
+  quitAndInstallAppUpdate(): Promise<void>;
 };
 
 export type ChildProcessAddresses = {
@@ -311,6 +325,7 @@ export enum RendererIpc {
   NativeThemeUpdate = 'renderer-native-theme-update',
   ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
   DeepLinkLaunch = 'renderer-deep-link-launch',
+  AppUpdateEvent = 'renderer-app-update-event',
 }
 
 export enum MainProcessIpc {
@@ -322,6 +337,9 @@ export enum MainProcessIpc {
   SaveTextToFile = 'main-process-save-text-to-file',
   ForceFocusWindow = 'main-process-force-focus-window',
   SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
+  CheckForAppUpdates = 'main-process-check-for-app-updates',
+  QuiteAndInstallAppUpdate = 'main-process-quite-and-install-app-update',
+  ChangeUpdatesSource = 'main-process-quite-change-updates-source',
 }
 
 export enum WindowsManagerIpc {

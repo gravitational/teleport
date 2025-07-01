@@ -118,6 +118,7 @@ export default function LoginForm(props: Props) {
       )}
       <CompatibilityWarning
         mx={outermostPadding}
+        onChangeFlow={() => props.switchToAppUpdate()}
         {...compatibilityWarningProps}
       />
       <StepSlider<typeof loginViews>
@@ -321,6 +322,7 @@ export type Props = {
   shouldSkipVersionCheck: boolean;
   disableVersionCheck(): void;
   platform: Platform;
+  switchToAppUpdate(): void;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

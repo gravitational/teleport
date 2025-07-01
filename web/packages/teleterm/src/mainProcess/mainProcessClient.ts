@@ -199,5 +199,27 @@ export default function createMainProcessClient(): MainProcessClient {
         args
       );
     },
+    checkForAppUpdates() {
+      return ipcRenderer.invoke(MainProcessIpc.CheckForAppUpdates);
+    },
+    quitAndInstallAppUpdate() {
+      return ipcRenderer.invoke(MainProcessIpc.QuiteAndInstallAppUpdate);
+    },
+    changeUpdatesSource(source) {
+      return ipcRenderer.invoke(MainProcessIpc.ChangeUpdatesSource, {
+        source,
+      });
+    },
+    subscribeToAppUpdateEvents: listener => {
+      const ipcListener = (event, args) => {
+        listener(args);
+      };
+
+      ipcRenderer.addListener(RendererIpc.AppUpdateEvent, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.AppUpdateEvent, ipcListener),
+      };
+    },
   };
 }

@@ -22,6 +22,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
 import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
+import { AppUpdate } from 'teleterm/ui/ModalsHost/modals/AppUpdate';
 import { Dialog } from 'teleterm/ui/services/modals';
 
 import { ClusterLogout } from '../ClusterLogout';
@@ -292,6 +293,9 @@ function renderDialog({
           host={dialog.host}
         />
       );
+    }
+    case 'app-update': {
+      return <AppUpdate hidden={hidden} onCancel={() => handleClose()} />;
     }
 
     default: {
