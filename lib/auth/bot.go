@@ -235,7 +235,10 @@ func (a *Server) tryLockBotDueToGenerationMismatch(
 	var spec types.LockSpecV2
 	if renewable {
 		// Renewable implies `token` joining. These are one-time use secrets
-		// and will not be embedded in the TLS identity, so we
+		// and will not be embedded in the TLS identity, so we can't target
+		// the join token and should instead rely on the bot instance ID. As
+		// there is a 1:1 relationship between bot instance and "token"-type
+		// token, this should be functionally equivalent.
 		spec = types.LockSpecV2{
 			Target: types.LockTarget{
 				BotInstanceID: botInstanceID,
