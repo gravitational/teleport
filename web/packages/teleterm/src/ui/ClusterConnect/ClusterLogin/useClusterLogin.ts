@@ -22,6 +22,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater/AppUpdaterContext';
 import type * as types from 'teleterm/ui/services/clusters/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
@@ -37,10 +38,14 @@ export default function useClusterLogin(props: Props) {
   const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
   const [passwordlessLoginState, setPasswordlessLoginState] =
     useState<PasswordlessLoginState>();
+  const appUpdaterContext = useAppUpdaterContext();
 
-  const [initAttempt, init] = useAsync(() =>
-    tshd.getAuthSettings({ clusterUri }).then(({ response }) => response)
-  );
+  const [initAttempt, init] = useAsync(() => {
+    return Promise.all([
+      tshd.getAuthSettings({ clusterUri }).then(({ response }) => response),
+      appUpdaterContext.checkForAppUpdates().catch(() => {}),
+    ]).then(r => r[0]);
+  });
 
   const [loginAttempt, login, setAttempt] = useAsync(
     (params: types.LoginParams) => {
@@ -161,10 +166,12 @@ export default function useClusterLogin(props: Props) {
   const [shouldSkipVersionCheck, setShouldSkipVersionCheck] = useState(
     () => configService.get('skipVersionCheck').value
   );
+
   function disableVersionCheck() {
     configService.set('skipVersionCheck', true);
     setShouldSkipVersionCheck(true);
   }
+
   const { platform } = mainProcessClient.getRuntimeSettings();
 
   return {

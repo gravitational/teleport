@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { GetAutoUpdateResponse } from "./service_pb";
+import type { GetAutoUpdateRequest } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import type { ConnectToDesktopResponse } from "./service_pb";
@@ -421,6 +423,12 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * GetAutoUpdate is get auto update.
+     *
+     * @generated from protobuf rpc: GetAutoUpdate(teleport.lib.teleterm.v1.GetAutoUpdateRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateResponse);
+     */
+    getAutoUpdate(input: GetAutoUpdateRequest, options?: RpcOptions): UnaryCall<GetAutoUpdateRequest, GetAutoUpdateResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -871,5 +879,14 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
         const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetAutoUpdate is get auto update.
+     *
+     * @generated from protobuf rpc: GetAutoUpdate(teleport.lib.teleterm.v1.GetAutoUpdateRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateResponse);
+     */
+    getAutoUpdate(input: GetAutoUpdateRequest, options?: RpcOptions): UnaryCall<GetAutoUpdateRequest, GetAutoUpdateResponse> {
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetAutoUpdateRequest, GetAutoUpdateResponse>("unary", this._transport, method, opt, input);
     }
 }

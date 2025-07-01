@@ -19,6 +19,7 @@
 import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import { useStore } from 'shared/libs/stores';
 
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import * as types from 'teleterm/services/tshd/types';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -310,6 +311,10 @@ export interface DialogConfigureSSHClients {
   host?: string;
 }
 
+export interface DialogAppUpdate {
+  kind: 'app-update';
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -324,4 +329,5 @@ export type Dialog =
   | DialogHardwareKeyPin
   | DialogHardwareKeyTouch
   | DialogHardwareKeyPinChange
-  | DialogHardwareKeySlotOverwrite;
+  | DialogHardwareKeySlotOverwrite
+  | DialogAppUpdate;

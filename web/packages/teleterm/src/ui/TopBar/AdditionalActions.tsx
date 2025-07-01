@@ -22,6 +22,7 @@ import { Popover } from 'design';
 import * as icons from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater/AppUpdaterContext';
 import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import { useNewTabOpener } from 'teleterm/ui/TabHost';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
@@ -30,6 +31,7 @@ import { Menu, MenuItem, MenuListItem } from '../components/Menu';
 
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
+  const updateContext = useAppUpdaterContext();
   const { workspacesService, mainProcessClient, notificationsService } = ctx;
   useWorkspaceServiceState();
   const documentsService =
@@ -78,6 +80,19 @@ function useMenuItems(): MenuItem[] {
       Icon: icons.Unlink,
       onNavigate: () => {
         ctx.commandLauncher.executeCommand('tsh-uninstall', undefined);
+      },
+    },
+    {
+      title:
+        updateContext.updateEvent.kind === 'update-available'
+          ? 'Update available'
+          : 'Check for updates',
+      isVisible: true,
+      Icon: icons.Application,
+      onNavigate: () => {
+        ctx.modalsService.openRegularDialog({
+          kind: 'app-update',
+        });
       },
     },
   ];

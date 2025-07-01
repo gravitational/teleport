@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetAutoUpdateResponse } from "./service_pb";
+import { GetAutoUpdateRequest } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import { ConnectToDesktopResponse } from "./service_pb";
@@ -414,6 +416,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession: grpc.handleUnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * GetAutoUpdate is get auto update.
+     *
+     * @generated from protobuf rpc: GetAutoUpdate(teleport.lib.teleterm.v1.GetAutoUpdateRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateResponse);
+     */
+    getAutoUpdate: grpc.handleUnaryCall<GetAutoUpdateRequest, GetAutoUpdateResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -856,5 +864,15 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => SetSharedDirectoryForDesktopSessionRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionRequest.toBinary(value))
+    },
+    getAutoUpdate: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/GetAutoUpdate",
+        originalName: "GetAutoUpdate",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetAutoUpdateResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetAutoUpdateRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetAutoUpdateResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetAutoUpdateRequest.toBinary(value))
     }
 };

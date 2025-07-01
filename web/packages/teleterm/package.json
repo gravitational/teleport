@@ -1,6 +1,6 @@
 {
   "name": "@gravitational/teleterm",
-  "version": "1.0.0-dev",
+  "version": "17.5.2",
   "description": "Teleport Connect",
   "main": "build/app/main/index.js",
   "author": {
@@ -46,6 +46,7 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "electron": "36.3.2",
+    "electron-updater": "^6.6.5",
     "electron-builder": "^26.0.12",
     "electron-vite": "^3.1.0",
     "events": "3.3.0",

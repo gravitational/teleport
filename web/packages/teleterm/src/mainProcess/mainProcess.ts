@@ -48,6 +48,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
+import { AppUpdater } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -112,6 +113,7 @@ export default class MainProcess {
   );
   private readonly agentRunner: AgentRunner;
   private tshdClient: Promise<TshdClient>;
+  private readonly appUpdater: AppUpdater;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -135,6 +137,19 @@ export default class MainProcess {
         );
       }
     );
+    this.appUpdater = new AppUpdater(
+      {
+        send: (channel: string, ...args) => {
+          this.windowsManager.getWindow().webContents.send(channel, ...args);
+        },
+      },
+      async () => {
+        const client = await this.getTshdClient();
+        const { response } = await client.getAutoUpdate({});
+        return response;
+      },
+      this.appStateFileStorage
+    );
   }
 
   static create(opts: Options) {
@@ -145,6 +160,7 @@ export default class MainProcess {
 
   async dispose(): Promise<void> {
     this.windowsManager.dispose();
+    this.appUpdater.dispose();
     await Promise.all([
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
@@ -594,6 +610,26 @@ export default class MainProcess {
 
         return path.basename(dirPath);
       }
+    );
+
+    ipcMain.handle(MainProcessIpc.CheckForAppUpdates, () =>
+      this.appUpdater.checkForUpdates()
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.ChangeUpdatesSource,
+      (
+        event,
+        args: {
+          source:
+            | { kind: 'auto' }
+            | { kind: 'cluster-override'; clusterUri: RootClusterUri };
+        }
+      ) => this.appUpdater.changeUpdatesSource(args.source)
+    );
+
+    ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
+      this.appUpdater.quitAndInstall()
     );
 
     subscribeToTerminalContextMenuEvent(this.configService);

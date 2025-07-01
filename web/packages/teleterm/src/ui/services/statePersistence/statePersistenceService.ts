@@ -64,6 +64,9 @@ export interface StatePersistenceState {
      */
     hasEverStarted: boolean;
   };
+  managedUpdates: {
+    clusterUri: string | undefined;
+  };
 }
 
 // Before adding new methods to this service, consider using usePersistedState instead.
@@ -134,6 +137,9 @@ export class StatePersistenceService {
       },
       usageReporting: {
         askedForUserJobRole: false,
+      },
+      managedUpdates: {
+        clusterUri: null,
       },
     };
     return {
