@@ -29,11 +29,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // awsRolesAnywhereConfigureTrustAnchor returns a script that configures AWS IAM Roles Anywhere Integration
@@ -139,4 +143,57 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
+}
+
+// awsRolesAnywhereListProfiles lists profiles Roles Anywhere Profiles accessible by the integration.
+func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	var req ui.AWSRolesAnywhereListProfilesRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
+		Integration:   integrationName,
+		NextPageToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ret := &ui.AWSRolesAnywhereListProfilesResponse{
+		Profiles:  make([]ui.AWSRolesAnywhereListProfile, 0, len(listResp.GetProfiles())),
+		NextToken: listResp.GetNextPageToken(),
+	}
+
+	for _, profile := range listResp.GetProfiles() {
+		uiTags := make([]libui.Label, 0, len(profile.GetTags()))
+		for tagKey, tagValue := range profile.GetTags() {
+			uiTags = append(uiTags, libui.Label{
+				Name:  tagKey,
+				Value: tagValue,
+			})
+		}
+		ret.Profiles = append(ret.Profiles, ui.AWSRolesAnywhereListProfile{
+			ARN:                   profile.GetArn(),
+			Name:                  profile.GetName(),
+			Enabled:               profile.GetEnabled(),
+			AcceptRoleSessionName: profile.GetAcceptRoleSessionName(),
+			Roles:                 profile.GetRoles(),
+			Tags:                  uiTags,
+		})
+	}
+
+	return ret, nil
 }
