@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 type destinationMixinV1 struct {
@@ -340,7 +341,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &SSHHostOutput{
+		return &ssh.HostOutputConfig{
 			Destination: dest,
 			Roles:       c.Roles,
 			Principals:  principals,

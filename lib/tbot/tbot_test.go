@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -320,7 +321,7 @@ func TestBot(t *testing.T) {
 		},
 		KubernetesCluster: kubeClusterDiscoveredName,
 	}
-	sshHostOutput := &config.SSHHostOutput{
+	sshHostOutput := &sshsvc.HostOutputConfig{
 		Destination: &destination.Memory{},
 		Principals:  []string{hostPrincipal},
 	}

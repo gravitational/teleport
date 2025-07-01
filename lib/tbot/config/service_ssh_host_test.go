@@ -24,14 +24,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestSSHHostOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[SSHHostOutput]{
+	tests := []testYAMLCase[ssh.HostOutputConfig]{
 		{
 			name: "full",
-			in: SSHHostOutput{
+			in: ssh.HostOutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
@@ -43,7 +44,7 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: SSHHostOutput{
+			in: ssh.HostOutputConfig{
 				Destination: dest,
 				Principals:  []string{"host.example.com"},
 			},
@@ -53,11 +54,11 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 }
 
 func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*SSHHostOutput]{
+	tests := []testCheckAndSetDefaultsCase[*ssh.HostOutputConfig]{
 		{
 			name: "valid",
-			in: func() *SSHHostOutput {
-				return &SSHHostOutput{
+			in: func() *ssh.HostOutputConfig {
+				return &ssh.HostOutputConfig{
 					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
 					Principals:  []string{"host.example.com"},
@@ -66,8 +67,8 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *SSHHostOutput {
-				return &SSHHostOutput{
+			in: func() *ssh.HostOutputConfig {
+				return &ssh.HostOutputConfig{
 					Destination: nil,
 					Principals:  []string{"host.example.com"},
 				}
@@ -76,8 +77,8 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing principals",
-			in: func() *SSHHostOutput {
-				return &SSHHostOutput{
+			in: func() *ssh.HostOutputConfig {
+				return &ssh.HostOutputConfig{
 					Destination: memoryDestForTest(),
 				}
 			},

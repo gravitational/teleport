@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -226,8 +227,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			botServices = append(botServices, KubernetesV2OutputServiceBuilder(b.cfg, svcCfg))
 		case *config.SPIFFESVIDOutput:
 			botServices = append(botServices, SPIFFESVIDOutputServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
-		case *config.SSHHostOutput:
-			botServices = append(botServices, SSHHostOutputServiceBuilder(b.cfg, svcCfg))
+		case *ssh.HostOutputConfig:
+			botServices = append(botServices, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
 			botServices = append(botServices, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *database.OutputConfig:
