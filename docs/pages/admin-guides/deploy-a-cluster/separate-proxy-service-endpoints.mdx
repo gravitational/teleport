@@ -42,20 +42,33 @@ infrastructure resource by selecting a reverse tunnel.
 ## Routing traffic to the appropriate load balancer
 
 Assuming you have deployed two load balancers, one for external Proxy Service
-clients and one for internal clients, there are three ways strategies for
-routing traffic to the appropriate load balancer from Teleport Agents and end
-users:
+clients and one for internal clients, there are three strategies for routing
+traffic to the appropriate load balancer from Teleport Agents and end users:
 
 - [Split DNS](#split-dns)
 - [Multiple public addresses](#multiple-public-addresses)
 - [Tunnel public address](#tunnel-public-address)
+
+<Admonition type="warning">
+
+We strongly recommend using the split DNS approach. Of the three methods we
+discuss, this requires the least disruptive change to your Teleport cluster, and
+is the only one that supports other recommended configurations.
+
+</Admonition>
 
 ### Split DNS
 
 You can set up your infrastructure to use split DNS so that a single public
 address for your Teleport cluster resolves to the external endpoint for end
 users and the internal endpoint for infrastructure resources in your internal
-network.
+network. 
+
+We strongly recommend this approach for maintaining separate internal and
+external Proxy Service load balancers. This is the only approach we discuss that
+you can implement while maintaining other configurations we recommend for your
+cluster: TLS multiplexing with a single value for the Proxy Service public
+address.
 
 1. Determine the public address to use for the Teleport Proxy Service, e.g.,
    `proxy.example.com`.
@@ -82,7 +95,9 @@ network.
 You can configure the Teleport Proxy Service to advertise multiple addresses on
 its SSH host certificate. This enables you to instruct internal clients (e.g.,
 Teleport Agents) to connect to the Proxy Service on the internal address while
-external clients connect on the external address. 
+external clients connect on the external address. You can use this approach if
+your infrastructure does not support split DNS and your cluster has TLS
+multiplexing enabled.
 
 1. Create two DNS records for, respectively, your internal and external Teleport
    Proxy Service load balancers. This section assumes you have created the
