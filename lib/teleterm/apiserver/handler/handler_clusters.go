@@ -20,7 +20,6 @@ package handler
 
 import (
 	"context"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -89,6 +88,16 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(cluster)
 
 	return apiRootClusterWithDetails, trace.Wrap(err)
+}
+
+// GetAutoUpdate returns a cluster
+func (s *Handler) GetAutoUpdate(ctx context.Context, req *api.GetAutoUpdateRequest) (*api.GetAutoUpdateResponse, error) {
+	versions, err := s.DaemonService.GetAutoUpdateVersions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.GetAutoUpdateResponse{Versions: versions}, nil
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {

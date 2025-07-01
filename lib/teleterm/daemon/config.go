@@ -61,6 +61,8 @@ type Config struct {
 	KubeconfigsDir string
 	// AgentsDir contains agent config files and data directories for Connect My Computer.
 	AgentsDir string
+	// TeleportToolsVersion overrides any cluster tooling version.
+	TeleportToolsVersion string
 
 	GatewayCreator GatewayCreator
 
