@@ -40,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -219,18 +220,16 @@ func kubeExists(ctx context.Context, presence services.Presence, hostID string) 
 }
 
 func appExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
+	resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf("resource.metadata.name==%q", hostID),
+		Limit:               1,
+	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	for _, app := range apps {
-		if app.GetName() == hostID {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return len(resp.Resources) == 1, nil
 }
 
 func dbExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
@@ -249,17 +248,16 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 }
 
 func oktaExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
+	resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf("resource.metadata.name==%q && resource.metadata.labels[%q]==%q", hostID, types.OriginLabel, types.OriginOkta),
+		Limit:               1,
+	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, app := range apps {
-		if app.GetName() == hostID && app.Origin() == types.OriginOkta {
-			return true, nil
-		}
-	}
 
-	return false, nil
+	return len(resp.Resources) == 1, nil
 }
 
 func desktopServiceExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {

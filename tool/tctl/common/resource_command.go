@@ -2109,22 +2109,24 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
 
 	case types.KindAppServer:
-		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
+		appServers, err := apiclient.GetAllResources[types.AppServer](ctx, client, &proto.ListResourcesRequest{
+			ResourceType:        types.KindAppServer,
+			PredicateExpression: fmt.Sprintf("resource.metadata.name==%q", rc.ref.Name),
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		deleted := false
-		for _, server := range appServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
-			}
-		}
-		if !deleted {
+
+		if len(appServers) == 0 {
 			return trace.NotFound("application server %q not found", rc.ref.Name)
 		}
+
+		for _, server := range appServers {
+			if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
@@ -2691,24 +2693,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &kubeServerCollection{servers: servers}, nil
 
 	case types.KindAppServer:
-		servers, err := client.GetApplicationServers(ctx, rc.namespace)
+		req := &proto.ListResourcesRequest{ResourceType: types.KindAppServer}
+		if rc.ref.Name == "" {
+			req.Limit = 1
+			req.PredicateExpression = fmt.Sprintf("resource.metadata.name==%q || resource.spec.hostname==%q", rc.ref.Name, rc.ref.Name)
+		}
+
+		servers, err := apiclient.GetAllResources[types.AppServer](ctx, client, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if rc.ref.Name == "" {
-			return &appServerCollection{servers: servers}, nil
-		}
 
-		var out []types.AppServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
+		if len(servers) == 0 && rc.ref.Name != "" {
 			return nil, trace.NotFound("application server %q not found", rc.ref.Name)
 		}
-		return &appServerCollection{servers: out}, nil
+
+		return &appServerCollection{servers: servers}, nil
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {

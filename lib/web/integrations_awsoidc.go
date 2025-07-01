@@ -1187,17 +1187,20 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) getAppServerByName(ctx context.Context, userClient authclient.ClientI, appServerName string) (types.AppServer, error) {
-	appServers, err := userClient.GetApplicationServers(ctx, apidefaults.Namespace)
+	appServers, err := client.GetAllResources[types.AppServer](ctx, userClient, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		Limit:               1,
+		PredicateExpression: fmt.Sprintf("resource.metadata.name==%q", appServerName),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, s := range appServers {
-		if s.GetName() == appServerName {
-			return s, nil
-		}
+	if len(appServers) == 0 {
+		return nil, trace.NotFound("app %q not found", appServerName)
 	}
-	return nil, trace.NotFound("app %q not found", appServerName)
+
+	return appServers[0], nil
 }
 
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration

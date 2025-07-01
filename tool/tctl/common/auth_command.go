@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -333,7 +334,7 @@ type certificateSigner interface {
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
-	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
@@ -1238,17 +1239,20 @@ func parseURL(rawurl string) (*url.URL, error) {
 }
 
 func getApplicationServer(ctx context.Context, clusterAPI certificateSigner, appName string) (types.AppServer, error) {
-	servers, err := clusterAPI.GetApplicationServers(ctx, apidefaults.Namespace)
+	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, clusterAPI, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		Limit:               1,
+		PredicateExpression: fmt.Sprintf("resource.metadata.name==%q", appName),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, s := range servers {
-		if s.GetName() == appName {
-			return s, nil
-		}
+	if len(appServers) == 0 {
+		return nil, trace.NotFound("app %q not found", appName)
 	}
-	return nil, trace.NotFound("app %q not found", appName)
+
+	return appServers[0], nil
 }
 
 // getDatabaseServer fetches a single `DatabaseServer` by name using the

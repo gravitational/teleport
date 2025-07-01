@@ -754,10 +754,10 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 				return val, nil
 			}),
 			"name": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
-				// For nodes, the resource "name" that user expects is the
-				// nodes hostname, not its UUID. Currently, for other resources,
+				// For nodes and app servers, the resource "name" that user expects may be the
+				// hostname, not its UUID. Currently, for other resources,
 				// the metadata.name returns the name as expected.
-				if server, ok := r.(types.Server); ok {
+				if server, ok := r.(interface{ GetHostname() string }); ok {
 					return server.GetHostname(), nil
 				}
 
