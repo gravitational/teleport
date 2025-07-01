@@ -202,6 +202,41 @@ func TestIdentityCenterUpdate(t *testing.T) {
 				require.Equal(t, newIdentityCenterPluginResource(), value)
 			},
 		},
+		{
+			name:       "AWSIC allows Role Sync Mode change from NONE to ALL",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateExistingPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().RolesSyncMode = types.AWSICRolesSyncModeNone
+			},
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().RolesSyncMode = types.AWSICRolesSyncModeAll
+			},
+			expectResult: require.NoError,
+			expectValue: func(t *testing.T, value *types.PluginV1) {
+				require.Equal(t, types.AWSICRolesSyncModeAll, value.Spec.GetAwsIc().RolesSyncMode)
+			},
+		},
+		{
+			name:       "AWSIC disallows Role Sync Mode change from ALL to NONE",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateExistingPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().RolesSyncMode = types.AWSICRolesSyncModeAll
+			},
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().RolesSyncMode = types.AWSICRolesSyncModeNone
+			},
+			expectResult: require.Error,
+			expectValue:  func(*testing.T, *types.PluginV1) { /* we don't care about the value on error */ },
+		},
+		{
+			name:       "AWSIC disallows Role Sync Mode change from empty to NONE",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().RolesSyncMode = types.AWSICRolesSyncModeNone
+			},
+			expectResult: require.Error,
+			expectValue:  func(*testing.T, *types.PluginV1) { /* we don't care about the value on error */ },
+		},
 	}
 
 	for _, test := range testCases {

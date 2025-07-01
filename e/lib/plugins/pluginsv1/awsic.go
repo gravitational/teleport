@@ -59,6 +59,12 @@ func (awsicPluginHandler) updatePlugin(newPlugin, oldPlugin *types.PluginV1) err
 		return trace.BadParameter("old and new plugins must both be AWS Identity Center integrations")
 	}
 
+	if newSettings.RolesSyncMode == types.AWSICRolesSyncModeNone &&
+		oldSettings.RolesSyncMode != types.AWSICRolesSyncModeNone {
+		return trace.BadParameter("invalid roles_sync_mode switch from %q to %q",
+			oldSettings.RolesSyncMode, newSettings.RolesSyncMode)
+	}
+
 	oldStatus := oldPlugin.GetStatus()
 	if !slices.EqualFunc(oldSettings.GroupSyncFilters, newSettings.GroupSyncFilters, icFiltersEq) {
 		if oldStatus.GetAwsIc() == nil {
