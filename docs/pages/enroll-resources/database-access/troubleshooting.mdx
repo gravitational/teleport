@@ -7,6 +7,12 @@ Common issues and resolution steps.
 
 ## Connection attempts fail
 
+### Timeout errors
+
+Attempts to connect to the database fail with a message similar to **"dial tcp ... i/o timeout"**.
+
+(!docs/pages/includes/database-access/connection-timeout-troubleshooting.mdx!)
+
 ### Certificate expired or is not yet valid
 
 Attempts to connect to the database fail, and the error message returned is
@@ -44,7 +50,7 @@ details and examples:
 
 After the new certificate is issued, update your database to make it take effect.
 
-## Access to db denied
+### Access to db denied
 
 Attempts to connect to the database fail with an error message
 similar to: **"access to db denied"**.
@@ -146,7 +152,7 @@ This example is intentionally simple; we could have configured Alice's permissio
 For more detailed information about database access controls and how to restrict
 access see the [RBAC](../database-access/rbac.mdx) documentation.
 
-## Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
+### Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
 
 When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
 
