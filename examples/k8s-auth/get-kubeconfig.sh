@@ -50,6 +50,7 @@ fi
 
 echo "Creating the Kubernetes Service Account with minimal RBAC permissions."
 kubectl apply -f - <<EOF
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -75,18 +76,34 @@ rules:
   verbs:
   - impersonate
 - apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
   - "authorization.k8s.io"
   resources:
   - selfsubjectaccessreviews
   - selfsubjectrulesreviews
   verbs:
   - create
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-cluster-admin
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - '*'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -100,6 +117,19 @@ subjects:
 - kind: ServiceAccount
   name: ${TELEPORT_SA}
   namespace: ${NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-cluster-admin-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-cluster-admin
+subjects:
+- kind: Group
+  name: teleport-cluster-admin
+  apiGroup: rbac.authorization.k8s.io
 EOF
 
 # Checks if secret entry was defined for Service account. If defined it means that Kubernetes server has a
