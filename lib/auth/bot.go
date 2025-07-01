@@ -121,8 +121,17 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 
 	// The current generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
-		if err := a.tryLockBotDueToGenerationMismatch(ctx, user.GetName()); err != nil {
-			log.WithError(err).Warnf("Failed to lock bot %q when a generation mismatch was detected", user.GetName())
+		if err := a.tryLockBotDueToGenerationMismatch(
+			ctx,
+			certReq.botName,
+			certReq.botInstanceID,
+			certReq.joinToken,
+			certReq.renewable,
+		); err != nil {
+			a.logger.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected",
+				"error", err,
+				"bot", user.GetName(),
+			)
 		}
 
 		return trace.AccessDenied(
@@ -220,19 +229,44 @@ func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, use
 
 // tryLockBotDueToGenerationMismatch creates a lock for the given bot user and
 // emits a `RenewableCertificateGenerationMismatch` audit event.
-func (a *Server) tryLockBotDueToGenerationMismatch(ctx context.Context, username string) error {
-	// TODO: In the future, consider only locking the current join method / token.
+func (a *Server) tryLockBotDueToGenerationMismatch(
+	ctx context.Context, botName, botInstanceID, joinTokenName string, renewable bool,
+) error {
+	var spec types.LockSpecV2
+	if renewable {
+		// Renewable implies `token` joining. These are one-time use secrets
+		// and will not be embedded in the TLS identity, so we can't target
+		// the join token and should instead rely on the bot instance ID. As
+		// there is a 1:1 relationship between bot instance and "token"-type
+		// token, this should be functionally equivalent.
+		spec = types.LockSpecV2{
+			Target: types.LockTarget{
+				BotInstanceID: botInstanceID,
+			},
+			Message: fmt.Sprintf(
+				"The bot instance %s/%s has been locked due to a certificate "+
+					"generation mismatch, possibly indicating a stolen "+
+					"certificate.",
+				botName, botInstanceID,
+			),
+			CreatedAt: a.clock.Now(),
+		}
+	} else {
+		spec = types.LockSpecV2{
+			Target: types.LockTarget{
+				JoinToken: joinTokenName,
+			},
+			Message: fmt.Sprintf(
+				"Bot joins via the token %q have been locked due to a "+
+					"certificate generation mismatch by %s/%s, possibly "+
+					"indicating a stolen certificate.",
+				joinTokenName, botName, botInstanceID,
+			),
+			CreatedAt: a.clock.Now(),
+		}
+	}
 
-	// Lock the bot user indefinitely.
-	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
-		Target: types.LockTarget{
-			User: username,
-		},
-		Message: fmt.Sprintf(
-			"The bot user %q has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.",
-			username,
-		),
-	})
+	lock, err := types.NewLock(uuid.New().String(), spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -357,7 +391,12 @@ func (a *Server) updateBotInstance(
 			// If the incoming identity has a nonzero generation, validate it
 			// using the legacy check. This will increment the counter on the
 			// request automatically
-			if err := a.legacyValidateGenerationLabel(ctx, username, req, uint64(currentIdentityGeneration)); err != nil {
+			if err := a.legacyValidateGenerationLabel(
+				ctx,
+				username,
+				req,
+				uint64(currentIdentityGeneration),
+			); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -406,8 +445,8 @@ func (a *Server) updateBotInstance(
 		// Generation counter enforcement depends on the type of cert and join
 		// method (if any - token renewals technically have no join method.)
 		if shouldEnforceGenerationCounter(req.renewable, authRecord.JoinMethod) {
-			if err := a.tryLockBotDueToGenerationMismatch(ctx, username); err != nil {
-				l.WithError(err).Warn("Failed to lock bot when a generation mismatch was detected")
+			if err := a.tryLockBotDueToGenerationMismatch(ctx, botName, botInstanceID, req.joinToken, req.renewable); err != nil {
+				l.WithError(err).Warn(ctx, "Failed to lock bot when a generation mismatch was detected")
 			}
 
 			return trace.AccessDenied(
@@ -565,6 +604,14 @@ func (a *Server) generateInitialBotCerts(
 		joinAttributes: joinAttrs,
 	}
 
+	// Set the join token cert field for non-renewable identities. This is used
+	// for lock targeting; token name lock targets are particularly useful for
+	// token-joined bots and it's a secret value, so we don't bother setting it.
+	// (The renewable flag implies token joining.)
+	if !renewable {
+		certReq.joinToken = initialAuth.JoinToken
+	}
+
 	if existingInstanceID == "" {
 		// If no existing instance ID is known, create a new one.
 		uuid, err := uuid.NewRandom()
@@ -605,14 +652,6 @@ func (a *Server) generateInitialBotCerts(
 		if certReq.botInstanceID == "" {
 			certReq.botInstanceID = existingInstanceID
 		}
-	}
-
-	// Set the join token cert field for non-renewable identities. This is used
-	// for lock targeting; token name lock targets are particularly useful for
-	// token-joined bots and it's a secret value, so we don't bother setting it.
-	// (The renewable flag implies token joining.)
-	if !renewable {
-		certReq.joinToken = initialAuth.JoinToken
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)
