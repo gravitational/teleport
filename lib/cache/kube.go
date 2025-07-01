@@ -39,6 +39,7 @@ func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*col
 
 	return &collection[types.KubeServer, kubeServerIndex]{
 		store: newStore(
+			types.KindKubeServer,
 			types.KubeServer.Copy,
 			map[kubeServerIndex]func(types.KubeServer) string{
 				kubeServerNameIndex: func(u types.KubeServer) string {
@@ -99,6 +100,7 @@ func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*
 
 	return &collection[types.KubeCluster, kubeClusterIndex]{
 		store: newStore(
+			types.KindKubernetesCluster,
 			types.KubeCluster.Copy,
 			map[kubeClusterIndex]func(types.KubeCluster) string{
 				kubeClusterNameIndex: types.KubeCluster.GetName,
@@ -178,6 +180,7 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 
 	return &collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
 		store: newStore(
+			types.KindKubeWaitingContainer,
 			proto.CloneOf[*kubewaitingcontainerv1.KubernetesWaitingContainer],
 			map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
 				kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {

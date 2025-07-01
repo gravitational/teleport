@@ -34,6 +34,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -140,6 +141,7 @@ type collections struct {
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
 	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
+	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -740,10 +742,19 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindRecordingEncryption:
+			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.recordingEncryption = collect
+			out.byKind[resourceKind] = out.recordingEncryption
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
+
 		}
 	}
 

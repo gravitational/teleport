@@ -57,6 +57,7 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceID:           id.BotInstanceId,
+		JoinToken:               id.JoinToken,
 		AllowedResourceIDs:      resourceIDsToTypes(id.AllowedResourceIds),
 		ConnectionDiagnosticID:  id.ConnectionDiagnosticId,
 		PrivateKeyPolicy:        keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
@@ -107,6 +108,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		DeviceCredentialId:      id.DeviceCredentialID,
 		GithubUserId:            id.GitHubUserID,
 		GithubUsername:          id.GitHubUsername,
+		JoinToken:               id.JoinToken,
 	}
 }
 

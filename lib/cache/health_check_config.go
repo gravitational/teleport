@@ -42,6 +42,7 @@ func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w
 
 	return &collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
 		store: newStore(
+			types.KindHealthCheckConfig,
 			proto.CloneOf[*healthcheckconfigv1.HealthCheckConfig],
 			map[healthCheckConfigIndex]func(*healthcheckconfigv1.HealthCheckConfig) string{
 				healthCheckConfigNameIndex: func(r *healthcheckconfigv1.HealthCheckConfig) string {
