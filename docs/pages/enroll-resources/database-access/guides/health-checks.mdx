@@ -194,3 +194,51 @@ Refer to the
 [Database Service troubleshooting
 guide](../../enroll-resources/database-access/troubleshooting.mdx) for general troubleshooting steps.
 
+## FAQ
+
+### How to disable database health checks?
+
+You can disable health checks for databases by updating your cluster's `health_check_config` resources to only match specific databases.
+
+For example, update the default preset configuration to match only databases with the label `"healthcheck": "enabled"`:
+
+```code
+$ tctl create <<EOF
+kind: health_check_config
+metadata:
+  description: Enables all health checks by default
+  labels:
+    teleport.internal/resource-type: preset
+  name: default
+  namespace: default
+spec:
+  match:
+    db_labels:
+    - name: healthcheck
+      values:
+      - enabled
+version: v1
+EOF
+```
+
+### Do health checks respect proxy environment variables?
+
+Health checks will respect HTTP proxy environment variables for the following Teleport database protocols:
+
+- `clickhouse-http`
+- `dynamodb`
+- `opensearch`
+
+The following environment variables in both uppercase and lowercase form are supported:
+
+- `http_proxy`
+- `https_proxy`
+- `no_proxy`
+
+If HTTP proxy environment variables configure a proxy for a database endpoint, then TCP health checks will dial the proxy rather than the endpoint.
+
+### How can I list all unhealthy databases?
+
+```code
+    $ tctl db ls --query 'health.status == "unhealthy"' 
+```
