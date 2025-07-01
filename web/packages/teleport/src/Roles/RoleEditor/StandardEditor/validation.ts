@@ -40,6 +40,7 @@ import {
   ResourceKindOption,
   resourceKindOptions,
   RoleEditorModel,
+  roleForbidsKubernetesUsersGroups,
   RuleModel,
   ServerAccess,
   supportsKubernetesCustomResources,
@@ -201,7 +202,10 @@ const validKubernetesResource = (res: KubernetesResourceModel) => () => {
   )(res.name)();
   const namespace = validKubernetesNamespace(res);
   const verbs = validKubernetesVerbs(res.verbs);
-  const apiGroup = validKubernetesGroup(res.apiGroup, res.roleVersion);
+  const apiGroup = validKubernetesResourceApiGroup(
+    res.apiGroup,
+    res.roleVersion
+  );
 
   return {
     valid:
@@ -304,18 +308,6 @@ const validKubernetesKind = (
   apiGroup: string | undefined,
   ver: RoleVersion
 ): ValidationResult => {
-  const validateV8 = (kind: string, apiGroup: string): ValidationResult => {
-    const v7groups = kubernetesResourceKindV7Groups[kind];
-    const v8valid =
-      !v7groups || (apiGroup !== '*' && !v7groups.groups.includes(apiGroup));
-    return {
-      valid: v8valid,
-      message: v8valid
-        ? undefined
-        : `Kind must use k8s plural name. Did you mean "${v7groups.v8name}"?`,
-    };
-  };
-
   switch (ver) {
     case RoleVersion.V3:
     case RoleVersion.V4:
@@ -342,15 +334,16 @@ const validKubernetesKind = (
       };
 
     case RoleVersion.V8:
-      return validateV8(kind, apiGroup);
-
     case RoleVersion.V9:
-      const v8valid = validateV8(kind, apiGroup);
-      if (!v8valid.valid) {
-        return v8valid;
-      }
-      // TODO(@creack): Implement validation for v9.
-      return { valid: false };
+      const v7groups = kubernetesResourceKindV7Groups[kind];
+      const v8valid =
+        !v7groups || (apiGroup !== '*' && !v7groups.groups.includes(apiGroup));
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `Kind must use k8s plural name. Did you mean "${v7groups.v8name}"?`,
+      };
 
     default:
       ver satisfies never;
@@ -362,20 +355,10 @@ const validKubernetesKind = (
  * Validates a `group` field of a `KubernetesResourceModel`. In roles with
  * version prior to v8, the auth server only accepts empty string or "*".
  */
-const validKubernetesGroup = (
+const validKubernetesResourceApiGroup = (
   group: string,
   ver: RoleVersion
 ): ValidationResult => {
-  const validateV8 = (group: string): ValidationResult => {
-    const v8valid = !!group;
-    return {
-      valid: v8valid,
-      message: v8valid
-        ? undefined
-        : `API Group required. Use "*" for any group.`,
-    };
-  };
-
   switch (ver) {
     case RoleVersion.V3:
     case RoleVersion.V4:
@@ -392,15 +375,14 @@ const validKubernetesGroup = (
       };
 
     case RoleVersion.V8:
-      return validateV8(group);
-
     case RoleVersion.V9:
-      const v8valid = validateV8(group);
-      if (!v8valid.valid) {
-        return v8valid;
-      }
-      // TODO(@creack): Implement validation for v9.
-      return { valid: false };
+      const v8valid = !!group;
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `API Group required. Use "*" for any group.`,
+      };
 
     default:
       ver satisfies never;
@@ -424,8 +406,9 @@ const validKubernetesVerbs = (
 const validateKubernetesAccess = (
   a: KubernetesAccess
 ): KubernetesAccessValidationResult => {
-  const result = runRules(a, kubernetesAccessValidationRules);
+  const result = runRules(a, kubernetesAccessValidationRules(a.roleVersion));
   if (
+    !roleForbidsKubernetesUsersGroups(a.roleVersion) &&
     a.groups.length === 0 &&
     a.users.length === 0 &&
     a.labels.length === 0 &&
@@ -437,20 +420,45 @@ const validateKubernetesAccess = (
     result.fields.users.valid = false;
     result.fields.labels.valid = false;
     result.fields.resources.valid = false;
+  } else if (
+    roleForbidsKubernetesUsersGroups(a.roleVersion) &&
+    a.labels.length === 0 &&
+    a.resources.length === 0
+  ) {
+    result.valid = false;
+    result.message = 'At least one label or resource required';
+    result.fields.labels.valid = false;
+    result.fields.resources.valid = false;
   }
+
   return result;
 };
 
 const alwaysValid = () => () => ({ valid: true });
 
-const kubernetesAccessValidationRules = {
-  groups: alwaysValid,
-  users: alwaysValid,
+const validateKubernetesUsersGroups =
+  (roleVersion: RoleVersion) => (res?: Option[]) => (): ValidationResult => {
+    if (!roleForbidsKubernetesUsersGroups(roleVersion)) {
+      return alwaysValid()();
+    }
+    const isValid = !res?.length;
+    return {
+      valid: isValid,
+      message: isValid
+        ? undefined
+        : `Groups and users are not allowed in role version ${roleVersion}`,
+    };
+  };
+
+const kubernetesAccessValidationRules = (roleVersion: RoleVersion) => ({
+  groups: validateKubernetesUsersGroups(roleVersion),
+  users: validateKubernetesUsersGroups(roleVersion),
   labels: nonEmptyLabels,
   resources: arrayOf(validKubernetesResource),
-};
+});
+
 export type KubernetesAccessValidationResult = RuleSetValidationResult<
-  typeof kubernetesAccessValidationRules
+  ReturnType<typeof kubernetesAccessValidationRules>
 >;
 
 const noWildcard = (message: string) => (value: string) => () => {

@@ -666,14 +666,31 @@ export function newResourceAccess(
   }
 }
 
+export function roleForbidsKubernetesUsersGroups(roleVersion: RoleVersion) {
+  switch (roleVersion) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+    case RoleVersion.V7:
+    case RoleVersion.V8:
+      return false;
+    default:
+      return true;
+  }
+}
+
 export function supportsKubernetesCustomResources(roleVersion: RoleVersion) {
-  return ![
-    RoleVersion.V3,
-    RoleVersion.V4,
-    RoleVersion.V5,
-    RoleVersion.V6,
-    RoleVersion.V7,
-  ].includes(roleVersion);
+  switch (roleVersion) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+    case RoleVersion.V7:
+      return false;
+    default:
+      return true;
+  }
 }
 
 export function newKubernetesResourceModel(
