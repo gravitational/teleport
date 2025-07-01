@@ -332,7 +332,7 @@ func (c *LDAPConfig) CreateConnection(ctx context.Context, ldapTlsConfig *tls.Co
 				return dnsDialer.DialContext(ctx, network, customResolverAddr)
 			}
 		}
-		dnsDialer.Resolver = &net.Resolver{
+		resolver = &net.Resolver{
 			PreferGo: true,
 			Dial:     dial,
 		}
@@ -356,7 +356,7 @@ func (c *LDAPConfig) CreateConnection(ctx context.Context, ldapTlsConfig *tls.Co
 
 		if err != nil {
 			// If the connection fails, try the next server
-			c.Logger.DebugContext(ctx, "Error connecting to LDAP server %q: %v, trying next available server.", server, err)
+			c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
 			continue
 		}
 
