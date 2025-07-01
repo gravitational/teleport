@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -250,7 +251,7 @@ func (s *WorkloadIdentityJWTService) render(
 	}
 
 	if err := s.cfg.Destination.Write(
-		ctx, config.JWTSVIDPath, []byte(cred.GetJwtSvid().GetJwt()),
+		ctx, internal.JWTSVIDPath, []byte(cred.GetJwtSvid().GetJwt()),
 	); err != nil {
 		return trace.Wrap(err, "writing jwt svid")
 	}

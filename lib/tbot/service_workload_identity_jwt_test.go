@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -108,7 +109,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 		defer cancel()
 		require.NoError(t, b.Run(ctx))
 
-		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, config.JWTSVIDPath))
+		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, internal.JWTSVIDPath))
 		require.NoError(t, err)
 		jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
 		require.NoError(t, err)
@@ -141,7 +142,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 		defer cancel()
 		require.NoError(t, b.Run(ctx))
 
-		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, config.JWTSVIDPath))
+		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, internal.JWTSVIDPath))
 		require.NoError(t, err)
 		jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
 		require.NoError(t, err)

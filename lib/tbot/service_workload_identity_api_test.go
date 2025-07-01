@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -52,7 +53,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	setWorkloadIdentityX509CAOverride(ctx, t, process)
+	testutils.SetWorkloadIdentityX509CAOverride(t, process)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	role, err := types.NewRole("issue-foo", types.RoleSpecV6{

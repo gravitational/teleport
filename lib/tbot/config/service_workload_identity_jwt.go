@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
@@ -75,7 +76,7 @@ const JWTSVIDPath = "jwt_svid"
 func (o *WorkloadIdentityJWTService) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
-			Name: JWTSVIDPath,
+			Name: internal.JWTSVIDPath,
 		},
 	}
 	return fds

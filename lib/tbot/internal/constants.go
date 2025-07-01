@@ -29,6 +29,9 @@ const (
 	// certificate
 	DatabaseCAPath = "teleport-database-ca.crt"
 
+	// JWTSVIDPath is the name of the artifact that a JWT SVID will be written to.
+	JWTSVIDPath = "jwt_svid"
+
 	IdentityFilePath = "identity"
 
 	// DefaultTLSPrefix is the default prefix in generated TLS certs.

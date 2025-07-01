@@ -31,7 +31,10 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -94,4 +97,47 @@ func MakeBot(
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
 	}
+}
+
+func SetWorkloadIdentityX509CAOverride(t TestingT, process *service.TeleportProcess) {
+	t.Helper()
+
+	const loadKeysFalse = false
+	spiffeCA, err := process.GetAuthServer().GetCertAuthority(t.Context(), types.CertAuthID{
+		DomainName: "root",
+		Type:       types.SPIFFECA,
+	}, loadKeysFalse)
+	if err != nil {
+		t.Fatalf("failed to get cert authority: %v", err)
+	}
+
+	spiffeCAX509KeyPairs := spiffeCA.GetTrustedTLSKeyPairs()
+	if expected, got := 1, len(spiffeCAX509KeyPairs); expected != got {
+		t.Fatalf("expected %s keypairs, got: %d", expected, got)
+	}
+
+	spiffeCACert, err := tlsca.ParseCertificatePEM(spiffeCAX509KeyPairs[0].Cert)
+	if err != nil {
+		t.Fatalf("failed to parse certificate: %v", err)
+	}
+
+	// this is a bit of a hack: by adding the self-signed CA certificate to the
+	// override chain we distribute a nonempty chain that we can test for, but
+	// all validations will continue working and it's technically not a broken
+	// intermediate chain (just a bit of a useless one)
+
+	// (this is an unsynced write but we know that nothing is issuing
+	// certificates just yet)
+	process.GetAuthServer().SetWorkloadIdentityX509CAOverrideGetter(&staticOverrideGetter{chain: [][]byte{spiffeCACert.Raw}})
+}
+
+type staticOverrideGetter struct {
+	chain [][]byte
+}
+
+var _ services.WorkloadIdentityX509CAOverrideGetter = (*staticOverrideGetter)(nil)
+
+// GetWorkloadIdentityX509CAOverride implements [services.WorkloadIdentityX509CAOverrideGetter].
+func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	return ca, m.chain, nil
 }
