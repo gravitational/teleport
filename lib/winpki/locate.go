@@ -26,12 +26,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// LocateLDAPServer looks up the LDAP server in an Active Directory
+// locateLDAPServer looks up the LDAP server in an Active Directory
 // environment by implementing the DNS-based discovery DC locator
 // process.
 //
 // See https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/dc-locator?tabs=dns-based-discovery
-func LocateLDAPServer(ctx context.Context, domain string, site string, resolver *net.Resolver) ([]string, error) {
+func locateLDAPServer(ctx context.Context, domain string, site string, resolver *net.Resolver) ([]string, error) {
 	if site != "" {
 		domain = site + "._sites." + domain
 	}

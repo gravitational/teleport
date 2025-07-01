@@ -338,7 +338,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Co
 		}
 
 		var err error
-		if servers, err = LocateLDAPServer(ctx, c.Domain, c.Site, resolver); err != nil {
+		if servers, err = locateLDAPServer(ctx, c.Domain, c.Site, resolver); err != nil {
 			return nil, trace.Wrap(err, "locating LDAP server")
 		}
 	}
