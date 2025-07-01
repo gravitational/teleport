@@ -20,6 +20,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"

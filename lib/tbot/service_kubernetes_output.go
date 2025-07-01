@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -401,7 +402,7 @@ func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executa
 // chooseOneKubeCluster chooses one matched kube cluster by name, or tries to
 // choose one kube cluster by unambiguous "discovered name".
 func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.KubeCluster, error) {
-	return chooseOneResource(clusters, name, "kubernetes cluster")
+	return internal.ChooseOneResource(clusters, name, "kubernetes cluster")
 }
 
 func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name string) (types.KubeCluster, error) {
@@ -411,7 +412,7 @@ func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name 
 	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindKubeServer,
-		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
+		PredicateExpression: internal.MakeNameOrDiscoveredNamePredicate(name),
 		Limit:               int32(defaults.DefaultChunkSize),
 	})
 	if err != nil {

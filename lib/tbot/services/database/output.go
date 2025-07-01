@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package database
 
 import (
 	"cmp"
@@ -33,21 +33,21 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 )
 
-func DatabaseOutputServiceBuider(botCfg *config.BotConfig, cfg *config.DatabaseOutput) bot.ServiceBuilder {
+func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &DatabaseOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+			botAuthClient:             deps.Client,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			reloadCh:                  deps.ReloadCh,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -60,14 +60,14 @@ func DatabaseOutputServiceBuider(botCfg *config.BotConfig, cfg *config.DatabaseO
 // DatabaseOutputService generates the artifacts necessary to connect to a
 // database using Teleport.
 type DatabaseOutputService struct {
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.DatabaseOutput
-	log                *slog.Logger
-	reloadCh           <-chan struct{}
-	identityGenerator  *identity.Generator
-	clientBuilder      *client.Builder
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *OutputConfig
+	log                       *slog.Logger
+	reloadCh                  <-chan struct{}
+	identityGenerator         *identity.Generator
+	clientBuilder             *client.Builder
 }
 
 func (s *DatabaseOutputService) String() string {
@@ -83,8 +83,8 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 		Service:         s.String(),
 		Name:            "output-renewal",
 		Fn:              s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -112,7 +112,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -130,7 +130,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	}
 	defer impersonatedClient.Close()
 
-	route, err := getRouteToDatabase(
+	route, err := GetRouteToDatabase(
 		ctx,
 		s.log,
 		impersonatedClient,
@@ -186,16 +186,16 @@ func (s *DatabaseOutputService) render(
 	)
 	defer span.End()
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
+	if err := internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -205,20 +205,20 @@ func (s *DatabaseOutputService) render(
 	}
 
 	switch s.cfg.Format {
-	case config.MongoDatabaseFormat:
+	case MongoDatabaseFormat:
 		if err := writeMongoDatabaseFiles(
 			ctx, s.log, routedIdentity, databaseCAs, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing cockroach database files")
 		}
-	case config.CockroachDatabaseFormat:
+	case CockroachDatabaseFormat:
 		if err := writeCockroachDatabaseFiles(
 			ctx, s.log, routedIdentity, databaseCAs, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing cockroach database files")
 		}
-	case config.TLSDatabaseFormat:
-		if err := writeIdentityFileTLS(
+	case TLSDatabaseFormat:
+		if err := internal.WriteIdentityFileTLS(
 			ctx, s.log, keyRing, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing tls database format files")
@@ -242,14 +242,14 @@ func writeCockroachDatabaseFiles(
 	defer span.End()
 
 	// Cockroach format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: config.DefaultCockroachDirName,
-		Writer:     newBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
+		OutputPath: DefaultCockroachDirName,
+		Writer:     internal.NewBotConfigWriter(ctx, dest, DefaultCockroachDirName),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatCockroach,
 
@@ -280,14 +280,14 @@ func writeMongoDatabaseFiles(
 	defer span.End()
 
 	// Mongo format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: config.DefaultMongoPrefix,
-		Writer:     newBotConfigWriter(ctx, dest, ""),
+		OutputPath: DefaultMongoPrefix,
+		Writer:     internal.NewBotConfigWriter(ctx, dest, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatMongo,
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -306,5 +306,5 @@ func writeMongoDatabaseFiles(
 // chooseOneDatabase chooses one matched database by name, or tries to choose
 // one database by unambiguous "discovered name".
 func chooseOneDatabase(databases []types.Database, name string) (types.Database, error) {
-	return chooseOneResource(databases, name, "database")
+	return internal.ChooseOneResource(databases, name, "database")
 }

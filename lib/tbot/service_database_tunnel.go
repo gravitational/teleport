@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -262,7 +263,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		}
 	}()
 
-	return getRouteToDatabase(ctx, s.log, impersonatedClient, s.cfg.Service, s.cfg.Username, s.cfg.Database)
+	return database.GetRouteToDatabase(ctx, s.log, impersonatedClient, s.cfg.Service, s.cfg.Username, s.cfg.Database)
 }
 
 func (s *DatabaseTunnelService) issueCert(

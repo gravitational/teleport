@@ -24,17 +24,18 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 func TestDatabaseOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[DatabaseOutput]{
+	tests := []testYAMLCase[database.OutputConfig]{
 		{
 			name: "full",
-			in: DatabaseOutput{
+			in: database.OutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
-				Format:      TLSDatabaseFormat,
+				Format:      database.TLSDatabaseFormat,
 				Service:     "my-database-service",
 				Database:    "my-database",
 				Username:    "my-username",
@@ -46,7 +47,7 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: DatabaseOutput{
+			in: database.OutputConfig{
 				Destination: dest,
 				Service:     "my-database-service",
 			},
@@ -56,11 +57,11 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 }
 
 func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*DatabaseOutput]{
+	tests := []testCheckAndSetDefaultsCase[*database.OutputConfig]{
 		{
 			name: "valid",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *database.OutputConfig {
+				return &database.OutputConfig{
 					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
 					Database:    "db",
@@ -71,8 +72,8 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *database.OutputConfig {
+				return &database.OutputConfig{
 					Destination: nil,
 					Service:     "service",
 				}
@@ -81,8 +82,8 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing service",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *database.OutputConfig {
+				return &database.OutputConfig{
 					Destination: memoryDestForTest(),
 				}
 			},
@@ -90,8 +91,8 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "invalid format",
-			in: func() *DatabaseOutput {
-				return &DatabaseOutput{
+			in: func() *database.OutputConfig {
+				return &database.OutputConfig{
 					Destination: memoryDestForTest(),
 					Service:     "service",
 					Format:      "no-such-format",

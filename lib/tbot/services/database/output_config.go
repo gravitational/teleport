@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package database
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
-const DatabaseOutputType = "database"
+const OutputServiceType = "database"
 
 // DatabaseFormat specifies if any special behavior should be invoked when
 // producing artifacts. This allows for databases/clients that require unique
@@ -69,14 +69,9 @@ var databaseFormats = []DatabaseFormat{
 	CockroachDatabaseFormat,
 }
 
-var (
-	_ ServiceConfig = &DatabaseOutput{}
-	_ Initable      = &DatabaseOutput{}
-)
-
-// DatabaseOutput produces credentials which can be used to connect to a
-// database through teleport.
-type DatabaseOutput struct {
+// OutputConfig produces credentials which can be used to connect to a database
+// through teleport.
+type OutputConfig struct {
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
@@ -102,7 +97,7 @@ type DatabaseOutput struct {
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
-func (o *DatabaseOutput) Init(ctx context.Context) error {
+func (o *OutputConfig) Init(ctx context.Context) error {
 	subDirs := []string{}
 	if o.Format == CockroachDatabaseFormat {
 		subDirs = append(subDirs, DefaultCockroachDirName)
@@ -110,9 +105,12 @@ func (o *DatabaseOutput) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
-func (o *DatabaseOutput) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *OutputConfig) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 
 	if o.Service == "" {
@@ -126,11 +124,11 @@ func (o *DatabaseOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *DatabaseOutput) GetDestination() destination.Destination {
+func (o *OutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *DatabaseOutput) Describe() []bot.FileDescription {
+func (o *OutputConfig) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
 			Name: internal.IdentityFilePath,
@@ -179,18 +177,22 @@ func (o *DatabaseOutput) Describe() []bot.FileDescription {
 	return fds
 }
 
-func (o *DatabaseOutput) MarshalYAML() (any, error) {
-	type raw DatabaseOutput
-	return marshaling.WithTypeHeader((*raw)(o), DatabaseOutputType)
+func (o *OutputConfig) MarshalYAML() (any, error) {
+	type raw OutputConfig
+	return marshaling.WithTypeHeader((*raw)(o), OutputServiceType)
 }
 
-func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *OutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *OutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := ctx.ExtractDestination(node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw DatabaseOutput
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw OutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -198,11 +200,11 @@ func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *DatabaseOutput) Type() string {
-	return DatabaseOutputType
+func (o *OutputConfig) Type() string {
+	return OutputServiceType
 }
 
-func (o *DatabaseOutput) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *OutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
 

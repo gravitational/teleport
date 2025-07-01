@@ -141,3 +141,22 @@ var _ services.WorkloadIdentityX509CAOverrideGetter = (*staticOverrideGetter)(ni
 func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
 	return ca, m.chain, nil
 }
+
+func NewMockDiscoveredDB(t TestingT, name, discoveredName string) *types.DatabaseV3 {
+	t.Helper()
+
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: name,
+		Labels: map[string]string{
+			types.OriginLabel:         types.OriginCloud,
+			types.DiscoveredNameLabel: discoveredName,
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "mysql",
+		URI:      "example.com:1234",
+	})
+	if err != nil {
+		t.Fatalf("failed to create database: %v", err)
+	}
+	return db
+}
