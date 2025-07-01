@@ -31,7 +31,7 @@ import (
 )
 
 func TestRecordingAgePlugin(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	keyFinder := newFakeKeyFinder()
 	recordingIdentity := recordingencryption.NewRecordingIdentity(ctx, keyFinder)
 

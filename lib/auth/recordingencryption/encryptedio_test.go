@@ -30,7 +30,7 @@ import (
 )
 
 func TestEncryptedIO(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	keyFinder := newFakeKeyFinder()
 	ident, err := keyFinder.generateIdentity()
 	require.NoError(t, err)

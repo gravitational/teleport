@@ -310,7 +310,8 @@ func TestPartHeader(t *testing.T) {
 }
 
 func TestEncryptedRecordingIO(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	uploader := eventstest.NewMemoryUploader()

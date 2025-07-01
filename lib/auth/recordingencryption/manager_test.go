@@ -108,7 +108,7 @@ func newLocalBackend(
 	t *testing.T,
 ) (context.Context, backend.Backend) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

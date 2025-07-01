@@ -163,7 +163,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
-	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
+	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
