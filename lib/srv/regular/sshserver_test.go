@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -755,7 +756,6 @@ func TestInactivityTimeout(t *testing.T) {
 }
 
 func TestLockInForce(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	f := newFixtureWithoutDiskBasedLogging(t)
 
@@ -810,7 +810,13 @@ func TestLockInForce(t *testing.T) {
 	select {
 	case <-endCh:
 	case <-time.After(15 * time.Second):
-		t.Fatal("timed out waiting for session to finish")
+		buf := make([]byte, 1<<16)
+		runtime.Stack(buf, true)
+		fmt.Print("\n\n\n---____FAILURE____---\n\n\n")
+		fmt.Printf("%s", buf)
+		fmt.Print("\n\n\n---____FAILURE____---\n\n\n")
+
+		require.FailNow(t, "timed out waiting for session to finish")
 	}
 
 	// Expect the lock-in-force message to have been delivered via stderr.
