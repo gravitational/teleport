@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -67,19 +68,11 @@ func SPIFFEWorkloadAPIServiceBuilder(
 	trustBundleCache TrustBundleGetter,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		clientCredential := &config.UnstableClientCredentialOutput{}
-		svcIdentity := &ClientCredentialOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                clientCredential,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
+		clientCredential := &clientcredentials.UnstableConfig{}
+		svcIdentity, err := clientcredentials.ServiceBuilder(botCfg.CredentialLifetime, clientCredential)(deps)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		svcIdentity.log = deps.Logger.With(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "svc", svcIdentity.String()),
-		)
 		svc := &SPIFFEWorkloadAPIService{
 			svcIdentity:      clientCredential,
 			botCfg:           botCfg,
@@ -111,7 +104,7 @@ type TrustBundleGetter interface {
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *config.UnstableClientCredentialOutput
+	svcIdentity      *clientcredentials.UnstableConfig
 	botCfg           *config.BotConfig
 	cfg              *config.SPIFFEWorkloadAPIService
 	log              *slog.Logger

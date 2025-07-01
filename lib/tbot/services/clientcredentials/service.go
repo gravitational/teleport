@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package clientcredentials
 
 import (
 	"context"
@@ -27,17 +27,18 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 )
 
-func ClientCredentialOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.UnstableClientCredentialOutput) bot.ServiceBuilder {
+// ServiceBuilder creates a new client credential service with the given configuration.
+func ServiceBuilder(credentialLifetime bot.CredentialLifetime, cfg *UnstableConfig) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &ClientCredentialOutputService{
+		svc := &Service{
 			botAuthClient:      deps.Client,
 			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
+			credentialLifetime: credentialLifetime,
 			cfg:                cfg,
 			reloadCh:           deps.ReloadCh,
 			identityGenerator:  deps.IdentityGenerator,
@@ -50,36 +51,35 @@ func ClientCredentialOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.
 	}
 }
 
-// ClientCredentialOutputService produces credentials which can be used to
-// connect to Teleport's API or SSH.
-type ClientCredentialOutputService struct {
+// Service produces credentials which can be used to connect to Teleport's API or SSH.
+type Service struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
 	botAuthClient      *apiclient.Client
 	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.UnstableClientCredentialOutput
+	credentialLifetime bot.CredentialLifetime
+	cfg                *UnstableConfig
 	log                *slog.Logger
 	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
 }
 
-func (s *ClientCredentialOutputService) String() string {
+func (s *Service) String() string {
 	return "client-credential-output"
 }
 
-func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
+func (s *Service) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
-func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
+func (s *Service) Run(ctx context.Context) error {
 	err := loop.Run(ctx, loop.Config{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		Fn:              s.generate,
-		Interval:        s.botCfg.CredentialLifetime.RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		Interval:        s.credentialLifetime.RenewalInterval,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -87,16 +87,16 @@ func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *ClientCredentialOutputService) generate(ctx context.Context) error {
+func (s *Service) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"ClientCredentialOutputService/generate",
+		"ClientCredentialService/generate",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
 	id, err := s.identityGenerator.Generate(ctx,
-		identity.WithLifetime(s.botCfg.CredentialLifetime.TTL, s.botCfg.CredentialLifetime.RenewalInterval),
+		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	)
 	if err != nil {

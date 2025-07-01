@@ -16,25 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package internal
+package clientcredentials
 
-const (
-	// HostCAPath is the default filename for the host CA certificate
-	HostCAPath = "teleport-host-ca.crt"
+import "go.opentelemetry.io/otel"
 
-	// UserCAPath is the default filename for the user CA certificate
-	UserCAPath = "teleport-user-ca.crt"
-
-	// DatabaseCAPath is the default filename for the database CA
-	// certificate
-	DatabaseCAPath = "teleport-database-ca.crt"
-
-	IdentityFilePath = "identity"
-
-	// DefaultTLSPrefix is the default prefix in generated TLS certs.
-	DefaultTLSPrefix = "tls"
-
-	// RenewalRetryLimit is the number of permissible consecutive
-	// failures in renewing credentials before the loop exits fatally.
-	RenewalRetryLimit = 5
-)
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/clientcredentials")
