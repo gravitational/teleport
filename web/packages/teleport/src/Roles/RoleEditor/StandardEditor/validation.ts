@@ -304,6 +304,18 @@ const validKubernetesKind = (
   apiGroup: string | undefined,
   ver: RoleVersion
 ): ValidationResult => {
+  const validateV8 = (kind: string, apiGroup: string): ValidationResult => {
+    const v7groups = kubernetesResourceKindV7Groups[kind];
+    const v8valid =
+      !v7groups || (apiGroup !== '*' && !v7groups.groups.includes(apiGroup));
+    return {
+      valid: v8valid,
+      message: v8valid
+        ? undefined
+        : `Kind must use k8s plural name. Did you mean "${v7groups.v8name}"?`,
+    };
+  };
+
   switch (ver) {
     case RoleVersion.V3:
     case RoleVersion.V4:
@@ -329,18 +341,16 @@ const validKubernetesKind = (
           : `Only core predefined kinds are allowed for role version ${ver}`,
       };
 
-    case RoleVersion.V9:
-    // TODO(@creack): Implement validation for v9.
     case RoleVersion.V8:
-      const v7groups = kubernetesResourceKindV7Groups[kind];
-      const v8valid =
-        !v7groups || (apiGroup !== '*' && !v7groups.groups.includes(apiGroup));
-      return {
-        valid: v8valid,
-        message: v8valid
-          ? undefined
-          : `Kind must use k8s plural name. Did you mean "${v7groups.v8name}"?`,
-      };
+      return validateV8(kind, apiGroup);
+
+    case RoleVersion.V9:
+      const v8valid = validateV8(kind, apiGroup);
+      if (!v8valid.valid) {
+        return v8valid;
+      }
+      // TODO(@creack): Implement validation for v9.
+      return { valid: false };
 
     default:
       ver satisfies never;
@@ -356,6 +366,16 @@ const validKubernetesGroup = (
   group: string,
   ver: RoleVersion
 ): ValidationResult => {
+  const validateV8 = (group: string): ValidationResult => {
+    const v8valid = !!group;
+    return {
+      valid: v8valid,
+      message: v8valid
+        ? undefined
+        : `API Group required. Use "*" for any group.`,
+    };
+  };
+
   switch (ver) {
     case RoleVersion.V3:
     case RoleVersion.V4:
@@ -371,16 +391,16 @@ const validKubernetesGroup = (
           : `API Group not supported for role version ${ver}.`,
       };
 
-    case RoleVersion.V9:
-    // TODO(@creack): Implement validation for v9.
     case RoleVersion.V8:
-      const v8valid = !!group;
-      return {
-        valid: v8valid,
-        message: v8valid
-          ? undefined
-          : `API Group required. Use "*" for any group.`,
-      };
+      return validateV8(group);
+
+    case RoleVersion.V9:
+      const v8valid = validateV8(group);
+      if (!v8valid.valid) {
+        return v8valid;
+      }
+      // TODO(@creack): Implement validation for v9.
+      return { valid: false };
 
     default:
       ver satisfies never;
