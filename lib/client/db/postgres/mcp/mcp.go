@@ -21,16 +21,18 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // queryTool is the run query MCP tool definition.
@@ -48,19 +50,85 @@ var queryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "query"),
 
 type database struct {
 	*dbmcp.Database
-	pool *pgxpool.Pool
+	mu sync.Mutex
+
+	clock            clockwork.Clock
+	connConfig       *pgconn.Config
+	activeConnection *pgconn.PgConn
+	lastActivity     time.Time
+}
+
+func (d *database) exec(ctx context.Context, query string) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.lastActivity = d.clock.Now()
+
+	// Establish connection if none is active.
+	if d.activeConnection == nil {
+		var err error
+		d.activeConnection, err = pgconn.ConnectConfig(ctx, d.connConfig)
+		if err != nil {
+			return "", trace.ConnectionProblem(err, "Unable to connect to database: %v", err)
+		}
+	}
+
+	queryRes, err := d.activeConnection.Exec(ctx, query).ReadAll()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	res, err := buildQueryResult(queryRes)
+	return res, trace.Wrap(err)
+}
+
+// closeIdle closes the database connection if idle time passes the threshold.
+func (d *database) closeIdle(ctx context.Context, now time.Time) (bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.lastActivity.IsZero() || now.Sub(d.lastActivity) < connectionIdleTime {
+		return false, nil
+	}
+
+	return true, trace.Wrap(d.closeLocked(ctx))
+}
+
+// close closes the active connection.
+func (d *database) close(ctx context.Context) error {
+	d.mu.Lock()
+	err := d.closeLocked(ctx)
+	d.mu.Unlock()
+	return trace.Wrap(err)
+}
+
+func (d *database) closeLocked(ctx context.Context) error {
+	d.lastActivity = time.Time{}
+	if d.activeConnection != nil {
+		err := d.activeConnection.Close(ctx)
+		d.activeConnection = nil
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Server handles PostgreSQL-specific MCP tools requests.
 type Server struct {
 	logger    *slog.Logger
-	databases map[string]*database
+	clock     clockwork.Clock
+	databases utils.SyncMap[string, *database]
+	cancel    context.CancelFunc
 }
 
 // NewServer initializes a PostgreSQL MCP server, creating the database
 // configurations and registering Server tools into the root server.
 func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
-	s := &Server{logger: cfg.Logger, databases: make(map[string]*database)}
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	s := &Server{logger: cfg.Logger, clock: cfg.Clock, cancel: cancel}
 
 	for _, db := range cfg.Databases {
 		if db.DatabaseUser == "" || db.DatabaseName == "" {
@@ -72,38 +140,48 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 			return nil, trace.Wrap(err)
 		}
 
-		pool, err := pgxpool.NewWithConfig(ctx, connCfg)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse database %q connection config: %s", db.DB.GetName(), err)
-		}
-
-		s.databases[db.ResourceURI().WithoutParams().String()] = &database{
-			Database: db,
-			pool:     pool,
-		}
+		s.databases.Store(db.ResourceURI().WithoutParams().String(), &database{
+			Database:   db,
+			clock:      cfg.Clock,
+			connConfig: connCfg,
+		})
 	}
 
 	cfg.RootServer.AddTool(queryTool, s.RunQuery)
+	go s.idleChecker(ctx)
 	return s, nil
 }
 
 // Close implements dbmcp.Server.
-func (s *Server) Close(context.Context) error {
-	for _, db := range s.databases {
-		db.pool.Close()
-	}
+func (s *Server) Close(ctx context.Context) error {
+	s.cancel()
 
-	return nil
+	var errs []error
+	s.databases.Range(func(key string, db *database) bool {
+		errs = append(errs, db.close(ctx))
+		return true
+	})
+
+	return trace.NewAggregate(errs...)
 }
 
-// RunQueryResult is the run query tool result.
+// QueryResult is the run query tool result.
 type RunQueryResult struct {
+	// Results is the executed queries results.
+	Results []QueryResult `json:"results"`
+	// ErrorMessage if the queries execution wasn't successful, this field
+	// contains the error message.
+	ErrorMessage string `json:"error,omitempty"`
+}
+
+// QueryResult is a single query result.
+type QueryResult struct {
 	// Data contains the data returned from the query. It can be empty in case
 	// the query doesn't return any data.
-	Data []map[string]any `json:"data"`
+	Data []map[string]string `json:"data"`
 	// RowsCount number of rows affected by the query or returned as data.
-	RowsCount int `json:"rowsCount"`
-	// ErrorMessage if the query wasn't successful, this field contains the
+	RowsCount int `json:"rows_count"`
+	// ErrorMessage if the query contains any error, this field will contain the
 	// error message.
 	ErrorMessage string `json:"error,omitempty"`
 }
@@ -128,13 +206,7 @@ func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mc
 	// TODO(gabrielcorado): ensure the connection used is consistent for the
 	// session, making most of its queries to be present in a single audit
 	// session/recording.
-	rows, err := db.pool.Query(ctx, sql)
-	if err != nil {
-		return s.wrapErrorResult(ctx, err)
-	}
-
-	// Returned rows are being closed by this function.
-	result, err := buildQueryResult(rows)
+	result, err := db.exec(ctx, sql)
 	if err != nil {
 		return s.wrapErrorResult(ctx, err)
 	}
@@ -148,44 +220,71 @@ func (s *Server) wrapErrorResult(ctx context.Context, toolErr error) (*mcp.CallT
 	return mcp.NewToolResultError(string(out)), trace.Wrap(err)
 }
 
-// buildQueryResult takes a the response from pgx and converts into a JSON
-// format (which will be returned to LLMs).
-func buildQueryResult(rows pgx.Rows) (string, error) {
-	// Just ensure the rows is always closed. It is safe if this is called
-	// multiple times.
-	defer rows.Close()
+// idleChecker runs continuously checking if database connections are
+// idle and closes them.
+func (s *Server) idleChecker(ctx context.Context) {
+	timer := s.clock.NewTicker(idleCheckerInterval)
+	defer timer.Stop()
 
-	var data []map[string]any
-	columns := rows.FieldDescriptions()
-
-	for rows.Next() {
-		values, err := rows.Values()
-		if err != nil {
-			return "", trace.Wrap(err)
+	for {
+		if ctx.Err() != nil {
+			return
 		}
 
-		item := make(map[string]any, len(values))
-		for i, v := range values {
-			item[columns[i].Name] = v
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.Chan():
+			s.logger.DebugContext(ctx, "checking idle database connections")
+			s.databases.Range(func(_ string, db *database) bool {
+				if closed, err := db.closeIdle(ctx, s.clock.Now()); closed {
+					s.logger.DebugContext(ctx, "closed idle database connection", "database", db.DB.GetName(), "error", err)
+				}
+				return true
+			})
 		}
-
-		data = append(data, item)
 	}
+}
 
-	// Close the rows to finish consuming it. Depending on the its type
-	// we can only collect the command tag after rows is closed.
-	rows.Close()
-	commandTag := rows.CommandTag()
+// buildQueryResult takes a the response from pgconn and converts into a JSON
+// format (which will be returned to MCP clients).
+func buildQueryResult(results []*pgconn.Result) (string, error) {
+	data := make([]QueryResult, len(results))
 
-	// Initialize the slice so the resulting JSON will have an empty array
-	// instead of null.
-	if len(data) == 0 && commandTag.Select() {
-		data = []map[string]any{}
+	for i, result := range results {
+		commandTag := result.CommandTag
+		queryRes := QueryResult{RowsCount: int(commandTag.RowsAffected())}
+
+		if result.Err != nil {
+			queryRes.ErrorMessage = result.Err.Error()
+		}
+
+		// Initialize the slice so the resulting JSON will have an empty
+		// array instead of null. This helps LLMs to not think there was an
+		// error on the query, but instead it returned no records.
+		if result.Err == nil && len(result.Rows) == 0 && commandTag.Select() {
+			queryRes.Data = []map[string]string{}
+		}
+
+		columns := make([]string, len(result.FieldDescriptions))
+		for i, fd := range result.FieldDescriptions {
+			columns[i] = string(fd.Name)
+		}
+
+		for _, row := range result.Rows {
+			rowData := make(map[string]string)
+			for columnIdx, contents := range row {
+				rowData[columns[columnIdx]] = string(contents)
+			}
+
+			queryRes.Data = append(queryRes.Data, rowData)
+		}
+
+		data[i] = queryRes
 	}
 
 	out, err := json.Marshal(RunQueryResult{
-		Data:      data,
-		RowsCount: int(commandTag.RowsAffected()),
+		Results: data,
 	})
 	return string(out), trace.Wrap(err)
 }
@@ -195,7 +294,7 @@ func (s *Server) getDatabase(uri string) (*database, error) {
 		return nil, dbmcp.WrongDatabaseURIFormatError
 	}
 
-	db, ok := s.databases[uri]
+	db, ok := s.databases.Load(uri)
 	if !ok {
 		return nil, dbmcp.DatabaseNotFoundError
 	}
@@ -203,36 +302,28 @@ func (s *Server) getDatabase(uri string) (*database, error) {
 	return db, nil
 }
 
-func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
+func buildConnConfig(db *dbmcp.Database) (*pgconn.Config, error) {
 	// No need to provide a valid address here as the Lookup and DialContext
 	// will handle the connection.
-	config, err := pgxpool.ParseConfig("postgres://")
+	config, err := pgconn.ParseConfig("postgres://")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config.MaxConnIdleTime = connectionIdleTime
-	config.MaxConns = int32(maxConnections)
-
-	config.ConnConfig.LookupFunc = func(ctx context.Context, host string) ([]string, error) {
+	config.LookupFunc = func(ctx context.Context, host string) ([]string, error) {
 		return db.LookupFunc(ctx, host)
 	}
-	config.ConnConfig.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+	config.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		return db.DialContextFunc(ctx, network, addr)
 	}
 
-	config.ConnConfig.User = db.DatabaseUser
-	config.ConnConfig.Database = db.DatabaseName
-	config.ConnConfig.ConnectTimeout = defaults.DatabaseConnectTimeout
-	config.ConnConfig.RuntimeParams = map[string]string{
+	config.User = db.DatabaseUser
+	config.Database = db.DatabaseName
+	config.ConnectTimeout = defaults.DatabaseConnectTimeout
+	config.RuntimeParams = map[string]string{
 		applicationNameParamName: applicationNameParamValue,
 	}
-	config.ConnConfig.TLSConfig = nil
-	// Use simple protocol to have a closer behavior to DB REPL and psql.
-	//
-	// This also avoids each query being prepared, binded and executed, reducing
-	// the amount of audit events per query executed.
-	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	config.TLSConfig = nil
 	return config, nil
 }
 
@@ -252,10 +343,7 @@ const (
 	// connectionIdleTime is the max connection idle time before it gets closed
 	// automatically.
 	connectionIdleTime = 1 * time.Minute
-	// maxConnections defines the max number of concurrent connections the pool
-	// can have.
-	//
-	// Given the current MCP usage, the clients will most likely do one query at
-	// time, even on multiple sessions.
-	maxConnections = 1
+	// idleCheckerInterval is the interval which we'll check if the database
+	// connections are idle.
+	idleCheckerInterval = connectionIdleTime / 2
 )
