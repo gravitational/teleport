@@ -149,7 +149,6 @@ type Credentials struct {
 // EncodeCredentialProcessFormat encodes the credentials in the format expected by the AWS CLI credential_process.
 // See https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
 func (c *Credentials) EncodeCredentialProcessFormat() (string, error) {
-	var bs []byte
 	bs, err := json.Marshal(c)
 	if err != nil {
 		return "", trace.Wrap(err)

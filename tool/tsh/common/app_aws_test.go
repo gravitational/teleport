@@ -255,7 +255,7 @@ credential_process=tsh apps config --format aws-credential-process aws-profile
 		setCopyStdout(appsConfigcommandOutput),
 	)
 	require.NoError(t, err)
-	require.Equal(t, expectedAWSCredentials, appsConfigcommandOutput.String())
+	require.JSONEq(t, expectedAWSCredentials, appsConfigcommandOutput.String())
 
 	// Profile is removed after logout.
 	err = Run(

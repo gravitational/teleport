@@ -154,5 +154,5 @@ func TestEncodeCredentialProcessFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := `{"Version":1,"AccessKeyId":"mock-access-key-id","SecretAccessKey":"mock-secret-access-key","SessionToken":"mock-session-token","Expiration":"2030-06-24T00:00:00Z"}`
-	require.Equal(t, expected, encoded)
+	require.JSONEq(t, expected, encoded)
 }
