@@ -16,26 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, Stack } from 'design';
+import { Flex, Indicator, Stack } from 'design';
 import { ActionButton, Warning } from 'design/Alert';
-import { NewTab } from 'design/Icon';
+import { Download, NewTab } from 'design/Icon';
 import {
   AuthSettings,
   ClientVersionStatus,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import { Platform } from 'teleterm/mainProcess/types';
+import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater/AppUpdaterContext';
+import { Widget } from 'teleterm/ui/AppUpdater/Widget';
 
 export function CompatibilityWarning(props: {
   authSettings: AuthSettings;
   platform: Platform;
   shouldSkipVersionCheck: boolean;
+  onChangeFlow: () => void;
   disableVersionCheck(): void;
   mx?: number;
 }) {
-  if (props.shouldSkipVersionCheck) {
-    return;
-  }
+  // if (props.shouldSkipVersionCheck) {
+  //   return;
+  // }
+
+  const appUpdaterContext = useAppUpdaterContext();
 
   const warning = getWarning(props.authSettings);
 
@@ -44,43 +49,56 @@ export function CompatibilityWarning(props: {
   }
 
   return (
-    <Warning
-      mb={0}
-      mx={props.mx}
-      alignItems="flex-start"
-      details={
-        <Stack gap={2}>
-          {warning}
-          <Flex justifyContent="space-between" width="100%" gap={2}>
-            <ActionButton
-              fill="border"
-              intent="neutral"
-              inputAlignment
-              action={{
-                content: (
-                  <>
-                    Download in Browser
-                    <NewTab size="small" ml={1} />
-                  </>
-                ),
-                href: buildDownloadUrl(props.platform),
-              }}
-            />
-            <ActionButton
-              fill="minimal"
-              intent="neutral"
-              inputAlignment
-              action={{
-                content: 'Do Not Show Again',
-                onClick: props.disableVersionCheck,
-              }}
-            />
-          </Flex>
-        </Stack>
-      }
-    >
-      Detected potentially incompatible version
-    </Warning>
+    <Stack>
+      <Flex px={4} width="100%">
+        <Widget
+          onChangeFlow={props.onChangeFlow}
+          update={appUpdaterContext.updateEvent}
+          onInstall={appUpdaterContext.quitAndInstall}
+        />
+      </Flex>
+      {/*<Warning*/}
+      {/*  mb={0}*/}
+      {/*  mx={props.mx}*/}
+      {/*  alignItems="flex-start"*/}
+      {/*  details={*/}
+      {/*    <Stack gap={2}>*/}
+      {/*      <span>*/}
+      {/*        Cluster teleport-17-ent.asteroid.earth requires Teleport Connect*/}
+      {/*        17.3.4 but teleport-16-ent.asteroid.earth requires 16.3.3.*/}
+      {/*        <br />*/}
+      {/*        Version 16.x was selected as most compatible.*/}
+      {/*      </span>*/}
+      {/*      <Flex justifyContent="center" width="100%" gap={2}>*/}
+      {/*        <ActionButton*/}
+      {/*          fill="border"*/}
+      {/*          intent="neutral"*/}
+      {/*          inputAlignment*/}
+      {/*          action={{*/}
+      {/*            content: (*/}
+      {/*              <>*/}
+      {/*                Force Update to 17.3.4*/}
+      {/*                <Download size="small" ml={1} />*/}
+      {/*              </>*/}
+      {/*            ),*/}
+      {/*          }}*/}
+      {/*        />*/}
+      {/*      </Flex>*/}
+      {/*    </Stack>*/}
+      {/*  }*/}
+      {/*>*/}
+      {/*  Updates are managed by another cluster*/}
+      {/*</Warning>*/}
+      {/*<Flex px={4}>*/}
+      {/*  <Content*/}
+      {/*    updateEvent={{*/}
+      {/*      kind: 'download-progress',*/}
+      {/*      progress: { percent: 50 },*/}
+      {/*      update: { version: '16.3.3' },*/}
+      {/*    }}*/}
+      {/*  />*/}
+      {/*</Flex>*/}
+    </Stack>
   );
 }
 

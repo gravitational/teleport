@@ -398,6 +398,7 @@ export const ActionButton = ({
       onClick={onClick}
       inputAlignment={inputAlignment}
       disabled={disabled}
+      size={'small'}
       title={title}
     >
       {content}

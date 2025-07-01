@@ -188,6 +188,8 @@ service TerminalService {
   // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
   // It only registers file system handlers for processing file system-related TDP events.
   rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
+  // GetAutoUpdate is get auto update.
+  rpc GetAutoUpdate(GetAutoUpdateRequest) returns (GetAutoUpdateResponse);
 }
 
 message EmptyResponse {}
@@ -722,3 +724,16 @@ message SetSharedDirectoryForDesktopSessionRequest {
 
 // Response for SetSharedDirectoryForDesktopSession.
 message SetSharedDirectoryForDesktopSessionResponse {}
+
+message GetAutoUpdateRequest {}
+
+message GetAutoUpdateResponse {
+  repeated Version versions = 1;
+}
+
+message Version {
+  string cluster_uri = 1;
+  bool tools_auto_update = 2;
+  string tools_version = 3;
+  string min_tools_version = 4;
+}

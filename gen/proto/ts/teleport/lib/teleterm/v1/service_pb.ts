@@ -1294,6 +1294,41 @@ export interface SetSharedDirectoryForDesktopSessionRequest {
 export interface SetSharedDirectoryForDesktopSessionResponse {
 }
 /**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAutoUpdateRequest
+ */
+export interface GetAutoUpdateRequest {
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAutoUpdateResponse
+ */
+export interface GetAutoUpdateResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Version versions = 1;
+     */
+    versions: Version[];
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.Version
+ */
+export interface Version {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * @generated from protobuf field: bool tools_auto_update = 2;
+     */
+    toolsAutoUpdate: boolean;
+    /**
+     * @generated from protobuf field: string tools_version = 3;
+     */
+    toolsVersion: string;
+    /**
+     * @generated from protobuf field: string min_tools_version = 4;
+     */
+    minToolsVersion: string;
+}
+/**
  * PasswordlessPrompt describes different prompts we need from users
  * during the passwordless login flow.
  *
@@ -5718,6 +5753,149 @@ class SetSharedDirectoryForDesktopSessionResponse$Type extends MessageType<SetSh
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
 export const SetSharedDirectoryForDesktopSessionResponse = new SetSharedDirectoryForDesktopSessionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAutoUpdateRequest$Type extends MessageType<GetAutoUpdateRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAutoUpdateRequest", []);
+    }
+    create(value?: PartialMessage<GetAutoUpdateRequest>): GetAutoUpdateRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetAutoUpdateRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAutoUpdateRequest): GetAutoUpdateRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetAutoUpdateRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAutoUpdateRequest
+ */
+export const GetAutoUpdateRequest = new GetAutoUpdateRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAutoUpdateResponse$Type extends MessageType<GetAutoUpdateResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAutoUpdateResponse", [
+            { no: 1, name: "versions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Version }
+        ]);
+    }
+    create(value?: PartialMessage<GetAutoUpdateResponse>): GetAutoUpdateResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.versions = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetAutoUpdateResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAutoUpdateResponse): GetAutoUpdateResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.Version versions */ 1:
+                    message.versions.push(Version.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAutoUpdateResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.Version versions = 1; */
+        for (let i = 0; i < message.versions.length; i++)
+            Version.internalBinaryWrite(message.versions[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAutoUpdateResponse
+ */
+export const GetAutoUpdateResponse = new GetAutoUpdateResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Version$Type extends MessageType<Version> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.Version", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "tools_auto_update", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "tools_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "min_tools_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<Version>): Version {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        message.toolsAutoUpdate = false;
+        message.toolsVersion = "";
+        message.minToolsVersion = "";
+        if (value !== undefined)
+            reflectionMergePartial<Version>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Version): Version {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* bool tools_auto_update */ 2:
+                    message.toolsAutoUpdate = reader.bool();
+                    break;
+                case /* string tools_version */ 3:
+                    message.toolsVersion = reader.string();
+                    break;
+                case /* string min_tools_version */ 4:
+                    message.minToolsVersion = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Version, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* bool tools_auto_update = 2; */
+        if (message.toolsAutoUpdate !== false)
+            writer.tag(2, WireType.Varint).bool(message.toolsAutoUpdate);
+        /* string tools_version = 3; */
+        if (message.toolsVersion !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.toolsVersion);
+        /* string min_tools_version = 4; */
+        if (message.minToolsVersion !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.minToolsVersion);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.Version
+ */
+export const Version = new Version$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5764,5 +5942,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
     { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
     { name: "ConnectToDesktop", serverStreaming: true, clientStreaming: true, options: {}, I: ConnectToDesktopRequest, O: ConnectToDesktopResponse },
-    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse }
+    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse },
+    { name: "GetAutoUpdate", options: {}, I: GetAutoUpdateRequest, O: GetAutoUpdateResponse }
 ]);

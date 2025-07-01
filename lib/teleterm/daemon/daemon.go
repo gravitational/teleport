@@ -21,6 +21,7 @@ package daemon
 import (
 	"context"
 	"crypto/tls"
+	"golang.org/x/sync/errgroup"
 	"os/exec"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -743,6 +745,54 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI ur
 	})
 
 	return response, trace.Wrap(err)
+}
+
+func (s *Service) GetAutoUpdateVersions(ctx context.Context) ([]*api.Version, error) {
+	rootClusters, err := s.ListRootClusters(ctx)
+	if err != nil {
+		return []*api.Version{}, trace.Wrap(err)
+	}
+	versions := make([]*api.Version, 0, len(rootClusters))
+	mu := sync.Mutex{}
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(10)
+
+	for _, cluster := range rootClusters {
+		group.Go(func() error {
+			_, tc, err := s.ResolveClusterURI(cluster.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			find, err := webclient.Find(&webclient.Config{
+				Context:   groupCtx,
+				ProxyAddr: tc.WebProxyAddr,
+				Insecure:  false,
+				Timeout:   5 * time.Second,
+			})
+			if err != nil {
+				s.cfg.Logger.ErrorContext(groupCtx, "Could not read client version for cluster, skipping", cluster.URI)
+				return nil
+			}
+
+			mu.Lock()
+			versions = append(versions, &api.Version{
+				ClusterUri:      cluster.URI.String(),
+				ToolsAutoUpdate: find.AutoUpdate.ToolsAutoUpdate,
+				ToolsVersion:    find.AutoUpdate.ToolsVersion,
+			})
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	err = group.Wait()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return versions, nil
 }
 
 // GetAccessRequests returns all access requests with filtered input
