@@ -18,7 +18,6 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { borderStyle } from 'styled-system';
 
 import { space, SpaceProps } from '../system';
 import { Theme } from '../theme';
