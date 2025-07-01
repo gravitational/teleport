@@ -945,26 +945,6 @@ $ tctl get clusters,users
 
 </Tabs>
 
-## tctl get locks
-
-List all active locks:
-
-```code
-% tctl get locks
-kind: lock
-metadata:
-  name: cc015442-efad-4414-936f-d1cbe4dee8d5
-  revision: 868edc8d-47d6-437a-868a-b65aa10bf65b
-spec:
-  created_at: "2025-06-25T23:46:32.732350567Z"
-  created_by: security.admin@foo.com
-  message: Privilege escalation detected
-  target:
-    login: root
-    user: bob
-version: v2
-```
-
 ## tctl help
 
 Shows help:
