@@ -2704,6 +2704,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig
+	cfg.BotInstance = services.BotInstance
 
 	return accesspoint.NewCache(cfg)
 }
