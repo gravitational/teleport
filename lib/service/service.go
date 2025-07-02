@@ -5044,6 +5044,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.OnExit("tls.config.generator", func(a any) {
+		clientTLSConfigGenerator.Close()
+	})
+
 	sshGRPCTLSConfig.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
 	sshGRPCCreds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
@@ -5795,7 +5799,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload interface{}) {
+	process.OnExit("tls.config.generator", func(payload any) {
 		generator.Close()
 	})
 
