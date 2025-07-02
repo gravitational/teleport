@@ -283,7 +283,7 @@ func (t *TLSServer) Close() error {
 		}
 	}
 
-	if err := t.mux.Close(); err != nil {
+	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		errors = append(errors, err)
 	}
 
@@ -309,6 +309,10 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		if err := <-errC; err != nil {
 			errors = append(errors, err)
 		}
+	}
+
+	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		errors = append(errors, err)
 	}
 
 	if err := t.clientTLSConfigGenerator.Close(); err != nil {
