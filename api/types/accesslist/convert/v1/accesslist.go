@@ -38,15 +38,10 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	accessListType, err := accesslist.NewTypeFromString(spec.GetType())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	metadata := headerv1.FromMetadataProto(msg.GetHeader().GetMetadata())
 
 	accessListSpec := accesslist.Spec{
-		Type:               accessListType,
+		Type:               accesslist.Type(msg.GetSpec().GetType()),
 		Title:              spec.GetTitle(),
 		Description:        spec.GetDescription(),
 		Owners:             convertOwnersFromProto(spec.GetOwners()),
