@@ -15,7 +15,7 @@ Why monitor database connectivity with health checks?
 ## How it works
 
 When a user connects to a database through Teleport, the connection is routed via a Teleport Database Service.
-The Database Service must be able to reach a database's endpoint to proxy the connection.
+The Database Service must be able to reach the database's endpoint to proxy the connection.
 
 Teleport Database Services will perform regular health checks for databases that match a global `health_check_config` resource's label selectors.
 If no `health_check_config` matches a database, then health checks will not be enabled for that database.
@@ -26,10 +26,11 @@ To perform a health check, Teleport Database Services will attempt to establish 
 Only TCP health checks are available at this time.
 </Admonition>
 
-Databases with health checks enabled will start with an "unknown" health status.
-Once the initial health check result is available for a database, its health status will change to either "healthy" or "unhealthy".
+When a database is registered, it will initially have an "unknown" health status.
+If health checks are disabled, then the health status will remain "unknown".
+If health checks are enabled, then the first health check result will determine the database's health status: either "healthy" or "unhealthy".
 
-After the initial health check, the health status of a database will only change once the number of consecutive passing or failing health checks reaches a configurable threshold.
+After the first health check for a database, its health status will only change once the number of consecutive passing or failing health checks reaches a configurable threshold.
 
 ## Configuration
 
