@@ -25,8 +25,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
@@ -54,12 +55,18 @@ type JoinURIParams struct {
 	Address string
 }
 
+// applyValueOrError sets the target `target` to the value `value`, but only if
+// the current value is that type's zero value, or if the current value is equal
+// to the desired value. If not, an error is returned per the error message
+// string and arguments. This can be used to ensure existing values will not be
+// overwritten.
 func applyValueOrError[T comparable](target *T, value T, errMsg string, errArgs ...any) error {
 	var zero T
-	if *target == zero {
+	switch *target {
+	case zero:
 		*target = value
 		return nil
-	} else if *target == value {
+	case value:
 		return nil
 	}
 
