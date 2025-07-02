@@ -513,7 +513,8 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		return nil, trace.Wrap(err, "Invalid Join Method")
 	}
 	botConfig := &embeddedtbot.BotConfig{
-		AuthServer: addr,
+		AuthServer:            addr,
+		AuthServerAddressMode: tbotconfig.AllowProxyAsAuthServer,
 		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: joinToken,
 			CAPath:     caPath,
