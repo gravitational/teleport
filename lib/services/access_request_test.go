@@ -3770,3 +3770,21 @@ func roleMap(t *testing.T, count int) map[string]types.Role {
 	}
 	return roleMap
 }
+
+func mustRequestSearchAsRole(t *testing.T, name string, allowed, denied []string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: allowed,
+			},
+		},
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: denied,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
