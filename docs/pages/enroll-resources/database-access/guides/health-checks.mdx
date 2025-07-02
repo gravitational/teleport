@@ -9,7 +9,7 @@ Available in Teleport 18, database health checks are used to monitor connectivit
 
 Why monitor database connectivity with health checks?
 
-- **Observability**: Automatically identify networking problems rather than discovering connection issues at user connection time.
+- **Observability**: Discover networking problems before a user attempts to connect to a database. Unhealthy databases are highlighted in the Teleport web UI and can be discovered programmatically through your Teleport cluster's API.
 - **High Availability**: Multiple Teleport Database Service instances can be deployed to proxy connections to the same enrolled databases. Teleport prioritizes routing user connections through Database Service instances that can reach the database endpoint over those that cannot.
 
 ## How it works
