@@ -190,6 +190,12 @@ spec:
                 description: title is a plaintext short description of the Access
                   List.
                 type: string
+              type:
+                description: type can be currently "dynamic" (the default if empty
+                  string) which denotes a regular Access List, "scim" which represents
+                  an Access List created from SCIM group or "static" for Access Lists
+                  managed by IaC tools.
+                type: string
             type: object
           status:
             description: Status defines the observed state of the Teleport resource
