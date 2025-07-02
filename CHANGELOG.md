@@ -1,5 +1,34 @@
 # Changelog
 
+## 16.5.13 (07/02/25)
+
+### Security fixes
+
+This release also includes fixes for the following security issues:
+
+#### [Critical] Remote authentication bypass
+
+* Removed special handling for `*ssh.Certificate` authorities in the `IsHostAuthority` and `IsUserAuthority` callbacks used by `x/crypto/ssh.CertChecker`. [#56253](https://github.com/gravitational/teleport/pull/56253)
+
+Resolved an issue that allowed remote SSH authentication bypass on servers with Teleport SSH agents, OpenSSH-integrated deployments and Teleport Git proxy deployments.  [CVE-2025-49825](https://github.com/gravitational/teleport/security/advisories/GHSA-8cqv-pj7f-pwpc). Refer to the [RCA](https://trust.goteleport.com/resources?s=32t147ja8aawd6px7irxat&name=cve-2025-49825-rca) for the full details.
+
+### Other fixes and improvements
+
+* Trait role templating is now supported in the `workload_identity_labels` Role resource field. [#56298](https://github.com/gravitational/teleport/pull/56298)
+* Updated the WindowsDesktop and WindowsDesktopService APIs to use pagination to avoid exceeding message size limitations. [#56233](https://github.com/gravitational/teleport/pull/56233)
+* Fixed duplicated entries in `tctl inventory list` when using DynamoDB as cluster state storage. [#56183](https://github.com/gravitational/teleport/pull/56183)
+* Fixed an issue that could prevent Windows desktop sessions from terminating when the idle timeout was exceeded. [#56049](https://github.com/gravitational/teleport/pull/56049)
+* Added the the `teleport-update status --is-up-to-date` flag to change the return code based on the update status. [#55951](https://github.com/gravitational/teleport/pull/55951)
+* Fixed Hardware Key Support for YubiKey firmware versions 5.7.x. [#55902](https://github.com/gravitational/teleport/pull/55902)
+* Fixed an error when creating or updating join tokens in the web UI when admin action is enabled (second_factor set to webauthn). [#55852](https://github.com/gravitational/teleport/pull/55852)
+* Fixes a memory leak in Kubernetes Access caused by resources not being cleaned up when clients terminate watch streams. [#55768](https://github.com/gravitational/teleport/pull/55768)
+* Fixed a bug that could cause Kubernetes exec requests to fail when the Kubernetes cluster had the WebSocket-based exec protocol disabled. [#55733](https://github.com/gravitational/teleport/pull/55733)
+* Fixed an issue where the output from `tctl sso configure github` could not be used with `tctl create -f` in OSS Teleport. [#55728](https://github.com/gravitational/teleport/pull/55728)
+* Fixed an issue that prevented changes to default shell from propagating for host users and static host users. [#55649](https://github.com/gravitational/teleport/pull/55649)
+* Updated Go to 1.23.10. [#55603](https://github.com/gravitational/teleport/pull/55603)
+* Fixed updating the default PIN and PUK for hardware key support in Teleport Connect. [#55509](https://github.com/gravitational/teleport/pull/55509)
+* The `tbot` client now ensures the `O_CLOEXEC` flag is used when opening files on Linux hosts. [#55504](https://github.com/gravitational/teleport/pull/55504)
+
 ## 16.5.11 (06/05/25)
 
 ### Security fixes
