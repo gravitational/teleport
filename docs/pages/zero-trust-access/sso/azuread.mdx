@@ -80,6 +80,11 @@ Before you get started, you’ll need:
    https://mytenant.teleport.sh:443/v1/webapi/saml/acs/ad
    ```
 
+   If you have a self-hosted cluster with multiple public addresses for the
+   Teleport Proxy Service (the value of `proxy_service.public_addr` in the
+   Teleport configuration file), ensure that this address points to the first
+   one listed.
+
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
    Click **Save** before proceeding to the next step.
