@@ -34,19 +34,21 @@ running Teleport on UNIX variants other than Linux \[1].
 
 | Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` and Teleport Connect User Clients [2] | Web UI (via the browser) | `tbot` Daemon |
 | - | - | - | - | - | - |
-| Linux 3.2+ (RHEL/CentOS 7+, Rocky Linux 8+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
+| Linux 3.2+ (RHEL/CentOS 7+, Rocky Linux 8+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes \[4] | yes | yes |
 | macOS 11+  (Big Sur)| yes | yes | yes | yes | yes |
-| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | yes |
+| Windows 10+ (rev. 1607) \[5] | no | yes | yes | yes | yes |
 
 \[1] *Teleport is written in Go and many of these system requirements are due to the requirements
-of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
+of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements).*
 
 \[2] *`tsh` is a Command Line Client (CLI) and Teleport Connect is a Graphical User Interface (GUI) desktop client. See
-  [Using Teleport Connect](connect-your-client/teleport-connect.mdx) for usage and installation*.
+  [Using Teleport Connect](connect-your-client/teleport-connect.mdx) for usage and installation.*
 
-\[3] *Enhanced Session Recording requires Linux kernel v5.8+*.
+\[3] *Enhanced Session Recording requires Linux kernel v5.8+.*
 
-\[4] *Teleport server does not run on Windows yet, but `tsh`, `tbot`, `tctl`, and Teleport Connect (the Teleport desktop clients)
+\[4] *Teleport Connect on Linux requires glibc 2.28+ present in Ubuntu 20.04+, Debian 10+, Fedora 37+.*
+
+\[5] *Teleport server does not run on Windows yet, but `tsh`, `tbot`, `tctl`, and Teleport Connect (the Teleport desktop clients)
 support most features on Windows 10 and later.*
 
 ## Linux
