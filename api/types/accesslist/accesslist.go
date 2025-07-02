@@ -323,9 +323,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if a.Spec.Type == "" {
-		a.Spec.Type = Dynamic
-	}
 	if _, err := NewTypeFromString(string(a.Spec.Type)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -334,8 +331,13 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
-		return trace.BadParameter("owners are missing")
+	switch a.Spec.Type {
+	case Static, SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
+		}
 	}
 
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
