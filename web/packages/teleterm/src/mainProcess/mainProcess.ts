@@ -109,6 +109,7 @@ export default class MainProcess {
     )
   );
   private readonly agentRunner: AgentRunner;
+  private tshdClient: Promise<TshdClient>;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -170,12 +171,18 @@ export default class MainProcess {
     }
   }
 
-  async initTshdClient(): Promise<TshdClient> {
-    const { tsh: tshdAddress } = await this.resolvedChildProcessAddresses;
-    return setUpTshdClient({
-      runtimeSettings: this.settings,
-      tshdAddress,
-    });
+  async getTshdClient(): Promise<TshdClient> {
+    if (!this.tshdClient) {
+      this.tshdClient = this.resolvedChildProcessAddresses.then(
+        ({ tsh: tshdAddress }) =>
+          setUpTshdClient({
+            runtimeSettings: this.settings,
+            tshdAddress,
+          })
+      );
+    }
+
+    return this.tshdClient;
   }
 
   private initTshd() {
@@ -559,6 +566,31 @@ export default class MainProcess {
         if (error) {
           throw new Error(error);
         }
+      }
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.SelectDirectoryForDesktopSession,
+      async (_, args: { desktopUri: string; login: string }) => {
+        const value = await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+        });
+        if (value.canceled) {
+          throw new Error('Selecting directory canceled.');
+        }
+        if (value.filePaths.length !== 1) {
+          throw new Error('No directory selected.');
+        }
+
+        const [dirPath] = value.filePaths;
+        const tshClient = await this.getTshdClient();
+        await tshClient.setSharedDirectoryForDesktopSession({
+          desktopUri: args.desktopUri,
+          login: args.login,
+          path: dirPath,
+        });
+
+        return path.basename(dirPath);
       }
     );
 

@@ -316,3 +316,22 @@ This message is sent from the client to the server to synchronize the state of k
 
 - `0` for \* lock inactive
 - `1` FOR \* LOCK ACTIVE
+
+#### 35 - latency stats
+
+This message is sent from the server to the client to indicate latency
+between client and proxy and between proxy and desktop.
+
+```
+| message type (35) | client_latency uint32 | server_latency uint32 |
+``` 
+
+#### 36 - ping
+
+This message is sent between proxy and Windows desktop service to measure latency between proxy and desktop.
+Proxy will send ping message with random UUID and WDS will respond with the same message
+after measuring latency to desktop.
+
+```
+| message type (36) | uuid [16]byte |  
+```

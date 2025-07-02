@@ -585,7 +585,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		requesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
 	}
 
-	keyRing, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(
+	result, err := clusterClient.IssueUserCertsWithMFA(
 		ctx,
 		client.ReissueParams{
 			RouteToCluster:    teleportCluster,
@@ -608,7 +608,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
-		keyRing,
+		result.KeyRing,
 		rootClusterName,
 		teleportCluster,
 		kubeCluster); err != nil {
@@ -616,13 +616,13 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 	}
 
 	// Save it if MFA was not required.
-	if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-		if err := tc.LocalAgent().AddKubeKeyRing(keyRing); err != nil {
+	if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+		if err := tc.LocalAgent().AddKubeKeyRing(result.KeyRing); err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 	}
 
-	cert, err := keyRing.KubeTLSCert(kubeCluster)
+	cert, err := result.KeyRing.KubeTLSCert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

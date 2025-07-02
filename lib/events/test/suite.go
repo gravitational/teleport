@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -76,7 +76,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	defer f.Close()
 
 	err = handler.Download(context.TODO(), id, f)
-	fixtures.AssertNotFound(t, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // EventsSuite is a conformance test suite to verify external event backends
@@ -199,8 +199,7 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 	})
 
 	require.False(t, events.Next())
-
-	fixtures.AssertNotFound(t, events.Done())
+	require.True(t, trace.IsNotFound(events.Done()))
 
 	// try a different day and verify that no chunks are found
 	chunks = s.Log.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{

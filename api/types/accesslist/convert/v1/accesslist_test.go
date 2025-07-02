@@ -22,8 +22,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -86,6 +90,7 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 
 func TestRoundtrip(t *testing.T) {
 	accessList := newAccessList(t, "access-list")
+	accessList.ResourceHeader.SetSubKind("access-list-subkind")
 
 	converted, err := FromProto(ToProto(accessList))
 	require.NoError(t, err)
@@ -116,7 +121,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Audit = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("recurrence", func(t *testing.T) {
@@ -133,30 +138,6 @@ func TestFromProtoNils(t *testing.T) {
 
 		_, err := FromProto(accessList)
 		require.NoError(t, err)
-	})
-
-	t.Run("membership-requires", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.MembershipRequires = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
-	})
-
-	t.Run("ownership-requires", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.OwnershipRequires = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
-	})
-
-	t.Run("grants", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.Grants = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
 	})
 
 	t.Run("owner_grants", func(t *testing.T) {
@@ -269,4 +250,102 @@ func TestNextAuditDateZeroTime(t *testing.T) {
 	convertedTwice := ToProto(converted)
 
 	require.Nil(t, convertedTwice.Spec.Audit.NextAuditDate)
+}
+
+func TestConvAccessList(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *accesslistv1.AccessList
+	}{
+		{
+			name: "basic conversion",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Title:       "test access list",
+					Description: "test description",
+					Owners: []*accesslistv1.AccessListOwner{
+						{
+							Name: "test-user1",
+						},
+					},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: &accesslistv1.AccessListGrants{
+						Roles: []string{"role1"},
+					},
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+		{
+			name: "nil grants",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Title:       "test access list",
+					Description: "test description",
+					Owners: []*accesslistv1.AccessListOwner{
+						{
+							Name: "test-user1",
+						},
+					},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: nil,
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acl, err := FromProto(tt.input)
+			require.NoError(t, err)
+
+			got := ToProto(acl)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.input, got)
+		})
+	}
 }

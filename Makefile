@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.4.8
+VERSION=17.5.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -36,6 +36,9 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
+KUBECTL_VERSION := $(shell go list -m -f '{{.Version}}' k8s.io/kubectl | sed 's/v0/v1/')
+KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
+
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
@@ -362,7 +365,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # TELEPORT_LDFLAGS and TOOLS_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -387,8 +390,6 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
-$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
@@ -1023,6 +1024,12 @@ test-operator:
 .PHONY: test-terraform-provider
 test-terraform-provider:
 	make -C integrations test-terraform-provider
+#
+# Runs Teleport MWI Terraform provider tests.
+#
+.PHONY: test-terraform-provider-mwi
+test-terraform-provider-mwi:
+	make -C integrations test-terraform-provider-mwi
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #

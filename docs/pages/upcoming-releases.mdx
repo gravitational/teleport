@@ -12,11 +12,10 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                  |
-|---------|-----------------------|
-| 17.5.0  | Week of June 2, 2025  |
-| 18.0.0  | Week of June 23, 2025 |
-| 18.1.0  | Week of July 14, 2025 |
+| Version | Date                   |
+|---------|------------------------|
+| 18.0.0  | Week of July 7, 2025   |
+| 18.1.0  | Week of August 4, 2025 |
 
 We continue to support the following major versions of Teleport:
 
@@ -25,33 +24,6 @@ We continue to support the following major versions of Teleport:
 | v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
 | v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
 | v15.x   | January 29, 2024  | June 2025      | v14.0.0               |
-
-### 17.5.0
-
-#### Azure Console via SAML IdP
-
-Teleport SAML IdP will support Azure web console as a service provider.
-
-#### Desktop Access in Teleport Connect
-
-Teleport Connect will allow users to connect to Windows desktops directly from
-the Teleport Connect application without needing to use a browser.
-
-#### Desktop Access latency detector
-
-Teleport's web UI will show latency measurements during remote desktop sessions
-which indicate both the latency between the user and the Teleport proxy as well
-as the latency between the Teleport proxy and the target host.
-
-#### Machine & Workload Identity - Sigstore attestation
-
-Machine & Workload Identity will support attesting Sigstore signatures of workloads
-running on Docker, Podman and Kubernetes. This will allow the issuance of credentials
-to be restricted to workloads with container images produced by legitimate CI/CD systems.
-
-#### Azure DevOps joining
-
-Teleport will support secretless authentication for Bots running within Azure DevOps pipelines.
 
 ### 18.0.0
 
@@ -78,6 +50,11 @@ connection.
 Users will be able to control access to SAML applications using role labels
 similar to other Teleport-protected resources.
 
+#### Database health checks
+
+Teleport will support periodic connectivity checks for connected databases
+and expose database health information to users via web UI and CLI/API.
+
 ### 18.1.0
 
 #### Encrypted session recordings
@@ -95,12 +72,10 @@ per-session MFA will have first-class support for a seamless user experience.
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of       | Description                                                  |
-|---------------|--------------------------------------------------------------|
-| June 9, 2025  | Teleport 17.5 will begin rollout on Cloud.                   |
-| June 9, 2025  | Teleport 17.5 agents will begin rollout to eligible tenants. |
-| July 21, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
-| July 21, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
+| Week of         | Description                                                  |
+|-----------------|--------------------------------------------------------------|
+| August 11, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
+| August 11, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

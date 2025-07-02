@@ -739,14 +739,9 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
-
 	return nil
 }
 
@@ -759,6 +754,17 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+)
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 

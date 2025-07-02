@@ -174,6 +174,8 @@ github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3 h1:Er5y2CAfS0ddI6+/7b
 github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3/go.mod h1:hrfV1T+dtQ8AGlImCftiCAYZCTvn2hNVEcA9gPXui8E=
 github.com/aws/aws-sdk-go-v2/service/rds v1.89.0 h1:4x0WbBa+i/AS0AFlj7yvx3n+GuK3XR58J6t61pW6h8U=
 github.com/aws/aws-sdk-go-v2/service/rds v1.89.0/go.mod h1:WB+SVZKu1IBpsy3GrpR2EBnqB6A05Bd0r4RDLRqMbdk=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3 h1:lkhEdncFpqtpLZIflmYVhCfGZOKnaR1KpnjL/YqFmNA=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3/go.mod h1:kxbZGLQug7gz4qtj75ScD7HAozL94trZRYXF2kT6gNg=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2 h1:p9TNFL8bFUMd+38YIpTAXpoxyz0MxC7FlbFEH4P4E1U=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2/go.mod h1:fNjyo0Coen9QTwQLWeV6WO2Nytwiu+cCcWaTdKCAqqE=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.55.3 h1:nbFGlCxyyFe2cgg8WNQQtzDRVczO4+1dL4hd3TDU6MM=
@@ -370,6 +372,8 @@ github.com/go-openapi/validate v0.24.0 h1:LdfDKwNbpB6Vn40xhTdNZAnfLECL81w+VX3Bum
 github.com/go-openapi/validate v0.24.0/go.mod h1:iyeX1sEufmv3nPbBdX3ieNviWnOZaJ1+zquzJEf2BAQ=
 github.com/go-piv/piv-go v1.11.0 h1:5vAaCdRTFSIW4PeqMbnsDlUZ7odMYWnHBDGdmtU/Zhg=
 github.com/go-piv/piv-go v1.11.0/go.mod h1:NZ2zmjVkfFaL/CF8cVQ/pXdXtuj110zEKGdJM6fJZZM=
+github.com/go-piv/piv-go/v2 v2.3.0 h1:kKkrYlgLQTMPA6BiSL25A7/x4CEh2YCG7rtb/aTkx+g=
+github.com/go-piv/piv-go/v2 v2.3.0/go.mod h1:ShZi74nnrWNQEdWzRUd/3cSig3uNOcEZp+EWl0oewnI=
 github.com/go-resty/resty/v2 v2.15.3 h1:bqff+hcqAflpiF591hhJzNdkRsFhlB96CYfBwSFvql8=
 github.com/go-resty/resty/v2 v2.15.3/go.mod h1:0fHAoK7JoBy/Ch36N8VFeMsK7xQOHhvWaC3iOktwmIU=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
@@ -495,8 +499,8 @@ github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFE
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 h1:TjiJ98fWU5N28MBktP5vj1/xohin7cX/JBPPJ8iCiTE=
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624/go.mod h1:pERQ8qtFfvV0Pfw9jA5o1WH1snupQQ3SZ+n8CVdRJNs=
-github.com/gravitational/predicate v1.3.1 h1:f1uGg2FF6z5wZbcafYpLZJ1gl+82I0MlSd0cQKDPQe0=
-github.com/gravitational/predicate v1.3.1/go.mod h1:H5e9dUW7zb/cuKkkhfnyT9SsI/WHWJ8Ra011La16DTY=
+github.com/gravitational/predicate v1.3.4 h1:9N3JhBXNPcUh0w8DdlpnVmfnH9Z3xxbw43sD3E19VBE=
+github.com/gravitational/predicate v1.3.4/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
 github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
 github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/redis/v9 v9.6.1-teleport.1 h1:gPirfPKArN2nPhTKR3h9fnEg5YuYU933+CjlDJMo4H0=
@@ -505,8 +509,8 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf h1:aXnqDSit8L1qhI0+QdbJh+MTUFKXG7qbkZXnfr7L96A=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf/go.mod h1:f7i0iNDQJ059oMTcWxx8MA/zKFIuD/lY+0GqbN2Wy8c=
-github.com/gravitational/trace v1.4.1 h1:IpaQyg/HzBApX34VIyy4tCZF2wB839AEAMT13sTYYmE=
-github.com/gravitational/trace v1.4.1/go.mod h1:oEs/tamajqgZ6/oEb31Hbh50BODsd2H/1iOAkQRDkdg=
+github.com/gravitational/trace v1.5.0 h1:JbeL2HDGyzgy7G72Z2hP2gExEyA6Y2p7fCiSjyZwCJw=
+github.com/gravitational/trace v1.5.0/go.mod h1:dxezSkKm880IIDx+czWG8fq+pLnXjETBewMgN3jOBlg=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 h1:+ngKgrYPPJrOjhax5N+uePQ0Fh1Z7PheYoUI/0nzkPA=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1 h1:qnpSQwGEnkcRpTqNOIR6bJbR0gAorgP9CSALpRcKoAA=

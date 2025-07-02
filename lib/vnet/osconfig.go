@@ -44,23 +44,19 @@ func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfi
 	return trace.Wrap(platformConfigureOS(ctx, osConfig, &osConfigState.platformOSConfigState))
 }
 
-type targetOSConfigProvider interface {
-	targetOSConfig(context.Context) (*osConfig, error)
-}
-
 type osConfigurator struct {
-	targetOSConfigProvider targetOSConfigProvider
+	remoteOSConfigProvider *remoteOSConfigProvider
 	osConfigState          osConfigState
 }
 
-func newOSConfigurator(targetOSConfigProvider targetOSConfigProvider) *osConfigurator {
+func newOSConfigurator(remoteOSConfigProvider *remoteOSConfigProvider) *osConfigurator {
 	return &osConfigurator{
-		targetOSConfigProvider: targetOSConfigProvider,
+		remoteOSConfigProvider: remoteOSConfigProvider,
 	}
 }
 
 func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
-	desiredOSConfig, err := c.targetOSConfigProvider.targetOSConfig(ctx)
+	desiredOSConfig, err := c.remoteOSConfigProvider.targetOSConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -7,8 +7,8 @@ the problem.
 ### "unauthorized device" errors using a trusted device
 
 A trusted device needs to be registered and enrolled before it is recognized by
-Teleport as such. Follow the [registration](../../admin-guides/access-controls/device-trust/device-management.mdx) and
-[enrollment](../../admin-guides/access-controls/device-trust/device-management.mdx) steps
+Teleport as such. Follow the [registration](../../identity-governance/device-trust/device-management.mdx#register-a-trusted-device) and
+[enrollment](../../identity-governance/device-trust/device-management.mdx#enroll-a-trusted-device) steps
 and make sure to `tsh logout` and `tsh login` after enrollment is done.
 
 ### "Failed to open the TPM device" on Linux
@@ -49,7 +49,7 @@ Follow the instructions in the [Web UI troubleshooting section](
 #web-ui-fails-to-authenticate-trusted-device) below (Teleport v16 or later).
 
 Alternatively, you may use one of the tsh commands described by
-[App Access support](../../admin-guides/access-controls/device-trust/enforcing-device-trust.mdx).
+[App Access support](../../identity-governance/device-trust/enforcing-device-trust.mdx).
 For example, for an app called `myapp`, run `tsh proxy app myapp -p 8888`, then
 open http://localhost:8888 in your browser.
 
@@ -69,8 +69,7 @@ The Web UI attempts to authenticate your device using Teleport Connect during
 login. If you are not asked to authenticate your device immediately after login,
 follow the steps below:
 
-1. Make sure your device is [registered and enrolled](
-   ../../admin-guides/access-controls/device-trust/device-management.mdx#register-a-trusted-device)
+1. Make sure your device is [registered and enrolled](../../identity-governance/device-trust/device-management.mdx#register-a-trusted-device)
 2. Install [Teleport Connect](
    ../../connect-your-client/teleport-connect.mdx#installation--upgrade).
    Use the DEB or RPM packages on Linux (the tarball doesn't register the custom

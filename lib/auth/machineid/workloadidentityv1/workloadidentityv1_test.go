@@ -419,6 +419,34 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	specificAccessClient, err := tp.srv.NewClient(auth.TestUser(specificAccess.GetName()))
 	require.NoError(t, err)
 
+	traitAccess, _, err := auth.CreateUserAndRole(
+		tp.srv.Auth(),
+		"traity",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindWorkloadIdentity,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
+		auth.WithUserMutator(func(user types.User) {
+			tr := user.GetTraits()
+			if tr == nil {
+				tr = map[string][]string{}
+			}
+			tr["custom"] = []string{"trait-value-a", "trait-value-b"}
+			user.SetTraits(tr)
+		}),
+		auth.WithRoleMutator(func(role types.Role) {
+			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
+				"trait-label": []string{"{{external.custom}}"},
+			})
+		}),
+	)
+	require.NoError(t, err)
+	traitAccessClient, err := tp.srv.NewClient(auth.TestUser(traitAccess.GetName()))
+	require.NoError(t, err)
+
 	// Generate a keypair to generate x509 SVIDs for.
 	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
@@ -551,6 +579,23 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
 					{Expression: `sigstore.policy_satisfied("foo") || sigstore.policy_satisfied("bar")`},
 				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	traitsRequired, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "traits-required",
+			Labels: map[string]string{
+				"trait-label": "trait-value-b",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
 			},
 		},
 	})
@@ -966,6 +1011,23 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
 				// Check cert TTL
 				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+			},
+		},
+		{
+			name:   "x509 svid - access via traits in labels",
+			client: traitAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: traitsRequired.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				require.NotNil(t, res.Credential)
 			},
 		},
 		{
@@ -2067,9 +2129,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, res.WorkloadIdentities, 29)
 		require.Empty(t, res.NextPageToken)
 		for _, created := range created {
-			slices.ContainsFunc(res.WorkloadIdentities, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(res.WorkloadIdentities, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 
@@ -2098,9 +2160,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, fetched, 29)
 		require.Equal(t, 3, iterations)
 		for _, created := range created {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }
@@ -2969,9 +3031,9 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 		require.Len(t, res.WorkloadIdentityX509Revocations, 29)
 		require.Empty(t, res.NextPageToken)
 		for _, created := range created {
-			slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 
@@ -3000,9 +3062,9 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 		require.Len(t, fetched, 29)
 		require.Equal(t, 3, iterations)
 		for _, created := range created {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }

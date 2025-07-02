@@ -19,18 +19,17 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/tls"
 	"errors"
-	"io"
-	"net"
 	"net/http"
-	"sync"
+	"net/url"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
@@ -42,11 +41,13 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
@@ -157,7 +158,7 @@ func (h *Handler) createDesktopConnection(
 
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
-	serviceConn, _, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
+	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
 		Site:           site,
@@ -201,9 +202,9 @@ func (h *Handler) createDesktopConnection(
 	// for the rest of the connection
 	withheld = nil
 
-	// proxyWebsocketConn hangs here until connection is closed
+	// tdp.ProxyConn hangs here until connection is closed.
 	handleProxyWebsocketConnErr(
-		proxyWebsocketConn(ws, serviceConnTLS), log)
+		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, version), log)
 
 	return nil
 }
@@ -344,21 +345,42 @@ func (h *Handler) performSessionMFACeremony(
 		span.End()
 	}()
 
-	mfaCeremony := &mfa.Ceremony{
-		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
-			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				codec := tdpMFACodec{}
+	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
+	channelID := uuid.NewString()
 
-				if chal.WebauthnChallenge == nil {
-					return nil, trace.AccessDenied("Desktop access requires WebAuthn MFA, please register a WebAuthn device to connect")
+	mfaCeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
+		SSOMFACeremonyConstructor: func(_ context.Context) (mfa.SSOMFACeremony, error) {
+			u, err := url.Parse(sso.WebMFARedirect)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
+			return &sso.MFACeremony{
+				ClientCallbackURL: u.String(),
+				ProxyAddress:      h.PublicProxyAddr(),
+			}, nil
+		},
+		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				// Convert from proto to JSON types.
+				var challenge client.MFAAuthenticateChallenge
+				if chal.WebauthnChallenge != nil {
+					challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
 				}
+
+				if chal.SSOChallenge != nil {
+					challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+					challenge.SSOChallenge.ChannelID = channelID
+				}
+
+				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+					return nil, trace.AccessDenied("Only WebAuthn and SSO MFA methods are supported on the web, please register a supported MFA method to connect to this desktop")
+				}
+
 				// Send the challenge over the socket.
-				msg, err := codec.Encode(
-					&client.MFAAuthenticateChallenge{
-						WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
-					},
-					defaults.WebsocketMFAChallenge,
-				)
+				var codec tdpMFACodec
+				msg, err := codec.Encode(&challenge, defaults.WebsocketMFAChallenge)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -408,10 +430,9 @@ func (h *Handler) performSessionMFACeremony(
 				return assertion, nil
 			})
 		},
-		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 	}
 
-	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFACeremony:       mfaCeremony,
@@ -424,7 +445,7 @@ func (h *Handler) performSessionMFACeremony(
 		return nil, trace.Wrap(err)
 	}
 
-	return newCerts, nil
+	return result.NewCerts, nil
 }
 
 func readUsername(r *http.Request) (string, error) {
@@ -442,108 +463,82 @@ func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 	return tdpConn.ReadClientScreenSpec()
 }
 
+// desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
+// Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
+type desktopPinger struct {
+	proxy *tdp.ConnProxy
+	ch    <-chan tdp.Ping
+}
+
+func (d desktopPinger) Ping(ctx context.Context) error {
+	ping := tdp.Ping{
+		UUID: uuid.New(),
+	}
+	if err := d.proxy.SendToServer(ping); err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		select {
+		case pong := <-d.ch:
+			if pong.UUID == ping.UUID {
+				return nil
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+}
+
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
-	var closeOnce sync.Once
-	close := func() {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, log *logrus.Entry, version string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		cancel()
 		ws.Close()
 		wds.Close()
-	}
-
-	errs := make(chan error, 2)
-
-	go func() {
-		defer closeOnce.Do(close)
-
-		// we avoid using io.Copy here, as we want to make sure
-		// each TDP message is sent as a unit so that a single
-		// 'message' event is emitted in the browser
-		// (io.Copy's internal buffer could split one message
-		// into multiple ws.WriteMessage calls)
-		tc := tdp.NewConn(wds)
-
-		// we don't care about the content of the message, we just
-		// need to split the stream into individual messages and
-		// write them to the websocket
-		for {
-			msg, err := tc.ReadMessage()
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			} else if err != nil {
-				isFatal := tdp.IsFatalErr(err)
-				severity := tdp.SeverityError
-				if !isFatal {
-					severity = tdp.SeverityWarning
-				}
-				sendErr := sendTDPAlert(ws, err, severity)
-
-				// If the error wasn't fatal and we successfully
-				// sent it back to the client, continue.
-				if !isFatal && sendErr == nil {
-					continue
-				}
-
-				// If the error was fatal or we failed to send it back
-				// to the client, send it to the errs channel and end
-				// the session.
-				if sendErr != nil {
-					err = sendErr
-				}
-				errs <- err
-				return
-			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			}
-			if err != nil {
-				errs <- err
-				return
-			}
-		}
 	}()
 
-	go func() {
-		defer closeOnce.Do(close)
-
-		var buf bytes.Buffer
-		for {
-			_, reader, err := ws.NextReader()
-			switch {
-			case utils.IsOKNetworkError(err):
-				errs <- nil
-				return
-			case err != nil:
-				errs <- err
-				return
-			}
-			buf.Reset()
-			if _, err := io.Copy(&buf, reader); err != nil {
-				errs <- err
-				return
-			}
-
-			if _, err := wds.Write(buf.Bytes()); err != nil {
-				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
-				return
-			}
-		}
-	}()
-
-	var retErrs []error
-	for i := 0; i < 2; i++ {
-		retErrs = append(retErrs, <-errs)
+	latencySupported, err := utils.MinVerWithoutPreRelease(version, "17.5.0")
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return trace.NewAggregate(retErrs...)
+
+	pings := make(chan tdp.Ping)
+
+	tdpConnProxy := tdp.NewConnProxy(&WebsocketIO{Conn: ws}, wds, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
+		if ping, ok := msg.(tdp.Ping); ok {
+			if !latencySupported {
+				return nil, trace.BadParameter("received unexpected Ping message from server (this is a bug)")
+			}
+			select {
+			case pings <- ping:
+			case <-ctx.Done():
+			}
+			return nil, nil
+		}
+		return msg, nil
+	})
+
+	if latencySupported {
+		pinger := desktopPinger{
+			proxy: tdpConnProxy,
+			ch:    pings,
+		}
+
+		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
+			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
+				return trace.Wrap(tdpConnProxy.SendToClient(tdp.LatencyStats{
+					ClientLatency: uint32(stats.Client),
+					ServerLatency: uint32(stats.Server),
+				}))
+			}),
+		)
+
+	}
+
+	return trace.Wrap(tdpConnProxy.Run())
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by

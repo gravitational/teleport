@@ -104,7 +104,10 @@ export default function Table<T>(props: TableProps<T>) {
   const renderBody = (data: T[]) => {
     const rows: ReactNode[] = [];
 
-    if (fetching?.fetchStatus === 'loading') {
+    if (
+      fetching?.fetchStatus === 'loading' &&
+      !fetching.disableLoadingIndicator
+    ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {

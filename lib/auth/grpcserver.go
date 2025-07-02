@@ -32,7 +32,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -60,7 +59,6 @@ import (
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -68,7 +66,6 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -80,6 +77,7 @@ import (
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -603,6 +601,15 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	}
+
+	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
+		if req.Usage != authpb.UserCertsRequest_Database {
+			return trace.BadParameter("requester %s can only request database certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
 	}
 
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
@@ -3909,6 +3916,39 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.Windo
 	}, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (g *GRPCServer) ListWindowsDesktops(ctx context.Context, req *authpb.ListWindowsDesktopsRequest) (*authpb.ListWindowsDesktopsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+		Limit:                int(req.Limit),
+		StartKey:             req.StartKey,
+		PredicateExpression:  req.PredicateExpression,
+		Labels:               req.Labels,
+		SearchKeywords:       req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &authpb.ListWindowsDesktopsResponse{
+		Desktops: make([]*types.WindowsDesktopV3, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		if v3, ok := d.(*types.WindowsDesktopV3); ok {
+			out.Desktops = append(out.Desktops, v3)
+		}
+	}
+
+	return out, nil
+}
+
 // CreateWindowsDesktop registers a new Windows desktop host.
 func (g *GRPCServer) CreateWindowsDesktop(ctx context.Context, desktop *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -5557,19 +5597,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
-
-	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identitycenterv1.RegisterIdentityCenterServiceServer(server, identityCenterService)
-
-	provisioningStateService, err := local.NewProvisioningStateService(cfg.AuthServer.bk)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
 	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
 		Authorizer:               cfg.Authorizer,

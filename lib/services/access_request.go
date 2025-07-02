@@ -245,8 +245,10 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caps.RequestPrompt = v.prompt
-	caps.AutoRequest = v.autoRequest
+	if len(v.reasonPrompts) > 0 {
+		caps.RequestPrompt = v.reasonPrompts[0]
+	}
+	caps.AutoRequest = v.autoRequestOnLogin
 
 	return &caps, nil
 }
@@ -1030,11 +1032,15 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 type requestValidator struct {
 	logger    *slog.Logger
 	clock     clockwork.Clock
+	opts      ValidateRequestOptions
 	getter    RequestValidatorGetter
 	userState UserState
+	// autoRequestOnLogin indicates that a Access Request should be created for a user upon
+	// login.  That happens when any of the users's roles has options.request_access "always"
+	// or "reason".
+	autoRequestOnLogin bool
 	// requireReasonForAllRoles indicates that non-empty reason is required for all access
-	// requests. This happens if any of the user roles has options.request_access "always" or
-	// "reason".
+	// requests. This happens if any of the user roles has options.request_access "reason".
 	requireReasonForAllRoles bool
 	// requiringReasonRoles is a set of role names, which require non-empty reason to be
 	// specified when requested. The same applies to all requested resources allowed by those
@@ -1046,6 +1052,9 @@ type requestValidator struct {
 	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
 	// reason.
 	requiringReasonRoles map[string]struct{}
+	// reasonPrompts are the prompts to be displayed in the UI for the reason input box. In the
+	// case of auto-request only the first prompt is displayed for backward compatibility.
+	reasonPrompts []string
 	// Used to enforce that the configuration found in the static
 	// role that defined the search_as_role, is respected.
 	// An empty map or list means nothing was configured.
@@ -1057,10 +1066,7 @@ type requestValidator struct {
 		// denied from requesting.
 		deny []types.RequestKubernetesResource
 	}
-	autoRequest bool
-	prompt      string
-	opts        ValidateRequestOptions
-	roles       struct {
+	roles struct {
 		allowRequest, denyRequest []parse.Matcher
 		allowSearch, denySearch   []string
 	}
@@ -1122,11 +1128,20 @@ func newRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 			return requestValidator{}, trace.Wrap(err)
 		}
 	}
+	slices.Sort(m.reasonPrompts)
+
 	return m, nil
 }
 
-// validate validates an access request and potentially modifies it depending on how
-// the validator was configured.
+// validate validates an access request and potentially modifies it depending on what the validator
+// options were configured in the requestValidator.
+//
+// When requestValidator.opts.expandVars is true, it expands wildcard requests, setting their role
+// list to include all roles the user is allowed to request. Expansion should be performed before
+// an access request is initially placed in the backend.
+//
+// When requestValidator.opts.expandVars is true and req.GetDryRun() is true, it adds expanded
+// dry-run enrichment data to the request.
 func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
 	if m.userState.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
@@ -1164,9 +1179,23 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		req.SetRoles(requestable)
 	}
 
-	// If the reason is provided, don't check if it's required. It has to happen after wildcard
-	// role expansion.
-	if len(strings.TrimSpace(req.GetRequestReason())) == 0 {
+	enrichment := &types.AccessRequestDryRunEnrichment{
+		ReasonMode:    types.RequestReasonModeOptional,
+		ReasonPrompts: m.reasonPrompts, // prompt is calculated in newRequestValidator
+	}
+
+	switch {
+	// for dry-run, store the reason requirement in the enrichment data
+	case req.GetDryRun():
+		required, _, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if required {
+			enrichment.ReasonMode = types.RequestReasonModeRequired
+		}
+	// for no dry-run and no reason provided, fail if the reason is required
+	case len(strings.TrimSpace(req.GetRequestReason())) == 0:
 		required, explanation, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
 		if err != nil {
 			return trace.Wrap(err)
@@ -1318,6 +1347,9 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		}
 	}
 
+	if req.GetDryRun() {
+		req.SetDryRunEnrichment(enrichment)
+	}
 	return nil
 }
 
@@ -1606,9 +1638,10 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 	var err error
 
 	m.requireReasonForAllRoles = m.requireReasonForAllRoles || role.GetOptions().RequestAccess.RequireReason()
-	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
-	if m.prompt == "" {
-		m.prompt = role.GetOptions().RequestPrompt
+	m.autoRequestOnLogin = m.autoRequestOnLogin || role.GetOptions().RequestAccess.ShouldAutoRequest()
+	reasonPrompt := strings.TrimSpace(role.GetOptions().RequestPrompt)
+	if len(reasonPrompt) > 0 && !slices.Contains(m.reasonPrompts, reasonPrompt) {
+		m.reasonPrompts = append(m.reasonPrompts, reasonPrompt)
 	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
@@ -2016,9 +2049,16 @@ func WithExpandVars(expandVars bool) ValidateRequestOption {
 }
 
 // ValidateAccessRequestForUser validates an access request against the associated users's
-// *statically assigned* roles. If [[WithExpandVars]] is set to true, it will also expand wildcard
-// requests, setting their role list to include all roles the user is allowed to request.
-// Expansion should be performed before an access request is initially placed in the backend.
+// *statically assigned* roles.
+//
+// It can modify the request.
+//
+// If [WithExpandVars] is set to true, it will also expand wildcard requests, setting their role
+// list to include all roles the user is allowed to request. Expansion should be performed before
+// an access request is initially placed in the backend.
+//
+// If both [WithExpandVars] is set to true and req.GetDryRun() is true it adds expanded dry-run
+// enrichment data in the provided request.
 func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, req types.AccessRequest, identity tlsca.Identity, opts ...ValidateRequestOption) error {
 	v, err := newRequestValidator(ctx, clock, getter, req.GetUser(), opts...)
 	if err != nil {

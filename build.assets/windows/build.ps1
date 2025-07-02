@@ -177,7 +177,7 @@ function Install-WasmPack {
     begin {
         Write-Host "::group::Installing wasm-pack $WasmPackVersion"
         # TODO(camscale): Don't hard-code wasm-binden-cli version
-        cargo install wasm-bindgen-cli --locked --version 0.2.99
+        cargo install wasm-bindgen-cli --locked --version 0.2.95
         cargo install wasm-pack --locked --version "$WasmPackVersion"
         Write-Host "::endgroup::"
     }
@@ -391,11 +391,12 @@ function Build-Tsh {
     $BinaryName = "tsh.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
@@ -424,11 +425,12 @@ function Build-Tctl {
     $BinaryName = "tctl.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tctl..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }

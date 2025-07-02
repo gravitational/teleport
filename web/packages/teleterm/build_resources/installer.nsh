@@ -10,8 +10,8 @@
 # https://nsis.sourceforge.io/EnVar_plug-in
 
 !macro customInstall
-    # Make EnVar define user env vars instead of system env vars.
-    EnVar::SetHKCU
+    # Make EnVar define system env vars since Connect is installed per-machine.
+    EnVar::SetHKLM
     EnVar::AddValue "Path" $INSTDIR\resources\bin
 
     nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-install-service'
@@ -25,7 +25,7 @@
 !macroend
 
 !macro customUnInstall
-    EnVar::SetHKCU
+    EnVar::SetHKLM
     # Inside the uninstaller, $INSTDIR is the directory where the uninstaller lies.
     # Fortunately, electron-builder puts the uninstaller directly into the actual installation dir.
     # https://nsis.sourceforge.io/Docs/Chapter4.html#varother

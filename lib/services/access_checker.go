@@ -756,10 +756,21 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		wildcardAllowed := false
 		wildcardDenied := false
 
+		// Only append allowed entries and update wildcardAllowed if the role
+		// allows the resource without any matcher. In the real CheckAccess,
+		// RoleMatchers(matchers).MatchAll(role, types.Allow) is only run when
+		// namespace and label matching passes on this resource. Checking
+		// if the role allows the resource without any matcher confirms
+		// namespace and label matching has passed.
+		var resourceAllowedByRole bool
+		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+			resourceAllowedByRole = true
+		}
+
 		for _, e := range listFn(role, types.Allow) {
 			if e == types.Wildcard {
 				wildcardAllowed = true
-			} else {
+			} else if resourceAllowedByRole {
 				entities = append(entities, e)
 			}
 		}
@@ -774,7 +785,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if resourceAllowedByRole {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 	}
@@ -939,9 +950,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 		}
 		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
 			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, labelMatchers, rcLabels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
 		if matchLabels {
 			return nil
 		}

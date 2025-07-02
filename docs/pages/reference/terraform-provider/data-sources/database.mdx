@@ -67,6 +67,8 @@ Optional:
 - `keytab_file` (String) KeytabFile is the path to the Kerberos keytab file.
 - `krb5_file` (String) Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
 - `ldap_cert` (String) LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+- `ldap_service_account_name` (String) LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+- `ldap_service_account_sid` (String) LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
 - `spn` (String) SPN is the service principal name for the database.
 
 

@@ -1448,7 +1448,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
-		SSO:                      "c",
+		SSO:                      "https://example.com",
 		AttributesToRoles: []types.AttributeMapping{
 			{
 				Name:  "dummy",
@@ -4199,6 +4199,50 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	require.Equal(t, "APPROVED", arc.RequestState)
 }
 
+func testCreateRole(t *testing.T, server *TestTLSServer, name string, setup func(*types.RoleSpecV6)) types.Role {
+	t.Helper()
+	ctx := context.Background()
+
+	spec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Reason: &types.AccessRequestConditionsReason{},
+			},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+		Deny: types.RoleConditions{
+			Request:        &types.AccessRequestConditions{},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+	}
+	setup(&spec)
+
+	role, err := types.NewRole(name, spec)
+	require.NoError(t, err, "types.NewRole")
+
+	createdRole, err := server.AuthServer.AuthServer.UpsertRole(ctx, role)
+	require.NoError(t, err, "AuthServer.UpsertRole")
+
+	return createdRole
+}
+
+func testCreateUserWithRoles(t *testing.T, server *TestTLSServer, user string, roles ...string) (TestIdentity, *authclient.Client) {
+	t.Helper()
+	ctx := context.Background()
+
+	u, err := types.NewUser(user)
+	require.NoError(t, err, "types.NewUser")
+	u.SetRoles(roles)
+	_, err = server.AuthServer.AuthServer.UpsertUser(ctx, u)
+	require.NoError(t, err, "AuthServer.UpsertUser")
+
+	identity := TestUser(user)
+	client, err := server.NewClient(identity)
+	require.NoError(t, err, "server.NewClient")
+
+	return identity, client
+}
+
 func TestAccessRequestNotifications(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -4217,55 +4261,26 @@ func TestAccessRequestNotifications(t *testing.T) {
 	requesterUsername := "requester"
 	requestRoleName := "requestRole"
 
-	reviewerRole, err := types.NewRole(reviewerUsername, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins: []string{"user"},
-			ReviewRequests: &types.AccessReviewConditions{
-				Roles: []string{"requestRole"},
-			},
-		},
+	reviewerRole := testCreateRole(t, testTLSServer, reviewerUsername, func(spec *types.RoleSpecV6) {
+		spec.Allow.Logins = []string{"user"}
+		spec.Allow.ReviewRequests.Roles = []string{"requestRole"}
 	})
-	require.NoError(t, err)
 
-	requesterRole, err := types.NewRole(requesterUsername, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				Roles: []string{requestRoleName},
-			},
-		},
+	requesterRole := testCreateRole(t, testTLSServer, requesterUsername, func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{requestRoleName}
 	})
-	require.NoError(t, err)
 
-	requestedRole, err := types.NewRole(requestRoleName, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				Roles: []string{requestRoleName},
-			},
-		},
+	requestRole := testCreateRole(t, testTLSServer, requestRoleName, func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{requestRoleName}
 	})
-	require.NoError(t, err)
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, requestedRole)
-	require.NoError(t, err)
 
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, reviewerRole)
-	require.NoError(t, err)
-	reviewer, err := types.NewUser(reviewerUsername)
-	require.NoError(t, err)
-	reviewer.SetRoles([]string{reviewerUsername})
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, reviewer)
-	require.NoError(t, err)
+	reviewer, reviewerClient := testCreateUserWithRoles(t, testTLSServer, reviewerUsername, reviewerRole.GetName())
 
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, requesterRole)
-	require.NoError(t, err)
-	requester, err := types.NewUser(requesterUsername)
-	require.NoError(t, err)
-	requester.SetRoles([]string{requesterUsername})
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, requester)
-	require.NoError(t, err)
+	requester, _ := testCreateUserWithRoles(t, testTLSServer, requesterUsername, requesterRole.GetName())
 
-	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requesterUsername, requestRoleName)
+	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requester.GetUsername(), requestRole.GetName())
 	require.NoError(t, err)
-	req, err := testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requesterUsername).I.GetIdentity())
+	req, err := testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, reviewer.I.GetIdentity())
 	require.NoError(t, err)
 
 	// Verify that a global notification was created which matches for users who can review the requestRole.
@@ -4273,12 +4288,8 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, globalNotifsResp, 1)
 	require.Equal(t, &types.AccessReviewConditions{
-		Roles: []string{requestRoleName},
+		Roles: []string{requestRole.GetName()},
 	}, globalNotifsResp[0].GetSpec().GetByPermissions().GetRoleConditions()[0].ReviewRequests)
-
-	reviewerIdentity := TestUser(reviewerUsername)
-	reviewerClient, err := testTLSServer.NewClient(reviewerIdentity)
-	require.NoError(t, err)
 
 	// Approve the request
 	_, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
@@ -4295,9 +4306,9 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.Contains(t, userNotifsResp[0].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer approved your access request")
 
 	// Create another access request.
-	accessRequest, err = types.NewAccessRequest(uuid.NewString(), requesterUsername, requestRoleName)
+	accessRequest, err = types.NewAccessRequest(uuid.NewString(), requester.GetUsername(), requestRole.GetName())
 	require.NoError(t, err)
-	req, err = testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requesterUsername).I.GetIdentity())
+	req, err = testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requester.GetUsername()).I.GetIdentity())
 	require.NoError(t, err)
 
 	// Deny the request.
@@ -4313,6 +4324,165 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, userNotifsResp, 2)
 	require.Contains(t, userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer denied your access request")
+}
+
+func testNewAccessRequest(t *testing.T, user string, roles ...string) types.AccessRequest {
+	t.Helper()
+	r, err := types.NewAccessRequest(uuid.NewString(), user, roles...)
+	require.NoError(t, err, "types.NewAccessRequest")
+	return r
+}
+
+func TestAccessRequestDryRunEnrichment(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	testTLSServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+
+	someRole := testCreateRole(t, testTLSServer, "some-role", func(spec *types.RoleSpecV6) {})
+
+	someRoleRequesterRole := testCreateRole(t, testTLSServer, "some-role-requester", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{someRole.GetName()}
+	})
+
+	someRoleRequesterRoleRequiringReason := testCreateRole(t, testTLSServer, "some-role-requester-requiring-reason", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{someRole.GetName()}
+		spec.Allow.Request.Reason.Mode = types.RequestReasonModeRequired
+	})
+
+	globalPromptRole1 := testCreateRole(t, testTLSServer, "prompt-role-1", func(spec *types.RoleSpecV6) {
+		spec.Options.RequestPrompt = "test prompt #1"
+	})
+	globalPromptRole2 := testCreateRole(t, testTLSServer, "prompt-role-2", func(spec *types.RoleSpecV6) {
+		spec.Options.RequestPrompt = "test prompt #2"
+	})
+
+	t.Run("requesting-role-no-reason-required-no-prompts", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeOptional, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Empty(t, resp.GetDryRunEnrichment().ReasonPrompts)
+	})
+
+	t.Run("requesting-role-reason-required", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRoleRequiringReason.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeRequired, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Empty(t, resp.GetDryRunEnrichment().ReasonPrompts)
+	})
+
+	t.Run("requesting-role-multiple-prompts", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+			globalPromptRole1.GetName(),
+			globalPromptRole2.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeOptional, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Len(t, resp.GetDryRunEnrichment().ReasonPrompts, 2)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole1.GetOptions().RequestPrompt)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole2.GetOptions().RequestPrompt)
+	})
+
+	t.Run("requesting-role-reason-required-and-multiple-prompts", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+			someRoleRequesterRoleRequiringReason.GetName(),
+			globalPromptRole1.GetName(),
+			globalPromptRole2.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeRequired, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Len(t, resp.GetDryRunEnrichment().ReasonPrompts, 2)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole1.GetOptions().RequestPrompt)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole2.GetOptions().RequestPrompt)
+	})
+
+	t.Run("requesting-role-prompts-sorted-and-duplicated", func(t *testing.T) {
+		globalPromptRole1 := testCreateRole(t, testTLSServer, "prompt-role-1", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "C test prompt"
+		})
+		globalPromptRole2 := testCreateRole(t, testTLSServer, "prompt-role-2", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "A test prompt"
+		})
+		globalPromptRole3 := testCreateRole(t, testTLSServer, "prompt-role-3", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "B test prompt"
+		})
+		globalPromptRole4 := testCreateRole(t, testTLSServer, "prompt-role-4", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "B test prompt"
+		})
+		globalPromptRole5 := testCreateRole(t, testTLSServer, "prompt-role-5", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "C test prompt"
+		})
+
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+			globalPromptRole1.GetName(),
+			globalPromptRole2.GetName(),
+			globalPromptRole3.GetName(),
+			globalPromptRole4.GetName(),
+			globalPromptRole5.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check prompts
+		require.Len(t, resp.GetDryRunEnrichment().ReasonPrompts, 3)
+		require.Equal(t, "A test prompt", resp.GetDryRunEnrichment().ReasonPrompts[0])
+		require.Equal(t, "B test prompt", resp.GetDryRunEnrichment().ReasonPrompts[1])
+		require.Equal(t, "C test prompt", resp.GetDryRunEnrichment().ReasonPrompts[2])
+	})
 }
 
 func TestCleanupNotifications(t *testing.T) {

@@ -31,9 +31,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // debouncer accepts a duration, and a function. When `attempt` is called on
@@ -127,10 +127,11 @@ const caRotationRetryBackoff = time.Second * 2
 //     certificates issued by the old CA, and stop trusting the new CA.
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
 type caRotationService struct {
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	botClient         *authclient.Client
-	getBotIdentity    getBotIdentityFn
+	log                *slog.Logger
+	reloadBroadcaster  *channelBroadcaster
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
 }
 
 func (s *caRotationService) String() string {
@@ -148,6 +149,19 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.DefaultJitter
+
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
 
 	for {
 		err := s.watchCARotations(ctx, rd.attempt)

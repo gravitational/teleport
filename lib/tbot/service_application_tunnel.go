@@ -27,10 +27,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -44,13 +43,14 @@ import (
 // an authenticating tunnel and will automatically issue and renew certificates
 // as needed.
 type ApplicationTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.ApplicationTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg             *config.BotConfig
+	cfg                *config.ApplicationTunnelService
+	proxyPingCache     *proxyPingCache
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -119,6 +119,19 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	ctx, span := tracer.Start(ctx, "ApplicationTunnelService/buildLocalProxyConfig")
 	defer span.End()
 
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
+			}
+		}
+	}
+
 	// Determine the roles to use for the impersonated app access user. We fall
 	// back to all the roles the bot has if none are configured.
 	roles := s.cfg.Roles
@@ -172,7 +185,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 		Cert:               *appCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
-	if client.IsALPNConnUpgradeRequired(
+	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
 		s.botCfg.Insecure,

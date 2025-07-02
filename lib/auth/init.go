@@ -787,7 +787,10 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			" this cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/",
 			caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
 	}
-
+	ca, err = applyAuthorityConfig(ctx, asrv, ca)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	keysInUse := collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
 	return usableKeysResult, keysInUse, nil
 }
@@ -805,6 +808,59 @@ func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
 		}
 	}
 	return keysInUse
+}
+
+// applyAuthorityConfig applies the latest keystore config to active keys updating
+// the stored CA if any changes occur.
+func applyAuthorityConfig(ctx context.Context, asrv *Server, ca types.CertAuthority) (types.CertAuthority, error) {
+	activeKeys := ca.GetActiveKeys()
+	var (
+		changed bool
+		err     error
+	)
+
+	apply := func(curr []byte) ([]byte, error) {
+		next, err := asrv.keyStore.ApplyMultiRegionConfig(ctx, curr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Equal(curr, next) {
+			changed = true
+		}
+		return next, nil
+	}
+
+	for _, key := range activeKeys.SSH {
+		key.PrivateKey, err = apply(key.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, key := range activeKeys.TLS {
+		key.Key, err = apply(key.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, key := range activeKeys.JWT {
+		key.PrivateKey, err = apply(key.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if !changed {
+		return ca, nil
+	}
+	if err := ca.SetActiveKeys(activeKeys); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// This is only executed during cluster init while holding a lock to prevent
+	// other auth servers from updating CAs simulaniously.
+	ca, err = asrv.UpdateCertAuthority(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ca, nil
 }
 
 // generateAuthority creates a new self-signed authority of the provided type

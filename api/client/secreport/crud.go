@@ -20,9 +20,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types/secreports"
 	v1 "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 )

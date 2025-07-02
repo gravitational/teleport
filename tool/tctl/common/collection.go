@@ -1642,6 +1642,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
 		settingsAWSIdentityCenter         = "aws_ic"
+		settingsNetIQ                     = "net_iq"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1695,6 +1696,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
 		case settingsOkta:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
 		case settingsPagerDuty:
@@ -1709,8 +1711,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
 		case settingsGitlab:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
@@ -1718,6 +1722,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsAWSIdentityCenter:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
+		case settingsNetIQ:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1756,7 +1764,7 @@ type botInstanceCollection struct {
 func (c *botInstanceCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }

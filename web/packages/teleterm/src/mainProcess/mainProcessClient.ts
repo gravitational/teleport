@@ -190,5 +190,14 @@ export default function createMainProcessClient(): MainProcessClient {
     refreshClusterList() {
       ipcRenderer.send(MainProcessIpc.RefreshClusterList);
     },
+    selectDirectoryForDesktopSession(args: {
+      desktopUri: string;
+      login: string;
+    }) {
+      return ipcRenderer.invoke(
+        MainProcessIpc.SelectDirectoryForDesktopSession,
+        args
+      );
+    },
   };
 }

@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.23.9
+go 1.23.10
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.12.1
@@ -66,6 +66,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.89.0
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.51.0
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/sns v1.33.3
@@ -95,7 +96,6 @@ require (
 	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/dustin/go-humanize v1.0.1
-	github.com/elastic/go-elasticsearch/v8 v8.15.0
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fatih/color v1.17.0
@@ -110,6 +110,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
 	github.com/go-piv/piv-go v1.11.0
+	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/go-resty/resty/v2 v2.15.3
 	github.com/go-webauthn/webauthn v0.11.2
 	github.com/gobwas/ws v1.4.0
@@ -134,7 +135,7 @@ require (
 	github.com/gravitational/license v0.0.0-20240313232707-8312e719d624
 	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.4.1
+	github.com/gravitational/trace v1.5.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/guptarohit/asciigraph v0.7.2
@@ -340,7 +341,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/ebitengine/purego v0.8.3 // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.6.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
@@ -596,5 +596,5 @@ replace (
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )

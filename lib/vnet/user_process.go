@@ -84,26 +84,27 @@ type ClusterClient interface {
 func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*UserProcess, error) {
 	clock := clockwork.NewRealClock()
 	clusterConfigCache := NewClusterConfigCache(clock)
-	localResolver := newLocalFQDNResolver(&localFQDNResolverConfig{
+	leafClusterCache, err := newLeafClusterCache(clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
-	})
-	appProvider := newLocalAppProvider(&localAppProviderConfig{
-		clientApplication: clientApplication,
+		leafClusterCache:   leafClusterCache,
 	})
 	osConfigProvider := NewLocalOSConfigProvider(&LocalOSConfigProviderConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService := newClientApplicationService(&clientApplicationServiceConfig{
-		localResolver:         localResolver,
-		localAppProvider:      appProvider,
+		clientApplication:     clientApplication,
+		fqdnResolver:          fqdnResolver,
 		localOSConfigProvider: osConfigProvider,
 	})
 	userProcess := &UserProcess{
 		clientApplication:        clientApplication,
-		clusterConfigCache:       clusterConfigCache,
-		appProvider:              appProvider,
 		osConfigProvider:         osConfigProvider,
 		clientApplicationService: clientApplicationService,
 		clock:                    clock,
@@ -120,8 +121,6 @@ type UserProcess struct {
 	clientApplication ClientApplication
 
 	clock                    clockwork.Clock
-	clusterConfigCache       *ClusterConfigCache
-	appProvider              *localAppProvider
 	osConfigProvider         *LocalOSConfigProvider
 	clientApplicationService *clientApplicationService
 

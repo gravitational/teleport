@@ -173,6 +173,10 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   refreshClusterList() {}
+
+  async selectDirectoryForDesktopSession() {
+    return '';
+  }
 }
 
 export const makeRuntimeSettings = (

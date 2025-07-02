@@ -18,10 +18,16 @@
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
+import {
+  makeBot,
+  parseGetBotInstanceResponse,
+  parseListBotInstancesResponse,
+  toApiGitHubTokenSpec,
+} from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
+import { MfaChallengeResponse } from '../mfa';
 import {
   BotList,
   BotResponse,
@@ -31,8 +37,16 @@ import {
   FlatBot,
 } from './types';
 
-export function createBot(config: CreateBotRequest): Promise<void> {
-  return api.post(cfg.getBotsUrl(), config);
+export function createBot(
+  config: CreateBotRequest,
+  mfaResponse?: MfaChallengeResponse
+): Promise<void> {
+  return api.post(
+    cfg.getBotsUrl(),
+    config,
+    undefined /* abort signal */,
+    mfaResponse
+  );
 }
 
 export async function getBot(name: string): Promise<FlatBot | null> {
@@ -47,13 +61,21 @@ export async function getBot(name: string): Promise<FlatBot | null> {
   }
 }
 
-export function createBotToken(req: CreateBotJoinTokenRequest) {
-  return api.post(cfg.getBotTokenUrl(), {
-    integrationName: req.integrationName,
-    joinMethod: req.joinMethod,
-    webFlowLabel: req.webFlowLabel,
-    gitHub: toApiGitHubTokenSpec(req.gitHub),
-  });
+export function createBotToken(
+  req: CreateBotJoinTokenRequest,
+  mfaResponse?: MfaChallengeResponse
+) {
+  return api.post(
+    cfg.getBotTokenUrl(),
+    {
+      integrationName: req.integrationName,
+      joinMethod: req.joinMethod,
+      webFlowLabel: req.webFlowLabel,
+      gitHub: toApiGitHubTokenSpec(req.gitHub),
+    },
+    undefined /* abort signal */,
+    mfaResponse
+  );
 }
 
 export function fetchBots(
@@ -102,4 +124,54 @@ export function deleteBot(flags: FeatureFlags, name: string) {
   }
 
   return api.delete(cfg.getBotUrlWithName(name));
+}
+
+export async function listBotInstances(
+  variables: {
+    pageToken: string;
+    pageSize: number;
+    searchTerm?: string;
+    botName?: string;
+  },
+  signal?: AbortSignal
+) {
+  const { pageToken, pageSize, searchTerm, botName } = variables;
+
+  const path = cfg.listBotInstancesUrl();
+  const qs = new URLSearchParams();
+
+  qs.set('page_size', pageSize.toFixed());
+  qs.set('page_token', pageToken);
+  if (searchTerm) {
+    qs.set('search', searchTerm);
+  }
+  if (botName) {
+    qs.set('bot_name', botName);
+  }
+
+  const data = await api.get(`${path}?${qs.toString()}`, signal);
+
+  if (!parseListBotInstancesResponse(data)) {
+    throw new Error('failed to parse list bot instances response');
+  }
+
+  return data;
+}
+
+export async function getBotInstance(
+  variables: {
+    botName: string;
+    instanceId: string;
+  },
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl(variables.botName, variables.instanceId);
+
+  const data = await api.get(path, signal);
+
+  if (!parseGetBotInstanceResponse(data)) {
+    throw new Error('failed to parse get bot instance response');
+  }
+
+  return data;
 }

@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -1168,6 +1169,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -2346,18 +2352,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
-
-	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
-	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+	if u.Path == sso.WebMFARedirect {
+		// Transform the web sso mfa redirectURL into a relative redirect, preserving
+		// query parameters while ignoring scheme, hostname, and other url parts.
 		q := u.Query()
 		q.Add("response", string(out))
-		u.RawQuery = q.Encode()
-		return u, nil
+		return &url.URL{
+			Path:     sso.WebMFARedirect,
+			RawQuery: q.Encode(),
+		}, nil
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -3953,7 +3960,7 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 		return session.Session{}, trace.Wrap(err)
 	}
 	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
+	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
 		Kind:           types.SSHSessionKind,
@@ -4025,7 +4032,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
-	accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+	accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 
 	return session.Session{
 		Kind:      tracker.GetSessionKind(),
@@ -4071,7 +4078,7 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	accessContext := auth.SessionAccessContext{
+	accessContext := moderation.SessionAccessContext{
 		Username: sctx.GetUser(),
 		Roles:    userRoles,
 	}
@@ -4081,7 +4088,7 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			session := trackerToLegacySession(tracker, p.ByName("site"))
 			// Get the participant modes available to the user from their roles.
-			accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+			accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 			participantModes := accessEvaluator.CanJoin(accessContext)
 
 			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
@@ -4786,7 +4793,8 @@ func checkTokenTTL(tok types.ProvisionToken) bool {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
-func isValidRedirectURL(redirectURL string) bool {
+// IsValidRedirectURL validates redirect URL.
+func IsValidRedirectURL(redirectURL string) bool {
 	u, err := url.ParseRequestURI(redirectURL)
 	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
@@ -4797,7 +4805,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4811,7 +4819,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)

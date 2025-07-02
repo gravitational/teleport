@@ -616,6 +616,10 @@ message AD {
   string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
   // KDCHostName is the host name for a KDC for x509 Authentication.
   string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
+  // LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountName = 7 [(gogoproto.jsontag) = "ldap_service_account_name,omitempty"];
+  // LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountSID = 8 [(gogoproto.jsontag) = "ldap_service_account_sid,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
@@ -2755,6 +2759,18 @@ message PromotedAccessList {
   string Title = 2 [(gogoproto.jsontag) = "title"];
 }
 
+// AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+message AccessRequestDryRunEnrichment {
+  // ReasonMode specifies the reason mode for this Access Request as defined in
+  // [AccessRequestConditionsReason].reason.
+  string ReasonMode = 1 [
+    (gogoproto.jsontag) = "reason_mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
+  // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+}
+
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
   // Author is the teleport username of the review author.
@@ -2976,6 +2992,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expiry,omitempty"
   ];
+
+  // DryRunEnrichment contains the extra info added in response to a dry run request.
+  AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
 }
 
 enum AccessRequestScope {
@@ -5283,6 +5302,14 @@ message SAMLConnectorSpecV2 {
   // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
   // is treated as NO.
   SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
+  // PreferredRequestBinding is a preferred SAML request binding method.
+  // Value must be either "http-post" or "http-redirect".
+  // In general, the SAML identity provider lists request binding methods it supports.
+  // And the SAML service provider uses one of the IdP supported request binding method that it prefers.
+  // But we never honored request binding value provided by the IdP and always used http-redirect
+  // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
+  // auth connector behavior and only use http-post binding if it is explicitly configured.
+  string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5335,6 +5362,7 @@ message SAMLAuthRequest {
   bool CheckUser = 4 [(gogoproto.jsontag) = "check_user"];
 
   // RedirectURL will be used by browser.
+  // Value only set if the PreferredRequestBinding "http-redirect".
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
 
   // PublicKey is an optional public key, users want these
@@ -5401,6 +5429,12 @@ message SAMLAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // PostForm is the HTML form value that contains the SAML authentication request data.
+  // Value is only set if the PreferredRequestBinding in the SAMLConnectorSpecV2
+  // is "http-post". In any other case, RedirectURL field will be populated.
+  bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
+  // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
+  string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -6729,6 +6763,10 @@ message PluginSpecV1 {
     PluginMSTeamsSettings msteams = 18;
     // Settings for the OpenTex NetIQ plugin.
     PluginNetIQSettings net_iq = 19;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // generation contains a unique ID that should:
@@ -6934,6 +6972,13 @@ message PluginOktaSyncSettings {
   // that has not been yet updated and during the next update the value will be set to "org" if
   // AppID is empty or "saml_app" if not.
   string user_sync_source = 11;
+
+  // bool enable_system_log_export" = 12; // v18
+
+  // DisableAssignDefaultRoles prevents the builtin okta-requester role from being assigned to all
+  // synchronized users. This is allows for a more advanced RBAC setup where not all
+  // Okta-originated users are allowed request all Okta-originated resources.
+  bool disable_assign_default_roles = 13;
 }
 
 // Defines a set of discord channel IDs
@@ -7126,6 +7171,19 @@ message PluginAWSICSettings {
   // Credentials represents the AWS credentials used by the Identity Center
   // integration
   AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+
+  // RolesSyncMode indicates how the Identity Center integration will create and
+  // manage roles representing potential Identity Center Account Assignments.
+  //
+  // Possible values are ALL or NONE:
+  //  ALL:           indicates that the AWS Identity Center integration should
+  //                 create and maintain roles for all possible Account Assignments.
+  //  NONE:          indicates that the AWS Identity Center integration should
+  //                 not create any roles representing potential account Account
+  //                 Assignments.
+  // For backwards compatibility, an empty value is treated as equivalent to
+  // to ALL
+  string roles_sync_mode = 12;
 }
 
 // AWSICCredentials holds the credentials for authenticating with AWS
@@ -7339,6 +7397,10 @@ message PluginStatusV1 {
     PluginAWSICStatusV1 aws_ic = 8;
     // NetIQ holds status details for the NetIQ plugin.
     PluginNetIQStatusV1 net_iq = 9;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.

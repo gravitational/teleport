@@ -12,10 +12,10 @@ DNS zones: teleport.example.com, company.test
 ---
 ⚠️ There are network routes in conflict with VNet.
 
-| Conflicting destination | VNet destination | Interface | Set up by |
-| ----------------------- | ---------------- | --------- | --------- |
-| 100.64.0.0/10 | 100.64.0.1 | utun5 | VPN: Foobar |
-| 0.0.0.0/1 | 100.64.0.0/10 | utun6 | unknown |
+| VNet destination | Conflicting destination | Interface | Set up by |
+| ---------------- | ----------------------- | --------- | --------- |
+| 100.64.0.1 | 100.64.0.0/10 | utun5 | VPN: Foobar |
+| 100.64.0.0/10 | 0.0.0.0/1 | utun6 | unknown |
 
 \`\`\`
 $ netstat -rn -f inet

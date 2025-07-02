@@ -314,9 +314,10 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 		Insecure: clt.Config().InsecureSkipVerify,
 	}
 
-	// When invoked only with auth address, tbot will try both joining as an auth and as a proxy.
+	// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
 	// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
 	cfg.AuthServer = addr.String()
+	cfg.AuthServerAddressMode = config.AllowProxyAsAuthServer
 
 	// Insecure joining is not compatible with CA pinning
 	if !cfg.Insecure {

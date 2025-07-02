@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"slices"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
@@ -100,16 +101,21 @@ func getOpenSearchDomains(ctx context.Context, client opensearchserviceiface.Ope
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
-	req := &opensearchservice.DescribeDomainsInput{DomainNames: []*string{}}
-	for _, domain := range names.DomainNames {
-		req.DomainNames = append(req.DomainNames, domain.DomainName)
-	}
+	// API only allows 5 at a time.
+	var all []*opensearchservice.DomainStatus
+	for chunk := range slices.Chunk(names.DomainNames, 5) {
+		req := &opensearchservice.DescribeDomainsInput{DomainNames: []*string{}}
+		for _, domain := range chunk {
+			req.DomainNames = append(req.DomainNames, domain.DomainName)
+		}
 
-	domains, err := client.DescribeDomainsWithContext(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		domains, err := client.DescribeDomainsWithContext(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		}
+		all = append(all, domains.DomainStatusList...)
 	}
-	return domains.DomainStatusList, nil
+	return all, nil
 }
 
 // getOpenSearchResourceTags fetches resource tags for provided ARN.

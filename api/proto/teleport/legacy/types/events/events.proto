@@ -77,6 +77,9 @@ enum UserKind {
 
   // Indicates the user associated with this event is a Machine ID bot user.
   USER_KIND_BOT = 2;
+
+  // Indicates that the user associated with this event is a system component e.g. Okta service.
+  USER_KIND_SYSTEM = 3;
 }
 
 // UserOrigin is the origin of a user account.
@@ -1581,6 +1584,9 @@ message AccessRequestCreate {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // ResourceNames contains the names of the requested resources.
+  repeated string ResourceNames = 17 [(gogoproto.jsontag) = "resource_names,omitempty"];
 }
 
 // AccessRequestExpire is emitted when access request has expired.

@@ -43,6 +43,8 @@ message ListBotInstancesRequest {
   // The page_token value returned from a previous ListBotInstances request, if
   // any.
   string page_token = 3;
+  // A search term used to filter the results. If non-empty, it's used to match against supported fields.
+  string filter_search_term = 4;
 }
 
 // Response for ListBotInstances.

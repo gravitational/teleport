@@ -19,11 +19,11 @@
 import { EventEmitter } from 'events';
 
 import { screen } from '@testing-library/react';
+import { act } from 'react';
 
 import { render } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
-import { TdpClient } from 'shared/libs/tdp';
-import { wait } from 'shared/utils/wait';
+import { BrowserFileSystem, MessageType, TdpClient } from 'shared/libs/tdp';
 
 import { DesktopSession } from './DesktopSession';
 
@@ -36,6 +36,19 @@ import { TdpTransport } from 'shared/libs/tdp/client';
 // Disable WASM in tests.
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 
+// Matches codec.decodePngFrame.
+function encodePngFrame(): ArrayBuffer {
+  const buffer = new ArrayBuffer(21);
+  const view = new DataView(buffer);
+  view.setUint8(0, MessageType.PNG_FRAME);
+  view.setUint32(1, 0);
+  view.setUint32(5, 0);
+  view.setUint32(9, 0);
+  view.setUint32(13, 0);
+  view.setUint32(17, 0);
+  return buffer;
+}
+
 const hasNoOtherSession = jest.fn().mockResolvedValue(false);
 const aclAttempt = makeSuccessAttempt({
   clipboardSharingEnabled: true,
@@ -46,9 +59,9 @@ const getMockTransport = () => {
   return {
     emitTransportError: () =>
       emitter.emit('error', new Error('Could not send bytes')),
+    emitPngFrameMessage: () => emitter.emit('message', encodePngFrame()),
     getTransport: async (abortSignal: AbortSignal): Promise<TdpTransport> => {
-      abortSignal.onabort = async () => {
-        await wait(50);
+      abortSignal.onabort = () => {
         emitter.emit('complete');
       };
       return {
@@ -70,9 +83,27 @@ const getMockTransport = () => {
   };
 };
 
+let originalQuery: typeof navigator.permissions.query;
+
+beforeEach(() => {
+  originalQuery = navigator.permissions.query;
+
+  navigator.permissions.query = jest.fn().mockResolvedValue({
+    state: 'granted',
+    onchange: null,
+  });
+});
+
+afterEach(() => {
+  navigator.permissions.query = originalQuery;
+});
+
 test('reconnect button reinitializes the connection', async () => {
   const transport = getMockTransport();
-  const tpdClient = new TdpClient(transport.getTransport);
+  const tpdClient = new TdpClient(
+    transport.getTransport,
+    new BrowserFileSystem()
+  );
   jest.spyOn(tpdClient, 'connect');
   jest.spyOn(tpdClient, 'shutdown');
   const { unmount } = render(
@@ -82,6 +113,7 @@ test('reconnect button reinitializes the connection', async () => {
       desktop="win-lab"
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
+      browserSupportsSharing
     />
   );
 
@@ -110,4 +142,41 @@ test('reconnect button reinitializes the connection', async () => {
   unmount();
   // Called 2 times: the first one during reconnecting, the second one after unmounting.
   expect(tpdClient.shutdown).toHaveBeenCalledTimes(2);
+});
+
+test('ensure sharing remains enabled if the initial desktop connection attempt fails', async () => {
+  const transport = getMockTransport();
+  const tpdClient = new TdpClient(
+    transport.getTransport,
+    new BrowserFileSystem()
+  );
+  render(
+    <DesktopSession
+      client={tpdClient}
+      username="admin"
+      desktop="win-lab"
+      aclAttempt={aclAttempt}
+      hasAnotherSession={hasNoOtherSession}
+      browserSupportsSharing
+    />
+  );
+
+  // The session is initializing.
+  expect(await screen.findByTestId('indicator')).toBeInTheDocument();
+
+  // An error occurred, the connection has been closed.
+  transport.emitTransportError();
+
+  expect(
+    await screen.findByText('The desktop session is offline.')
+  ).toBeInTheDocument();
+  const reconnect = await screen.findByRole('button', { name: 'Reconnect' });
+
+  await userEvent.click(reconnect);
+  // This time the connection succeeded.
+  await act(() => transport.emitPngFrameMessage());
+
+  expect(await screen.findByTitle('More actions')).toBeVisible();
+  await userEvent.click(screen.getByTitle('More actions'));
+  expect(await screen.findByText('Share Directory')).toBeVisible();
 });

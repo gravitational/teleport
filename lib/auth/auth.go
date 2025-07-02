@@ -63,6 +63,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -74,6 +75,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -5262,8 +5264,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only; this ensures the
-	// access request that is reviewed is the same that is approved.
+	// Always perform variable expansion on creation.
 	expandOpts := services.WithExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
@@ -5281,11 +5282,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
-		// update the request with additional reviewers if possible.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
-		// Made it this far with no errors, return before creating the request
-		// if this is a dry run.
+		// Return before creating the request if this is a dry run.
 		return req, nil
 	}
 
@@ -5307,7 +5307,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 			log.WithError(err).Debug("Failed to encode access request annotations.")
 		}
 	}
-
+	resourceNames, err := accessrequest.GetResourceNames(ctx, a.Services, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -5319,6 +5322,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		},
 		Roles:                req.GetRoles(),
 		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
+		ResourceNames:        resourceNames,
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
@@ -5458,10 +5462,7 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 		return nil
 	}
 
-	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
-		Plugins:              a.Plugins,
-		UnifiedResourceCache: a.UnifiedResourceCache,
-	})
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, a)
 	if errors.Is(err, okta.OktaResourceNotRequestableError) {
 		return trace.Wrap(err)
 	} else if err != nil {
@@ -6040,21 +6041,18 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	return nil
 }
 
-func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
+func (a *Server) streamWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) stream.Stream[types.WindowsDesktop] {
 	var done bool
 	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
 		if done {
 			return nil, io.EOF
 		}
-		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-			Limit:    50,
-			StartKey: startKey,
-		})
+		resp, err := a.ListWindowsDesktops(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		startKey = resp.NextKey
-		done = startKey == ""
+		req.StartKey = resp.NextKey
+		done = req.StartKey == ""
 		return resp.Desktops, nil
 	})
 }
@@ -6089,7 +6087,7 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 	}
 
 	desktops := stream.FilterMap(
-		a.streamWindowsDesktops(ctx, ""),
+		a.streamWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{Limit: 50}),
 		func(d types.WindowsDesktop) (struct{}, bool) {
 			return struct{}{}, d.NonAD()
 		},
@@ -7572,6 +7570,17 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
+			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
+				trace.IsNotFound(err) {
+				// Do not add extra user messages to
+				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
+				// client-side code from using errors.Is to reliably identify
+				// this specific error after it goes through gRPC. The original
+				// error isn't particularly useful to the user anyway, so just
+				// log it at debug level.
+				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
 

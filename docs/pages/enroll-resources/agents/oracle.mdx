@@ -7,8 +7,14 @@ This guide will explain how to use the **Oracle join method** to configure
 Teleport processes to join your Teleport cluster without sharing any secrets
 when they are running in an Oracle Cloud Infrastructure (OCI) Compute instance.
 
+## How it works
+
 The Oracle join method is available to any Teleport process running on an
 OCI Compute instance.
+
+Under the hood, services prove that they are running in your OCI tenant by
+sending a presigned self-authentication request to the OCI API for the Auth
+Service to execute.
 
 ## Prerequisites
 
@@ -21,10 +27,6 @@ OCI Compute instance.
 
 Configure your Teleport Auth Service with a special dynamic token which will
 allow services from your OCI tenants to join your Teleport cluster.
-
-Under the hood, services will prove that they are running in your OCI
-tenant by sending a presigned self-authentication request to the OCI API
-for the Auth Service to execute.
 
 Create the following `token.yaml` file with an `oracle.allow` rule specifying
 the Oracle tenant(s), compartment(s), and region(s) in which your OCI

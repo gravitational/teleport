@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -141,6 +142,7 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -910,7 +912,7 @@ func TestValidRedirectURL(t *testing.T) {
 		{"block bad protocol", "javascript:alert('xss')", false},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
-			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+			require.Equal(t, tt.valid, IsValidRedirectURL(tt.url))
 		})
 	}
 }
@@ -3210,6 +3212,35 @@ func (f byTimeAndIndex) Less(i, j int) bool {
 
 func (f byTimeAndIndex) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
+}
+
+// ConstructSSHResponse_WebMFA tests that [sso.WebMFARedirect] is always
+// transformed into a relative URL so that the sso callback will redirect
+// back to the proxy.
+func TestConstructSSHResponse_WebMFA(t *testing.T) {
+	baseURL := sso.WebMFARedirect + "?channel_id=" + uuid.NewString()
+	for _, clientRedirectURL := range []string{
+		baseURL,
+		"http://127.0.0.1:1234" + baseURL,
+		"http://localhost:1234" + baseURL,
+		"https://proxy.example.com" + baseURL,
+		"tcp://tcp.app.com" + baseURL,
+	} {
+		t.Run("clientRedirectURL: "+clientRedirectURL, func(t *testing.T) {
+			redirectURL, err := ConstructSSHResponse(AuthParams{
+				Username:          "foo",
+				Cert:              []byte{0x00},
+				TLSCert:           []byte{0x01},
+				MFAToken:          "token",
+				ClientRedirectURL: clientRedirectURL,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, redirectURL.Query().Get("channel_id"))
+			require.NotEmpty(t, redirectURL.Query().Get("response"))
+			withoutQueryParams, _, _ := strings.Cut(redirectURL.String(), "?")
+			require.Equal(t, sso.WebMFARedirect, withoutQueryParams)
+		})
+	}
 }
 
 // TestSearchClusterEvents makes sure web API allows querying events by type.
@@ -11524,7 +11555,7 @@ func TestPingWithSAMLURL(t *testing.T) {
 			w.Write([]byte(entityDescriptor))
 		}),
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "HTTP server",
 		Task: func(ctx context.Context) error {
 			if err := httpServer.Serve(l); !errors.Is(err, http.ErrServerClosed) {

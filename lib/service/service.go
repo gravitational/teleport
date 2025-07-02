@@ -2169,7 +2169,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Provisioner:             cfg.Provisioner,
 			Identity:                cfg.Identity,
 			Access:                  cfg.Access,
-			UsageReporter:           cfg.UsageReporter,
 			StaticTokens:            cfg.Auth.StaticTokens,
 			Roles:                   cfg.Auth.Roles,
 			AuthPreference:          cfg.Auth.Preference,
@@ -2621,6 +2620,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
 	cfg.AccessLists = services.AccessLists
@@ -3035,13 +3035,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
+
 		// Provide helpful log message if listen_addr or public_addr are not being
 		// used (tunnel is used to connect to cluster).
 		//
 		// If a tunnel is not being used, set the default here (could not be done in
 		// file configuration because at that time it's not known if server is
 		// joining cluster directly or through a tunnel).
-		if conn.UseTunnel() {
+		if !useLocalListener {
 			if !cfg.SSH.Addr.IsEmpty() {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring listen_addr setting.")
 			}
@@ -3049,7 +3051,7 @@ func (process *TeleportProcess) initSSH() error {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring public_addr setting.")
 			}
 		}
-		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
+		if useLocalListener && cfg.SSH.Addr.IsEmpty() {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
 
@@ -3168,7 +3170,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
-		if !conn.UseTunnel() {
+		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3216,7 +3218,9 @@ func (process *TeleportProcess) initSSH() error {
 			if err := s.Start(); err != nil {
 				return trace.Wrap(err)
 			}
+		}
 
+		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -6313,9 +6317,10 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	}
 
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentBackend,
-		Backend:   backend.NewSanitizer(bk),
-		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Component:  teleport.ComponentBackend,
+		Backend:    backend.NewSanitizer(bk),
+		Tracer:     process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Registerer: process.metricsRegistry,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6669,18 +6674,6 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
-		}
-	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
-		// This case is used when loading a Teleport pre-11 agent with storage attached.
-		// In this case, we have to copy the "host_uuid" from the agent to the secret
-		// in case storage is removed later.
-		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
-		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
-			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-			// This is only required if PV storage is removed later.
-			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 	return nil

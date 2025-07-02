@@ -707,7 +707,8 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 		RouteToDatabase: routeToDatabase,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+	var certs *proto.Certs
+	result, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
@@ -719,6 +720,10 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if result != nil {
+		certs = result.NewCerts
 	}
 
 	if certs == nil {

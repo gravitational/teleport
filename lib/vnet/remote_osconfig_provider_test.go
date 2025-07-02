@@ -99,11 +99,8 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 			}
 			remoteOSConfigProvider, err := newRemoteOSConfigProvider(targetOSConfigGetter, tc.tunName, tc.ipv6Prefix, tc.dnsAddr)
 			require.NoError(t, err)
-			// Make sure remoteOSConfigProvider conforms to the targetOSConfigProvider
-			// interface.
-			osConfigProvider := targetOSConfigProvider(remoteOSConfigProvider)
 
-			targetOSConfig, err := osConfigProvider.targetOSConfig(ctx)
+			targetOSConfig, err := remoteOSConfigProvider.targetOSConfig(ctx)
 			if tc.expectErr != nil {
 				require.ErrorIs(t, err, tc.expectErr)
 				return

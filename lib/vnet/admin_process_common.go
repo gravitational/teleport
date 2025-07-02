@@ -22,11 +22,10 @@ import (
 )
 
 func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
-	appProvider := newRemoteAppProvider(clt)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
-		fqdnResolver: clt,
-		appProvider:  appProvider,
-		clock:        clockwork.NewRealClock(),
+		clt:         clt,
+		appProvider: newAppProvider(clt),
+		clock:       clockwork.NewRealClock(),
 	})
 	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {

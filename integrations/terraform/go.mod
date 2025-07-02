@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.23.9
+go 1.23.10
 
 // Doc generation tooling
 require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0 // replaced
 	github.com/gravitational/teleport/api v0.0.0 // replaced
-	github.com/gravitational/trace v1.4.1
+	github.com/gravitational/trace v1.5.0
 	github.com/hashicorp/terraform-plugin-framework v0.10.0
 	github.com/hashicorp/terraform-plugin-go v0.18.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
@@ -102,6 +102,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.89.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.15 // indirect
@@ -184,6 +185,7 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-piv/piv-go v1.11.0 // indirect
+	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/go-webauthn/webauthn v0.11.2 // indirect
 	github.com/go-webauthn/x v0.1.14 // indirect
@@ -465,5 +467,5 @@ replace (
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
