@@ -272,6 +272,61 @@ exports[`failed state 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c27 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c29 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.c33 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.c36 {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.c13 {
+  display: flex;
+}
+
+.c52 {
+  display: flex;
+  gap: 8px;
+}
+
+.c14 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c16 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.c17 {
+  display: flex;
+  gap: 32px;
+}
+
 .c6 {
   display: inline-flex;
   align-items: center;
@@ -329,61 +384,6 @@ exports[`failed state 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-right: 8px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c27 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c29 {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.c33 {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.c36 {
-  display: flex;
-  align-items: end;
-  gap: 8px;
-}
-
-.c13 {
-  display: flex;
-}
-
-.c52 {
-  display: flex;
-  gap: 8px;
-}
-
-.c14 {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.c16 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.c17 {
-  display: flex;
-  gap: 32px;
 }
 
 .c21 {
@@ -1903,6 +1903,61 @@ exports[`loaded state 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c24 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c32 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.c41 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.c44 {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.c12 {
+  display: flex;
+}
+
+.c58 {
+  display: flex;
+  gap: 8px;
+}
+
+.c13 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c15 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.c16 {
+  display: flex;
+  gap: 32px;
+}
+
 .c6 {
   display: inline-flex;
   align-items: center;
@@ -1983,61 +2038,6 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-right: 8px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c24 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c32 {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.c41 {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.c44 {
-  display: flex;
-  align-items: end;
-  gap: 8px;
-}
-
-.c12 {
-  display: flex;
-}
-
-.c58 {
-  display: flex;
-  gap: 8px;
-}
-
-.c13 {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.c15 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.c16 {
-  display: flex;
-  gap: 32px;
 }
 
 .c20 {
@@ -3653,6 +3653,11 @@ exports[`success state 1`] = `
   cursor: auto;
 }
 
+.c8 {
+  display: flex;
+  justify-content: center;
+}
+
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3672,11 +3677,6 @@ exports[`success state 1`] = `
   letter-spacing: 0.014px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
-}
-
-.c8 {
-  display: flex;
-  justify-content: center;
 }
 
 .c9 {

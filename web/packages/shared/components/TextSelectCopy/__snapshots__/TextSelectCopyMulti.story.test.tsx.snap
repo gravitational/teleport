@@ -80,15 +80,15 @@ exports[`render multi bash texts 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  display: flex;
+}
+
 .c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c6 {
-  display: flex;
 }
 
 .c12 {
@@ -476,15 +476,15 @@ exports[`render multi bash texts with comment 1`] = `
   cursor: auto;
 }
 
+.c7 {
+  display: flex;
+}
+
 .c14 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c7 {
-  display: flex;
 }
 
 .c13 {
@@ -887,15 +887,15 @@ exports[`render non bash single text 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  display: flex;
+}
+
 .c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c6 {
-  display: flex;
 }
 
 .c12 {
@@ -1116,15 +1116,15 @@ exports[`render single bash text 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  display: flex;
+}
+
 .c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c6 {
-  display: flex;
 }
 
 .c12 {
@@ -1350,15 +1350,15 @@ exports[`render single bash text with comment 1`] = `
   cursor: auto;
 }
 
+.c7 {
+  display: flex;
+}
+
 .c14 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
-}
-
-.c7 {
-  display: flex;
 }
 
 .c13 {

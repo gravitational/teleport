@@ -146,6 +146,21 @@ exports[`rendering of Session Recordings 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c17 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .c23 {
   display: inline-flex;
   align-items: center;
@@ -179,21 +194,6 @@ exports[`rendering of Session Recordings 1`] = `
   margin: 0px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c4 {
-  display: flex;
-  align-items: center;
-}
-
-.c17 {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .c9 .react-select-container {

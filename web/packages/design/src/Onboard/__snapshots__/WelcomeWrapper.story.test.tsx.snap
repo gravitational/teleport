@@ -10,18 +10,6 @@ exports[`wrapper 1`] = `
   box-sizing: border-box;
 }
 
-.c7 {
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
 .c2 {
   display: flex;
   justify-content: space-between;
@@ -35,6 +23,18 @@ exports[`wrapper 1`] = `
 
 .c11 {
   display: flex;
+}
+
+.c7 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
 }
 
 .c6 {
