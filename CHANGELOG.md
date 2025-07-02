@@ -1,5 +1,54 @@
 # Changelog
 
+## 17.5.3 (06/30/25)
+
+### Security fixes
+
+This release also includes fixes for the following security issues:
+
+#### [Critical] Remote authentication bypass
+
+* Removed special handling for `*ssh.Certificate` authorities in the `IsHostAuthority` and `IsUserAuthority` callbacks used by `x/crypto/ssh.CertChecker`. [#56252](https://github.com/gravitational/teleport/pull/56252)
+
+Resolved an issue that allowed remote SSH authentication bypass on servers with Teleport SSH agents, OpenSSH-integrated deployments and Teleport Git proxy deployments.  [CVE-2025-49825](https://github.com/gravitational/teleport/security/advisories/GHSA-8cqv-pj7f-pwpc). Refer to the [RCA](https://trust.goteleport.com/resources?s=32t147ja8aawd6px7irxat&name=cve-2025-49825-rca) for the full details.
+
+### Other fixes and improvements
+
+* Fixed duplicated entries in `tctl inventory list` when using DynamoDB as cluster state storage. [#56182](https://github.com/gravitational/teleport/pull/56182)
+* Fixed an issue that prevented deletion of an integration resource if AWS Identity Center plugin was installed in the Teleport cluster. [#56173](https://github.com/gravitational/teleport/pull/56173)
+* Updated WindowsDesktop and WindowsDesktopService APIs to use pagination to avoid exceeding message size limitations. [#56155](https://github.com/gravitational/teleport/pull/56155)
+* Fixed users not being redirected back to the login page when their session expires. [#56152](https://github.com/gravitational/teleport/pull/56152)
+* Fixed error on setting up Teleport Discovery Service step of the EC2 SSM web UI flow when admin action is enabled (webauthn). [#56145](https://github.com/gravitational/teleport/pull/56145)
+* Fixed Hardware Key Support for YubiKey firmware versions 5.7.x. [#56107](https://github.com/gravitational/teleport/pull/56107)
+* Added SSO MFA support for desktop access. [#56058](https://github.com/gravitational/teleport/pull/56058)
+* Fixed an issue that could prevent Windows desktop sessions from terminating when the idle timeout was exceeded. [#56048](https://github.com/gravitational/teleport/pull/56048)
+* Added the `teleport-update status --is-up-to-date` flag to change the return code based on the update status. [#55950](https://github.com/gravitational/teleport/pull/55950)
+* Added fork after authentication to `tsh ssh`. [#55894](https://github.com/gravitational/teleport/pull/55894)
+* Fixed error when creating or updating join tokens in the web UI when admin action is enabled (second_factor set to webauthn). [#55832](https://github.com/gravitational/teleport/pull/55832)
+* Machine and Workload Identity: `tbot` no longer supports providing a proxy server address via `--auth-server` or `auth_server`, use `--proxy-server` or `proxy_server` instead. [#55820](https://github.com/gravitational/teleport/pull/55820)
+* Machine and Workload Identity: `tbot` will keep retrying if the auth server is unavailable on startup, instead of exiting immediately. [#55820](https://github.com/gravitational/teleport/pull/55820)
+* Fixed a memory leak in Kubernetes Access caused by resources not being cleaned up when clients terminate watch streams. [#55767](https://github.com/gravitational/teleport/pull/55767)
+* Added support for `tsh db exec` which executes commands across multiple target databases. When per-session MFA is required, only one MFA prompt is needed within a 5-minute window. [#55736](https://github.com/gravitational/teleport/pull/55736)
+* Fixed an issue where the output from `tctl sso configure github` could not be used with `tctl create -f` in OSS Teleport. [#55727](https://github.com/gravitational/teleport/pull/55727)
+* Fixed a bug that could cause Kubernetes exec requests to fail when the Kubernetes cluster had the WebSocket-based exec protocol disabled. [#55722](https://github.com/gravitational/teleport/pull/55722)
+* Fixed an issue that prevented changes to default shell from propagating for host users and static host users. [#55650](https://github.com/gravitational/teleport/pull/55650)
+* Updated Go to 1.23.10. [#55602](https://github.com/gravitational/teleport/pull/55602)
+* User experience: Forbid creating Access Requests to user_group resources when Okta bidirectional sync is disabled. [#55586](https://github.com/gravitational/teleport/pull/55586)
+* Teleport Connect: Add support for custom reason prompts. [#55584](https://github.com/gravitational/teleport/pull/55584)
+* Fixed database connect options dialog displaying wrong database username options. [#55559](https://github.com/gravitational/teleport/pull/55559)
+* Fixed updating the default PIN and PUK for hardware key support in Teleport Connect. [#55508](https://github.com/gravitational/teleport/pull/55508)
+* The `tbot` client now ensures the `O_CLOEXEC` flag is used when opening files on Linux hosts. [#55503](https://github.com/gravitational/teleport/pull/55503)
+* Fixed a bug that caused clipboard and directory sharing to remain unavailable when the initial desktop connection failed. [#55454](https://github.com/gravitational/teleport/pull/55454)
+* The Windows installer of Teleport Connect now adds the folder with tsh to the system path rather than the user path. [#55449](https://github.com/gravitational/teleport/pull/55449)
+* Added support for AWS KMS multi-region keys with key replication. [#55212](https://github.com/gravitational/teleport/pull/55212)
+* Database protocols using Kerberos (SQL Server, Oracle) can now be configured to fetch user SID for Full Enforcement mapping. [#54870](https://github.com/gravitational/teleport/pull/54870)
+
+Enterprise:
+* Added support for Oracle SCAN (Single Client Access Name). [#6751](https://github.com/gravitational/teleport.e/pull/6751)
+* Okta: Fixed disabling user sync in the existing plugin while bidirectional sync is enabled (the default). [#6669](https://github.com/gravitational/teleport.e/pull/6669)
+* Okta: Fixed syncing back RBAC changes to Okta for legacy App and Group only sync configuration where Access List sync is disabled. [#6634](https://github.com/gravitational/teleport.e/pull/6634)
+* Added support for viewing and exploring "active" bot instances via the web UI. [#6612](https://github.com/gravitational/teleport.e/pull/6612)
+
 ## 17.5.1 (06/04/25)
 
 Rerelease of 17.5.0 due to some build issues.
