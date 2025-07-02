@@ -39,7 +39,7 @@
     "@ianvs/prettier-plugin-sort-imports": "^4.4.1",
     "@storybook/addon-actions": "^8.6.12",
     "@storybook/addon-controls": "^8.6.12",
-    "@storybook/addon-toolbars": "^8.6.12",
+    "@storybook/addon-toolbars": "^9.0.8",
     "@storybook/components": "^8.6.12",
     "@storybook/preview-api": "^8.6.12",
     "@storybook/react": "^8.6.12",
