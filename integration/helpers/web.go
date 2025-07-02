@@ -99,7 +99,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		bearerToken: csResp.Token,
 	}
 
-	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	respStatusCode, bs := webClient.DoWebAPIRequest(t, http.MethodGet, "sites", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
 
 	var clusters []ui.Cluster
@@ -189,7 +189,7 @@ func LoginMFAWebClient(t *testing.T, host string, passwordlessDevice *mocku2f.Ke
 		bearerToken: csResp.Token,
 	}
 
-	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	respStatusCode, bs := webClient.DoWebAPIRequest(t, http.MethodGet, "sites", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
 
 	var clusters []ui.Cluster
@@ -200,11 +200,11 @@ func LoginMFAWebClient(t *testing.T, host string, passwordlessDevice *mocku2f.Ke
 	return webClient
 }
 
-// DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
+// DoWebAPIRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Status Code and Body are returned.
 // "$site" in the endpoint is substituted by the current site.
-func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
+func (w *WebClientPack) DoWebAPIRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
 	u, err := url.Parse(w.Endpoint("v1", "webapi", endpoint))
 	require.NoError(t, err)
 
