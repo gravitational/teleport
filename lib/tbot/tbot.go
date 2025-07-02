@@ -219,8 +219,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			botServices = append(botServices, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *example.Config:
 			botServices = append(botServices, example.ServiceBuilder(svcCfg))
-		case *config.SSHMultiplexerService:
-			botServices = append(botServices, SSHMultiplexerServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
+		case *ssh.MultiplexerConfig:
+			botServices = append(botServices, ssh.MultiplexerServiceBuilder(
+				svcCfg,
+				alpnUpgradeCache,
+				b.cfg.ConnectionConfig(),
+				b.cfg.CredentialLifetime,
+				clientMetrics,
+			))
 		case *config.KubernetesOutput:
 			botServices = append(botServices, KubernetesOutputServiceBuilder(b.cfg, svcCfg))
 		case *config.KubernetesV2Output:

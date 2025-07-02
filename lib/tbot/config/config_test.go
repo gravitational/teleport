@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -276,7 +277,7 @@ func TestBotConfig_YAML(t *testing.T) {
 					&example.Config{
 						Message: "llama",
 					},
-					&SSHMultiplexerService{
+					&ssh.MultiplexerConfig{
 						Destination: &destination.Directory{
 							Path: "/bot/output",
 						},

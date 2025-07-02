@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package ssh
 
 import (
 	"bufio"
@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh/agent"
@@ -58,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
@@ -93,22 +93,26 @@ var (
 	)
 )
 
-func SSHMultiplexerServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *config.SSHMultiplexerService,
+func MultiplexerServiceBuilder(
+	cfg *MultiplexerConfig,
 	alpnUpgradeCache *internal.ALPNUpgradeCache,
+	connCfg connection.Config,
+	defaultCredentialLifetime bot.CredentialLifetime,
+	clientMetrics *grpcprom.ClientMetrics,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &SSHMultiplexerService{
-			alpnUpgradeCache:   alpnUpgradeCache,
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			proxyPinger:        deps.ProxyPinger,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+			alpnUpgradeCache:          alpnUpgradeCache,
+			botAuthClient:             deps.Client,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			connCfg:                   connCfg,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			proxyPinger:               deps.ProxyPinger,
+			clientMetrics:             clientMetrics,
+			reloadCh:                  deps.ReloadCh,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -126,13 +130,15 @@ type SSHMultiplexerService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.SSHMultiplexerService
-	log                *slog.Logger
-	proxyPinger        connection.ProxyPinger
-	reloadCh           <-chan struct{}
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	connCfg                   connection.Config
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *MultiplexerConfig
+	log                       *slog.Logger
+	proxyPinger               connection.ProxyPinger
+	clientMetrics             *grpcprom.ClientMetrics
+	reloadCh                  <-chan struct{}
 
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
@@ -186,7 +192,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 ) error {
 	dest := s.cfg.Destination.(*destination.Directory)
 
-	clusterNames, err := getClusterNames(ctx, authClient, s.identity.Get().ClusterName)
+	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName)
 	if err != nil {
 		return trace.Wrap(err, "fetching cluster names")
 	}
@@ -310,7 +316,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err, "generating initial identity")
 	}
-	s.identity = identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
+	s.identity = id
 
 	sshConfig, err := s.identity.SSHClientConfig()
 	if err != nil {
@@ -337,7 +343,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = s.alpnUpgradeCache.IsUpgradeRequired(
-			ctx, proxyAddr, s.botCfg.Insecure,
+			ctx, proxyAddr, s.connCfg.Insecure,
 		)
 		if err != nil {
 			return nil, nil, "", nil, trace.Wrap(err, "determining if ALPN upgrade is required")
@@ -362,15 +368,15 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 			return cfg, nil
 		},
 		UnaryInterceptors: []grpc.UnaryClientInterceptor{
-			clientMetrics.UnaryClientInterceptor(),
+			s.clientMetrics.UnaryClientInterceptor(),
 			interceptors.GRPCClientUnaryErrorInterceptor,
 		},
 		StreamInterceptors: []grpc.StreamClientInterceptor{
-			clientMetrics.StreamClientInterceptor(),
+			s.clientMetrics.StreamClientInterceptor(),
 			interceptors.GRPCClientStreamErrorInterceptor,
 		},
 		SSHConfig:               sshConfig,
-		InsecureSkipVerify:      s.botCfg.Insecure,
+		InsecureSkipVerify:      s.connCfg.Insecure,
 		ALPNConnUpgradeRequired: connUpgradeRequired,
 	})
 
@@ -384,15 +390,16 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 
 // generateIdentity generates our impersonated identity which we will write to
 // the destination.
-func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity.Identity, error) {
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := s.identityGenerator.Generate(ctx,
+func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	facade, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
 	}
+	id := facade.Get()
 
 	newAgent := agent.NewKeyring()
 	err = newAgent.Add(agent.AddedKey{
@@ -420,7 +427,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 	s.agent = newAgent.(agent.ExtendedAgent)
 	s.agentMu.Unlock()
 
-	return id, nil
+	return facade, nil
 }
 
 func (s *SSHMultiplexerService) identityRenewalLoop(
@@ -434,11 +441,11 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			if err != nil {
 				return trace.Wrap(err, "generating identity")
 			}
-			s.identity.Set(id)
+			s.identity.Set(id.Get())
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit: renewalRetryLimit,
+		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
+		RetryLimit: internal.RenewalRetryLimit,
 		Log:        s.log,
 		ReloadCh:   s.reloadCh,
 	})
@@ -816,7 +823,7 @@ func (s *SSHMultiplexerService) handleConn(
 }
 
 func (s *SSHMultiplexerService) String() string {
-	return config.SSHMultiplexerServiceType
+	return MultiplexerServiceType
 }
 
 type hostDialer interface {

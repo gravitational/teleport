@@ -1046,7 +1046,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.SSHMultiplexerService{
+			&sshsvc.MultiplexerConfig{
 				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
