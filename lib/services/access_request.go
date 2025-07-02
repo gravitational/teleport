@@ -1678,15 +1678,17 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	m.roles.allowSearch = apiutils.Deduplicate(append(m.roles.allowSearch, allow.SearchAsRoles...))
-	m.roles.denySearch = apiutils.Deduplicate(append(m.roles.denySearch, deny.SearchAsRoles...))
+	outAllow := apiutils.Deduplicate(applyValueTraitsSlice(allow.SearchAsRoles, m.userState.GetTraits(), "allow search as roles"))
+	m.roles.allowSearch = apiutils.Deduplicate(append(m.roles.allowSearch, outAllow...))
+	outDeny := apiutils.Deduplicate(applyValueTraitsSlice(deny.SearchAsRoles, m.userState.GetTraits(), "deny search as roles"))
+	m.roles.denySearch = apiutils.Deduplicate(append(m.roles.denySearch, outDeny...))
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
 		newAllowRequestMatchers := m.roles.allowRequest[astart:]
-		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+		newAllowSearchMatchers := literalMatchers(outAllow)
 
 		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
 		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
