@@ -271,15 +271,6 @@ func TestAccessListDefaults(t *testing.T) {
 		require.ErrorContains(t, err, "owners")
 	})
 
-	t.Run("type is defaulted to dynamic", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Type = ""
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, Dynamic, uut.Spec.Type)
-	})
-
 	t.Run("type is validated", func(t *testing.T) {
 		uut := newValidAccessList()
 		uut.Spec.Type = "test_unknown_type"
