@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
@@ -162,7 +163,7 @@ func Test_renderSSHConfig(t *testing.T) {
 				utils.NewSlogLoggerForTests(),
 				&connection.ProxyPong{
 					PingResponse: &webclient.PingResponse{
-						ClusterName: mockClusterName,
+						ClusterName: testutils.MockClusterName,
 						Proxy: webclient.ProxySettings{
 							TLSRoutingEnabled: tc.TLSRouting,
 							SSH: webclient.SSHProxySettings{
@@ -172,13 +173,13 @@ func Test_renderSSHConfig(t *testing.T) {
 						},
 					},
 				},
-				[]string{mockClusterName, mockRemoteClusterName},
+				[]string{testutils.MockClusterName, mockRemoteClusterName},
 				dest,
 				&mockCertAuthorityGetter{
 					remoteClusterName: mockRemoteClusterName,
-					clusterName:       mockClusterName,
+					clusterName:       testutils.MockClusterName,
 				},
-				fakeGetExecutablePath,
+				testutils.FakeGetExecutablePath,
 				&mockALPNConnTester{
 					isALPNUpgradeRequired: tc.ALPNUpgrade,
 				},
@@ -208,7 +209,7 @@ func Test_renderSSHConfig(t *testing.T) {
 			)
 
 			for clusterType, clusterName := range map[string]string{
-				"local":  mockClusterName,
+				"local":  testutils.MockClusterName,
 				"remote": mockRemoteClusterName,
 			} {
 				clusterKnownHostBytes, err := os.ReadFile(

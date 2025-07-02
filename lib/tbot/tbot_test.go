@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -207,7 +208,7 @@ func TestBot(t *testing.T) {
 	_, err = rootClient.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	// Register a kubernetes server so the bot can request certs for it.
-	kubeCluster := newMockDiscoveredKubeCluster(t, kubeClusterName, kubeClusterDiscoveredName)
+	kubeCluster := testutils.NewMockDiscoveredKubeCluster(t, kubeClusterName, kubeClusterDiscoveredName)
 	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, fakeHostname, fakeHostID)
 	require.NoError(t, err)
 	_, err = rootClient.UpsertKubernetesServer(ctx, kubeServer)
@@ -307,14 +308,14 @@ func TestBot(t *testing.T) {
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
-	kubeOutput := &config.KubernetesOutput{
+	kubeOutput := &k8s.OutputV1Config{
 		// Directory required or output will fail.
 		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterName,
 	}
-	kubeDiscoveredNameOutput := &config.KubernetesOutput{
+	kubeDiscoveredNameOutput := &k8s.OutputV1Config{
 		// Directory required or output will fail.
 		Destination: &destination.Directory{
 			Path: t.TempDir(),
@@ -828,73 +829,6 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	// Run the bot a first time
 	firstBot := New(botConfig, log)
 	require.NoError(t, firstBot.Run(ctx))
-}
-
-func TestChooseOneKubeCluster(t *testing.T) {
-	t.Parallel()
-
-	fooKube1 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
-	fooKube2 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
-	barKube := newMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
-	tests := []struct {
-		desc            string
-		clusters        []types.KubeCluster
-		kubeSvc         string
-		wantKubeCluster types.KubeCluster
-		wantErr         string
-	}{
-		{
-			desc:            "by exact name match",
-			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:         "bar-eks-us-west-1-123456789012",
-			wantKubeCluster: barKube,
-		},
-		{
-			desc:            "by unambiguous discovered name match",
-			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:         "bar",
-			wantKubeCluster: barKube,
-		},
-		{
-			desc:     "ambiguous discovered name matches is an error",
-			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:  "foo",
-			wantErr:  `"foo" matches multiple auto-discovered kubernetes clusters`,
-		},
-		{
-			desc:     "no match is an error",
-			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:  "xxx",
-			wantErr:  `kubernetes cluster "xxx" not found`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			gotKube, err := chooseOneKubeCluster(test.clusters, test.kubeSvc)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, test.wantKubeCluster, gotKube)
-		})
-	}
-}
-
-func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *types.KubernetesClusterV3 {
-	t.Helper()
-	kubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: name,
-			Labels: map[string]string{
-				types.OriginLabel:         types.OriginCloud,
-				types.DiscoveredNameLabel: discoveredName,
-			},
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-	return kubeCluster
 }
 
 func TestBotDatabaseTunnel(t *testing.T) {

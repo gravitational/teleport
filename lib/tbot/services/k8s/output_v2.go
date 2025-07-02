@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package k8s
 
 import (
 	"bytes"
@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -45,25 +46,24 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-func KubernetesV2OutputServiceBuilder(botCfg *config.BotConfig, cfg *config.KubernetesV2Output) bot.ServiceBuilder {
+func OuputV2ServiceBuilder(cfg *OutputV2Config, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &KubernetesV2OutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			proxyPinger:        deps.ProxyPinger,
-			reloadCh:           deps.ReloadCh,
-			executablePath:     autoupdate.StableExecutable,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+			botAuthClient:             deps.Client,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			proxyPinger:               deps.ProxyPinger,
+			reloadCh:                  deps.ReloadCh,
+			executablePath:            autoupdate.StableExecutable,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -79,13 +79,13 @@ type KubernetesV2OutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.KubernetesV2Output
-	log                *slog.Logger
-	proxyPinger        connection.ProxyPinger
-	reloadCh           <-chan struct{}
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *OutputV2Config
+	log                       *slog.Logger
+	proxyPinger               connection.ProxyPinger
+	reloadCh                  <-chan struct{}
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath    func() (string, error)
@@ -106,8 +106,8 @@ func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 		Service:         s.String(),
 		Name:            "output-renewal",
 		Fn:              s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -134,7 +134,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -185,7 +185,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := NewClientKeyRing(id.Get(), hostCAs)
+	keyRing, err := internal.NewClientKeyRing(id.Get(), hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -236,7 +236,7 @@ func queryKubeClustersByLabels(ctx context.Context, clt apiclient.GetResourcesCl
 
 // fetchAllMatchingKubeClusters returns a list of all clusters matching the
 // given selectors.
-func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResourcesClient, selectors []*config.KubernetesSelector) ([]types.KubeCluster, error) {
+func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResourcesClient, selectors []*KubernetesSelector) ([]types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "findAllMatchingKubeClusters")
 	defer span.End()
 
@@ -282,7 +282,7 @@ func (s *KubernetesV2OutputService) render(
 	)
 	defer span.End()
 
-	if err := writeIdentityFile(ctx, s.log, status.credentials, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, status.credentials, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -470,4 +470,18 @@ func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Co
 	}
 
 	return config, nil
+}
+
+// concatCACerts borrow's identityfile's CA cert concat method.
+func concatCACerts(cas []types.CertAuthority) []byte {
+	trusted := authclient.AuthoritiesToTrustedCerts(cas)
+
+	var caCerts []byte
+	for _, ca := range trusted {
+		for _, cert := range ca.TLSCertificates {
+			caCerts = append(caCerts, cert...)
+		}
+	}
+
+	return caCerts
 }

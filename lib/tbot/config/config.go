@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -316,15 +317,15 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case KubernetesOutputType:
-			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
+		case k8s.OutputV1ServiceType:
+			v := &k8s.OutputV1Config{}
+			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case KubernetesV2OutputType:
-			v := &KubernetesV2Output{}
-			if err := node.Decode(v); err != nil {
+		case k8s.OutputV2ServiceType:
+			v := &k8s.OutputV2Config{}
+			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)

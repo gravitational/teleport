@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package k8s
 
 import (
 	"bytes"
@@ -36,9 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -126,13 +127,13 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		selectors            []*config.KubernetesSelector
+		selectors            []*KubernetesSelector
 		expectError          require.ErrorAssertionFunc
 		expectedClusterNames []string
 	}{
 		{
 			name: "matches by name",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Name: "a",
 				},
@@ -144,7 +145,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "errors when direct lookup fails",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Name: "nonexistent",
 				},
@@ -155,7 +156,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "matches with simple label selector",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Labels: map[string]string{
 						"foo": "1",
@@ -166,7 +167,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "matches with complex label selector",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Labels: map[string]string{
 						"foo": "1",
@@ -178,7 +179,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 		},
 		{
 			name: "matches with multiple selectors",
-			selectors: []*config.KubernetesSelector{
+			selectors: []*KubernetesSelector{
 				{
 					Labels: map[string]string{
 						"foo": "1",
@@ -229,7 +230,7 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 	id := &identity.Identity{
 		PrivateKeyBytes: keyPEM,
 		TLSCertBytes:    tlsCert,
-		ClusterName:     mockClusterName,
+		ClusterName:     testutils.MockClusterName,
 	}
 
 	tests := []struct {
@@ -267,32 +268,32 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 			}
 
 			svc := KubernetesV2OutputService{
-				cfg: &config.KubernetesV2Output{
+				cfg: &OutputV2Config{
 					DisableExecPlugin: tt.disableExecPlugin,
 					Destination:       dest,
 				},
-				executablePath: fakeGetExecutablePath,
+				executablePath: testutils.FakeGetExecutablePath,
 				log:            utils.NewSlogLoggerForTests(),
 			}
 
-			keyRing, err := NewClientKeyRing(
+			keyRing, err := internal.NewClientKeyRing(
 				id,
-				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+				[]types.CertAuthority{fakeCA(t, types.HostCA, testutils.MockClusterName)},
 			)
 			require.NoError(t, err)
 			status := &kubernetesStatusV2{
 				kubernetesClusterNames: []string{"a", "b", "c"},
-				teleportClusterName:    mockClusterName,
-				tlsServerName:          client.GetKubeTLSServerName(mockClusterName),
+				teleportClusterName:    testutils.MockClusterName,
+				tlsServerName:          client.GetKubeTLSServerName(testutils.MockClusterName),
 				credentials:            keyRing,
-				clusterAddr:            fmt.Sprintf("https://%s:443", mockClusterName),
+				clusterAddr:            fmt.Sprintf("https://%s:443", testutils.MockClusterName),
 			}
 
 			err = svc.render(
 				context.Background(),
 				status,
 				id,
-				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+				[]types.CertAuthority{fakeCA(t, types.HostCA, testutils.MockClusterName)},
 			)
 			require.NoError(t, err)
 

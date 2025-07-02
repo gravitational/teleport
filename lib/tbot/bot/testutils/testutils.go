@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const MockClusterName = "tele.blackmesa.gov"
+
 // TestingT is a subset of *testing.T's interface. It is intentionally *NOT*
 // compatible with testify's require and assert packages to avoid accidentally
 // bringing those packages into production code. See: TestNotTestifyCompatible.
@@ -159,4 +161,29 @@ func NewMockDiscoveredDB(t TestingT, name, discoveredName string) *types.Databas
 		t.Fatalf("failed to create database: %v", err)
 	}
 	return db
+}
+
+func NewMockDiscoveredKubeCluster(t TestingT, name, discoveredName string) *types.KubernetesClusterV3 {
+	t.Helper()
+
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				types.OriginLabel:         types.OriginCloud,
+				types.DiscoveredNameLabel: discoveredName,
+			},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	if err != nil {
+		t.Fatalf("failed to create kubernetes cluster: %v", err)
+	}
+	return kubeCluster
+}
+
+// FakeGetExecutablePath can be injected into outputs to ensure they output the
+// same path in tests across multiple systems.
+func FakeGetExecutablePath() (string, error) {
+	return "/path/to/tbot", nil
 }

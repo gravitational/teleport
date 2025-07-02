@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package k8s
 
 import (
 	"bytes"
@@ -34,9 +34,10 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -95,16 +96,6 @@ nRDcZHBqZYNRDt5zNvRTjgwJi4iHGwSB+D4SIYGb0ioTI2MOS2F7zBDyl8FXp7dT
 -----END RSA PRIVATE KEY-----`)
 )
 
-const (
-	mockClusterName = "tele.blackmesa.gov"
-)
-
-// fakeGetExecutablePath can be injected into outputs to ensure they output the
-// same path in tests across multiple systems.
-func fakeGetExecutablePath() (string, error) {
-	return "/path/to/tbot", nil
-}
-
 // TestKubernetesOutputService_render renders the Kubernetes template and
 // compares it to the saved golden result.
 // TODO(noah): Evaluate if test should run at higher level to capture some
@@ -117,7 +108,7 @@ func TestKubernetesOutputService_render(t *testing.T) {
 	id := &identity.Identity{
 		PrivateKeyBytes: keyPEM,
 		TLSCertBytes:    tlsCert,
-		ClusterName:     mockClusterName,
+		ClusterName:     testutils.MockClusterName,
 	}
 
 	tests := []struct {
@@ -154,34 +145,34 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				dest.Path = relativePath
 			}
 
-			svc := KubernetesOutputService{
-				cfg: &config.KubernetesOutput{
+			svc := OutputV1Service{
+				cfg: &OutputV1Config{
 					KubernetesCluster: k8sCluster,
 					DisableExecPlugin: tt.disableExecPlugin,
 					Destination:       dest,
 				},
-				executablePath: fakeGetExecutablePath,
+				executablePath: testutils.FakeGetExecutablePath,
 				log:            utils.NewSlogLoggerForTests(),
 			}
 
-			keyRing, err := NewClientKeyRing(
+			keyRing, err := internal.NewClientKeyRing(
 				id,
-				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+				[]types.CertAuthority{fakeCA(t, types.HostCA, testutils.MockClusterName)},
 			)
 			require.NoError(t, err)
 			status := &kubernetesStatus{
 				kubernetesClusterName: k8sCluster,
-				teleportClusterName:   mockClusterName,
-				tlsServerName:         client.GetKubeTLSServerName(mockClusterName),
+				teleportClusterName:   testutils.MockClusterName,
+				tlsServerName:         client.GetKubeTLSServerName(testutils.MockClusterName),
 				credentials:           keyRing,
-				clusterAddr:           fmt.Sprintf("https://%s:443", mockClusterName),
+				clusterAddr:           fmt.Sprintf("https://%s:443", testutils.MockClusterName),
 			}
 
 			err = svc.render(
 				context.Background(),
 				status,
 				id,
-				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+				[]types.CertAuthority{fakeCA(t, types.HostCA, testutils.MockClusterName)},
 				[]types.CertAuthority{},
 				[]types.CertAuthority{},
 			)
@@ -318,4 +309,55 @@ func fakeCA(t *testing.T, caType types.CertAuthType, clusterName string) types.C
 	})
 	require.NoError(t, err)
 	return ca
+}
+
+func TestChooseOneKubeCluster(t *testing.T) {
+	t.Parallel()
+
+	fooKube1 := testutils.NewMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
+	fooKube2 := testutils.NewMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
+	barKube := testutils.NewMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
+	tests := []struct {
+		desc            string
+		clusters        []types.KubeCluster
+		kubeSvc         string
+		wantKubeCluster types.KubeCluster
+		wantErr         string
+	}{
+		{
+			desc:            "by exact name match",
+			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:         "bar-eks-us-west-1-123456789012",
+			wantKubeCluster: barKube,
+		},
+		{
+			desc:            "by unambiguous discovered name match",
+			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:         "bar",
+			wantKubeCluster: barKube,
+		},
+		{
+			desc:     "ambiguous discovered name matches is an error",
+			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:  "foo",
+			wantErr:  `"foo" matches multiple auto-discovered kubernetes clusters`,
+		},
+		{
+			desc:     "no match is an error",
+			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
+			kubeSvc:  "xxx",
+			wantErr:  `kubernetes cluster "xxx" not found`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			gotKube, err := chooseOneKubeCluster(test.clusters, test.kubeSvc)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantKubeCluster, gotKube)
+		})
+	}
 }

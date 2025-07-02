@@ -83,20 +83,6 @@ func writeIdentityFileTLS(
 	return internal.WriteIdentityFileTLS(ctx, log, keyRing, dest)
 }
 
-// concatCACerts borrow's identityfile's CA cert concat method.
-func concatCACerts(cas []types.CertAuthority) []byte {
-	trusted := authclient.AuthoritiesToTrustedCerts(cas)
-
-	var caCerts []byte
-	for _, ca := range trusted {
-		for _, cert := range ca.TLSCertificates {
-			caCerts = append(caCerts, cert...)
-		}
-	}
-
-	return caCerts
-}
-
 // writeTLSCAs writes the three "main" TLS CAs to disk.
 // TODO(noah): This is largely a copy of templateTLSCAs. We should reconsider
 // which CAs are actually worth writing for each type of service because
