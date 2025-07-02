@@ -4,24 +4,32 @@ description: How to install and configure Teleport in Kubernetes using Helm and 
 ---
 
 Teleport can provide secure, unified access to your Kubernetes clusters. This
-guide will show you how to deploy Teleport on a Kubernetes cluster using Helm
+guide will show you how to deploy Teleport Kubernetes agent on a Kubernetes cluster using Helm
 and ArgoCD.
 
 ## How it works
 
-While completing this guide, you will deploy one Teleport pod each for the Auth
-Service and Proxy Service in your Kubernetes cluster, and a load balancer that
-forwards outside traffic to your Teleport cluster. Users can then access your
-Kubernetes cluster via the Teleport cluster running within it.
+The 'teleport-kube-agent' chart is a Teleport agent used to register any or all of the following services
+with an existing Teleport cluster:
+- Teleport Kubernetes access
+- Teleport Application access
+- Teleport Database access
+- Teleport Kubernetes App Discovery
+- Teleport Jamf service
 
 ## Prerequisites
 
 - A registered domain name. This is required for Teleport to set up TLS via
   Let's Encrypt and for Teleport clients to verify the Proxy Service host.
 
-- A Kubernetes cluster hosted by a cloud provider, which is required for the
-  load balancer we deploy in this guide. We recommend following this guide on a
-  non-production cluster to start.
+- An existing Kubernetes cluster you wish to provide access to via Teleport.
+
+- At least one Teleport Agent running in your cluster publicly reachable with
+  valid TLS certificates
+ - (!docs/pages/includes/tctl.mdx!)
+
+- An existing ArgoCD instance (version 2.10 or greater) that can deploy to the
+  above Kubernetes cluster.
 
 - A persistent volume that the Auth Service can use for storing cluster state.
   Make sure your Kubernetes cluster has one available.
@@ -48,17 +56,48 @@ Kubernetes cluster via the Teleport cluster running within it.
 - The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
   You can download this from our [installation page](../../../installation.mdx).
   
-- ArgoCD version 2.10 or greater.
+## Generate a join token
 
-### Install the `teleport-kube-agent` Helm chart via ArgoCD
+```code
+$ tctl tokens add --type=kube,app --ttl=5m
+```
 
-#### Prerequisites
+You can specify the following token types:
 
-- An existing Teleport cluster (at least proxy and auth services)
-- A reachable proxy endpoint
-- A reachable reverse tunnel port on the proxy.
-  The address is automatically retrieved from the Teleport proxy configuration.
-- A join token for the Teleport Cluster.
+(!docs/pages/includes/token-types.mdx!)
+
+Ensure you update the values file you use for the helm chart
+to include the required roles.
+
+See the `teleport-kube-agent` [chart
+reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
+roles and token types that the chart supports.
+
+Edit the values file to add the `kubeClusterName` field:
+
+```yaml
+kubeClusterName: mycluster
+```
+
+### Update the join token
+
+Make sure the agent's configuration file refers to the new join token.
+
+1. Find the name of the join token you created:
+
+```code
+$ tctl tokens ls
+# Token                            Type        Labels Expiry Time (UTC)
+# -------------------------------- ----------- ------ -------------------------------
+# (=presets.tokens.first=) Node,Db,App        10 Aug 23 19:49 UTC (4m11s)
+```
+
+In this case, the name of the token is `(=presets.tokens.first=)`.
+
+Set the value of either the `authToken` field or the `joinParams.tokenName`
+field to the value of your token.
+
+## Install the `teleport-kube-agent` Helm chart via ArgoCD
 
 1. Create a namespace for Teleport and configure its Pod Security Admission,
    which enforces security standards on pods in the namespace:
@@ -71,14 +110,7 @@ Kubernetes cluster via the Teleport cluster running within it.
    namespace/teleport labeled
    ```
 
-2. Navigate to the 'Application Page in ArgoCD', then select 'New App'.
-
-
-![ArgoCD application page](../../../../img/helm/argocd/application-page.png)
-
-3. Then select 'Edit as YAML'
-
-![ArgoCD application page](../../../../img/helm/argocd/edit-yaml.png)
+2. Create a new ArgoCD application using the following as a template.
 
 ``` yaml
 apiVersion: argoproj.io/v1alpha1
@@ -99,12 +131,9 @@ spec:
   project: default
 ```
 
-4.	Additionally helm parameters can be set in the 'Create App'
-	![ArgoCD application page](../../../../img/helm/argocd/helm-parameters.png)
-5. Edit this example configuration to match your needs.
+3. Edit this example configuration to match your needs.
 More information on how to modify helm this the helm chart
 and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
-6. Then select 'Sync' to apply the changes.
-![ArgoCD application page](../../../../img/helm/argocd/sync-app.png)
 
+4. Sync your changes to apply the configuration
 
