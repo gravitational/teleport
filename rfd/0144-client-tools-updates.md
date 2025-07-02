@@ -376,32 +376,45 @@ a downgrade.
 6. User logs back into Cluster B (after certs expire) → the app prompts for 
 an upgrade again.
 
-This can create a feedback loop of conflicting version updates and repeated 
-restarts. One potential improvement is to stop automatic downloads when multiple
-client versions are detected, giving more control to the user.
-However, this would effectively make updates opt-in, which could delay important 
-fixes or features.
+This can create a feedback loop of constant updates and repeated restarts.
 
 Proposed Solution:
-* The app will read the client tool versions from all connected clusters, 
-and install the latest one by default.
-* If multiple conflicting versions are detected, the auto-update widget will 
-display a warning when logging into a cluster that does not match the currently 
-installed version: "App version is managed by another cluster." Clicking "More" 
-will take the user to the detailed view.
-* In detailed view, the user will be able to choose which cluster should 
-manage updates (a mechanism similar to an update channel), the UI will look as 
-follows:
-> [ ] Use the latest version from your clusters
+* The app will read the client tool versions and minimum client version from all 
+connected clusters, and will try to find the most compatible version (fulfilling 
+our compatibility promise).
+* If no compatible version is found, the auto-update mechanism will stop working
+until the user selects a cluster managing updates in the detailed view.
+The selected cluster will be stored in the app state and cleared when the user 
+logs out from that cluster.
+The UI will look as follows:
+> App updates are disabled
+> 
+> Your clusters require incompatible client versions.
+> To enable app updates, select the cluster managing them manually.
+> 
+> [ ] (disabled checkbox) Use the most compatible version from your clusters
 > 
 > Or select cluster to manage updates:
 > 
-> 1. teleport-18.asteroid.earth (v18.0.3)
+> 1. teleport-18.asteroid.earth
+>
+>    18.0.3 client, only compatible with this cluster.
 > 
-> 2. teleport-17.asteroid.earth (v17.3.3)
+> 2. teleport-17.asteroid.earth
+>
+>    17.3.3 client, compatible with teleport-17.asteroid.earth, teleport-18.asteroid.earth.
+>
+> 3. teleport-16.asteroid.earth
+>
+>    16.3.3 client, compatible with teleport-16.asteroid.earth, teleport-17.asteroid.earth.
+* The auto-update widget will always show an info/warning alert if the app version
+does not match the target cluster client tools version.
 
-The selected cluster will be stored in the app state and cleared when user logs 
-out from that cluster.
+In a multi-cluster setup, users will always have the ability to choose which 
+cluster manages updates. Users have different needs, and we don't have enough
+data to reliably solve the multi-cluster version problem in a useful way.
+To help the users make decision on which cluster to choose, we will show 
+compatibility information for clusters.
 
 ### Implementation
 
@@ -437,9 +450,12 @@ message Version {
 ```
 The update logic will resolve the version to install using the following 
 precedence:
-1. `TELEPORT_TOOLS_VERSION` env var (including `off` value).
-2. Version for a cluster from the app state.
-3. The latest version from `GetAutoUpdate`.
+1. `TELEPORT_TOOLS_VERSION` env var, if defined.
+2. Version for a cluster from the app state, if defined.
+3. Most compatible version, if can be found.
+4. If there's no version at this point, stop auto updates. 
+They will start working again if the user picks a cluster managing updates or 
+logs out of incompatible clusters.
 
 ### Backward compatibility
 
