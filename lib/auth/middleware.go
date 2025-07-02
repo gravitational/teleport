@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -271,8 +272,8 @@ func (t *TLSServer) Close() error {
 		}
 	}
 
-	if err := t.mux.Close(); err != nil {
-		errors = append(errors, t.mux.Close())
+	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		errors = append(errors, err)
 	}
 
 	if err := t.clientTLSConfigGenerator.Close(); err != nil {
@@ -297,6 +298,10 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		if err := <-errC; err != nil {
 			errors = append(errors, err)
 		}
+	}
+
+	if err := t.mux.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		errors = append(errors, err)
 	}
 
 	if err := t.clientTLSConfigGenerator.Close(); err != nil {
