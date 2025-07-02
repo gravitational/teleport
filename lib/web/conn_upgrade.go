@@ -113,7 +113,23 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
-	defer wsConn.Close()
+	closeWebsocketFunc := func(closeCode int, closeText string) {
+		// Ensure the WebSocket connection is closed when the handler returns.
+		// This is important because intermediate load balancers may not
+		// properly handle the WebSocket connection if it is not closed
+		// gracefully.
+		// Calling wsConn.Close() will not send a close frame, so we
+		// send a close frame first otherwise the client may see it as an
+		// io.EOF error.
+		closeMessage := websocket.FormatCloseMessage(closeCode, closeText)
+		h.logger.DebugContext(r.Context(), "Closing websocket")
+		if err := wsConn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
+			h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
+		}
+		if err := wsConn.Close(); err != nil {
+			h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
+		}
+	}
 
 	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
 
@@ -137,6 +153,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		// Just close the connection. Upgrader hijacks the connection so no
 		// point returning an error.
 		h.logger.DebugContext(ctx, "Unknown or empty WebSocket subprotocol.", "client_protocols", websocket.Subprotocols(r))
+		closeWebsocketFunc(websocket.CloseUnsupportedData, "unknown or empty subprotocol")
 		return nil, nil
 	}
 
@@ -148,6 +165,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
 		)
 	}
+	closeWebsocketFunc(websocket.CloseNormalClosure, "")
 	return nil, nil
 }
 

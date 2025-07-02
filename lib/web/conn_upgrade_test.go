@@ -355,8 +355,11 @@ func mustReadClientConnString(t *testing.T, clientConn net.Conn, expectedPayload
 func mustReadClientWebSocketClosed(t *testing.T, clientConn net.Conn, expectedPayload string) {
 	t.Helper()
 
-	_, err := ws.ReadFrame(clientConn)
-	require.True(t, utils.IsOKNetworkError(err))
+	frame, err := ws.ReadFrame(clientConn)
+	require.NoError(t, err)
+	code, reason := ws.ParseCloseFrameData(frame.Payload)
+	require.Equal(t, ws.StatusUnsupportedData, code)
+	require.Equal(t, "unknown or empty subprotocol", reason)
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a
