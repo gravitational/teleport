@@ -344,7 +344,7 @@ Updates will be visible in two places:
 An auto-update widget will appear when the user opens the login dialog, 
 notifying them of a new version and prompting for a restart.
 It will be possible to open a detailed view from this widget.
-2. Additional Actions Menu
+2. Additional Actions Menu (and Teleport Connect -> Check for Updates… menu on macOS)
 This opens a detailed view containing a link to release notes, information about 
 cluster managing updates, and actions like canceling a download or re-checking 
 for updates.
