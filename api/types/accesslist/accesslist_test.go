@@ -268,7 +268,25 @@ func TestAccessListDefaults(t *testing.T) {
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "owners")
+		require.ErrorContains(t, err, "owners")
+	})
+
+	t.Run("type is defaulted to dynamic", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Type = ""
+
+		err := uut.CheckAndSetDefaults()
+		require.NoError(t, err)
+		require.Equal(t, Dynamic, uut.Spec.Type)
+	})
+
+	t.Run("type is validated", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Type = "test_unknown_type"
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.ErrorContains(t, err, `unknown access_list type "test_unknown_type"`)
 	})
 }
 
