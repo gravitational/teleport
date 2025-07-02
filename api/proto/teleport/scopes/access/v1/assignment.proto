@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package teleport.scopedrole.v1;
+package teleport.scopes.access.v1;
 
 import "teleport/header/v1/metadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1;scopedrole";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
 
 // ScopedRoleAssignment is a role assignment whose resource and permissions are scoped. A scoped role assignment
 // assigns roles to users at scopes. One assignment may contain multiple roles at multiple scopes. Most assignments
