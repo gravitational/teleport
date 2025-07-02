@@ -37,6 +37,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -54,24 +55,24 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	tests := []struct {
 		name string
 		att  *workloadidentityv1pb.WorkloadAttrs
-		in   []config.SVIDRequestWithRules
-		want []config.SVIDRequest
+		in   []legacyspiffe.SVIDRequestWithRules
+		want []legacyspiffe.SVIDRequest
 	}{
 		{
 			name: "no rules",
-			in: []config.SVIDRequestWithRules{
+			in: []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/bar",
 					},
 				},
 			},
-			want: []config.SVIDRequest{
+			want: []legacyspiffe.SVIDRequest{
 				{
 					Path: "/foo",
 				},
@@ -90,19 +91,19 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/bar",
 					},
 				},
 			},
-			want: []config.SVIDRequest{
+			want: []legacyspiffe.SVIDRequest{
 				{
 					Path: "/foo",
 				},
@@ -124,14 +125,14 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1000),
 							},
 						},
@@ -150,32 +151,32 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1000),
 								PID: ptr(1),
 							},
 						},
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								GID: ptr(1),
 							},
 						},
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/bar",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1),
 							},
 						},
@@ -186,31 +187,31 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "no matching rules without attestation",
-			in: []config.SVIDRequestWithRules{
+			in: []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								PID: ptr(1),
 							},
 						},
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								GID: ptr(1),
 							},
 						},
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/bar",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1),
 							},
 						},
@@ -229,38 +230,38 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/fizz",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1),
 							},
 						},
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{},
+					Rules: []legacyspiffe.SVIDRequestRule{},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/bar",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []legacyspiffe.SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1000),
 								GID: ptr(1500),
 							},
 						},
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: legacyspiffe.SVIDRequestRuleUnix{
 								UID: ptr(1000),
 								PID: ptr(1002),
 							},
@@ -268,7 +269,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					},
 				},
 			},
-			want: []config.SVIDRequest{
+			want: []legacyspiffe.SVIDRequest{
 				{
 					Path: "/foo",
 				},
@@ -293,12 +294,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		field       string
 		matching    *workloadidentityv1pb.WorkloadAttrs
 		nonMatching *workloadidentityv1pb.WorkloadAttrs
-		rule        config.SVIDRequestRule
+		rule        legacyspiffe.SVIDRequestRule
 	}{
 		{
 			field: "unix.pid",
-			rule: config.SVIDRequestRule{
-				Unix: config.SVIDRequestRuleUnix{
+			rule: legacyspiffe.SVIDRequestRule{
+				Unix: legacyspiffe.SVIDRequestRuleUnix{
 					PID: ptr(1000),
 				},
 			},
@@ -317,8 +318,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "unix.uid",
-			rule: config.SVIDRequestRule{
-				Unix: config.SVIDRequestRuleUnix{
+			rule: legacyspiffe.SVIDRequestRule{
+				Unix: legacyspiffe.SVIDRequestRuleUnix{
 					UID: ptr(1000),
 				},
 			},
@@ -337,8 +338,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "unix.gid",
-			rule: config.SVIDRequestRule{
-				Unix: config.SVIDRequestRuleUnix{
+			rule: legacyspiffe.SVIDRequestRule{
+				Unix: legacyspiffe.SVIDRequestRuleUnix{
 					GID: ptr(1000),
 				},
 			},
@@ -357,8 +358,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "unix.namespace",
-			rule: config.SVIDRequestRule{
-				Kubernetes: config.SVIDRequestRuleKubernetes{
+			rule: legacyspiffe.SVIDRequestRule{
+				Kubernetes: legacyspiffe.SVIDRequestRuleKubernetes{
 					Namespace: "foo",
 				},
 			},
@@ -377,8 +378,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "kubernetes.service_account",
-			rule: config.SVIDRequestRule{
-				Kubernetes: config.SVIDRequestRuleKubernetes{
+			rule: legacyspiffe.SVIDRequestRule{
+				Kubernetes: legacyspiffe.SVIDRequestRuleKubernetes{
 					ServiceAccount: "foo",
 				},
 			},
@@ -397,8 +398,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "kubernetes.pod_name",
-			rule: config.SVIDRequestRule{
-				Kubernetes: config.SVIDRequestRuleKubernetes{
+			rule: legacyspiffe.SVIDRequestRule{
+				Kubernetes: legacyspiffe.SVIDRequestRuleKubernetes{
 					PodName: "foo",
 				},
 			},
@@ -418,12 +419,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
-			rules := []config.SVIDRequestWithRules{
+			rules := []legacyspiffe.SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{tt.rule},
+					Rules: []legacyspiffe.SVIDRequestRule{tt.rule},
 				},
 			}
 			t.Run("matching", func(t *testing.T) {
@@ -474,18 +475,18 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.SPIFFEWorkloadAPIService{
+			&legacyspiffe.WorkloadAPIConfig{
 				Listen: socketPath,
-				SVIDs: []config.SVIDRequestWithRules{
+				SVIDs: []legacyspiffe.SVIDRequestWithRules{
 					// Intentionally unmatching PID to ensure this SVID
 					// is not issued.
 					{
-						SVIDRequest: config.SVIDRequest{
+						SVIDRequest: legacyspiffe.SVIDRequest{
 							Path: "/bar",
 						},
-						Rules: []config.SVIDRequestRule{
+						Rules: []legacyspiffe.SVIDRequestRule{
 							{
-								Unix: config.SVIDRequestRuleUnix{
+								Unix: legacyspiffe.SVIDRequestRuleUnix{
 									PID: ptr(0),
 								},
 							},
@@ -493,17 +494,17 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 					},
 					// SVID with rule that matches on PID.
 					{
-						SVIDRequest: config.SVIDRequest{
+						SVIDRequest: legacyspiffe.SVIDRequest{
 							Path: "/foo",
 							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
+							SANS: legacyspiffe.SVIDRequestSANs{
 								DNS: []string{"example.com"},
 								IP:  []string{"10.0.0.1"},
 							},
 						},
-						Rules: []config.SVIDRequestRule{
+						Rules: []legacyspiffe.SVIDRequestRule{
 							{
-								Unix: config.SVIDRequestRuleUnix{
+								Unix: legacyspiffe.SVIDRequestRuleUnix{
 									PID: &pid,
 								},
 							},

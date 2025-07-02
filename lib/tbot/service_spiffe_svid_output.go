@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -53,7 +55,7 @@ const (
 
 func SPIFFESVIDOutputServiceBuilder(
 	botCfg *config.BotConfig,
-	cfg *config.SPIFFESVIDOutput,
+	cfg *legacyspiffe.SVIDOutputConfig,
 	trustBundleCache TrustBundleGetter,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
@@ -79,7 +81,7 @@ func SPIFFESVIDOutputServiceBuilder(
 type SPIFFESVIDOutputService struct {
 	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
-	cfg            *config.SPIFFESVIDOutput
+	cfg            *legacyspiffe.SVIDOutputConfig
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
 	// trustBundleCache is the cache of trust bundles. It only needs to be
@@ -216,7 +218,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	res, privateKey, err := generateSVID(
 		ctx,
 		impersonatedClient,
-		[]config.SVIDRequest{s.cfg.SVID},
+		[]legacyspiffe.SVIDRequest{s.cfg.SVID},
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 	)
 	if err != nil {
@@ -277,7 +279,7 @@ func (s *SPIFFESVIDOutputService) render(
 
 	}
 	svid := res.Svids[0]
-	if err := s.cfg.Destination.Write(ctx, config.SVIDKeyPEMPath, privPEM); err != nil {
+	if err := s.cfg.Destination.Write(ctx, internal.SVIDKeyPEMPath, privPEM); err != nil {
 		return trace.Wrap(err, "writing svid key")
 	}
 
@@ -285,7 +287,7 @@ func (s *SPIFFESVIDOutputService) render(
 		Type:  pemCertificate,
 		Bytes: svid.Certificate,
 	})
-	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM); err != nil {
+	if err := s.cfg.Destination.Write(ctx, internal.SVIDPEMPath, certPEM); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 
@@ -305,7 +307,7 @@ func (s *SPIFFESVIDOutputService) render(
 	}
 
 	if err := s.cfg.Destination.Write(
-		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
+		ctx, internal.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
@@ -322,8 +324,8 @@ func (s *SPIFFESVIDOutputService) render(
 func generateJWTSVIDs(
 	ctx context.Context,
 	clt *apiclient.Client,
-	svid config.SVIDRequest,
-	reqs []config.JWTSVID,
+	svid legacyspiffe.SVIDRequest,
+	reqs []legacyspiffe.JWTSVID,
 	ttl time.Duration,
 ) (map[string]string, error) {
 	ctx, span := tracer.Start(
@@ -374,7 +376,7 @@ func generateJWTSVIDs(
 func generateSVID(
 	ctx context.Context,
 	clt *apiclient.Client,
-	reqs []config.SVIDRequest,
+	reqs []legacyspiffe.SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
 	ctx, span := tracer.Start(

@@ -41,3 +41,12 @@ const (
 	// failures in renewing credentials before the loop exits fatally.
 	RenewalRetryLimit = 5
 )
+
+// Based on the default paths listed in
+// https://github.com/spiffe/spiffe-helper/blob/main/README.md
+const (
+	SVIDPEMPath            = "svid.pem"
+	SVIDKeyPEMPath         = "svid_key.pem"
+	SVIDTrustBundlePEMPath = "svid_bundle.pem"
+	SVIDCRLPemPath         = "svid_crl.pem"
+)

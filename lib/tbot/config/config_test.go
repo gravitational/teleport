@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -241,28 +242,28 @@ func TestBotConfig_YAML(t *testing.T) {
 					},
 				},
 				Services: []ServiceConfig{
-					&SPIFFEWorkloadAPIService{
+					&legacyspiffe.WorkloadAPIConfig{
 						Listen: "unix:///var/run/spiffe.sock",
-						SVIDs: []SVIDRequestWithRules{
+						SVIDs: []legacyspiffe.SVIDRequestWithRules{
 							{
-								SVIDRequest: SVIDRequest{
+								SVIDRequest: legacyspiffe.SVIDRequest{
 									Path: "/bar",
 									Hint: "my hint",
-									SANS: SVIDRequestSANs{
+									SANS: legacyspiffe.SVIDRequestSANs{
 										DNS: []string{"foo.bar"},
 										IP:  []string{"10.0.0.1"},
 									},
 								},
-								Rules: []SVIDRequestRule{
+								Rules: []legacyspiffe.SVIDRequestRule{
 									{
-										Unix: SVIDRequestRuleUnix{
+										Unix: legacyspiffe.SVIDRequestRuleUnix{
 											PID: ptr(100),
 											UID: ptr(1000),
 											GID: ptr(1234),
 										},
 									},
 									{
-										Unix: SVIDRequestRuleUnix{
+										Unix: legacyspiffe.SVIDRequestRuleUnix{
 											PID: ptr(100),
 										},
 									},

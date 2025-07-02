@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -65,7 +66,7 @@ import (
 
 func SPIFFEWorkloadAPIServiceBuilder(
 	botCfg *config.BotConfig,
-	cfg *config.SPIFFEWorkloadAPIService,
+	cfg *legacyspiffe.WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
@@ -107,7 +108,7 @@ type SPIFFEWorkloadAPIService struct {
 
 	svcIdentity      *clientcredentials.UnstableConfig
 	botCfg           *config.BotConfig
-	cfg              *config.SPIFFEWorkloadAPIService
+	cfg              *legacyspiffe.WorkloadAPIConfig
 	log              *slog.Logger
 	trustBundleCache TrustBundleGetter
 	clientBuilder    *client.Builder
@@ -289,7 +290,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
 	localBundle *spiffebundle.Bundle,
-	svidRequests []config.SVIDRequest,
+	svidRequests []legacyspiffe.SVIDRequest,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
@@ -365,10 +366,10 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
-	svidRequests []config.SVIDRequestWithRules,
+	svidRequests []legacyspiffe.SVIDRequestWithRules,
 	att *attrs.WorkloadAttrs,
-) []config.SVIDRequest {
-	var filtered []config.SVIDRequest
+) []legacyspiffe.SVIDRequest {
+	var filtered []legacyspiffe.SVIDRequest
 	for _, req := range svidRequests {
 		log := log.With("svid", req.SVIDRequest)
 		// If no rules are configured, default to allow.
@@ -728,7 +729,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 			}
 			if spiffeID.String() == req.SpiffeId {
 				found = true
-				svidReqs = []config.SVIDRequest{svidReq}
+				svidReqs = []legacyspiffe.SVIDRequest{svidReq}
 				break
 			}
 		}
@@ -872,5 +873,5 @@ func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *SPIFFEWorkloadAPIService) String() string {
-	return fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen)
+	return fmt.Sprintf("%s:%s", legacyspiffe.WorkloadAPIServiceType, s.cfg.Listen)
 }

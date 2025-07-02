@@ -24,27 +24,28 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[SPIFFESVIDOutput]{
+	tests := []testYAMLCase[legacyspiffe.SVIDOutputConfig]{
 		{
 			name: "full",
-			in: SPIFFESVIDOutput{
+			in: legacyspiffe.SVIDOutputConfig{
 				Destination: dest,
-				SVID: SVIDRequest{
+				SVID: legacyspiffe.SVIDRequest{
 					Path: "/foo",
 					Hint: "hint",
-					SANS: SVIDRequestSANs{
+					SANS: legacyspiffe.SVIDRequestSANs{
 						DNS: []string{"example.com"},
 						IP:  []string{"10.0.0.1", "10.42.0.1"},
 					},
 				},
 				IncludeFederatedTrustBundles: true,
-				JWTs: []JWTSVID{
+				JWTs: []legacyspiffe.JWTSVID{
 					{
 						Audience: "example.com",
 						FileName: "foo",
@@ -62,9 +63,9 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: SPIFFESVIDOutput{
+			in: legacyspiffe.SVIDOutputConfig{
 				Destination: dest,
-				SVID: SVIDRequest{
+				SVID: legacyspiffe.SVIDRequest{
 					Path: "/foo",
 				},
 			},
@@ -74,21 +75,21 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 }
 
 func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*SPIFFESVIDOutput]{
+	tests := []testCheckAndSetDefaultsCase[*legacyspiffe.SVIDOutputConfig]{
 		{
 			name: "valid",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: memoryDestForTest(),
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
 					},
-					JWTs: []JWTSVID{
+					JWTs: []legacyspiffe.JWTSVID{
 						{
 							FileName: "foo",
 							Audience: "example.com",
@@ -99,18 +100,18 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing jwt name",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: memoryDestForTest(),
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
 					},
-					JWTs: []JWTSVID{
+					JWTs: []legacyspiffe.JWTSVID{
 						{
 							Audience: "example.com",
 						},
@@ -121,18 +122,18 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing jwt audience",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: memoryDestForTest(),
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
 					},
-					JWTs: []JWTSVID{
+					JWTs: []legacyspiffe.JWTSVID{
 						{
 							FileName: "foo",
 						},
@@ -143,13 +144,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: nil,
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
@@ -160,13 +161,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing path",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: memoryDestForTest(),
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
@@ -177,13 +178,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "path missing leading slash",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: memoryDestForTest(),
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "foo",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
@@ -194,13 +195,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "invalid ip",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *legacyspiffe.SVIDOutputConfig {
+				return &legacyspiffe.SVIDOutputConfig{
 					Destination: memoryDestForTest(),
-					SVID: SVIDRequest{
+					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: SVIDRequestSANs{
+						SANS: legacyspiffe.SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"thisisntanip"},
 						},
