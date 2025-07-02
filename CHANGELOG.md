@@ -1,5 +1,12 @@
 # Changelog
 
+## 17.5.4 (07/02/25)
+
+* Fixes broken `tbot` joining in the Terraform provider. [#56343](https://github.com/gravitational/teleport/pull/56343)
+* Machine and Workload Identity: tbot's `/readyz` endpoint is now representative of the bot's health. [#56306](https://github.com/gravitational/teleport/pull/56306)
+* Machine and Workload Identity: service names used in tbot's logs and `/readyz` endpoint can now be overridden. [#56306](https://github.com/gravitational/teleport/pull/56306)
+* Resolved an issue where directory sharing could become unavailable after sharing a directory, disconnecting the desktop session, and reconnecting again. [#56275](https://github.com/gravitational/teleport/pull/56275)
+
 ## 17.5.3 (06/30/25)
 
 ### Security fixes
