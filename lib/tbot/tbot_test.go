@@ -1261,6 +1261,7 @@ func TestBotJoiningURI(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
 
 	botParams, _ := makeBot(t, rootClient, "test", "role")
 	cfg := &config.BotConfig{
