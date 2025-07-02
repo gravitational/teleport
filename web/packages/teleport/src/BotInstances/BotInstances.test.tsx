@@ -35,6 +35,7 @@ import {
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
+import { makeAcl } from 'teleport/services/user/makeAcl';
 import {
   listBotInstancesError,
   listBotInstancesSuccess,
@@ -78,7 +79,7 @@ describe('BotInstances', () => {
       })
     );
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -91,15 +92,67 @@ describe('BotInstances', () => {
   });
 
   it('Shows an error state', async () => {
-    server.use(listBotInstancesError(500));
+    server.use(listBotInstancesError(500, 'server error'));
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    expect(screen.getByText('Error: server error')).toBeInTheDocument();
+  });
+
+  it('Shows an unsupported sort error state', async () => {
+    const testErrorMessage =
+      'unsupported sort, only bot_name:asc is supported, but got "blah" (desc = true)';
+    server.use(listBotInstancesError(400, testErrorMessage));
+
+    render(<BotInstances />, { wrapper: makeWrapper() });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    expect(screen.getByText(`Error: ${testErrorMessage}`)).toBeInTheDocument();
+
+    server.use(
+      listBotInstancesSuccess({
+        bot_instances: [],
+        next_page_token: '',
+      })
+    );
+
+    const resetButton = screen.getByText('Reset sort');
+    expect(resetButton).toBeInTheDocument();
+    fireEvent.click(resetButton);
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
     expect(
-      screen.getByText('Error: 500', { exact: false })
+      screen.queryByText(`Error: ${testErrorMessage}`)
+    ).not.toBeInTheDocument();
+  });
+
+  it('Shows an unauthorised error state', async () => {
+    render(<BotInstances />, {
+      wrapper: makeWrapper(
+        makeAcl({
+          botInstances: {
+            list: false,
+            create: true,
+            edit: true,
+            remove: true,
+            read: true,
+          },
+        })
+      ),
+    });
+
+    expect(
+      screen.getByText(
+        'You do not have permission to access Bot instances. Missing role permissions:',
+        { exact: false }
+      )
     ).toBeInTheDocument();
+
+    expect(screen.getByText('bot_instance.list')).toBeInTheDocument();
   });
 
   it('Shows a list', async () => {
@@ -123,7 +176,7 @@ describe('BotInstances', () => {
       })
     );
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -157,7 +210,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -168,6 +221,7 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '',
       searchTerm: '',
+      sort: 'active_at_latest:desc',
     });
 
     await waitFor(() => expect(nextButton).toBeEnabled());
@@ -178,6 +232,7 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '.next',
       searchTerm: '',
+      sort: 'active_at_latest:desc',
     });
 
     await waitFor(() => expect(nextButton).toBeEnabled());
@@ -188,6 +243,7 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '.next.next',
       searchTerm: '',
+      sort: 'active_at_latest:desc',
     });
 
     const [prevButton] = screen.getAllByTitle('Previous page');
@@ -227,7 +283,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
 
-    render(<BotInstances />, { wrapper: Wrapper });
+    render(<BotInstances />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -236,6 +292,7 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '',
       searchTerm: '',
+      sort: 'active_at_latest:desc',
     });
 
     const [nextButton] = screen.getAllByTitle('Next page');
@@ -247,6 +304,7 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '.next',
       searchTerm: '',
+      sort: 'active_at_latest:desc',
     });
 
     jest.useRealTimers(); // Required as userEvent.type() uses setTimeout internally
@@ -261,20 +319,94 @@ describe('BotInstances', () => {
       pageSize: 20,
       pageToken: '', // Search should reset to the first page
       searchTerm: 'test-search-term',
+      sort: 'active_at_latest:desc',
+    });
+  });
+
+  it('Allows sorting', async () => {
+    jest.mocked(listBotInstances).mockImplementation(
+      ({ pageToken }) =>
+        new Promise(resolve => {
+          resolve({
+            bot_instances: [
+              {
+                bot_name: `test-bot`,
+                instance_id: `00000000-0000-4000-0000-000000000000`,
+                active_at_latest: `2025-05-19T07:32:00Z`,
+                host_name_latest: 'test-hostname',
+                join_method_latest: 'test-join-method',
+                version_latest: `1.0.0-dev-a12b3c`,
+              },
+            ],
+            next_page_token: pageToken + '.next',
+          });
+        })
+    );
+
+    expect(listBotInstances).toHaveBeenCalledTimes(0);
+
+    render(<BotInstances />, { wrapper: makeWrapper() });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    const lastHeartbeatHeader = screen.getByText('Last heartbeat');
+
+    expect(listBotInstances).toHaveBeenCalledTimes(1);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '',
+      searchTerm: '',
+      sort: 'active_at_latest:desc',
+    });
+
+    fireEvent.click(lastHeartbeatHeader);
+
+    expect(listBotInstances).toHaveBeenCalledTimes(2);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '',
+      searchTerm: '',
+      sort: 'active_at_latest:asc',
+    });
+
+    const botHeader = screen.getByText('Bot');
+    fireEvent.click(botHeader);
+
+    expect(listBotInstances).toHaveBeenCalledTimes(3);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '',
+      searchTerm: '',
+      sort: 'bot_name:desc',
     });
   });
 });
 
-function Wrapper({ children }: PropsWithChildren) {
-  return (
-    <MemoryRouter>
-      <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
-          <InfoGuidePanelProvider data-testid="blah">
-            {children}
-          </InfoGuidePanelProvider>
-        </ConfiguredThemeProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
-  );
+function makeWrapper(
+  customAcl: ReturnType<typeof makeAcl> = makeAcl({
+    botInstances: {
+      list: true,
+      create: true,
+      edit: true,
+      remove: true,
+      read: true,
+    },
+  })
+) {
+  return ({ children }: PropsWithChildren) => {
+    const ctx = createTeleportContext({
+      customAcl,
+    });
+    return (
+      <MemoryRouter>
+        <QueryClientProvider client={testQueryClient}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            <InfoGuidePanelProvider data-testid="blah">
+              <ContextProvider ctx={ctx}>{children}</ContextProvider>
+            </InfoGuidePanelProvider>
+          </ConfiguredThemeProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+  };
 }
