@@ -355,6 +355,13 @@ To ensure a smooth user experience, available updates are downloaded as soon as
 they're found. Users will only need to restart the app to apply the update - 
 either via the auto-update widget/detailed view or manually by closing the app.
 
+It's worth mentioning that applying updates on Windows and Linux may require  
+additional user interaction, since the app is installed per-machine there.
+After the user clicks 'Restart' on manually closes the app, a system pop-up
+will appear, asking for an admin password. To make it less surprising to users, 
+the UI for Windows/Linux will include a message: "you may be prompted for 
+admin password to install the update".
+
 ### Multi-cluster support
 
 Users of Teleport Connect may be logged into multiple clusters, each potentially 
