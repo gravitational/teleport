@@ -17,10 +17,10 @@ Why monitor database connectivity with health checks?
 When a user connects to a database through Teleport, the connection is routed via a Teleport Database Service.
 The Database Service must be able to reach the database's endpoint to proxy the connection.
 
-Teleport Database Services will perform regular health checks for databases that match a global `health_check_config` resource's label selectors.
+Teleport Database Service instances will perform regular health checks for databases that match a global `health_check_config` resource's label selectors.
 If no `health_check_config` matches a database, then health checks will not be enabled for that database.
 
-To perform a health check, Teleport Database Services will attempt to establish a TCP connection to the database's endpoint and report whether the connection succeeded.
+To perform a health check, Teleport Database Service instances will attempt to establish a TCP connection to the database's endpoint and report whether the connection succeeded.
 
 <Admonition type="note">
 Only TCP health checks are available at this time.
@@ -122,11 +122,11 @@ To delete a health check config, run:
 $ tctl rm health_check_config/example
 ```
 
-When a config is created, updated, or deleted, all Teleport Database Services will reevaluate which health check config matches and applies for each of the registered databases they proxy.
+When a config is created, updated, or deleted, all Teleport Database Service instances will reevaluate which health check config matches and applies for each of the registered databases they proxy.
 
 ## Target health
 
-Target health information is reported by Teleport Database Services in `db_server` heartbeat objects for each database that they proxy.
+Target health information is reported by Teleport Database Service instances in `db_server` heartbeat objects for each database that they proxy.
 Among the information is a health status field.
 There are three health statuses:
 
@@ -135,7 +135,7 @@ There are three health statuses:
 - "unhealthy": The Teleport service is not able to reach the database's endpoint. 
 
 <Admonition type="note">
-Teleport Database Services running a version of Teleport that does not support health checks will not report target health information for the databases that they proxy.
+Teleport Database Service instances running a version of Teleport that does not support health checks will not report target health information for the databases that they proxy.
 </Admonition>
 
 You can use `tctl` to view target health information in `db_server.status.target_health`, for example:
@@ -169,7 +169,7 @@ You can click on a highlighted database to view some health check failure detail
 In this AWS RDS database example the health check error is a connection dial timeout, which is commonly caused by AWS security groups blocking connections to the database.
 
 You can use `tctl` to view more information about the affected Teleport Database Service.
-For example, the affected Database Services in the screenshot were deployed using the [Teleport AWS RDS enrollment wizard](../../../admin-guides/management/guides/awsoidc-integration-rds.mdx), which is indicated by the `teleport.dev/awsoidc-agent` label:
+For example, the affected Teleport Database Service instances in the screenshot were deployed using the [Teleport AWS RDS enrollment wizard](../../../admin-guides/management/guides/awsoidc-integration-rds.mdx), which is indicated by the `teleport.dev/awsoidc-agent` label:
 
 ```code
 $ tctl get db_service/22c8ecba-69fc-4c15-b94e-e8815236b9f0
