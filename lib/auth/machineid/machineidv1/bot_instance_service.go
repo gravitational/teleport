@@ -54,7 +54,7 @@ type BotInstancesCache interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*pb.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*pb.BotInstance, string, error)
 }
 
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
@@ -157,7 +157,7 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		return nil, trace.Wrap(err)
 	}
 
-	res, nextToken, err := b.cache.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken, req.FilterSearchTerm)
+	res, nextToken, err := b.cache.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken, req.FilterSearchTerm, req.Sort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
