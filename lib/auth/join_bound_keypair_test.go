@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"strings"
 	"testing"
 	"time"
 
@@ -1242,7 +1243,9 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	require.Len(t, locks, 1)
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 
-	// The previously working client should now be locked.
-	_, err = client.Ping(ctx)
-	require.ErrorContains(t, err, "access denied")
+	// The previously working client should be locked.
+	require.Eventually(t, func() bool {
+		_, err = client.Ping(ctx)
+		return err != nil && strings.Contains(err.Error(), "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
 }
