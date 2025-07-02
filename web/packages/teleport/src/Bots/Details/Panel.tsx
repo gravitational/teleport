@@ -27,6 +27,7 @@ import { fontWeights } from 'design/theme/typography';
 export function Panel(
   props: PropsWithChildren & {
     title: string;
+    isSubPanel?: boolean;
     action?: {
       label: string;
       onClick: () => void;
@@ -35,11 +36,15 @@ export function Panel(
     testId?: string;
   }
 ) {
-  const { title, action, children, testId } = props;
+  const { title, isSubPanel = false, action, children, testId } = props;
   return (
     <Container data-testid={testId}>
       <TitleContainer>
-        <Text as="h2" typography="body2" fontWeight={fontWeights.bold}>
+        <Text
+          as={isSubPanel ? 'h3' : 'h2'}
+          typography={isSubPanel ? 'body2' : 'h2'}
+          fontWeight={fontWeights.bold}
+        >
           {title}
         </Text>
         {action ? (

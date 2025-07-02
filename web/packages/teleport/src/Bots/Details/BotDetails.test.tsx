@@ -31,6 +31,7 @@ import {
   waitForElementToBeRemoved,
   within,
 } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -67,12 +68,18 @@ afterAll(() => server.close());
 
 describe('BotDetails', () => {
   it('should show a page error state', async () => {
-    await withLoadingError();
+    withFetchError();
+    renderComponent();
+    await waitForLoading();
+
     expect(screen.getByText('Error: something went wrong')).toBeInTheDocument();
   });
 
   it('should show a not found error state', async () => {
-    await withLoadingError(404, 'not_found');
+    withFetchError(404, 'not_found');
+    renderComponent();
+    await waitForLoading();
+
     expect(
       screen.getByText('Bot test-bot-name does not exist')
     ).toBeInTheDocument();
@@ -87,7 +94,9 @@ describe('BotDetails', () => {
         }) as unknown as ReturnType<typeof useHistory>
     );
 
-    await withLoadingSuccess();
+    withFetchSuccess();
+    renderComponent();
+    await waitForLoading();
 
     const backButton = screen.getByLabelText('back');
     fireEvent.click(backButton);
@@ -96,7 +105,9 @@ describe('BotDetails', () => {
   });
 
   it('should show page title', async () => {
-    await withLoadingSuccess();
+    withFetchSuccess();
+    renderComponent();
+    await waitForLoading();
 
     const pageHeader = screen.getByTestId('page-header');
     expect(pageHeader).toBeInTheDocument();
@@ -105,7 +116,9 @@ describe('BotDetails', () => {
   });
 
   it('should show bot metadata', async () => {
-    await withLoadingSuccess();
+    withFetchSuccess();
+    renderComponent();
+    await waitForLoading();
 
     const panel = screen.getByTestId('config-panel');
     expect(panel).toBeInTheDocument();
@@ -115,7 +128,9 @@ describe('BotDetails', () => {
   });
 
   it('should show bot roles', async () => {
-    await withLoadingSuccess();
+    withFetchSuccess();
+    renderComponent();
+    await waitForLoading();
 
     const panel = screen.getByTestId('roles-panel');
     expect(panel).toBeInTheDocument();
@@ -125,7 +140,9 @@ describe('BotDetails', () => {
   });
 
   it('should show bot traits', async () => {
-    await withLoadingSuccess();
+    withFetchSuccess();
+    renderComponent();
+    await waitForLoading();
 
     const panel = screen.getByTestId('traits-panel');
     expect(panel).toBeInTheDocument();
@@ -134,19 +151,6 @@ describe('BotDetails', () => {
     expect(within(panel).getByText('value-1')).toBeInTheDocument();
     expect(within(panel).getByText('value-2')).toBeInTheDocument();
     expect(within(panel).getByText('value-3')).toBeInTheDocument();
-  });
-
-  it('Shows a docs link', async () => {
-    const onClick = jest.fn(e => {
-      e.preventDefault();
-    });
-
-    await withLoadingSuccess({ onDocsClicked: onClick });
-
-    const docsButton = screen.getByText('View Documentation');
-    fireEvent.click(docsButton);
-
-    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it('should show an unauthorised error state', async () => {
@@ -166,20 +170,26 @@ describe('BotDetails', () => {
   });
 });
 
-const withLoadingError = async (
-  status = 500,
-  message = 'something went wrong'
-) => {
-  server.use(getBotError(status, message));
-  render(<BotDetails />, { wrapper: makeWrapper() });
+const renderComponent = async (options?: {
+  customAcl?: ReturnType<typeof makeAcl>;
+}) => {
+  const { customAcl } = options ?? {};
+  render(<BotDetails />, {
+    wrapper: makeWrapper({
+      customAcl,
+    }),
+  });
+};
+
+const waitForLoading = async () => {
   await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 };
 
-const withLoadingSuccess = async (params?: {
-  onDocsClicked?: (e: unknown) => void;
-  customAcl?: ReturnType<typeof makeAcl>;
-}) => {
-  const { onDocsClicked, customAcl } = params ?? {};
+const withFetchError = (status = 500, message = 'something went wrong') => {
+  server.use(getBotError(status, message));
+};
+
+const withFetchSuccess = async () => {
   server.use(
     getBotSuccess({
       status: 'active',
@@ -207,10 +217,6 @@ const withLoadingSuccess = async (params?: {
       },
     })
   );
-  render(<BotDetails onDocsLinkClickedForTesting={onDocsClicked} />, {
-    wrapper: makeWrapper({ customAcl }),
-  });
-  await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 };
 
 function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
@@ -230,7 +236,9 @@ function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
-            <ContextProvider ctx={ctx}>{children}</ContextProvider>
+            <ContextProvider ctx={ctx}>
+              <InfoGuidePanelProvider>{children}</InfoGuidePanelProvider>
+            </ContextProvider>
           </ConfiguredThemeProvider>
         </QueryClientProvider>
       </MemoryRouter>

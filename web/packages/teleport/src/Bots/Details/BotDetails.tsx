@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MouseEventHandler, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useHistory, useParams } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { ButtonBorder } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
 import { Indicator } from 'design/Indicator/Indicator';
-import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
 import {
   FeatureBox,
@@ -38,17 +37,13 @@ import {
 import useTeleport from 'teleport/useTeleport';
 
 import { useGetBot } from '../hooks';
+import { InfoGuide } from '../InfoGuide';
 import { Config } from './Config';
 import { Panel } from './Panel';
 import { Roles } from './Roles';
 import { Traits } from './Traits';
 
-const docsUrl =
-  'https://goteleport.com/docs/machine-workload-identity/machine-id/introduction/#bots';
-
-export function BotDetails(props: {
-  onDocsLinkClickedForTesting?: MouseEventHandler<HTMLAnchorElement>;
-}) {
+export function BotDetails() {
   const ctx = useTeleport();
   const history = useHistory();
   const params = useParams<{
@@ -81,6 +76,7 @@ export function BotDetails(props: {
             <FeatureHeaderTitle>Bot details</FeatureHeaderTitle>
           )}
         </Flex>
+        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
       {isLoading ? (
@@ -105,35 +101,17 @@ export function BotDetails(props: {
 
       {hasReadPermission && isSuccess && data ? (
         <Container>
-          <IntroContainer>
-            <IntroText>
-              Teleport Bots enable machines, such as CI/CD workflows, to
-              securely authenticate with your Teleport cluster in order to
-              connect to resources and configure the cluster itself. This is
-              sometimes referred to as machine-to-machine access.
-            </IntroText>
-
-            <ButtonBorder
-              size="medium"
-              as="a"
-              href={docsUrl}
-              target="_blank"
-              rel="noreferrer"
-              onClick={props.onDocsLinkClickedForTesting}
-            >
-              View Documentation
-            </ButtonBorder>
-          </IntroContainer>
-
           <ContentContainer>
             <ColumnContainer>
+              <Panel title="Bot Details" />
+              <Divider />
               <Config
                 botName={data.name}
                 maxSessionDurationSeconds={data.max_session_ttl?.seconds}
               />
-              <Divider />
+              <PaddedDivider />
               <Roles roles={data.roles} />
-              <Divider />
+              <PaddedDivider />
               <Traits traits={data.traits} />
               <Divider />
               <Panel title="Join Tokens">Coming soon</Panel>
@@ -164,17 +142,15 @@ const ColumnContainer = styled(Flex)`
   border-radius: 4px;
 `;
 
-const IntroContainer = styled(Flex)`
-  flex-direction: column;
-  align-items: flex-start;
-  max-width: 800px;
-  gap: 16px;
-`;
-
-const IntroText = styled(Text)``;
-
 const Divider = styled.div`
   height: 1px;
   width: 100%;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+`;
+
+const PaddedDivider = styled.div`
+  height: 1px;
+  background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  margin-left: 16px;
+  margin-right: 16px;
 `;
