@@ -812,9 +812,9 @@ func TestLockInForce(t *testing.T) {
 	case <-endCh:
 	case <-time.After(15 * time.Second):
 		buf := make([]byte, 1<<16)
-		runtime.Stack(buf, true)
+		n := runtime.Stack(buf, true)
 		fmt.Print("\n\n\n---____FAILURE____---\n\n\n")
-		fmt.Printf("%s", buf)
+		fmt.Printf("%s", buf[:n])
 		fmt.Print("\n\n\n---____FAILURE____---\n\n\n")
 
 		require.FailNow(t, "timed out waiting for session to finish")
