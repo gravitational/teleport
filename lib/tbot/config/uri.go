@@ -80,23 +80,30 @@ func applyValueOrError[T comparable](target *T, value T, errMsg string, errArgs 
 func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 	var errors []error
 
-	switch p.AddressKind {
-	case AddressKindAuth:
-		errors = append(errors, applyValueOrError(
-			&cfg.AuthServer, p.Address,
-			"URI host %q conflicts with configured field: auth_server", p.Address))
-	default:
-		// this parameter should not be unspecified due to checks in
-		// ParseJoinURI, so we'll assume proxy.
-		errors = append(errors, applyValueOrError(
-			&cfg.ProxyServer, p.Address,
-			"URI host %q conflicts with configured field: proxy_server", p.Address))
+	if cfg.AuthServer != "" {
+		errors = append(errors, trace.BadParameter("URI conflicts with configured field: auth_server"))
+	} else if cfg.ProxyServer != "" {
+		errors = append(errors, trace.BadParameter("URI conflicts with configured field: proxy_server"))
+	} else {
+		switch p.AddressKind {
+		case AddressKindAuth:
+			cfg.AuthServer = p.Address
+		default:
+			// this parameter should not be unspecified due to checks in
+			// ParseJoinURI, so we'll assume proxy.
+			cfg.ProxyServer = p.Address
+		}
 	}
 
 	errors = append(errors, applyValueOrError(
 		&cfg.Onboarding.JoinMethod, p.JoinMethod,
 		"URI joining method %q conflicts with configured field: onboarding.join_method", p.JoinMethod))
-	cfg.Onboarding.SetToken(p.Token)
+
+	if cfg.Onboarding.TokenValue != "" {
+		errors = append(errors, trace.BadParameter("URI conflicts with configured field: onboarding.token"))
+	} else {
+		cfg.Onboarding.SetToken(p.Token)
+	}
 
 	// The join method parameter maps to a method-specific field when set.
 	if param := p.JoinMethodParameter; param != "" {
@@ -138,6 +145,8 @@ func MapURLSafeJoinMethod(name string) (types.JoinMethod, error) {
 		return types.JoinMethod(name), nil
 	}
 
+	// Various join methods contain underscores ("_") which are not valid
+	// characters in URL schemes, and must be mapped from something valid.
 	switch name {
 	case "bound-keypair", "boundkeypair":
 		return types.JoinMethodBoundKeypair, nil
