@@ -446,13 +446,14 @@ rpc GetAutoUpdate(GetAutoUpdateRequest) returns (GetAutoUpdateResponse);
 message GetAutoUpdateRequest {}
 
 message GetAutoUpdateResponse {
- // key is clusterURI.
-  map<string, Version> clusters = 1;
+  repeated Version versions = 1;
 }
 
 message Version {
-  bool tools_auto_update = 1;
-  string tools_version = 2;
+  string root_cluster_uri = 1;
+  bool tools_auto_update = 2;
+  string tools_version = 3;
+  string min_tools_version = 4;
 }
 ```
 The update logic will resolve the version to install using the following 
