@@ -19,11 +19,10 @@
 import { styled, useTheme } from 'styled-components';
 
 import Flex from 'design/Flex';
-import { Stars } from 'design/Icon/Icons/Stars';
+import { Question } from 'design/Icon/Icons/Question';
 import Label from 'design/Label/Label';
 import { fontWeights } from 'design/theme/typography';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
-import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
 
 import { ApiBotTrait } from 'teleport/services/bot/types';
 
@@ -33,7 +32,7 @@ export function Traits(props: { traits: ApiBotTrait[] }) {
   const { traits } = props;
 
   return (
-    <Panel title="Traits" testId="traits-panel">
+    <Panel title="Traits" isSubPanel testId="traits-panel">
       <TransposedTable>
         <tbody>
           {traits
@@ -41,10 +40,7 @@ export function Traits(props: { traits: ApiBotTrait[] }) {
             .map(r => (
               <tr key={r.name}>
                 <th scope="row">
-                  <Flex gap={2}>
-                    <MaybeInternalTrait traitName={r.name} />
-                    {r.name}
-                  </Flex>
+                  <Trait traitName={r.name} />
                 </th>
                 <td>
                   {r.values.length > 0
@@ -80,26 +76,27 @@ const traitDescriptions: Record<string, string> = {
   github_orgs: 'List of allowed GitHub organizations for git command proxy',
 };
 
-function MaybeInternalTrait(props: { traitName: string }) {
+function Trait(props: { traitName: string }) {
   const theme = useTheme();
-
-  if (!traitsPreset.includes(props.traitName)) return undefined;
 
   const description = traitDescriptions[props.traitName];
 
-  const star = (
-    <Stars
+  const help = (
+    <Question
       size={'small'}
-      color={theme.colors.interactive.solid.primary.default}
+      color={theme.colors.interactive.tonal.neutral[3]}
     />
   );
 
   return description ? (
-    <HoverTooltip placement="top" tipContent={`Internal: ${description}`}>
-      {star}
-    </HoverTooltip>
+    <Flex gap={1}>
+      {props.traitName}
+      <HoverTooltip placement="top" tipContent={description}>
+        {help}
+      </HoverTooltip>
+    </Flex>
   ) : (
-    star
+    props.traitName
   );
 }
 

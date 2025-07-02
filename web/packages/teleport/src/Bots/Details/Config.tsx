@@ -36,7 +36,7 @@ export function Config(props: {
   const { botName, maxSessionDurationSeconds } = props;
 
   return (
-    <Panel title="Metadata" testId="config-panel">
+    <Panel title="Metadata" isSubPanel testId="config-panel">
       <TransposedTable>
         <tbody>
           <tr>

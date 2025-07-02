@@ -25,7 +25,7 @@ export function Roles(props: { roles: string[] }) {
   const { roles } = props;
 
   return (
-    <Panel title="Roles" testId="roles-panel">
+    <Panel title="Roles" isSubPanel testId="roles-panel">
       <Flex>
         {roles.map(r => (
           <Label mr="1" key={r} kind="outline">
