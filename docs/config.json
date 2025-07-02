@@ -829,11 +829,6 @@
       "source": "/reference/architecture/proxy-peering/",
       "destination": "/admin-guides/management/operations/proxy-peering/",
       "permanent": true
-    },
-    {
-      "source": "/installation/",
-      "destination": "/installation/",
-      "permanent": true
     }
   ]
 }
