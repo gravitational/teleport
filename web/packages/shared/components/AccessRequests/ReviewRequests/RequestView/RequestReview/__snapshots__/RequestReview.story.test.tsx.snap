@@ -100,6 +100,21 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
+.c6 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.c13 {
+  display: flex;
+}
+
+.c14 {
+  display: flex;
+  align-items: center;
+}
+
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -114,21 +129,6 @@ exports[`failed state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-}
-
-.c6 {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.c13 {
-  display: flex;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
 }
 
 .c17 {
@@ -399,6 +399,21 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.c12 {
+  display: flex;
+}
+
+.c13 {
+  display: flex;
+  align-items: center;
+}
+
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -413,21 +428,6 @@ exports[`loaded state 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-}
-
-.c5 {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.c12 {
-  display: flex;
-}
-
-.c13 {
-  display: flex;
-  align-items: center;
 }
 
 .c16 {

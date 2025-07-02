@@ -49,15 +49,15 @@ exports[`render Apps 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c6 {
@@ -346,15 +346,15 @@ exports[`render Databases 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c6 {
@@ -663,15 +663,15 @@ exports[`render Desktops 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c6 {
@@ -932,15 +932,15 @@ exports[`render Kubes 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c6 {
@@ -1193,15 +1193,15 @@ exports[`render Nodes 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c6 {
@@ -1544,6 +1544,16 @@ exports[`render Roles 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c9 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.c11 {
+  display: flex;
+}
+
 .c15 {
   display: inline-flex;
   align-items: center;
@@ -1559,16 +1569,6 @@ exports[`render Roles 1`] = `
   margin: 0px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c9 {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.c11 {
-  display: flex;
 }
 
 .c17 {
@@ -1970,15 +1970,15 @@ exports[`render UserGroups 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.c5 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c6 {

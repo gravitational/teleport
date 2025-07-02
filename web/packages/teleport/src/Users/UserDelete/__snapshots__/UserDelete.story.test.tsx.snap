@@ -100,6 +100,16 @@ exports[`confirm state 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,16 +133,6 @@ exports[`confirm state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -367,6 +367,16 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -390,16 +400,6 @@ exports[`failed state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -619,6 +619,16 @@ exports[`processing state 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -642,16 +652,6 @@ exports[`processing state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
 }
 
 .c1 {

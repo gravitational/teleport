@@ -112,6 +112,26 @@ exports[`reset link dialog 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c12 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c14 {
+  display: flex;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -136,26 +156,6 @@ exports[`reset link dialog 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c12 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  display: flex;
 }
 
 .c1 {
@@ -397,6 +397,26 @@ exports[`reset link dialog as invite 1`] = `
   cursor: auto;
 }
 
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c12 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c14 {
+  display: flex;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -421,26 +441,6 @@ exports[`reset link dialog as invite 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c12 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  display: flex;
 }
 
 .c1 {
