@@ -756,6 +756,7 @@ func TestInactivityTimeout(t *testing.T) {
 }
 
 func TestLockInForce(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	f := newFixtureWithoutDiskBasedLogging(t)
 
