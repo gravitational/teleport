@@ -16,6 +16,7 @@ types:
     - "OktaImportRuleV1"
     - "RoleV6"
     - "SAMLConnectorV2"
+    - "SAMLIdPServiceProviderV1"
     - "ServerV2"
     - "SessionRecordingConfigV2"
     - "TrustedClusterV2"
@@ -98,6 +99,13 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   SAMLConnectorV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  SAMLIdPServiceProviderV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -278,6 +286,11 @@ computed_fields:
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.Cert"
     - "SAMLConnectorV2.Kind"
 
+    # SAML IdP Service Provider
+    - "SAMLIdPServiceProviderV1.Kind"
+    - "SAMLConnectorV2.Spec.EntityDescriptor"
+    - "SAMLConnectorV2.Spec.EntityId"
+
     # Server
     - "ServerV2.Kind"
     # Name is not required for servers, this is a special case.
@@ -359,6 +372,11 @@ required_fields:
     - "SAMLConnectorV2.Spec.AttributesToRoles"
     - "SAMLConnectorV2.Metadata.Name"
     - "SAMLConnectorV2.Version"
+
+    # SAML IdP Service Provider
+    - "SAMLIdPServiceProviderV1.Spec"
+    - "SAMLIdPServiceProviderV1.Metadata.Name"
+    - "SAMLIdPServiceProviderV1.Version"
 
     # Server
     - "ServerV2.Version"
@@ -453,6 +471,10 @@ validators:
     - UseVersionBetween(2,2)
   SAMLConnectorV2.Spec:
     - UseAnyOfValidator("entity_descriptor", "entity_descriptor_url")
+  SAMLIdPServiceProviderV1.Version:
+    - UseVersionBetween(1,1)
+  SAMLIdPServiceProviderV1.Spec:
+    - UseAnyOfValidator("entity_descriptor", "entity_id")
   ServerV2.Version:
     - UseVersionBetween(2,2)
   ServerV2.SubKind:
