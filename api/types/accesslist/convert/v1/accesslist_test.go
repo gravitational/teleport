@@ -357,6 +357,43 @@ func TestConvAccessList(t *testing.T) {
 				Status: &accesslistv1.AccessListStatus{},
 			},
 		},
+		{
+			name: "SCIM, Static access list allows for empty owners",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Type:        string(accesslist.SCIM),
+					Title:       "test access list",
+					Description: "test description",
+					Owners:      []*accesslistv1.AccessListOwner{},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: &accesslistv1.AccessListGrants{
+						Roles: []string{"role1"},
+					},
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -366,10 +403,6 @@ func TestConvAccessList(t *testing.T) {
 
 			got := ToProto(acl)
 			require.NoError(t, err)
-
-			if tt.input.Spec.Type == "" {
-				tt.input.Spec.Type = string(accesslist.Dynamic)
-			}
 
 			require.Equal(t, tt.input, got)
 		})
