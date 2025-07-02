@@ -78,6 +78,19 @@ and `proxy-sync` identically (perform synchronous recording).
 
 </Admonition>
 
+### Encryption
+
+Teleport supports at-rest encryption of session recordings for all 4 recording
+modes. It can be enabled through the `teleport.yaml` configuration by setting
+the `session_recording_encryption` flag in the `auth_service` section. It can
+also be enabled dynamically by editing the `session_recording_config` resource
+and setting the `spec.encryption.enabled` flag. Any required encryption keys
+are provisioned using the CA key storage backend which is configured by setting
+`ca_key_params` in the `auth_service` section of the `teleport.yaml`. Similar
+to CAs, when no `ca_key_params` are provided then the encryption keys will be
+software generated and saved in Teleport's storage backend.
+
+
 ### Record at the SSH node
 
 By default, Teleport performs recording at the SSH node. This is because Teleport's
@@ -134,22 +147,26 @@ or terminated due to temporary connection loss.
 
 In synchronous recording modes, the Auth Service receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
-it to the storage backend. Since data is streamed directly to the Auth Service,
-Teleport administrators don't need to be concerned with disk space on their
-Teleport SSH Service and Proxy Service instances, as no recording data is
-written to those disks.
+it to the storage backend. If recording encryption is enabled, the auth service
+is also responsible for encrypting the event stream prior to upload. Since data
+is streamed directly to the Auth Service, Teleport administrators don't need to
+be concerned with disk space on their Teleport SSH Service and Proxy Service
+instances, as no recording data is written to those disks.
 
 ### Asynchronous recording
 
-When asynchronous, recording events are written to the local filesystem
-during the session. When the session completes, Teleport assembles the parts into a
-complete recording and submits the entire recording to the Auth Service for storage.
+When asynchronous recording is enabled, recording events are written to the
+local filesystem during the session. When the session completes, Teleport
+assembles the parts into a complete recording and submits the entire recording
+to the Auth Service for storage.
 
 Since recording data is flushed to disk, administrators should be careful to ensure
 that the system has enough disk space to accommodate the expected number of Teleport
 sessions. Additionally, since recording data is temporarily stored on disk, there
 is a greater chance that it can be tampered with, deleted, or otherwise corrupted
-before the upload completes.
+before the upload completes. Enabling recording encryption for asynchronous
+modes ensures that events are encrypted before being written to the local
+filesystem, which can help prevent tampering.
 
 The advantage of asynchronous recording is that it doesn't require a persistent
 connection to the Auth Service. For example, an SSH session can continue to operate
@@ -182,7 +199,8 @@ audit log storage, which supports a different set of services (SQLite, DynamoDB,
 
 A Teleport session recording is an ordered sequence of structured events associated
 with a session. Each event is an encoded [Protocol Buffer](https://developers.google.com/protocol-buffers)
-and the complete session is compressed with gzip before being written to the storage backend.
+and the complete session is compressed with gzip, and optionally encrypted,
+before being written to the storage backend.
 
 These recordings have a `.tar` extension for backwards compatibility reasons, but it
 should be noted that they are not TAR archives and cannot be read using the `tar` utility.
