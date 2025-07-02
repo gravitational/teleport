@@ -514,6 +514,9 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 	}
 	botConfig := &embeddedtbot.BotConfig{
 		AuthServer: addr,
+		// there's a single "address" from the terraform config so we have to
+		// try both auth and proxy mode
+		AuthServerAddressMode: tbotconfig.AllowProxyAsAuthServer,
 		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: joinToken,
 			CAPath:     caPath,
