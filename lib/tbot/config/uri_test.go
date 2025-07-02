@@ -29,7 +29,6 @@ import (
 
 func TestParseJoinURI(t *testing.T) {
 	tests := []struct {
-		name        string
 		uri         string
 		expect      *JoinURIParams
 		expectError require.ErrorAssertionFunc
@@ -56,25 +55,25 @@ func TestParseJoinURI(t *testing.T) {
 		},
 		{
 			uri: "",
-			expectError: func(tt require.TestingT, err error, i ...interface{}) {
+			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "unsupported joining URI scheme")
 			},
 		},
 		{
 			uri: "tbot+foo+token://example.com",
-			expectError: func(tt require.TestingT, err error, i ...interface{}) {
+			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "address kind must be one of")
 			},
 		},
 		{
 			uri: "tbot+proxy+bar://example.com",
-			expectError: func(tt require.TestingT, err error, i ...interface{}) {
+			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "unsupported join method")
 			},
 		},
 		{
 			uri: "https://example.com",
-			expectError: func(tt require.TestingT, err error, i ...interface{}) {
+			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "unsupported joining URI scheme")
 			},
 		},
@@ -90,6 +89,149 @@ func TestParseJoinURI(t *testing.T) {
 			}
 
 			require.Empty(t, cmp.Diff(parsed, tt.expect))
+		})
+	}
+}
+
+func TestJoinURIApplyToConfig(t *testing.T) {
+	tests := []struct {
+		uri          string
+		inputConfig  *BotConfig
+		expectConfig *BotConfig
+		expectError  require.ErrorAssertionFunc
+	}{
+		{
+			uri:         "tbot+proxy+token://asdf@example.com:1234",
+			inputConfig: &BotConfig{},
+			expectConfig: &BotConfig{
+				Onboarding: OnboardingConfig{
+					TokenValue: "asdf",
+					JoinMethod: types.JoinMethodToken,
+				},
+				ProxyServer: "example.com:1234",
+			},
+		},
+		{
+			uri:         "tbot+proxy+bound-keypair://some-token:secret@example.com:1234",
+			inputConfig: &BotConfig{},
+			expectConfig: &BotConfig{
+				Onboarding: OnboardingConfig{
+					TokenValue: "some-token",
+					JoinMethod: types.JoinMethodBoundKeypair,
+					BoundKeypair: BoundKeypairOnboardingConfig{
+						InitialJoinSecret: "secret",
+					},
+				},
+				ProxyServer: "example.com:1234",
+			},
+		},
+		{
+			uri:         "tbot+auth+azure://some-token:client-id@example.com:1234",
+			inputConfig: &BotConfig{},
+			expectConfig: &BotConfig{
+				Onboarding: OnboardingConfig{
+					TokenValue: "some-token",
+					JoinMethod: types.JoinMethodAzure,
+					Azure: AzureOnboardingConfig{
+						ClientID: "client-id",
+					},
+				},
+				AuthServer: "example.com:1234",
+			},
+		},
+		{
+			uri:         "tbot+auth+gitlab://some-token:var-name@example.com:1234",
+			inputConfig: &BotConfig{},
+			expectConfig: &BotConfig{
+				Onboarding: OnboardingConfig{
+					TokenValue: "some-token",
+					JoinMethod: types.JoinMethodGitLab,
+					Gitlab: GitlabOnboardingConfig{
+						TokenEnvVarName: "var-name",
+					},
+				},
+				AuthServer: "example.com:1234",
+			},
+		},
+		{
+			uri:         "tbot+auth+azure-devops://some-token@example.com:1234",
+			inputConfig: &BotConfig{},
+			expectConfig: &BotConfig{
+				Onboarding: OnboardingConfig{
+					TokenValue: "some-token",
+					JoinMethod: types.JoinMethodAzureDevops,
+				},
+				AuthServer: "example.com:1234",
+			},
+		},
+		{
+			uri:         "tbot+auth+terraform-cloud://some-token:tag@example.com:1234",
+			inputConfig: &BotConfig{},
+			expectConfig: &BotConfig{
+				Onboarding: OnboardingConfig{
+					TokenValue: "some-token",
+					JoinMethod: types.JoinMethodTerraformCloud,
+					Terraform: TerraformOnboardingConfig{
+						AudienceTag: "tag",
+					},
+				},
+				AuthServer: "example.com:1234",
+			},
+		},
+		{
+			uri: "tbot+proxy+token://asdf@example.com:1234",
+			inputConfig: &BotConfig{
+				AuthServer: "example.com",
+			},
+			expectError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "URI conflicts with configured field: auth_server")
+			},
+		},
+		{
+			uri: "tbot+auth+token://asdf@example.com:1234",
+			inputConfig: &BotConfig{
+				ProxyServer: "example.com",
+			},
+			expectError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "URI conflicts with configured field: proxy_server")
+			},
+		},
+		{
+			uri: "tbot+auth+bound-keypair://asdf:secret@example.com:1234",
+			inputConfig: &BotConfig{
+				ProxyServer: "example.com",
+				Onboarding: OnboardingConfig{
+					TokenValue: "token",
+					JoinMethod: types.JoinMethodBoundKeypair,
+					BoundKeypair: BoundKeypairOnboardingConfig{
+						InitialJoinSecret: "secret2",
+					},
+				},
+			},
+			expectError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "field: onboarding.token")
+				require.ErrorContains(tt, err, "field: onboarding.bound_keypair.initial_join_secret")
+				require.ErrorContains(tt, err, "field: proxy_server")
+
+				// Note: join method is already bound_keypair so no error will
+				// be raised for that field.
+				require.NotContains(tt, err.Error(), "field: join_method")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.uri, func(t *testing.T) {
+			parsed, err := ParseJoinURI(tt.uri)
+			require.NoError(t, err)
+
+			err = parsed.ApplyToConfig(tt.inputConfig)
+			if tt.expectError != nil {
+				tt.expectError(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectConfig, tt.inputConfig)
+			}
 		})
 	}
 }
