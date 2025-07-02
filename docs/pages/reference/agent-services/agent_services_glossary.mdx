@@ -1,0 +1,160 @@
+---
+title: Agent Services and Clients Glossary
+h1: Agent Service Glossary
+description: Glossary for Teleport Agent Services and Clients.
+---
+
+This glossary provides definitions and explanations for key terms related to Teleport Agent services and clients. Teleport Agent runs on target systems to facilitate secure access through the Teleport cluster.
+
+# Teleport Agent services and clients
+
+Most agent services can be enabled together or separately depending on deployment needs.
+
+The **"Enabled by Default"** column indicates whether each service is active by default when you run `teleport start` without specifying services.
+
+## Teleport Agent services
+
+| Service Name  | Description   | Common Use Case  | Enabled by Default |
+| ----------------- | ------------------------------------------------------------------------------ | -------------------------------------------------- | ------------------ |
+| `auth_service` | Core authentication and certificate authority service. | Central identity and policy engine  | ✅ |
+| `proxy_service` | Routes client requests and handles access to Teleport clusters and resources. | Public access point for users and workloads | ✅ |
+| `ssh_service` | Provides SSH access to Linux servers with auditing and session recording. | Secure access to Linux nodes | ✅ |
+| `kubernetes_service` | Provides secure, audited access to Kubernetes clusters. | Access control and session tracking for Kubernetes | ❌ |
+| `app_service` | Provides secure access to internal web applications.                           | Protect internal tools and dashboards | ❌ |
+| `db_service` | Manages identity-aware access to databases (e.g., PostgreSQL, MySQL, MongoDB). | Role-based database access with auditing | ❌ |
+| `discovery_service` | Automatically discovers and joins cloud resources (e.g., EC2, Azure VMs). | Auto-enroll infrastructure | ❌ |
+| `windows_desktop_service` | Enables RDP access to Windows desktops through Teleport. | Access control and recording for Windows systems | ❌ |
+| `jamf_service` | Integrates with Jamf for device trust enforcement. | Verify macOS device compliance before login | ❌ |
+| `debug_service` | Exposes internal metrics and debug endpoints for diagnostics. | Development, profiling, and debugging | ✅ |
+
+---
+
+### Auth Service
+
+These settings apply to the Teleport Auth Service:
+
+<Admonition type="tip">
+Teleport Enterprise Cloud manages the Auth Service for you, so you do not need
+to specify these configuration settings.
+</Admonition>
+
+```yaml
+(!docs/pages/includes/config-reference/auth-service.yaml!)
+```
+
+Further reading:
+- [Passwordless](../admin-guides/access-controls/guides/passwordless.mdx): More
+  information about the `passwordless` authentication option.
+- [Headless
+  WebAuthn](../admin-guides/access-controls/guides/headless.mdx): The
+  `headless` authentication option.
+- [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx): Configuring SSO
+  so you can configure Teleport to use a specific SSO authentication connector.
+- [Locking](../identity-governance/locking.mdx): Configuring the
+  `locking_mode` option.
+- [Device Trust](../identity-governance/device-trust/device-trust.mdx): Configuring
+  the `device_trust` section.
+- [Recording Proxy Mode](architecture/session-recording.mdx): If you configure
+  Recording Proxy Mode, consider enabling `proxy_checks_host_keys`.
+
+### Proxy Service
+
+These settings apply to the Teleport Proxy Service:
+
+<Admonition type="tip">
+Teleport Enterprise Cloud manages the Proxy Service for you, so you do not need
+to specify these configuration settings.
+</Admonition>
+
+```yaml
+(!docs/pages/includes/config-reference/proxy-service.yaml!)
+```
+
+### SSH Service
+
+These settings apply to the Teleport SSH Service:
+
+```yaml
+(!docs/pages/includes/config-reference/ssh-service.yaml!)
+```
+
+Further reading:
+- [Enhanced Session
+  Recording](../enroll-resources/server-access/guides/bpf-session-recording.mdx):
+  Configuring `enhanced_recording`.
+- [PAM Integration](../enroll-resources/server-access/guides/ssh-pam.mdx):
+  Configuring the `pam` section.
+
+### Kubernetes Service
+
+These settings apply to the Teleport Kubernetes Service:
+
+```yaml
+(!docs/pages/includes/config-reference/kubernetes-config.yaml!)
+```
+
+### Application Service
+
+These settings apply to the Teleport Application Service:
+
+```yaml
+(!docs/pages/includes/config-reference/app-service.yaml!)
+```
+
+### Database Service
+
+These settings apply to the Teleport Database Service:
+
+```yaml
+(!docs/pages/includes/config-reference/database-config.yaml!)
+```
+
+- [Storage Backends](../backends.mdx) reference: instructions on configuring DynamoDB, S3, etcd, and other highly available
+  backends.
+
+### Discovery Service
+
+These settings apply to the Teleport Discovery Service:
+
+```yaml
+(!docs/pages/includes/discovery/discovery-config.yaml!)
+```
+
+### Windows Desktop Service
+
+These settings apply to the Windows Desktop Service:
+
+```yaml
+(!docs/pages/includes/config-reference/desktop-config.yaml!)
+```
+
+### Jamf Service
+
+These settings apply to the Jamf Service:
+
+```yaml
+(!docs/pages/includes/config-reference/jamf-service.yaml!)
+```
+
+### Debug Service
+
+These settings apply to the Debug Service
+
+```yaml
+(!docs/pages/includes/config-reference/debug-service.yaml!)
+```
+
+## Teleport clients
+
+| Client tool | Description | Common use case |
+| -------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `tsh` | Command-line tool for users to authenticate, connect to resources, and manage sessions. | CLI-based access for engineers and operators |
+| `tctl` | Administrative CLI for managing roles, users, configurations, and resources. | Cluster setup and ongoing admin operations |
+| `tbot` | Lightweight agent that provisions credentials to workloads and CI/CD pipelines. | Machine and workload authentication |
+| Teleport Connect | GUI application for accessing servers, databases, apps, and desktops.  GUI-based daily access for engineers | GUI-based daily access for engineers |
+
+- The `tbot` agent is often deployed in non-interactive environments to bootstrap access securely.
+- All client tools ultimately interact with the Auth and Proxy services, which serve as the backbone of the Teleport platform.
+
+Further reading:
+- [Introduction to Teleport clients](../../connect-your-client/introduction.mdx) Authenticate to Teleport and access protected resources. Designed for end users with links to additional documentation.
