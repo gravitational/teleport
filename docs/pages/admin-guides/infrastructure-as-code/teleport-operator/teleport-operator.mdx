@@ -12,10 +12,9 @@ custom resources. The Teleport Kubernetes Operator watches for those resources a
 reach the desired state.  
 
 Since Teleport version 15, the operator can be deployed both:
-- alongside self-hosted Teleport clusters deployed with the `teleport-cluster` Helm chart.
-  This deployment method differs from version 14. In version 15 and above, the operator
-  is no longer deployed as a sidecar. An operator outage cannot affect Teleport's availability.
-- against a remote Teleport instance (such as Teleport Cloud or deployed with Terraform)
+- Alongside self-hosted Teleport clusters deployed with the `teleport-cluster` Helm chart.
+  An operator outage cannot affect Teleport's availability.
+- Against a remote Teleport instance (such as Teleport Cloud or deployed with Terraform)
 
 The operator supports multiple replicas within a single cluster by electing a
 leader with a Kubernetes lease.
