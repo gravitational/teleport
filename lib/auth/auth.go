@@ -6492,6 +6492,12 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		}
 
 		for _, al := range response {
+			switch al.Spec.Type {
+			case accesslist.ImplicitDynamic, accesslist.Dynamic:
+				// ok, we want notifications for those
+			default:
+				continue
+			}
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
 			if daysDiff <= 15 {
