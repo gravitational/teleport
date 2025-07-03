@@ -99,6 +99,7 @@ Optional:
 - `signing_key_pair` (Attributes) SigningKeyPair is an x509 key pair used to sign AuthnRequest. (see [below for nested schema](#nested-schema-for-specsigning_key_pair))
 - `single_logout_url` (String) SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
 - `sso` (String) SSO is the URL of the identity provider's SSO service.
+- `user_matchers` (List of String) UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.
 
 ### Nested Schema for `spec.attributes_to_roles`
 
