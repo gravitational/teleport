@@ -5546,6 +5546,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HostID:                        cfg.HostUUID,
 				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
+				KubeAdminClusterRoleName:      cfg.Kube.AdminClusterRoleName,
 				Component:                     component,
 				KubeServiceType:               kubeServiceType,
 				LockWatcher:                   lockWatcher,

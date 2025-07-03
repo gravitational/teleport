@@ -3414,7 +3414,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 	}
 
-	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
+	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL, "", req.overrideRoleTTL)
 	// NotFound errors are acceptable - this user may have no k8s access
 	// granted and that shouldn't prevent us from issuing a TLS cert.
 	if err != nil && !trace.IsNotFound(err) {

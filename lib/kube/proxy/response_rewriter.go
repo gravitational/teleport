@@ -171,6 +171,6 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 		}),
 	)
 
-	_, _, _ = accessChecker.CheckKubeGroupsAndUsers(s.sessionTTL, false /* overrideTTL */, matchers...)
+	_, _, _ = accessChecker.CheckKubeGroupsAndUsers(s.sessionTTL, "", false /* overrideTTL */, matchers...)
 	return rolesWithSystemMasters
 }

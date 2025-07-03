@@ -846,6 +846,10 @@ const (
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
 
+	// KubeDefaultAdminClusterRoleName is the name of the default cluster role
+	// that grants full access to all Kubernetes resources in the cluster.
+	KubeDefaultAdminClusterRoleName = "teleport-cluster-admin"
+
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
 

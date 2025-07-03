@@ -141,6 +141,8 @@ type ForwarderConfig struct {
 	// KubeClusterName is the name of the kubernetes cluster that this
 	// forwarder handles.
 	KubeClusterName string
+	// KubeAdminClusterRoleName is the name of the cluster role that grants full access.
+	KubeAdminClusterRoleName string
 	// Clock is a server clock, could be overridden in tests
 	Clock clockwork.Clock
 	// ConnPingPeriod is a period for sending ping messages on the incoming
@@ -1007,7 +1009,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// whose role satisfy the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
-		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
+		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, f.cfg.KubeAdminClusterRoleName, false /* overrideTTL */, matchers...)
 		if err != nil {
 			return kubeAccessDetails{}, trace.Wrap(err)
 		}

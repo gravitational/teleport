@@ -342,6 +342,7 @@ func deleteResources[T kubeObjectInterface](
 		// cluster labels and kubernetes resources.
 		allowedKubeGroups, allowedKubeUsers, err := params.authCtx.Checker.CheckKubeGroupsAndUsers(
 			params.authCtx.sessionTTL,
+			"", // TODO(@creack): Need to pass the AdminClusterRoleName here.
 			false,
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,

@@ -1299,7 +1299,13 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
-	case V8, V9:
+	case V9:
+		if len(r.Spec.Allow.KubeGroups) != 0 || len(r.Spec.Allow.KubeUsers) != 0 || len(r.Spec.Deny.KubeGroups) != 0 || len(r.Spec.Deny.KubeUsers) != 0 {
+			return trace.BadParameter("kube_groups and kube_users are not supported in v9 roles")
+		}
+		fallthrough
+	case V8:
+		// Common validation for v8 and v9 roles.
 		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8, v9 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
@@ -2018,10 +2024,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q must include Namespace", kubeResource.Kind)
 			}
-		case V9:
-			// TODO(@creack): Implement v9 validation.
-			fallthrough
-		case V8:
+		case V8, V9:
 			// Common validation for V8 and V9.
 			if kubeResource.Kind == "" {
 				return trace.BadParameter("KubernetesResource kind %q is required in role version %q", kubeResource.Kind, roleVersion)
