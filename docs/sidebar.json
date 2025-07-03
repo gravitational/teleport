@@ -71,11 +71,6 @@
           }
         },
         {
-          "type": "doc",
-          "label": "Teleport Feature Matrix",
-          "id": "feature-matrix"
-        },
-        {
           "type": "category",
           "label": "Upgrading",
           "collapsible": true,
@@ -110,6 +105,18 @@
             "type": "doc",
             "id": "upgrading/upgrading"
           }
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Quick Links",
+      "collapsible": true,
+      "items": [
+        {
+          "type": "doc",
+          "label": "Teleport Feature Matrix",
+          "id": "feature-matrix"
         },
         {
           "type": "doc",
