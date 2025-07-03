@@ -59,6 +59,7 @@ if (process.env.TEAMID) {
 module.exports = {
   appId,
   asar: true,
+  publish: [{ provider: 'custom' }],
   asarUnpack: '**\\*.{node,dll}',
   afterPack: packed => {
     // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
