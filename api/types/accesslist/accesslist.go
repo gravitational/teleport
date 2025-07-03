@@ -582,7 +582,11 @@ func (a *AccessList) IsReviewable() bool {
 }
 
 // SelectNextReviewDate will select the next review date for the access list.
-func (a *AccessList) SelectNextReviewDate() time.Time {
+func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
+	if !a.IsReviewable() {
+		return time.Time{}, trace.BadParameter("access_list %q is not reviewable", a.GetName())
+	}
+
 	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
 	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
 
