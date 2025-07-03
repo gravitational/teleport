@@ -113,6 +113,17 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
+
+	// websocketALPNServerConn uses "github.com/gobwas/ws" on the raw net.Conn
+	// instead of gorilla's websocket.Conn to workaround an issue that
+	// websocket.Conn caches read error when websocketALPNServerConn is passed
+	// to a HTTP server and get hijacked for another upgrade. Note that client
+	// side's (api/client) websocket ALPN connection wrapper also uses
+	// "github.com/gobwas/ws".
+	conn := newWebSocketALPNServerConn(r.Context(), wsConn.NetConn(), h.logger)
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
 	closeWebsocketFunc := func(closeCode int, closeText string) {
 		// Ensure the WebSocket connection is closed when the handler returns.
 		// This is important because intermediate load balancers may not
@@ -126,22 +137,13 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		if err := wsConn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
 			h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
 		}
+		cancel()
 		if err := wsConn.Close(); err != nil {
 			h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
 		}
 	}
 
 	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
-
-	// websocketALPNServerConn uses "github.com/gobwas/ws" on the raw net.Conn
-	// instead of gorilla's websocket.Conn to workaround an issue that
-	// websocket.Conn caches read error when websocketALPNServerConn is passed
-	// to a HTTP server and get hijacked for another upgrade. Note that client
-	// side's (api/client) websocket ALPN connection wrapper also uses
-	// "github.com/gobwas/ws".
-	conn := newWebSocketALPNServerConn(r.Context(), wsConn.NetConn(), h.logger)
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
 
 	switch wsConn.Subprotocol() {
 	case constants.WebAPIConnUpgradeTypeALPNPing:
@@ -260,10 +262,13 @@ func (conn *waitConn) WaitForClose() {
 }
 
 // Close implements net.Conn.
+// This function cancels the context to unblock WaitForClose but
+// it should never close the underlying connection. This occurs because the
+// connection is a websocket connection that requires a graceful close
+// with a close frame.
 func (conn *waitConn) Close() error {
-	err := conn.Conn.Close()
 	conn.cancel()
-	return trace.Wrap(err)
+	return nil
 }
 
 func (conn *waitConn) NetConn() net.Conn {
