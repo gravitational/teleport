@@ -20,7 +20,7 @@
           "id": "core-concepts"
         },
         {
-          "type": "doc",
+          "type": "category",
           "label": "Installation",
           "collapsible": true,
           "items": [
