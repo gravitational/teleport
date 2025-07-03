@@ -170,10 +170,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		}
 
 		for _, accessList := range accessLists {
-			switch accessList.Spec.Type {
-			case accesslist.ImplicitDynamic, accesslist.Dynamic:
-				// ok, we want reviews for those
-			default:
+			if !accessList.IsReviewable() {
 				continue
 			}
 			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
