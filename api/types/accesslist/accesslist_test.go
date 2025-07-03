@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -262,7 +263,29 @@ func TestAccessListDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("owners are required", func(t *testing.T) {
+	t.Run("audit is not supported for static access_list", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Type = Static
+		uut.Spec.Audit = Audit{
+			NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
+		}
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "audit not supported for non-dynamic access_list")
+	})
+
+	t.Run("owners are not required for static access_list", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Type = Static
+		uut.Spec.Owners = []Owner{}
+		uut.Spec.Audit = Audit{}
+
+		err := uut.CheckAndSetDefaults()
+		require.NoError(t, err)
+	})
+
+	t.Run("otherwise owners are required", func(t *testing.T) {
 		uut := newValidAccessList()
 		uut.Spec.Owners = []Owner{}
 
@@ -286,6 +309,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 
 	tests := []struct {
 		name              string
+		accessListTypes   []Type
 		frequency         ReviewFrequency
 		dayOfMonth        ReviewDayOfMonth
 		currentReviewDate time.Time
@@ -293,6 +317,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}{
 		{
 			name:              "one month, first day",
+			accessListTypes:   []Type{"", Dynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -300,6 +325,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, fifteenth day",
+			accessListTypes:   []Type{"", Dynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -307,6 +333,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, last day",
+			accessListTypes:   []Type{"", Dynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -314,24 +341,45 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
+			accessListTypes:   []Type{"", Dynamic},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "six months, last day",
+			accessListTypes:   []Type{Static, SCIM},
+			frequency:         SixMonths,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Time{},
+			expected:          time.Time{},
+		},
+		{
+			name:              "six months, last day",
+			accessListTypes:   []Type{Static, SCIM},
+			frequency:         SixMonths,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Time{},
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			accessList := AccessList{}
-			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
-			accessList.Spec.Audit.Recurrence = Recurrence{
-				Frequency:  test.frequency,
-				DayOfMonth: test.dayOfMonth,
+			for _, typ := range test.accessListTypes {
+				t.Run(fmt.Sprintf("type=%q", typ), func(t *testing.T) {
+					accessList := AccessList{}
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
+					accessList.Spec.Audit.Recurrence = Recurrence{
+						Frequency:  test.frequency,
+						DayOfMonth: test.dayOfMonth,
+					}
+					require.Equal(t, test.expected, accessList.SelectNextReviewDate())
+				})
 			}
-			require.Equal(t, test.expected, accessList.SelectNextReviewDate())
 		})
 	}
 }

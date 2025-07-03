@@ -340,32 +340,40 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		}
 	}
 
-	if a.Spec.Audit.Recurrence.Frequency == 0 {
-		a.Spec.Audit.Recurrence.Frequency = SixMonths
-	}
+	switch a.Spec.Type {
+	case "", Dynamic:
+		if a.Spec.Audit.Recurrence.Frequency == 0 {
+			a.Spec.Audit.Recurrence.Frequency = SixMonths
+		}
 
-	switch a.Spec.Audit.Recurrence.Frequency {
-	case OneMonth, ThreeMonths, SixMonths, OneYear:
+		switch a.Spec.Audit.Recurrence.Frequency {
+		case OneMonth, ThreeMonths, SixMonths, OneYear:
+		default:
+			return trace.BadParameter("recurrence frequency is an invalid value")
+		}
+
+		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
+			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
+		}
+
+		switch a.Spec.Audit.Recurrence.DayOfMonth {
+		case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
+		default:
+			return trace.BadParameter("recurrence day of month is an invalid value")
+		}
+
+		if a.Spec.Audit.NextAuditDate.IsZero() {
+			a.setInitialAuditDate(clockwork.NewRealClock())
+		}
+
+		if a.Spec.Audit.Notifications.Start == 0 {
+			a.Spec.Audit.Notifications.Start = twoWeeks
+		}
 	default:
-		return trace.BadParameter("recurrence frequency is an invalid value")
-	}
-
-	if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
-		a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
-	}
-
-	switch a.Spec.Audit.Recurrence.DayOfMonth {
-	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
-	default:
-		return trace.BadParameter("recurrence day of month is an invalid value")
-	}
-
-	if a.Spec.Audit.NextAuditDate.IsZero() {
-		a.setInitialAuditDate(clockwork.NewRealClock())
-	}
-
-	if a.Spec.Audit.Notifications.Start == 0 {
-		a.Spec.Audit.Notifications.Start = twoWeeks
+		zeroAudit := Audit{}
+		if a.Spec.Audit != zeroAudit {
+			return trace.BadParameter("audit not supported for non-dynamic access_list")
+		}
 	}
 
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
@@ -547,6 +555,12 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 
 // SelectNextReviewDate will select the next review date for the access list.
 func (a *AccessList) SelectNextReviewDate() time.Time {
+	switch a.Spec.Type {
+	case Static, SCIM:
+		// no review data for non-dynamic access_lists
+		return time.Time{}
+	}
+
 	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
 	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
 
