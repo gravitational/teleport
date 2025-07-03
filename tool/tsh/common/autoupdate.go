@@ -35,7 +35,7 @@ func newUpdateCommand(app *kingpin.Application) *autoUpdateCommand {
 	}
 
 	root.update.CmdClause = app.Command("update",
-		"Update client tools to the latest version defined by the cluster configuration.")
+		"Update client tools (tsh, tctl) to the latest version defined by the cluster configuration.")
 	root.update.CmdClause.Flag("clear", "Removes locally installed client tools updates from the Teleport home directory.").BoolVar(&root.update.clear)
 
 	return root

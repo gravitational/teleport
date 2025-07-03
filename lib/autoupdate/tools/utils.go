@@ -51,28 +51,29 @@ var (
 	ErrVersionCheck = errors.New("version check failed")
 )
 
-// Dir returns the path to client tools in $TELEPORT_HOME/bin.
+// Dir returns the client tools installation directory path, using the following fallback order:
+// $TELEPORT_TOOLS_DIR, $TELEPORT_HOME/bin, and $HOME/.tsh/bin.
 func Dir() (string, error) {
-	if toolsDir := os.Getenv(teleportToolsDirsEnv); toolsDir != "" {
-		return toolsDir, nil
-	}
-	home := os.Getenv(types.HomeEnvVar)
-	if home == "" {
-		var err error
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return "", trace.Wrap(err)
+	toolsDir := os.Getenv(teleportToolsDirsEnv)
+	if toolsDir == "" {
+		toolsDir = os.Getenv(types.HomeEnvVar)
+		if toolsDir == "" {
+			var err error
+			toolsDir, err = os.UserHomeDir()
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			toolsDir = filepath.Join(toolsDir, ".tsh", "bin")
+		} else {
+			toolsDir = filepath.Join(toolsDir, "bin")
 		}
-		home = filepath.Join(home, ".tsh", "bin")
-	} else {
-		home = filepath.Join(home, "bin")
 	}
 
-	home, err := filepath.Abs(home)
+	toolsDir, err := filepath.Abs(toolsDir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return home, nil
+	return toolsDir, nil
 }
 
 // DefaultClientTools list of the client tools needs to be updated by default.
