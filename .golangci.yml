@@ -113,7 +113,7 @@ linters:
           deny:
             - pkg: github.com/gravitational/teleport/integration
               desc: integration test should not be imported outside of intergation tests
-            - pkg: github.com/gravitational/teleport/lib/srv/db/cassandra/testing
+            - pkg: github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/utils/mcptest
               desc: testing packages should not be imported outside of _test.go files
@@ -189,9 +189,11 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/tool/teleport/testenv
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/redis/testing
+            - pkg: github.com/gravitational/teleport/lib/srv/db/redis/protocoltest
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/testing
+            - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest
               desc: testing packages should not be imported outside of _test.go files
         testify:
           files:

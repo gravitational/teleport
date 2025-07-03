@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
+	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
