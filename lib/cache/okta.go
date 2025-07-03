@@ -36,6 +36,7 @@ func newOktaImportRuleCollection(upstream services.Okta, w types.WatchKind) (*co
 
 	return &collection[types.OktaImportRule, oktaImportRuleIndex]{
 		store: newStore(
+			types.KindOktaImportRule,
 			types.OktaImportRule.Clone,
 			map[oktaImportRuleIndex]func(types.OktaImportRule) string{
 				oktaImportRuleNameIndex: types.OktaImportRule.GetName,
@@ -119,6 +120,7 @@ func newOktaImportAssignmentCollection(upstream services.Okta, w types.WatchKind
 
 	return &collection[types.OktaAssignment, oktaAssignmentIndex]{
 		store: newStore(
+			types.KindOktaAssignment,
 			types.OktaAssignment.Copy,
 			map[oktaAssignmentIndex]func(types.OktaAssignment) string{
 				oktaAssignmentNameIndex: types.OktaAssignment.GetName,
