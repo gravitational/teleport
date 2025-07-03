@@ -89,8 +89,11 @@ Provide the following values to their respective fields:
 
 #### General
 
-Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service or Enterprise
-Cloud account domain and port (`443` by default).
+Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service
+or Enterprise Cloud account domain and port (`443` by default). If you have a
+self-hosted cluster with multiple public addresses for the Teleport Proxy
+Service (the value of `proxy_service.public_addr` in the Teleport configuration
+file), ensure that this address points to the first one listed.
 
 - Single sign on URL:
 
