@@ -2197,7 +2197,8 @@ func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request
 }
 
 func isRelevantWebsocketError(err error) bool {
-	return err != nil && !strings.Contains(err.Error(), "next reader: EOF")
+	fmt.Printf("Websocket error: %v %T\n", err, err)
+	return err != nil && !strings.Contains(err.Error(), "EOF")
 }
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
