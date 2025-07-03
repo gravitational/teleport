@@ -16,9 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * @deprecated Use `ButtonWithAddIcon` instead.
- *
- * TODO (bernardjkim): Remove once components in e repo have been updated.
- */
-export { ButtonWithAddIcon as ButtonTextWithAddIcon } from '../ButtonWithAddIcon';
+import { fireEvent, render, screen } from 'design/utils/testing';
+
+import { ButtonWithAddIcon } from './ButtonWithAddIcon';
+
+test('buttonWithAddIcon', () => {
+  const onClick = jest.fn();
+  const label = 'Add Item';
+
+  const { rerender } = render(
+    <ButtonWithAddIcon label={label} onClick={() => onClick('click')} />
+  );
+
+  expect(screen.getByText('Add Item')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Add Item'));
+
+  expect(onClick).toHaveBeenCalledWith('click');
+
+  rerender(
+    <ButtonWithAddIcon
+      label={label}
+      onClick={() => onClick('click')}
+      disabled={true}
+    />
+  );
+  expect(screen.getByText('Add Item')).toBeDisabled();
+});

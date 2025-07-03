@@ -16,31 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonText } from 'design';
-import { Add as AddIcon } from 'design/Icon';
-import type { IconSize } from 'design/Icon/Icon';
-
-export const ButtonTextWithAddIcon = ({
-  label,
-  onClick,
-  disabled,
-  iconSize = 12,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  iconSize?: IconSize;
-}) => {
-  return (
-    <ButtonText onClick={onClick} disabled={disabled} compact pr={2}>
-      <AddIcon
-        className="icon-add"
-        size={iconSize}
-        css={`
-          margin-right: 3px;
-        `}
-      />
-      {label}
-    </ButtonText>
-  );
-};
+export { ButtonWithAddIcon } from './ButtonWithAddIcon';
