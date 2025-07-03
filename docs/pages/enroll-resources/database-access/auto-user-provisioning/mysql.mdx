@@ -58,12 +58,12 @@ Stored procedures are also created and executed from this database.
 The RDS MySQL admin user must use `AWSAuthenticationPlugin` to allow IAM
 authentication:
 ```sql
-CREATE USER 'teleport-admin' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
-GRANT SELECT ON mysql.role_edges TO 'teleport-admin' ;
-GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
+CREATE USER '<Var name="teleport-admin"/>' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+GRANT SELECT ON mysql.role_edges TO '<Var name="teleport-admin"/>' ;
+GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO '<Var name="teleport-admin"/>' ;
 
 CREATE DATABASE IF NOT EXISTS `teleport`;
-GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
+GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO '<Var name="teleport-admin"/>' ;
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
@@ -73,12 +73,12 @@ GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin'
 <TabItem label="Self-hosted MySQL">
 The self-hosted MySQL admin user must have X.509 authentication configured:
 ```sql
-CREATE USER "teleport-admin" REQUIRE SUBJECT "/CN=teleport-admin";
-GRANT SELECT ON mysql.role_edges TO 'teleport-admin' ;
-GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
+CREATE USER "<Var name="teleport-admin"/>" REQUIRE SUBJECT "/CN=<Var name="teleport-admin"/>";
+GRANT SELECT ON mysql.role_edges TO '<Var name="teleport-admin"/>' ;
+GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO '<Var name="teleport-admin"/>' ;
 
 CREATE DATABASE IF NOT EXISTS `teleport`;
-GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
+GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO '<Var name="teleport-admin"/>' ;
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
