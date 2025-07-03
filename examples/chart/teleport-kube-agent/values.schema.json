@@ -20,12 +20,7 @@
         "podSecurityPolicy",
         "labels",
         "image",
-        "clusterRoleName",
-        "clusterRoleBindingName",
-        "roleName",
-        "roleBindingName",
         "podMonitor",
-        "serviceAccountName",
         "secretName",
         "log",
         "affinity",
@@ -37,7 +32,8 @@
         "initContainers",
         "resources",
         "tolerations",
-        "probeTimeoutSeconds"
+        "probeTimeoutSeconds",
+        "rbac"
     ],
     "properties": {
         "authToken": {
@@ -368,22 +364,26 @@
         "clusterRoleName": {
             "$id": "#/properties/clusterRoleName",
             "type": "string",
-            "default": ""
+            "default": "",
+            "deprecated": true
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
             "type": "string",
-            "default": ""
+            "default": "",
+            "deprecated": true
         },
         "roleName": {
             "$id": "#/properties/roleName",
             "type": "string",
-            "default": ""
+            "default": "",
+            "deprecated": true
         },
         "roleBindingName": {
             "$id": "#/properties/roleBindingName",
             "type": "string",
-            "default": ""
+            "default": "",
+            "deprecated": true
         },
         "highAvailability": {
             "$id": "#/properties/highAvailability",
@@ -469,7 +469,8 @@
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
-            "default": ""
+            "default": "",
+            "deprecated": true
         },
         "secretName": {
             "$id": "#/properties/secretName",
@@ -538,6 +539,16 @@
             "$id": "#/properties/extraLabels",
             "type": "object",
             "properties": {
+                "adminClusterRole": {
+                    "$id": "#/properties/extraLabels/properties/adminClusterRole",
+                    "type": "object",
+                    "default": {}
+                },
+                "adminClusterRoleBinding": {
+                    "$id": "#/properties/extraLabels/properties/adminClusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
                 "clusterRole": {
                     "$id": "#/properties/extraLabels/properties/clusterRole",
                     "type": "object",
@@ -664,6 +675,36 @@
                     "$id": "#properties/rbac/create",
                     "type": "boolean",
                     "default": true
+                },
+                "adminClusterRoleName": {
+                    "$id": "#/properties/rbac/adminClusterRoleName",
+                    "type": "string",
+                    "default": ""
+                },
+                "adminClusterRoleBindingName": {
+                    "$id": "#/properties/rbac/adminClusterRoleBindingName",
+                    "type": "string",
+                    "default": ""
+                },
+                "clusterRoleName": {
+                    "$id": "#/properties/rbac/clusterRoleName",
+                    "type": "string",
+                    "default": ""
+                },
+                "clusterRoleBindingName": {
+                    "$id": "#/properties/rbac/clusterRoleBindingName",
+                    "type": "string",
+                    "default": ""
+                },
+                "roleName": {
+                    "$id": "#/properties/rbac/roleName",
+                    "type": "string",
+                    "default": ""
+                },
+                "roleBindingName": {
+                    "$id": "#/properties/rbac/roleBindingName",
+                    "type": "string",
+                    "default": ""
                 }
             }
         },

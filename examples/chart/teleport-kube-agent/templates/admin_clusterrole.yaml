@@ -1,0 +1,21 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "teleport-kube-agent.rbac-admin-clusterrole-name" . }}
+{{- if .Values.extraLabels.adminClusterRole }}
+  labels:
+  {{- toYaml .Values.extraLabels.adminClusterRole | nindent 4 }}
+{{- end }}
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - '*'
+{{- end -}}

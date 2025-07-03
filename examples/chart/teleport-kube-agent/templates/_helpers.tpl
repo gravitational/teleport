@@ -48,3 +48,43 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- define "teleport-kube-agent.image" -}}
 {{ include "teleport-kube-agent.baseImage" . }}:{{ include "teleport-kube-agent.version" . }}
 {{- end -}}
+
+{{- define "teleport-kube-agent.rbac-role-name" -}}
+{{- coalesce .Values.rbac.roleName .Values.roleName .Release.Name -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.rbac-rolebinding-name" -}}
+{{- coalesce .Values.rbac.roleBindingName .Values.roleBindingName .Release.Name -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.rbac-clusterrole-name" -}}
+{{- coalesce .Values.rbac.clusterRoleName .Values.rbac.clusterRoleName .Release.Name -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.rbac-clusterrolebinding-name" -}}
+{{- coalesce .Values.rbac.clusterRoleBindingName .Values.rbac.clusterRoleBindingName .Release.Name -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.rbac-admin-clusterrole-name" -}}
+{{- if .Values.rbac.adminClusterRoleName -}}
+{{- .Values.rbac.adminClusterRoleName -}}
+{{- else -}}
+{{- printf "%s-cluster-admin" .Release.Name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.rbac-admin-clusterrolebinding-name" -}}
+{{- if .Values.rbac.adminClusterRoleBindingName -}}
+{{- .Values.rbac.adminClusterRoleBindingName -}}
+{{- else -}}
+{{- printf "%s-cluster-admin" .Release.Name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.rbac-admin-group-name" -}}
+{{- if .Values.rbac.adminGroupName -}}
+{{- .Values.rbac.adminGroupName -}}
+{{- else -}}
+{{- printf "%s-cluster-admin" .Release.Name -}}
+{{- end -}}
+{{- end -}}
