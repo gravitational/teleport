@@ -49,6 +49,17 @@ const (
 	ldapRequestTimeout = 45 * time.Second
 )
 
+// LocateServer contains parameters for locating LDAP servers
+// from the AD Domain
+type LocateServer struct {
+	// Automatically locate the LDAP server using DNS SRV records.
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool
+	// Use LDAP site to locate servers from a specific logical site.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
+	Site string
+}
+
 // LDAPConfig contains parameters for connecting to an LDAP server.
 type LDAPConfig struct {
 	// Addr is the LDAP server address in the form host:port.
@@ -67,12 +78,8 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
-	// Automatically locate the LDAP server using DNS SRV records.
-	// https://ldap.com/dns-srv-records-for-ldap/
-	LocateServer bool
-	// Use LDAP site to locate servers from a specific logical site.
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
-	Site string
+	// LocateServer contains parameters for locating LDAP servers from the AD domain.
+	LocateServer
 	// Logger is the logger for the service.
 	Logger *slog.Logger
 }
@@ -81,10 +88,10 @@ type LDAPConfig struct {
 func (cfg *LDAPConfig) CheckAndSetDefaults() error {
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 
-	if cfg.Addr == "" && !cfg.LocateServer {
+	if cfg.Addr == "" && !cfg.LocateServer.Enabled {
 		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
 	}
-	if !cfg.LocateServer && cfg.Site != "" {
+	if !cfg.LocateServer.Enabled && cfg.Site != "" {
 		cfg.Logger.WarnContext(context.Background(), "Site is set, but locate_server is false. Site will be ignored.")
 	}
 	if cfg.Domain == "" {
@@ -312,7 +319,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Co
 	}
 
 	servers := []string{c.Addr}
-	if c.LocateServer {
+	if c.LocateServer.Enabled {
 		var resolver *net.Resolver
 		resolverAddr := os.Getenv("TELEPORT_DESKTOP_ACCESS_RESOLVER_IP")
 		dial := func(dialCtx context.Context, network, address string) (net.Conn, error) {

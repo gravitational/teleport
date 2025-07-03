@@ -2561,7 +2561,7 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	ldapConfigOK := wds.LDAP.Addr != "" || (wds.LDAP.Domain != "" && wds.LDAP.LocateServer)
+	ldapConfigOK := wds.LDAP.Addr != "" || (wds.LDAP.Domain != "" && wds.LDAP.LocateServer.Enabled)
 
 	if hasAD && !ldapConfigOK {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
@@ -2599,6 +2599,18 @@ type WindowsHost struct {
 	AD bool `yaml:"ad"`
 }
 
+// LocateServer contains parameters for locating LDAP servers
+// from the AD Domain
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Site is an LDAP site to locate servers from a specific logical site.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
+	Site string `yaml:"site,omitempty"`
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
@@ -2617,11 +2629,8 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
-	// LocateServer enables LDAP server location using DNS SRV records.
-	// When enabled, Domain must be set, and Addr can be left empty.
-	LocateServer bool `yaml:"locate_server,omitempty"`
-	// Site is an LDAP site to locate servers from a specific logical site, if LocateServer is enabled.
-	Site string `yaml:"site,omitempty"`
+	// LocateServer is the config that enables LDAP server location using DNS SRV records.
+	LocateServer `yaml:"locate_server,omitempty"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.

@@ -147,6 +147,15 @@ type HostLabelRule struct {
 	Labels map[string]string
 }
 
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool
+	// Site is an LDAP site to locate servers from a specific logical site.
+	Site string
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the address:port of the LDAP server (typically port 389).
@@ -163,12 +172,9 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
-	// Automatically locate the LDAP server using DNS SRV records.
+	// LocateServer automatically locates the LDAP server using DNS SRV records.
 	// https://ldap.com/dns-srv-records-for-ldap/
-	LocateServer bool
-	// Use LDAP site to locate servers from a specific logical site.
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
-	Site string
+	LocateServer
 	// Logger is the logger for the service.
 	Logger *slog.Logger
 }
