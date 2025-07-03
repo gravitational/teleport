@@ -271,7 +271,6 @@ func TestAccessListReminders_NoneForNonDynamic(t *testing.T) {
 			advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
 		})
 	}
-
 }
 
 func TestAccessListReminders_Batched(t *testing.T) {
