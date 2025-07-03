@@ -48,33 +48,6 @@ more critically, difficult to get setup on day 1.
 - Clarify / Improve documentation for the various ways to setup Kubernetes in
   Teleport.
 
-## Prior work
-
-### CRDs
-
-We recently added support for _all_ Kubernetes resources, including CRDs, which
-makes resource management easier as we now use the same resource name/group as
-Kubernetes.
-
-### Complete resources support
-
-We now register all resources available in Kubernetes instead of restricting
-to only a select few. This results in much more consistent permissions
-behavior.
-
-While this is a great step, we still fallback to the underlying Kubernetes
-cluster when hitting an unknown resource (which happens when a new CRD gets
-created), which means we are not yet authoritative.
-
-### Wildcard Kind / Namespace behavior change
-
-Starting with Role v8, the `namespaces` kind only means the resource itself
-instead of the resource everything within it.
-
-Role v8 also changed how the wildcard kind works, it now enforces the
-`namespace` field, which allows setting permission for a specific cluster-wide
-or namespaced resource easily.
-
 ## Proposal
 
 ### Background
@@ -210,9 +183,12 @@ index b2aa02fcb4..db4b2050b7 100644
 
 ### New Teleport Role Model
 
-The new role model version will be the same as V8 with `kubernetes_group` and
-`kubernetes_user` fields deprecated. While we can't remove them from the model,
+The new role model version will be the same as V8 with `kubernetes_groups` and
+`kubernetes_users` fields deprecated. While we can't remove them from the model,
 if they are set, the validation will reject the role.
+If a role with version 9 attempts to set the `kubernetes_users` or
+`kubernetes_groups` fields, or if an older role with those values set attempt
+to update the version to 9, it will be rejected.
 
 - https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/api/types/role.go#L1979
 
