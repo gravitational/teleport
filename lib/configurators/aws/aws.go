@@ -22,8 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"slices"
 	"strings"
 
@@ -336,21 +334,6 @@ func getLocalRegion(ctx context.Context, localRegionGetter localRegionGetter) (s
 	return region, true
 }
 
-func getFallbackRegion(ctx context.Context, w io.Writer, localRegionGetter localRegionGetter) string {
-	if localRegion, ok := getLocalRegion(ctx, localRegionGetter); ok {
-		fmt.Fprintf(w, "Using region %q from instance metadata.\n", localRegion)
-		return localRegion
-	}
-
-	// Fallback to us-east-1, which also supports fips.
-	fmt.Fprint(w, `
-Warning: No region found from the default AWS config or instance metadata. Defaulting to 'us-east-1'.
-To avoid seeing this warning, please provide a region in your AWS config or through the AWS_REGION environment variable.
-
-`)
-	return "us-east-1"
-}
-
 func getSTSClient(cfg aws.Config) *sts.Client {
 	return stsutils.NewFromConfig(cfg, func(o *sts.Options) {
 		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
@@ -374,11 +357,9 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.awsCfg == nil {
 			cfg, err := awsconfig.GetConfig(
 				ctx,
-				getFallbackRegion(ctx, os.Stdout, nil),
+				"", /* region */
+				awsconfig.WithEC2IMDSRegion(),
 				awsconfig.WithAmbientCredentials(),
-				awsconfig.WithSTSClientProvider(func(cfg aws.Config) awsconfig.STSClient {
-					return getSTSClient(cfg)
-				}),
 				awsconfig.WithAssumeRole(c.Flags.AssumeRoleARN, c.Flags.ExternalID),
 			)
 			if err != nil {

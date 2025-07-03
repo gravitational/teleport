@@ -137,6 +137,8 @@ type options struct {
 	stsClientProvider STSClientProviderFunc
 	// baseCredentials is the base config used to assume the roles.
 	baseCredentials aws.CredentialsProvider
+
+	useEC2IMDSRegion bool
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -328,6 +330,12 @@ func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider
 	}
 }
 
+func WithEC2IMDSRegion() OptionsFn {
+	return func(o *options) {
+		o.useEC2IMDSRegion = true
+	}
+}
+
 // GetConfig returns an AWS config for the specified region, optionally
 // assuming AWS IAM Roles.
 func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
@@ -365,6 +373,9 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 	}
 	if opts.maxRetries != nil {
 		configOpts = append(configOpts, config.WithRetryMaxAttempts(*opts.maxRetries))
+	}
+	if opts.useEC2IMDSRegion {
+		configOpts = append(configOpts, config.WithEC2IMDSRegion())
 	}
 	return configOpts
 }

@@ -21,7 +21,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"io"
 	"regexp"
 	"sort"
 	"testing"
@@ -1921,34 +1920,4 @@ type mockLocalRegionGetter struct {
 
 func (m mockLocalRegionGetter) GetRegion(context.Context) (string, error) {
 	return m.region, m.err
-}
-
-func Test_getFallbackRegion(t *testing.T) {
-	tests := []struct {
-		name              string
-		localRegionGetter localRegionGetter
-		wantRegion        string
-	}{
-		{
-			name: "fallback to retrieved local region",
-			localRegionGetter: mockLocalRegionGetter{
-				region: "my-local-region",
-			},
-			wantRegion: "my-local-region",
-		},
-		{
-			name: "fallback to us-east",
-			localRegionGetter: mockLocalRegionGetter{
-				err: fmt.Errorf("failed to get local region"),
-			},
-			wantRegion: "us-east-1",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			region := getFallbackRegion(context.Background(), io.Discard, test.localRegionGetter)
-			require.Equal(t, test.wantRegion, region)
-		})
-	}
 }
