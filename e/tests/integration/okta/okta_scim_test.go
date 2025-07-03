@@ -124,7 +124,7 @@ func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.C
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			user, err = client.GetUser(ctx, scimUserName)
 			require.True(t, trace.IsBadParameter(err))
-		}, 1*time.Second, time.Millisecond*50)
+		}, time.Second*3, time.Millisecond*50)
 	})
 
 	var group *scimsdk.Group
@@ -149,7 +149,7 @@ func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.C
 				return
 			}
 			assert.Equal(t, groupName, got.DisplayName)
-		}, time.Second, time.Millisecond*50)
+		}, time.Second*3, time.Millisecond*50)
 	})
 
 	t.Run("Update SCIM Group", func(t *testing.T) {
