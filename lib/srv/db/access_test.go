@@ -44,6 +44,7 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
@@ -2637,6 +2639,19 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				t.Fatal("timed out waiting for inventory handle sender")
 			}
 		}
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			dbServers, err := c.proxyServer.cfg.AccessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
+			if !assert.NoError(t, err) {
+				return
+			}
+			names := map[string]struct{}{}
+			for _, srv := range dbServers {
+				names[srv.GetName()] = struct{}{}
+			}
+			for _, db := range p.Databases {
+				assert.Contains(t, names, db.GetName())
+			}
+		}, 20*time.Second, 100*time.Millisecond, "waiting for database servers to become available")
 	}
 
 	return server
