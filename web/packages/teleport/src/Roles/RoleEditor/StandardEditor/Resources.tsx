@@ -58,6 +58,7 @@ import {
   newKubernetesResourceModel,
   ResourceAccess,
   ResourceAccessKind,
+  roleForbidsKubernetesUsersGroups,
   ServerAccess,
   supportsKubernetesCustomResources,
   WindowsDesktopAccess,
@@ -286,40 +287,43 @@ export function KubernetesAccessSection({
   const resourcesValidationResult = useRule(
     precomputed(validation.fields.resources)(value.resources)
   );
+  const forbidUserGroup = roleForbidsKubernetesUsersGroups(value.roleVersion);
   return (
     <>
-      <FieldSelectCreatable
-        isMulti
-        label="Groups"
-        placeholder="Type a group name and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Group: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.groups}
-        onChange={groups => onChange?.({ ...value, groups })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.groups)}
-      />
-
-      <FieldSelectCreatable
-        isMulti
-        label="Users"
-        placeholder="Type a user name and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `User: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.users}
-        onChange={users => onChange?.({ ...value, users })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.users)}
-      />
-
+      {(!forbidUserGroup || !!value.groups?.length) && (
+        <FieldSelectCreatable
+          isMulti
+          label="Groups"
+          placeholder="Type a group name and press Enter"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Group: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.groups}
+          onChange={groups => onChange?.({ ...value, groups })}
+          menuPosition="fixed"
+          rule={precomputed(validation.fields.groups)}
+        />
+      )}
+      {(!forbidUserGroup || !!value.users?.length) && (
+        <FieldSelectCreatable
+          isMulti
+          label="Users"
+          placeholder="Type a user name and press Enter"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `User: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.users}
+          onChange={users => onChange?.({ ...value, users })}
+          menuPosition="fixed"
+          rule={precomputed(validation.fields.users)}
+        />
+      )}
       <LabelsInput
         atLeastOneRow
         legend="Labels"
@@ -328,7 +332,6 @@ export function KubernetesAccessSection({
         rule={precomputed(validation.fields.labels)}
         setLabels={labels => onChange?.({ ...value, labels })}
       />
-
       <Flex flexDirection="column" gap={3} mt={3}>
         {value.resources.map((resource, index) => (
           <KubernetesResourceView
