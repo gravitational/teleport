@@ -113,26 +113,6 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
-	closeWebsocketFunc := func(closeCode int, closeText string) {
-		// Ensure the WebSocket connection is closed when the handler returns.
-		// This is important because intermediate load balancers may not
-		// properly handle the WebSocket connection if it is not closed
-		// gracefully.
-		// Calling wsConn.Close() will not send a close frame, so we
-		// send a close frame first otherwise the client may see it as an
-		// io.EOF error.
-		closeMessage := websocket.FormatCloseMessage(closeCode, closeText)
-		h.logger.DebugContext(r.Context(), "Closing websocket")
-		if err := wsConn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
-			h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
-		}
-		if err := wsConn.Close(); err != nil {
-			h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
-		}
-	}
-
-	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
-
 	// websocketALPNServerConn uses "github.com/gobwas/ws" on the raw net.Conn
 	// instead of gorilla's websocket.Conn to workaround an issue that
 	// websocket.Conn caches read error when websocketALPNServerConn is passed
@@ -141,7 +121,27 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	// "github.com/gobwas/ws".
 	conn := newWebSocketALPNServerConn(r.Context(), wsConn.NetConn(), h.logger)
 	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
+	closeWebsocketFunc := func(closeCode int, closeText string) {
+		// Ensure the WebSocket connection is closed when the handler returns.
+		// This is important because intermediate load balancers may not
+		// properly handle the WebSocket connection if it is not closed
+		// gracefully.
+		// Calling wsConn.Close() will not send a close frame, so we
+		// send a close frame first otherwise the client may see it as an
+		// io.EOF error.
+		cancel()
+		closeMessage := websocket.FormatCloseMessage(closeCode, closeText)
+		h.logger.DebugContext(r.Context(), "Closing websocket")
+		if err := wsConn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
+			h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
+		}
+		time.Sleep(5 * time.Second)
+		if err := wsConn.Close(); err != nil {
+			h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
+		}
+	}
+
+	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
 
 	switch wsConn.Subprotocol() {
 	case constants.WebAPIConnUpgradeTypeALPNPing:
