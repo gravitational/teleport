@@ -288,6 +288,8 @@ type awsConfigurator struct {
 	// actions list of the configurator actions, those are populated on the
 	// `build` function.
 	actions []configurators.ConfiguratorAction
+
+	targetAccounts []string
 }
 
 type ConfiguratorConfig struct {
@@ -510,7 +512,21 @@ func NewAWSConfigurator(config ConfiguratorConfig) (configurators.Configurator, 
 		return nil, trace.Wrap(err)
 	}
 
-	return &awsConfigurator{config, actions}, nil
+	assumedRoles := config.getAssumedRoles()
+	targetAccounts := make([]string, 0, len(assumedRoles))
+	for _, ar := range assumedRoles {
+		identity, err := config.GetIdentity(ar.RoleARN, ar.ExternalID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		targetAccounts = append(targetAccounts, identity.GetAccountID())
+	}
+
+	return &awsConfigurator{
+		config:         config,
+		actions:        actions,
+		targetAccounts: apiutils.Deduplicate(targetAccounts),
+	}, nil
 }
 
 // IsEmpty checks if the configurator has no actions.
@@ -525,7 +541,7 @@ func (a *awsConfigurator) Name() string {
 
 // Description returns a brief description of the configurator.
 func (a *awsConfigurator) Description() string {
-	return "Configure AWS for " + a.config.Flags.Service.Name()
+	return fmt.Sprintf("Configure AWS for %s for accounts: [%s]", a.config.Flags.Service.Name(), strings.Join(a.targetAccounts, ", "))
 }
 
 // Actions list of configurator actions.
@@ -542,11 +558,13 @@ type awsPolicyCreator struct {
 	policy *awslib.Policy
 	// formattedPolicy human-readable representation of the policy document.
 	formattedPolicy string
+
+	accountID string
 }
 
 // Description returns what the action will perform.
 func (a *awsPolicyCreator) Description() string {
-	return fmt.Sprintf("Create IAM Policy %q", a.policy.Name)
+	return fmt.Sprintf("[%s] Create IAM Policy %q", a.accountID, a.policy.Name)
 }
 
 // Details returns the policy document that will be created.
@@ -579,7 +597,7 @@ type awsPoliciesAttacher struct {
 
 // Description returns what the action will perform.
 func (a *awsPoliciesAttacher) Description() string {
-	return fmt.Sprintf("Attach IAM policies to %q", a.target.GetName())
+	return fmt.Sprintf("[%s] Attach IAM policies to %q", a.target.GetAccountID(), a.target.GetName())
 }
 
 // Details attacher doesn't have any extra detail, this function returns an
@@ -656,6 +674,7 @@ func buildCommonActions(config ConfiguratorConfig, targetCfg targetConfig) ([]co
 		policies:        policies,
 		policy:          policy,
 		formattedPolicy: formattedPolicy,
+		accountID:       targetCfg.identity.GetAccountID(),
 	})
 
 	// Attach the policy to the target.
@@ -961,9 +980,10 @@ func buildSSMDocumentCreators(config ConfiguratorConfig, targetCfg targetConfig,
 				return nil, trace.Wrap(err)
 			}
 			ssmCreator := awsSSMDocumentCreator{
-				ssm:      ssmClient,
-				Name:     matcher.SSM.DocumentName,
-				Contents: awslib.EC2DiscoverySSMDocument(proxyAddr),
+				ssm:       ssmClient,
+				Name:      matcher.SSM.DocumentName,
+				Contents:  awslib.EC2DiscoverySSMDocument(proxyAddr),
+				accountID: targetCfg.identity.GetAccountID(),
 			}
 			creators = append(creators, &ssmCreator)
 		}
@@ -1247,14 +1267,15 @@ func buildARN(target awslib.Identity, service, resource string) string {
 }
 
 type awsSSMDocumentCreator struct {
-	Contents string
-	ssm      ssmClient
-	Name     string
+	Contents  string
+	ssm       ssmClient
+	Name      string
+	accountID string
 }
 
 // Description returns what the action will perform.
 func (a *awsSSMDocumentCreator) Description() string {
-	return fmt.Sprintf("Create SSM Document %q", a.Name)
+	return fmt.Sprintf("[%s] Create SSM Document %q", a.accountID, a.Name)
 }
 
 // Details returns the policy document that will be created.
