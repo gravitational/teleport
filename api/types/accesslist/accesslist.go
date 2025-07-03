@@ -180,14 +180,15 @@ type Spec struct {
 type Type string
 
 const (
-	Dynamic Type = "dynamic"
-	Static  Type = "static"
-	SCIM    Type = "scim"
+	ImplicitDynamic Type = ""
+	Dynamic         Type = "dynamic"
+	Static          Type = "static"
+	SCIM            Type = "scim"
 )
 
 func NewTypeFromString(s string) (Type, error) {
 	switch s {
-	case "", string(Dynamic):
+	case string(ImplicitDynamic), string(Dynamic):
 		return Dynamic, nil
 	case string(Static):
 		return Static, nil
