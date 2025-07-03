@@ -4749,10 +4749,10 @@ func createAccessList(t *testing.T, authServer *Server, name string, opts ...cre
 			Roles: []string{"grant"},
 		},
 	})
-	require.NoError(t, err, "accesslist.NewAccessList")
+	require.NoError(t, err)
 
 	_, err = authServer.UpsertAccessList(ctx, al)
-	require.NoError(t, err, "authServer.UpsertAccessList")
+	require.NoError(t, err)
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
