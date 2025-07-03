@@ -4646,33 +4646,6 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	client, err := testServer.NewClient(authtest.TestUser(testUsername))
 	require.NoError(t, err)
 
-	// Helper to create access lists with specific next audit dates
-	createAccessList := func(t *testing.T, name string, nextAuditDate time.Time) {
-		al, err := accesslist.NewAccessList(header.Metadata{
-			Name: name,
-		}, accesslist.Spec{
-			Title:       fmt.Sprintf("Access List %s", name),
-			Description: fmt.Sprintf("Test access list %s", name),
-			Owners: []accesslist.Owner{{
-				Name:           testUsername,
-				Description:    "",
-				MembershipKind: "",
-			}},
-			Audit: accesslist.Audit{
-				NextAuditDate: nextAuditDate,
-				Recurrence:    accesslist.Recurrence{},
-				Notifications: accesslist.Notifications{},
-			},
-			Grants: accesslist.Grants{
-				Roles: []string{"grant"},
-			},
-		})
-		require.NoError(t, err)
-
-		_, err = authServer.UpsertAccessList(ctx, al)
-		require.NoError(t, err)
-	}
-
 	// Create access lists with different expiry times
 	accessLists := []struct {
 		name      string
@@ -4696,7 +4669,12 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	for _, al := range accessLists {
-		createAccessList(t, al.name, authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour))
+		createAccessList(t, authServer, al.name+"-static", withType(accesslist.Static))
+		createAccessList(t, authServer, al.name+"-scim", withType(accesslist.SCIM))
+		createAccessList(t, authServer, al.name,
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
 	}
 
 	// Run CreateAccessListReminderNotifications()
@@ -4718,6 +4696,63 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Notifications, 6)
+}
+
+type createAccessListOptions struct {
+	typ           accesslist.Type
+	nextAuditDate time.Time
+	owners        []accesslist.Owner
+}
+
+type createAccessListOpt func(*createAccessListOptions)
+
+func withType(typ accesslist.Type) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withNextAuditDate(nextAuditDate time.Time) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.nextAuditDate = nextAuditDate
+	}
+}
+
+func withOwners(owners []accesslist.Owner) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.owners = owners
+	}
+}
+
+func createAccessList(t *testing.T, authServer *Server, name string, opts ...createAccessListOpt) {
+	t.Helper()
+	ctx := t.Context()
+
+	options := createAccessListOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: name,
+	}, accesslist.Spec{
+		Type:        options.typ,
+		Title:       fmt.Sprintf("Test Access List %s", name),
+		Description: fmt.Sprintf("Test Access List %s description", name),
+		Owners:      options.owners,
+		Audit: accesslist.Audit{
+			NextAuditDate: options.nextAuditDate,
+			Recurrence:    accesslist.Recurrence{},
+			Notifications: accesslist.Notifications{},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+	})
+	require.NoError(t, err, "accesslist.NewAccessList")
+
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err, "authServer.UpsertAccessList")
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
