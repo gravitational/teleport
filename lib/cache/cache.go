@@ -206,6 +206,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindRecordingEncryption},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -737,6 +738,8 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// RecordingEncryption manages state surrounding session recording encryption
+	RecordingEncryption services.RecordingEncryption
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

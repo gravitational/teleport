@@ -54,6 +54,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -144,6 +145,7 @@ type testPack struct {
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
+	recordingEncryption     *local.RecordingEncryptionService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -413,6 +415,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.recordingEncryption, err = local.NewRecordingEncryptionService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -468,6 +475,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -728,6 +736,7 @@ func TestCompletenessInit(t *testing.T) {
 			AutoUpdateService:       p.autoUpdateService,
 			ProvisioningStates:      p.provisioningStates,
 			WorkloadIdentity:        p.workloadIdentity,
+			RecordingEncryption:     p.recordingEncryption,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			IdentityCenter:          p.identityCenter,
 			PluginStaticCredentials: p.pluginStaticCredentials,
@@ -814,6 +823,7 @@ func TestCompletenessReset(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
@@ -970,6 +980,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1067,6 +1078,7 @@ func initStrategy(t *testing.T) {
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
@@ -1827,6 +1839,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
+		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
 	}
 
@@ -1867,6 +1880,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:

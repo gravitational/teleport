@@ -67,6 +67,7 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -103,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -5612,6 +5614,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userloginstatev1pb.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+
+	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Uploader:   cfg.AuthServer.Services,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recordingencryptionv1pb.RegisterRecordingEncryptionServiceServer(server, recordingEncryptionService)
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
 		Cache:      cfg.AuthServer.Cache,
