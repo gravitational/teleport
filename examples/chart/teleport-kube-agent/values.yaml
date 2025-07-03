@@ -875,6 +875,9 @@ storage:
 #
 # GKE Autopilot clusters forbid using the `system:masters` group for impersonation
 # and require a custom group to be used instead.
+#
+# DEPRECATED: This value is deprecated and will be removed in a future version.
+# Use [`rbac`](#rbac) instead.
 adminClusterRoleBinding:
   # adminClusterRoleBinding.create(bool) -- controls if the chart should create
   # an additional admin cluster role binding.
@@ -893,7 +896,7 @@ adminClusterRoleBinding:
 # You can override this to use your own Teleport image rather than a
 # Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
 # When using the Teleport Kube Agent Updater, you must ensure the
 # image is available before the updater version target gets updated and
 # Kubernetes tries to pull the image.
@@ -946,6 +949,9 @@ imagePullSecrets: []
 # <Admonition type="note">
 #   Most users will not need to change this.
 # </Admonition>
+#
+# DEPRECATED: This value is deprecated and will be removed in a future version.
+# Use [`rbac`](#rbac) instead.
 clusterRoleName: ""
 
 # clusterRoleBindingName(string) -- can be optionally used to override the name
@@ -954,6 +960,9 @@ clusterRoleName: ""
 # <Admonition type="note">
 #   Most users will not need to change this.
 # </Admonition>
+#
+# DEPRECATED: This value is deprecated and will be removed in a future version.
+# Use [`rbac`](#rbac) instead.
 clusterRoleBindingName: ""
 
 # roleName(string) -- provides a custom name for the `Role` resource that the
@@ -963,6 +972,9 @@ clusterRoleBindingName: ""
 # You should set this value if there is a `Role` resource in the namespace of your
 # `teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
 # release.
+#
+# DEPRECATED: This value is deprecated and will be removed in a future version.
+# Use [`rbac`](#rbac) instead.
 roleName: ""
 
 # roleBindingName(string) -- provides a custom name for the `RoleBinding` resource that the
@@ -972,6 +984,9 @@ roleName: ""
 # You should set this value if there is a `RoleBinding` resource in the namespace
 # of your `teleport-kube-agent` resources with the same name as your
 # `teleport-kube-agent` release.
+#
+# DEPRECATED: This value is deprecated and will be removed in a future version.
+# Use [`rbac`](#rbac) instead.
 roleBindingName: ""
 
 # serviceAccountName(string) -- is deprecated and will be removed in a future
@@ -980,6 +995,10 @@ serviceAccountName: ""
 
 # serviceAccount -- controls the Kubernetes ServiceAccounts deployed and used by
 # the chart.
+#
+# <Admonition type="note">
+#   Most users will not need to change this.
+# </Admonition>
 serviceAccount:
   # serviceAccount.create(bool) -- controls whether Helm Chart creates the
   # Kubernetes `ServiceAccount` resources for the agent and optionally for the
@@ -992,18 +1011,83 @@ serviceAccount:
   # Helm release.
   name: ""
 
-# rbac --
+# rbac -- controls the RBAC resources created by the chart.
+#
+# <Admonition type="note">
+#   Most users will not need to change this.
+# </Admonition>
 rbac:
   # rbac.create(bool) -- controls if the chart should create RBAC Kubernetes resources.
   #
   # - When `true`, the chart creates both `ClusterRole` and `ClusterRoleBinding`
-  #   resources for the agent, and `Role`/`RoleBinding` for the updater if enabled.
+  #   resources for the agent, impersonation admin, and `Role`/`RoleBinding` for
+  #   the updater if enabled.
   # - When `false`, the chart does not create the `Role` and `RoleBinding` resources.
   #   The user is responsible for deploying and maintaining them separately.
   #
   # This value can be set to `false` when deploying in constrained environments
-  # where the user deploying the operator is not allowed to edit RBAC resources.
+  # where the user deploying the agent is not allowed to edit RBAC resources,
+  # in which case you are responsible for creating the RBAC resources, see
+  # [get-kubeconfig.sh](../../../../examples/k8s-auth/get-kubeconfig.sh).
   create: true
+
+  # rbac.roleName(string) -- provides a custom name for the `Role` resource that the
+  # `teleport-kube-agent` chart creates for the Teleport pod. By default, the `Role`
+  # has the name of the Helm release.
+  #
+  # You should set this value if there is a `Role` resource in the namespace of your
+  # `teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
+  # release.
+  roleName: ""
+
+  # rbac.roleBindingName(string) -- provides a custom name for the `RoleBinding` resource that the
+  # `teleport-kube-agent` chart creates for the Teleport pod. By default, the
+  # `RoleBinding` has the name of the Helm release.
+  #
+  # You should set this value if there is a `RoleBinding` resource in the namespace
+  # of your `teleport-kube-agent` resources with the same name as your
+  # `teleport-kube-agent` release.
+  roleBindingName: ""
+
+  # rbac.clusterRoleName(string) -- can be optionally used to override the name of the
+  # Kubernetes `ClusterRole` used by the agent's `ServiceAccount`. By default, the
+  # `ClusterRole` has the name of the Helm release.
+  #
+  # You should set this value if there is a `ClusterRole` resource your cluster with
+  # the same name as your `teleport-kube-agent` release.
+  clusterRoleName: ""
+
+  # rbac.clusterRoleBindingName(string) -- can be optionally used to override the name
+  # of the Kubernetes `ClusterRoleBinding` used by the agent's `ServiceAccount`.
+  # By default, the `ClusterRoleBinding` has the name of the Helm release.
+  #
+  # You should set this value if there is a `ClusterRoleBinding` in your cluster with
+  # the same name as your `teleport-kube-agent` release.
+  clusterRoleBindingName: ""
+
+  # rbac.adminClusterRoleName(string) -- can be optionally used to override the name
+  # of the Kubernetes `ClusterRole` used for admin impersonation. By default, the
+  # `ClusterRole` has the name of the Helm release with `-cluster-admin` suffix.
+  #
+  # You should set this value if there is a `ClusterRoleBinding` resource in your cluster
+  # with the same name as your `teleport-kube-agent` release with `-cluster-admin` suffix.
+  adminClusterRoleName: ""
+
+  # rbac.adminClusterRoleBindingName(string) -- can be optionally used to override the name
+  # of the Kubernetes `ClusterRoleBinding` used for admin impersonation. By default, the
+  # `ClusterRoleBinding` has the name of the Helm release with `-cluster-admin` suffix.
+  #
+  # You should set this value if there is a `ClusterRoleBinding` resource in your cluster
+  # with the same name as your `teleport-kube-agent` release with `-cluster-admin` suffix.
+  adminClusterRoleBindingName: ""
+
+  # rbac.adminGroupName(string) -- can be optionally used to override the name
+  # of the Kubernetes `Group` used for admin impersonation. By default, the
+  # `Group` has the name of the Helm release with `-cluster-admin` suffix.
+  #
+  # You should set this value if there is a `Group` resource in your cluster
+  # with the same name as your `teleport-kube-agent` release with `-cluster-admin` suffix.
+  adminGroupName: ""
 
 # Name of the Secret to store the teleport join token.
 # DEPRECATED Use joinTokenSecret.name instead
@@ -1147,10 +1231,14 @@ nodeSelector: {}
 # ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 # for more information.
 extraLabels:
-  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole.
+  # extraLabels.clusterRole(object) -- are labels to set on the agent ClusterRole.
   clusterRole: {}
-  # extraLabels.clusterRoleBinding(object) -- are labels to set on the ClusterRoleBinding.
+  # extraLabels.clusterRoleBinding(object) -- are labels to set on the agent ClusterRoleBinding.
   clusterRoleBinding: {}
+  # extraLabels.adminClusterRole(object) -- are labels to set on the admin ClusterRole.
+  adminClusterRole: {}
+  # extraLabels.adminClusterRoleBinding(object) -- are labels to set on the admin ClusterRoleBinding.
+  adminClusterRoleBinding: {}
   # extraLabels.role(object) -- are labels to set on the Role.
   role: {}
   # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
