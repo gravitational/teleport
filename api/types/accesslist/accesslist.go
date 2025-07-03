@@ -367,32 +367,36 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		}
 	}
 
-	if a.Spec.Audit.Recurrence.Frequency == 0 {
-		a.Spec.Audit.Recurrence.Frequency = SixMonths
-	}
+	if a.IsReviewable() {
+		if a.Spec.Audit.Recurrence.Frequency == 0 {
+			a.Spec.Audit.Recurrence.Frequency = SixMonths
+		}
 
-	switch a.Spec.Audit.Recurrence.Frequency {
-	case OneMonth, ThreeMonths, SixMonths, OneYear:
-	default:
-		return trace.BadParameter("recurrence frequency is an invalid value")
-	}
+		switch a.Spec.Audit.Recurrence.Frequency {
+		case OneMonth, ThreeMonths, SixMonths, OneYear:
+		default:
+			return trace.BadParameter("recurrence frequency is an invalid value")
+		}
 
-	if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
-		a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
-	}
+		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
+			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
+		}
 
-	switch a.Spec.Audit.Recurrence.DayOfMonth {
-	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
-	default:
-		return trace.BadParameter("recurrence day of month is an invalid value")
-	}
+		switch a.Spec.Audit.Recurrence.DayOfMonth {
+		case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
+		default:
+			return trace.BadParameter("recurrence day of month is an invalid value")
+		}
 
-	if a.Spec.Audit.NextAuditDate.IsZero() {
-		a.setInitialAuditDate(clockwork.NewRealClock())
-	}
+		if a.Spec.Audit.NextAuditDate.IsZero() {
+			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
+				return trace.Wrap(err, "setting initial audit date")
+			}
+		}
 
-	if a.Spec.Audit.Notifications.Start == 0 {
-		a.Spec.Audit.Notifications.Start = twoWeeks
+		if a.Spec.Audit.Notifications.Start == 0 {
+			a.Spec.Audit.Notifications.Start = twoWeeks
+		}
 	}
 
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
@@ -593,15 +597,16 @@ func (a *AccessList) SelectNextReviewDate() time.Time {
 	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
 		0, 0, 0, 0, time.UTC)
 
-	return nextDate
+	return nextDate, nil
 }
 
 // setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
 // The function is extracted from CheckAndSetDefaults for the sake of testing
 // (we need to pass a fake clock).
-func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	// We act as if the AccessList just got reviewed (we just created it, so
 	// we're pretty sure of what it does) and pick the next review date.
 	a.Spec.Audit.NextAuditDate = clock.Now()
-	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
+	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
+	return trace.Wrap(err)
 }
