@@ -313,46 +313,6 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	discoveryConfigForUserTaskEKSTestName := uuid.NewString()
-	discoveryConfigForUserTaskEKSTest, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: discoveryConfigForUserTaskEKSTestName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{{
-				Types:       []string{"eks"},
-				Regions:     []string{"eu-west-2"},
-				Tags:        map[string]utils.Strings{"RunDiscover": {"Please"}},
-				Integration: "my-integration",
-			}},
-		},
-	)
-	require.NoError(t, err)
-
-	discoveryConfigWithAndWithoutAppDiscoveryTestName := uuid.NewString()
-	discoveryConfigWithAndWithoutAppDiscovery, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: discoveryConfigWithAndWithoutAppDiscoveryTestName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{
-				{
-					Types:            []string{"eks"},
-					Regions:          []string{"eu-west-2"},
-					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"No"}},
-					Integration:      "my-integration",
-					KubeAppDiscovery: false,
-				},
-				{
-					Types:            []string{"eks"},
-					Regions:          []string{"eu-west-2"},
-					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"Yes"}},
-					Integration:      "my-integration",
-					KubeAppDiscovery: true,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport.
@@ -360,8 +320,6 @@ func TestDiscoveryServer(t *testing.T) {
 		foundEC2Instances         []ec2types.Instance
 		ssm                       *mockSSMClient
 		emitter                   *mockEmitter
-		eksClusters               []*ekstypes.Cluster
-		eksEnroller               eksClustersEnroller
 		discoveryConfig           *discoveryconfig.DiscoveryConfig
 		staticMatchers            Matchers
 		wantInstalledInstances    []string
@@ -718,139 +676,6 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Equal(t, defaultDiscoveryGroup, taskInstance.DiscoveryGroup)
 			},
 		},
-		{
-			name:              "multiple EKS clusters failed to autoenroll and user tasks are created",
-			presentInstances:  []types.Server{},
-			foundEC2Instances: []ec2types.Instance{},
-			ssm:               &mockSSMClient{},
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
-					},
-				},
-			},
-			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
-					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
-							EksClusterName: "cluster01",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-						{
-							EksClusterName: "cluster02",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-					},
-				},
-				err: nil,
-			},
-			emitter:                &mockEmitter{},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        discoveryConfigForUserTaskEKSTest,
-			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
-				atLeastOneUserTask := 1
-				atLeastTwoTaskItems := 2
-				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, atLeastTwoTaskItems)
-				existingTask := existingTasks[0]
-
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
-				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
-				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
-
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
-				require.Contains(t, taskClusters, "cluster01")
-				taskCluster := taskClusters["cluster01"]
-
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTestName, taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
-			},
-		},
-		{
-			name:              "multiple EKS clusters with different KubeAppDiscovery setting failed to autoenroll and user tasks are created",
-			presentInstances:  []types.Server{},
-			foundEC2Instances: []ec2types.Instance{},
-			ssm:               &mockSSMClient{},
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"EnableAppDiscovery": "Yes",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"EnableAppDiscovery": "No",
-					},
-				},
-			},
-			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
-					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
-							EksClusterName: "cluster01",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-						{
-							EksClusterName: "cluster02",
-							Error:          "access endpoint is not reachable",
-							IssueType:      "eks-cluster-unreachable",
-						},
-					},
-				},
-				err: nil,
-			},
-			emitter:                &mockEmitter{},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        discoveryConfigWithAndWithoutAppDiscovery,
-			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
-				atLeastOneUserTask := 2
-				atLeastTwoTaskItems := 2
-				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, atLeastTwoTaskItems)
-				existingTask := existingTasks[0]
-				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
-					existingTask = existingTasks[1]
-				}
-
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
-				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
-				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
-
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
-				require.Contains(t, taskClusters, "cluster01")
-				taskCluster := taskClusters["cluster01"]
-
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigWithAndWithoutAppDiscoveryTestName, taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
-			},
-		},
 	}
 
 	for _, tc := range tcs {
@@ -920,11 +745,6 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			var eksEnroller eksClustersEnroller = authClient.IntegrationAWSOIDCClient()
-			if tc.eksEnroller != nil {
-				eksEnroller = tc.eksEnroller
-			}
-
 			fakeConfigProvider := mocks.AWSConfigProvider{
 				OIDCIntegrationClient: tlsServer.Auth(),
 			}
@@ -938,11 +758,10 @@ func TestDiscoveryServer(t *testing.T) {
 				AWSConfigProvider: &fakeConfigProvider,
 				AWSFetchersClients: &mockFetchersClients{
 					AWSConfigProvider: fakeConfigProvider,
-					eksClusters:       tc.eksClusters,
 				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, eksEnroller),
+				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
 				Log:              logger,
@@ -3726,26 +3545,6 @@ func TestEmitUsageEvents(t *testing.T) {
 
 type eksClustersEnroller interface {
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
-}
-
-type mockEKSClusterEnroller struct {
-	resp *integrationpb.EnrollEKSClustersResponse
-	err  error
-}
-
-func (m *mockEKSClusterEnroller) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opt ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-	ret := &integrationpb.EnrollEKSClustersResponse{
-		Results: []*integrationpb.EnrollEKSClusterResult{},
-	}
-	// Filter out non-requested clusters.
-	for _, clusterName := range req.EksClusterNames {
-		for _, mockClusterResult := range m.resp.Results {
-			if clusterName == mockClusterResult.EksClusterName {
-				ret.Results = append(ret.Results, mockClusterResult)
-			}
-		}
-	}
-	return ret, m.err
 }
 
 type combinedDiscoveryClient struct {
