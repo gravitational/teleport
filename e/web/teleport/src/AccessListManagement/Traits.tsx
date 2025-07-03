@@ -3,7 +3,7 @@ import React from 'react';
 import { Box, ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
+import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -61,7 +61,7 @@ export function TraitsCreator({
   const inputSize = 'medium';
   return (
     <Box mb={4}>
-      <ButtonTextWithAddIcon
+      <ButtonWithAddIcon
         label={addBtnTxt}
         onClick={addLabel}
         disabled={isDisabled}

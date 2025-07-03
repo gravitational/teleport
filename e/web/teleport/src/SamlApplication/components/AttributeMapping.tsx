@@ -13,7 +13,7 @@ import {
 } from 'design';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
+import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import {
   FieldSelect,
@@ -203,7 +203,7 @@ export function AttributeMapping({
         <AttrMappingErrorLabel attrMapErr={attrMapErr} />
       </Box>
       <Box mt={4}>
-        <ButtonTextWithAddIcon
+        <ButtonWithAddIcon
           onClick={addAttrMap}
           label={addButtonTxt}
           disabled={disabled}

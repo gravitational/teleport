@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Flex, LabelInput } from 'design';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
+import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
 import TextEditor from 'shared/components/TextEditor';
 import { useRule } from 'shared/components/Validation';
 
@@ -17,7 +17,7 @@ export function AddEntityDescriptor({
   const [showEntityDescriptor, setShowEntityDescriptor] = useState(false);
   return (
     <>
-      <ButtonTextWithAddIcon
+      <ButtonWithAddIcon
         label="Add Entity Descriptor (Optional)"
         onClick={() => setShowEntityDescriptor(!showEntityDescriptor)}
         disabled={false}
