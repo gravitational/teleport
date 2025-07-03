@@ -72,7 +72,7 @@ to select "Version 12.0" in the documentation version switcher.
 
 ### Installation
 
-- [ ] General [installation page](../../docs/pages/installation.mdx): ensure that
+- [ ] General [installation page](../../docs/pages/installation/installation.mdx): ensure that
   installation methods support the new release candidate.
 - [ ] Enterprise Cloud [downloads
   page](../../docs/pages/choose-an-edition/teleport-cloud/downloads.mdx): ensure that
