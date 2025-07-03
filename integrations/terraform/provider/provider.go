@@ -463,7 +463,7 @@ func stringFromConfigOrEnv(value types.String, env string, def string) string {
 func boolFromConfigOrEnv(value types.Bool, env string) bool {
 	envVar := os.Getenv(env)
 	if envVar != "" && (value.Unknown || value.Null) {
-		if b, err := strconv.ParseBool(envVar); err != nil {
+		if b, err := strconv.ParseBool(envVar); err == nil {
 			return b
 		}
 	}
