@@ -137,7 +137,8 @@ type options struct {
 	stsClientProvider STSClientProviderFunc
 	// baseCredentials is the base config used to assume the roles.
 	baseCredentials aws.CredentialsProvider
-
+	// useEC2IMDSRegion indicates that clients should determine their region from
+	// EC2 instance metadata if available.
 	useEC2IMDSRegion bool
 }
 
@@ -330,6 +331,8 @@ func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider
 	}
 }
 
+// WithEC2IMDSRegion indicates that clients should determine their region from
+// EC2 instance metadata if available.
 func WithEC2IMDSRegion() OptionsFn {
 	return func(o *options) {
 		o.useEC2IMDSRegion = true
