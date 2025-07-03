@@ -48,51 +48,88 @@ type instanceReport struct {
 	omissions map[string]int
 }
 
-func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
+type autoUpdateFilterResult int
+
+const (
+	// The zero value should not be used, but if it is, it should not match anything.
+	autoUpdateFilterResultUnknown autoUpdateFilterResult = iota
+	autoUpdateFilterResultMatching
+	autoUpdateFilterResultTerminating
+	autoUpdateFilterResultRecentlyConnected
+	autoUpdaterFilterResultIsControlPlane
+	autoUpdateFilterResultNoUpdater
+	autoUpdateFilterResultUpdaterTooOld
+	autoUpdateFilterResultUpdaterDisabled
+	autoUpdateFilterResultUpdaterPinned
+	autoUpdateFilterResultUpdaterUnreadable
+	autoUpdateFilterResultUpdaterUnknown
+	autoUpdateFilterResultUpdaterV1
+)
+
+// String returns a user-facing message explaining the filter decision.
+// If the filter result reason is not actionable, it returns an empty string.
+func (r autoUpdateFilterResult) String() string {
+	switch r {
+	case autoUpdateFilterResultNoUpdater:
+		return omissionReasonNoUpdater
+	case autoUpdateFilterResultUpdaterTooOld:
+		return omissionReasonUpdaterTooOld
+	case autoUpdateFilterResultUpdaterDisabled:
+		return omissionReasonUpdaterDisabled
+	case autoUpdateFilterResultUpdaterPinned:
+		return omissionReasonUpdaterPinned
+	case autoUpdateFilterResultUpdaterUnreadable:
+		return omissionReasonUpdaterUnreadable
+	case autoUpdateFilterResultUpdaterUnknown:
+		return omissionReasonUpdaterUnknown
+	case autoUpdateFilterResultUpdaterV1:
+		return omissionReasonUpdaterV1
+	default:
+		return ""
+	}
+}
+
+// filterHandler filters handles than can or cannot be used for automatic update
+// purposes. It returns true if the handle can be used, false otherwise.
+// If the handle cannot be used, the function might also return a non-empty string
+// explaining why.
+func filterHandler(handle inventory.UpstreamHandle, now time.Time) autoUpdateFilterResult {
 	// If the instance is being soft-reloaded or shut down, we ignore it.
 	if goodbye := handle.Goodbye(); goodbye.GetSoftReload() || goodbye.GetDeleteResources() {
-		return
+		return autoUpdateFilterResultTerminating
 	}
 
 	// We skip servers that joined less than a minute ago as they might have been
 	// connected to another auth instance a few seconds ago, which would lead to double-counting.
-	if ir.timestamp.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
-		return
+	if now.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
+		return autoUpdateFilterResultRecentlyConnected
 	}
 	// We skip control planes instances because we don't update them.
 	if handle.HasControlPlaneService() {
-		return
+		return autoUpdaterFilterResultIsControlPlane
 	}
 
 	hello := handle.Hello()
 
+	// If the machine has no updater, we skip it
 	switch hello.ExternalUpgrader {
 	case "":
-		ir.omissions[omissionReasonNoUpdater] += 1
-		return
+		return autoUpdateFilterResultNoUpdater
 	case types.UpgraderKindSystemdUnit:
-		ir.omissions[omissionReasonUpdaterV1] += 1
-		return
-	}
-
-	// If the machine has no updater, we skip it
-	if hello.ExternalUpgrader == "" {
-		return
+		return autoUpdateFilterResultUpdaterV1
 	}
 
 	// Reject instance not advertising updater info
 	updaterInfo := hello.GetUpdaterInfo()
 	if updaterInfo == nil {
-		ir.omissions[omissionReasonUpdaterTooOld] += 1
-		return
+		return autoUpdateFilterResultUpdaterTooOld
 	}
 
 	// Reject instances who are not advertising the group properly.
 	// They might be running too old versions.
 	updateGroup := updaterInfo.UpdateGroup
 	if updateGroup == "" {
-		ir.omissions[omissionReasonUpdaterTooOld] += 1
-		return
+		return autoUpdateFilterResultUpdaterTooOld
 	}
 
 	// We skip instances whose updater status is not OK.
@@ -100,18 +137,30 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	switch status {
 	case types.UpdaterStatus_UPDATER_STATUS_OK:
 	case types.UpdaterStatus_UPDATER_STATUS_DISABLED:
-		ir.omissions[omissionReasonUpdaterDisabled] += 1
-		return
+		return autoUpdateFilterResultUpdaterDisabled
 	case types.UpdaterStatus_UPDATER_STATUS_PINNED:
-		ir.omissions[omissionReasonUpdaterPinned] += 1
-		return
+		return autoUpdateFilterResultUpdaterPinned
 	case types.UpdaterStatus_UPDATER_STATUS_UNREADABLE:
-		ir.omissions[omissionReasonUpdaterUnreadable] += 1
-		return
+		return autoUpdateFilterResultUpdaterUnreadable
 	default:
-		ir.omissions[omissionReasonUpdaterUnknown] += 1
+		return autoUpdateFilterResultUnknown
+	}
+	return autoUpdateFilterResultMatching
+}
+
+// collectInstance is meant to be a callback that is passed to inventory.AllHandles().
+func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
+	result := filterHandler(handle, ir.timestamp)
+	if result != autoUpdateFilterResultMatching {
+		if reason := result.String(); reason != "" {
+			ir.omissions[reason] += 1
+		}
 		return
 	}
+
+	// No need to check for UpdaterInfo being nil, it would have been filtered
+	// out by filterHandler().
+	updateGroup := handle.Hello().UpdaterInfo.UpdateGroup
 
 	if _, ok := ir.data[updateGroup]; !ok {
 		ir.data[updateGroup] = instanceGroupReport{}
@@ -210,5 +259,4 @@ func (a *Server) reportAgentVersions(ctx context.Context) {
 		a.logger.ErrorContext(ctx, "Failed to write agent version report", "error", err)
 	}
 	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
-
 }

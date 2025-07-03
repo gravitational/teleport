@@ -37,6 +37,8 @@ const KubernetesV2OutputType = "kubernetes/v2"
 // KubernetesOutput produces credentials which can be used to connect to a
 // Kubernetes Cluster through teleport.
 type KubernetesV2Output struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 
@@ -54,6 +56,11 @@ type KubernetesV2Output struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *KubernetesV2Output) GetName() string {
+	return o.Name
 }
 
 func (o *KubernetesV2Output) CheckAndSetDefaults() error {

@@ -879,6 +879,15 @@ const (
 	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
+	// AWSRolesAnywhereProfileNameOverrideLabel indicates the name of the AWS IAM Roles Anywhere Profile's tag key
+	// that Teleport will use to override the name of the discovered profile.
+	// Ensure this name is unique and valid DNS label.
+	AWSRolesAnywhereProfileNameOverrideLabel = "TeleportApplicationName"
+
+	// AWSRolesAnywhereProfileARNLabel is the label key to store the Profile ARN when creating an Application
+	// resource from an AWS IAM Roles Anywhere Profile.
+	AWSRolesAnywhereProfileARNLabel = TeleportNamespace + "/aws-roles-anywhere-profile-arn"
+
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
 	// Also added by discovery service to indicate the type of discovered
 	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.

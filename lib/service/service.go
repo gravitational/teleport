@@ -133,6 +133,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -2311,6 +2312,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			RecordingEncryption:     recordingEncryptionManager,
+			MultipartHandler:        uploadHandler,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
 		}, func(as *auth.Server) error {
@@ -2692,6 +2694,58 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(recordingEncryptionManager.Watch(process.GracefulExitContext(), authServer.Services))
 	})
 
+	awsRolesAnywhereProfileSyncProcessName := "aws-roles-anywhere.profile-sync"
+	process.RegisterFunc("auth."+awsRolesAnywhereProfileSyncProcessName+".service", func() error {
+		ctx := process.GracefulExitContext()
+		logger := process.logger.With("process", awsRolesAnywhereProfileSyncProcessName)
+
+		if _, err := process.WaitForEvent(ctx, TeleportReadyEvent); err != nil {
+			logger.DebugContext(ctx, "process exiting: failed to start AWS Roles Anywhere profile sync service")
+			return nil
+		}
+
+		params := awsra.AWSRolesAnywherProfileSyncerParams{
+			Clock:             process.Clock,
+			Logger:            logger,
+			KeyStoreManager:   authServer.GetKeyStore(),
+			Cache:             authServer.Cache,
+			AppServerUpserter: authServer.Services,
+			HostUUID:          process.Config.HostUUID,
+		}
+
+		runWhileLockedConfig := backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            process.backend,
+				LockNameComponents: []string{awsRolesAnywhereProfileSyncProcessName},
+				TTL:                1 * time.Minute,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		}
+
+		runFunction := func(ctx context.Context) error {
+			return trace.Wrap(awsra.RunAWSRolesAnywherProfileSyncer(ctx, params))
+		}
+
+		waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
+		for {
+			err := backend.RunWhileLocked(ctx, runWhileLockedConfig, runFunction)
+			if err != nil && ctx.Err() == nil {
+				logger.ErrorContext(
+					ctx,
+					"AWS Roles Anywhere profile syncer encountered a fatal error, it will restart after backoff",
+					"error", err,
+					"restart_after", waitWithJitter,
+				)
+			}
+
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(waitWithJitter):
+			}
+		}
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2754,6 +2808,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
 	cfg.AccessLists = services.AccessLists
@@ -3549,11 +3604,12 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:         uploaderClient,
-		ScanDir:          uploadsDir,
-		CorruptedDir:     corruptedDir,
-		EventsC:          process.Config.Testing.UploadEventsC,
-		InitialScanDelay: 15 * time.Second,
+		Streamer:                   uploaderClient,
+		ScanDir:                    uploadsDir,
+		CorruptedDir:               corruptedDir,
+		EventsC:                    process.Config.Testing.UploadEventsC,
+		InitialScanDelay:           15 * time.Second,
+		EncryptedRecordingUploader: uploaderClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5322,6 +5378,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.OnExit("tls.config.generator", func(a any) {
+		clientTLSConfigGenerator.Close()
+	})
+
 	sshGRPCTLSConfig.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
 	sshGRPCCreds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
@@ -5942,7 +6002,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload any) {
+	process.OnExit("tls.config.generator", func(payload any) {
 		generator.Close()
 	})
 
@@ -6476,9 +6536,10 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	}
 
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentBackend,
-		Backend:   backend.NewSanitizer(bk),
-		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Component:  teleport.ComponentBackend,
+		Backend:    backend.NewSanitizer(bk),
+		Tracer:     process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Registerer: process.metricsRegistry,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6833,18 +6894,6 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
-		}
-	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
-		// This case is used when loading a Teleport pre-11 agent with storage attached.
-		// In this case, we have to copy the "host_uuid" from the agent to the secret
-		// in case storage is removed later.
-		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
-		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
-			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-			// This is only required if PV storage is removed later.
-			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 	return nil

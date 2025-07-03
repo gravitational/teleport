@@ -89,13 +89,35 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 }
 
 func TestRoundtrip(t *testing.T) {
+	t.Run("with custom subkind", func(t *testing.T) {
+		accessList := newAccessList(t, "access-list")
+		accessList.ResourceHeader.SetSubKind("access-list-subkind")
+
+		converted, err := FromProto(ToProto(accessList))
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(accessList, converted))
+	})
+
+	t.Run("with non-default type", func(t *testing.T) {
+		accessList := newAccessList(t, "access-list")
+		accessList.Spec.Type = accesslist.Static
+
+		converted, err := FromProto(ToProto(accessList))
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(accessList, converted))
+		require.Equal(t, accesslist.Static, converted.Spec.Type)
+	})
+}
+
+func Test_FromProto_withBadType(t *testing.T) {
 	accessList := newAccessList(t, "access-list")
-	accessList.ResourceHeader.SetSubKind("access-list-subkind")
+	accessList.Spec.Type = "test_bad_type"
 
-	converted, err := FromProto(ToProto(accessList))
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(accessList, converted))
+	_, err := FromProto(ToProto(accessList))
+	require.Error(t, err)
+	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.
@@ -331,6 +353,43 @@ func TestConvAccessList(t *testing.T) {
 						},
 					},
 					Grants: nil,
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+		{
+			name: "SCIM, Static access list allows for empty owners",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Type:        string(accesslist.SCIM),
+					Title:       "test access list",
+					Description: "test description",
+					Owners:      []*accesslistv1.AccessListOwner{},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: &accesslistv1.AccessListGrants{
+						Roles: []string{"role1"},
+					},
 				},
 				Status: &accesslistv1.AccessListStatus{},
 			},

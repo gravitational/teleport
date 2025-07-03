@@ -36,6 +36,7 @@ func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProvide
 
 	return &collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
 		store: newStore(
+			types.KindSAMLIdPServiceProvider,
 			types.SAMLIdPServiceProvider.Copy,
 			map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{
 				samlIdPServiceProviderNameIndex: types.SAMLIdPServiceProvider.GetName,
