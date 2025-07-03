@@ -202,6 +202,22 @@ This is handled as part of the grpcserver auth:
 
 - https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/lib/auth/grpcserver.go#L1950
 
+### Configuration
+
+To accommodate a scenario where a customer already has a Group with the preset
+name, we need to add a new field in the kube_service configuration file to
+define which admin group will be impersonated.
+
+This can also be used for customer upgrading from older versions that don't
+want to provision a new clusterrole/clusterrolebinding. The config value could
+be set to `cluster-admin` or `system:masters` to remove the need to provision
+new resources.
+
+#### Helm
+
+The Helm Chart will provide the ability to specify custom names for all
+resources, (clusterrole, clusterrolebinding) and for the Group.
+
 ### UX
 
 #### Exec confusion
@@ -214,14 +230,14 @@ control access to `_exec`.
 
 On the Web UI, the initial page generates a _Helm_ command line.
 
-After enrollment, a test page is shown, prompting for a `kubernetes_group`
+After enrollment, a test page is shown, prompting for a `kubernetes_groups`
 value, which defaults to the user's trait.
 With the proposed changes, that page would be skipped, using Teleport Cluster
 Admin instead.
 
 #### Role Editor
 
-The Web UI Role Editor will hide the `kubernetes_group` and `kubernetes_user`
+The Web UI Role Editor will hide the `kubernetes_groups` and `kubernetes_users`
 based on the role version dropdown.
 
 - https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/web/packages/teleport/src/Roles/RoleEditor/StandardEditor/Resources.tsx#L291-L321
