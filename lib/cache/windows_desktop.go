@@ -25,7 +25,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -356,20 +358,8 @@ func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops
 				dynamicWindowsDesktopNameIndex: types.DynamicWindowsDesktop.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
-			var desktops []types.DynamicWindowsDesktop
-			var next string
-			for {
-				d, token, err := upstream.ListDynamicWindowsDesktops(ctx, 0, next)
-				if err != nil {
-					return nil, err
-				}
-				desktops = append(desktops, d...)
-				if token == "" {
-					break
-				}
-				next = token
-			}
-			return desktops, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListDynamicWindowsDesktops))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.DynamicWindowsDesktop {
 			return &types.DynamicWindowsDesktopV1{

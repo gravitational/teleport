@@ -24,6 +24,8 @@ import (
 
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -46,7 +48,8 @@ func newRelayServerCollection(upstream services.Presence, w types.WatchKind) (*c
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*presencev1.RelayServer, error) {
-			return fetchAll(ctx, upstream.ListRelayServers)
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListRelayServers))
+			return out, trace.Wrap(err)
 		},
 		watch: w,
 	}, nil
