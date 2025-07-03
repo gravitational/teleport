@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -101,6 +102,7 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 }
 
 func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (any, error) {
+	fmt.Println("upgradeALPNWebSocket called")
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 		Subprotocols: []string{
@@ -261,9 +263,8 @@ func (conn *waitConn) WaitForClose() {
 
 // Close implements net.Conn.
 func (conn *waitConn) Close() error {
-	err := conn.Conn.Close()
 	conn.cancel()
-	return trace.Wrap(err)
+	return nil
 }
 
 func (conn *waitConn) NetConn() net.Conn {
