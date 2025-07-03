@@ -137,7 +137,25 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		if err := wsConn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
 			h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
 		}
-		cancel()
+		closeC := make(chan struct{})
+		go func() {
+			defer close(closeC)
+			msgType, _, err := wsConn.ReadMessage()
+			if err != nil && !errors.Is(err, io.EOF) {
+				h.logger.DebugContext(r.Context(), "error reading close message", "error", err)
+				return
+			}
+			// After reading the close message, we can safely close the connection.
+			if msgType != websocket.CloseMessage {
+				h.logger.DebugContext(r.Context(), "unexpected message type after close", "msg_type",
+					msgType, "error", err)
+			}
+		}()
+		select {
+		case <-closeC:
+		case <-time.After(5 * time.Second):
+			h.logger.DebugContext(r.Context(), "timeout waiting for close message")
+		}
 		if err := wsConn.Close(); err != nil {
 			h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
 		}

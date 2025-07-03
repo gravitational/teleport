@@ -120,7 +120,11 @@ func (c *websocketALPNClientConn) readLocked(b []byte) (int, error) {
 
 		switch frame.Header.OpCode {
 		case ws.OpClose:
-			// TODO(greedy52) properly exchange close message.
+			close := ws.NewCloseFrame(
+				ws.NewCloseFrameBody(ws.StatusNormalClosure, ""),
+			)
+			// discard the error from writeFrameLocked.
+			_ = c.writeFrameLocked(close)
 			return 0, io.EOF
 		case ws.OpPing:
 			pong := ws.NewPongFrame(frame.Payload)
