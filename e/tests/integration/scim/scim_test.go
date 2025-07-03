@@ -60,7 +60,7 @@ func TestSCIMGeneric(t *testing.T) {
 
 	common.CreateAccessList(t, sut,
 		common.WithName("test-group-001"),
-		common.WithSubKind("scim"),
+		common.WithAccessListType(accesslist.SCIM),
 		common.WithOwners("alice-admin"),
 		common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
 	)

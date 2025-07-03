@@ -1,21 +1,24 @@
 package generic
 
-import "github.com/gravitational/teleport/api/types"
-
-const originSCIM = "scim"
+import (
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
+)
 
 type labelsGetter interface {
 	GetMetadata() types.Metadata
-	GetSubKind() string
 }
 
-func isSCIMResource(resource labelsGetter) bool {
-	if resource.GetSubKind() == originSCIM {
-		return true
-	}
+func hasSCIMOrigin(resource labelsGetter) bool {
 	labels := resource.GetMetadata().Labels
-	if _, ok := labels[originSCIM]; ok {
-		return true
+	return labels[types.OriginLabel] == common.OriginSCIM
+
+}
+
+func accessListPredicate(item *accesslist.AccessList) bool {
+	if item == nil {
+		return false
 	}
-	return labels[types.OriginLabel] == originSCIM
+	return hasSCIMOrigin(item) || item.Spec.Type == accesslist.SCIM
 }

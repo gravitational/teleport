@@ -22,6 +22,7 @@ type AccessListConfig struct {
 	Kind      string
 	SubKind   string
 	AuditDate time.Time
+	Type      accesslist.Type
 }
 
 // AccessListOption configures an AccessListConfig.
@@ -69,10 +70,10 @@ func WithKind(kind string) AccessListOption {
 	}
 }
 
-// WithSubKind sets the subkind.
-func WithSubKind(subKind string) AccessListOption {
+// WithAccessListType sets the access list type.
+func WithAccessListType(t accesslist.Type) AccessListOption {
 	return func(cfg *AccessListConfig) {
-		cfg.SubKind = subKind
+		cfg.Type = t
 	}
 }
 
@@ -115,6 +116,7 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 		Owners: accessListOwners,
 		Grants: cfg.Grants,
 		Audit:  accesslist.Audit{NextAuditDate: cfg.AuditDate},
+		Type:   cfg.Type,
 	})
 	require.NoError(t, err)
 

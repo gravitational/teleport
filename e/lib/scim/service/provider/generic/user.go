@@ -10,6 +10,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	typescommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/lister"
@@ -30,7 +31,7 @@ func userExternalID(u types.User) string {
 func (h *userHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIMResourceRequest) (*scimpb.Resource, error) {
 	additionalLabels := map[string]string{
 		common.ExternalIDLabel: req.GetResource().GetExternalId(),
-		types.OriginLabel:      originSCIM,
+		types.OriginLabel:      typescommon.OriginSCIM,
 	}
 
 	scimUser, err := conv.UserFromResource(req.GetResource(),
@@ -60,7 +61,7 @@ func (h *userHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 	l := lister.UserLister{
 		Config: h.Config,
 		Predicate: func(_ context.Context, user types.User) bool {
-			return user.Origin() == originSCIM
+			return hasSCIMOrigin(user)
 		},
 		UserToResource: func(user types.User) (*scimpb.Resource, error) {
 			groups, err := h.getAccessListsForUser(ctx, user.GetName())
@@ -89,7 +90,7 @@ func (h *userHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 		return nil, trace.Wrap(err)
 	}
 
-	if !isSCIMResource(teleportUser) {
+	if !hasSCIMOrigin(teleportUser) {
 		return nil, trace.AccessDenied("user %q is not SCIM managed", userID)
 	}
 
@@ -118,12 +119,12 @@ func (h *userHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		return nil, trace.Wrap(err)
 	}
 
-	if !isSCIMResource(existingUser) {
+	if !hasSCIMOrigin(existingUser) {
 		return nil, trace.NotFound("user %q is not SCIM managed", userID)
 	}
 	additionalLabels := map[string]string{
 		common.ExternalIDLabel: req.GetResource().GetExternalId(),
-		types.OriginLabel:      originSCIM,
+		types.OriginLabel:      typescommon.OriginSCIM,
 	}
 
 	updatedSCIMUser, err := conv.UserFromResource(req.GetResource(),
@@ -157,7 +158,7 @@ func (h *userHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIM
 		return trace.Wrap(err)
 	}
 
-	if !isSCIMResource(teleportUser) {
+	if !hasSCIMOrigin(teleportUser) {
 		return trace.NotFound("user %q is not SCIM managed", userID)
 	}
 

@@ -48,7 +48,7 @@ func (g groupHandler) findAccessListByTitle(ctx context.Context, title string) (
 	var matchedList *accesslist.AccessList
 
 	err := utils.ForEachResource(ctx, g.AccessListsService.ListAccessLists, func(list *accesslist.AccessList) error {
-		if !isSCIMResource(list) {
+		if !accessListPredicate(list) {
 			return nil
 		}
 		if list.Spec.Title == title {
@@ -75,7 +75,7 @@ func (g groupHandler) findAccessListByTitle(ctx context.Context, title string) (
 func (g groupHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMResourcesRequest) (*scimpb.ResourceList, error) {
 	l := lister.GroupLister{
 		Config:    g.Config,
-		Predicate: func(list *accesslist.AccessList) bool { return isSCIMResource(list) },
+		Predicate: func(list *accesslist.AccessList) bool { return accessListPredicate(list) },
 		AccessListToResource: func(list *accesslist.AccessList) (*scimpb.Resource, error) {
 			members, err := libaccesslist.GetMembersFor(ctx, list.GetName(), g.AccessListsService)
 			if err != nil {
@@ -97,7 +97,7 @@ func (g groupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 		return nil, trace.Wrap(err, "fetching ACL for provisioning")
 	}
 
-	if !isSCIMResource(acl) {
+	if !accessListPredicate(acl) {
 		return nil, trace.NotFound("access list %q not found", resourceID)
 	}
 
@@ -118,7 +118,7 @@ func (g groupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		return nil, trace.Wrap(err, "fetching ACL for provisioning")
 	}
 
-	if !isSCIMResource(acl) {
+	if !accessListPredicate(acl) {
 		return nil, trace.NotFound("access list %q not found", resourceID)
 	}
 
@@ -154,7 +154,7 @@ func (g groupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIM
 		return trace.Wrap(err, "fetching ACL for provisioning")
 	}
 
-	if !isSCIMResource(acl) {
+	if !accessListPredicate(acl) {
 		return trace.NotFound("access list %q not found", resourceID)
 	}
 
