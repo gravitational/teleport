@@ -40,7 +40,6 @@ import (
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -312,26 +311,6 @@ type iamClient interface {
 
 type ssmClient interface {
 	CreateDocument(ctx context.Context, params *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error)
-}
-
-type localRegionGetter interface {
-	GetRegion(context.Context) (string, error)
-}
-
-func getLocalRegion(ctx context.Context, localRegionGetter localRegionGetter) (string, bool) {
-	if localRegionGetter == nil {
-		imdsClient, err := awsimds.NewInstanceMetadataClient(ctx)
-		if err != nil || !imdsClient.IsAvailable(ctx) {
-			return "", false
-		}
-		localRegionGetter = imdsClient
-	}
-
-	region, err := localRegionGetter.GetRegion(ctx)
-	if err != nil || region == "" {
-		return "", false
-	}
-	return region, true
 }
 
 func getSTSClient(cfg aws.Config) *sts.Client {

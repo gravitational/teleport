@@ -1912,12 +1912,3 @@ func (m *iamMock) GetRole(ctx context.Context, input *iam.GetRoleInput, optFns .
 	arn := fmt.Sprintf("arn:%s:iam::%s:role%s%s", m.partition, m.account, path, roleName)
 	return &iam.GetRoleOutput{Role: &iamtypes.Role{Arn: &arn}}, nil
 }
-
-type mockLocalRegionGetter struct {
-	region string
-	err    error
-}
-
-func (m mockLocalRegionGetter) GetRegion(context.Context) (string, error) {
-	return m.region, m.err
-}
