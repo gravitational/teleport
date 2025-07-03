@@ -121,32 +121,32 @@ func encodeHello() ([]byte, error) {
 	var block proto.Block
 
 	type columnWithValue struct {
-		name string
+		name       string
 		columnType column.Type
-		value any
+		value      any
 	}
-	columns := []columnWithValue {
+	columns := []columnWithValue{
 		{
-			name: "displayName()",
+			name:       "displayName()",
 			columnType: "String",
-			value: "ClickHouse",
+			value:      "ClickHouse",
 		},
 		{
-			name: "version()",
+			name:       "version()",
 			columnType: "String",
 			// x509 HTTP auth is support from ClickHouse 22.4.x.x
 			// Report a random version to a ClickHouse HTTP client.
 			value: "23.4.2.11",
 		},
 		{
-			name: "revision()",
+			name:       "revision()",
 			columnType: "UInt32",
-			value: uint32(12345),
+			value:      uint32(12345),
 		},
 		{
-			name: "timezone()",
+			name:       "timezone()",
 			columnType: "String",
-			value: "UTC",
+			value:      "UTC",
 		},
 	}
 
@@ -187,17 +187,19 @@ func encodePing() ([]byte, error) {
 
 }
 
-func (s *TestServer) serveHTTP() error {
-	const (
-		// The HTTP client does a "hello" by selecting a few common metadata.
-		// https://github.com/ClickHouse/clickhouse-go/blob/10732d7bb20224020e7099e9675f4c47ae5f5e7f/conn_http.go#L321-L324
-		helloQuery = "SELECT displayName(), version(), revision(), timezone()"
-		pingQuery     = "SELECT 1"
-	)
+const (
+	// HelloQuery is the "hello" query sent by the HTTP client to select a few
+	// common metadata.
+	// https://github.com/ClickHouse/clickhouse-go/blob/10732d7bb20224020e7099e9675f4c47ae5f5e7f/conn_http.go#L321-L324
+	HelloQuery = "SELECT displayName(), version(), revision(), timezone()"
+	// PingQuery is the basic query to ping.
+	PingQuery = "SELECT 1"
+)
 
+func (s *TestServer) serveHTTP() error {
 	encHandler := map[string]func() ([]byte, error){
-		helloQuery: encodeHello,
-		pingQuery:     encodePing,
+		HelloQuery: encodeHello,
+		PingQuery:  encodePing,
 	}
 
 	mux := http.NewServeMux()
