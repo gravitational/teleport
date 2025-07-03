@@ -148,7 +148,7 @@ as well as an upgrade of the previous version of Teleport.
 
     Subsystem testing may be achieved using both
     [Recording Proxy mode](
-    https://goteleport.com/docs/reference/architecture/session-recording/#record-at-the-proxy-service)    
+    https://goteleport.com/docs/reference/architecture/session-recording/#record-at-the-proxy-service)
     and
     [OpenSSH integration](
     https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/).
@@ -190,7 +190,7 @@ as well as an upgrade of the previous version of Teleport.
                                        ┌►│ Regular Node  │
 ┌───────────────┐    ┌───────────────┐ │ │               │
 │               │    │               │ │ └───────────────┘
-│ Root Cluster  ├───►│ Leaf Cluster  ├─┤                  
+│ Root Cluster  ├───►│ Leaf Cluster  ├─┤
 │               │    │               │ │ ┌───────────────┐
 └───────────────┘    └───────────────┘ │ │               │
                                        └►│ OpenSSH Node  │
@@ -204,7 +204,7 @@ When you want to test a non-remote-cluster, use the Leaf Cluster as your proxy t
   - [ ] `tsh ssh <node-remote-cluster>`
   - [ ] `tsh ssh <agentless-node>`
   - [ ] `tsh ssh <agentless-node-remote-cluster>`
-  
+
 Test agent had been forwarded by running `ssh-add -L` and check that your teleport keys are listed. Each cluster requires the `permit-agent-forwarding` flag and the role you're assuming in the leaf cluster needs `Agent Forwarding` enabled. Example connection command:
 `tsh ssh -A --proxy $PROXY --cluster $REMOTE_CLUSTER $USER@$NODE_NAME`
 
@@ -259,7 +259,7 @@ This forwards the local port to the remote node, test this with a web server run
 - [ ] Interact with a cluster using `ssh`
 
   Make sure to test both recording and regular proxy modes. Generate an [SSH config](https://goteleport.com/docs/reference/cli/tsh/#tsh-config), one per cluster. An SSH command will look something like this:
-  
+
   `ssh -p 22 -F /path/to/generated/ssh_config <user>@<node-name>.<cluster-that-the-node-is-in>`
 
   To test connecting to a remote cluster, use the root cluster's `ssh_config` and the name of the remote cluster for `<cluster-that-the-node-is-in>`.
@@ -1330,62 +1330,75 @@ For each of the following cases, create a moderated session with the user using 
 
 ## Performance
 
-### Scaling Test
-Scale up the number of nodes/clusters a few times for each configuration below.
+For all performance tests
 
  1) Verify that there are no memory/goroutine/file descriptor leaks
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
- 3) Restart all Auth instances and verify that all nodes/clusters reconnect
 
- Perform reverse tunnel node scaling tests for all backend configurations:
-  - [ ] etcd - 10k
-  - [ ] DynamoDB - 10k
-  - [ ] Firestore - 10k
-  - [ ] Postgres - 10k
+### Ansible-like Test
 
-  Perform the following additional scaling tests on DynamoDB:
- - [ ] 10k direct dial nodes.
- - [ ] 500 trusted clusters.
+Run the [ansible-like](https://github.com/gravitational/teleport/tree/4fd411add0c6fa7d4d0d19b1cf0c5c13c541498e/assets/loadtest/ansible-like)
+test against a Cloud tenant with 60k nodes dispersed geographically in multiple regions.
+
+ - [ ] DynamoDB
+ - [ ] CRDB
+
+### Simluated load test
+
+Run a simulated 30k load test against all self-hosted only backends by running the following command
+simultaneously from two auth instances.
+
+```shell
+tctl loadtest node-heartbeats --duration=30m --count=15000 --ttl=2m --interval=1m --labels=2 --concurrency=32
+```
+
+  - [ ] etcd
+  - [ ] Firestore
+  - [ ] Postgres
+
+### Load test
+
+Perform the following additional load tests on one of the self hosted backends, for each
+test scale up and down the resources from 0 a few times.
+
+ - [ ] Add 10k direct dial nodes
+ - [ ] Add 500 trusted clusters
 
 ### Soak Test
 
-Run 30 minute soak test directly against direct and tunnel nodes
-and via label based matching. Tests should be run against a Cloud
-tenant.
+Run the 30 minute soak test directly against a Cloud tenant with 1000 SSH agents.
 
 ```shell
-tsh bench ssh --duration=30m user@direct-dial-node ls
-tsh bench ssh --duration=30m user@reverse-tunnel-node ls
+tsh bench ssh --duration=30m user@node ls
 tsh bench ssh --duration=30m user@foo=bar ls
 tsh bench ssh --duration=30m --random user@foo ls
 ```
 
+ - [ ] via hostname
+ - [ ] via label
+ - [ ] random
+
 ### Concurrent Session Test
 
-* Cluster with 1k reverse tunnel nodes
-
-Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
+Run the following tests against a Cloud tenant with 1000 SSH agents.
 
 ```shell
 tsh bench web sessions --max=5000 user ls
-tsh bench web sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
-- [ ] Verify that tsh and the web UI are still functional.
+- [ ] Verify that tsh and the web UI are functional.
 
-### Robustness
+### init
 
-* Connectivity Issues:
+- [ ] Run with `GODEBUG='inittrace=1'` to find any expensive init functions.
 
-- [ ] Verify that a lack of connectivity to Auth does not prevent access to
-  resources which do not require a moderated session and in async recording
-  mode from an already issued certificate.
-- [ ] Verify that a lack of connectivity to Auth prevents access to resources
-  which require a moderated session and in async recording mode from an already
-  issued certificate.
-- [ ] Verify that an open session is not terminated when all Auth instances
-  are restarted.
+```shell
+GODEBUG='inittrace=1' teleport version  2>&1 | rg '^init' | awk '{print $5 " ms " $2}' | sort -n -r | head -10
+
+
+GODEBUG='inittrace=1' teleport version 2>&1 | rg '^init' | awk '{print $8 " bytes " $2}' | sort -n -r | head -10
+```
 
 ## Teleport with Cloud Providers
 

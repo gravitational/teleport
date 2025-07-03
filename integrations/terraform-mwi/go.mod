@@ -9,8 +9,8 @@ require (
 	github.com/hashicorp/terraform-plugin-framework v1.15.0
 	github.com/hashicorp/terraform-plugin-framework-timetypes v0.5.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
-	github.com/hashicorp/terraform-plugin-go v0.27.0
-	github.com/hashicorp/terraform-plugin-testing v1.13.1
+	github.com/hashicorp/terraform-plugin-go v0.28.0
+	github.com/hashicorp/terraform-plugin-testing v1.13.2
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.33.2
@@ -100,7 +100,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dax v1.24.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.44.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.25.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.227.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.228.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.28.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.66.1 // indirect
@@ -117,7 +117,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.39.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/rds v1.99.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rds v1.99.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.5 // indirect
@@ -274,7 +274,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-plugin v1.6.3 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
@@ -369,7 +369,7 @@ require (
 	github.com/opencontainers/selinux v1.12.0 // indirect
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/oracle/oci-go-sdk/v65 v65.94.0 // indirect
+	github.com/oracle/oci-go-sdk/v65 v65.95.0 // indirect
 	github.com/parquet-go/parquet-go v0.25.1 // indirect
 	github.com/pascaldekloe/name v1.0.1 // indirect
 	github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible // indirect
@@ -457,12 +457,12 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	github.com/zclconf/go-cty v1.16.2 // indirect
+	github.com/zclconf/go-cty v1.16.3 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	github.com/zitadel/logging v0.6.2 // indirect
-	github.com/zitadel/oidc/v3 v3.39.0 // indirect
+	github.com/zitadel/oidc/v3 v3.39.1 // indirect
 	github.com/zitadel/schema v1.3.1 // indirect
-	gitlab.com/gitlab-org/api/client-go v0.130.1 // indirect
+	gitlab.com/gitlab-org/api/client-go v0.131.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.6.1 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.1 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.1 // indirect
@@ -498,7 +498,7 @@ require (
 	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
-	google.golang.org/api v0.237.0 // indirect
+	google.golang.org/api v0.239.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
