@@ -4,12 +4,10 @@ h1: Agent Service Glossary
 description: Glossary for Teleport Agent Services and Clients.
 ---
 
-This glossary provides definitions and explanations for key terms related to Teleport Agent services and clients. Teleport Agent runs on target systems to facilitate secure access through the Teleport cluster.
-
 # Teleport Agent services and clients
 
-Most agent services can be enabled together or separately depending on deployment needs.
-
+This glossary provides definitions and explanations for key terms related to Teleport Agent services and clients. Teleport Agent runs on 
+target systems to facilitate secure access through the Teleport cluster. Most agent services can be enabled together or separately depending on deployment needs. 
 The **"Enabled by Default"** column indicates whether each service is active by default when you run `teleport start` without specifying services.
 
 ## Teleport Agent services
@@ -146,15 +144,16 @@ These settings apply to the Debug Service
 
 ## Teleport clients
 
+The `tbot` agent is often deployed in non-interactive environments to bootstrap access securely. 
+All client tools ultimately interact with the Auth and Proxy services, which serve as the backbone of the Teleport platform.
+
+
 | Client tool | Description | Common use case |
 | -------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------- |
 | `tsh` | Command-line tool for users to authenticate, connect to resources, and manage sessions. | CLI-based access for engineers and operators |
 | `tctl` | Administrative CLI for managing roles, users, configurations, and resources. | Cluster setup and ongoing admin operations |
 | `tbot` | Lightweight agent that provisions credentials to workloads and CI/CD pipelines. | Machine and workload authentication |
 | Teleport Connect | GUI application for accessing servers, databases, apps, and desktops.  GUI-based daily access for engineers | GUI-based daily access for engineers |
-
-- The `tbot` agent is often deployed in non-interactive environments to bootstrap access securely.
-- All client tools ultimately interact with the Auth and Proxy services, which serve as the backbone of the Teleport platform.
 
 Further reading:
 - [Introduction to Teleport clients](../../connect-your-client/introduction.mdx) Authenticate to Teleport and access protected resources. Designed for end users with links to additional documentation.
