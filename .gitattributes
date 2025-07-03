@@ -9,3 +9,5 @@ docs/theme/js/theme.js linguist-vendored=false
 *_pb.ts linguist-generated
 *_pb.grpc-*.ts linguist-generated
 *_pb.client.ts linguist-generated
+
+*.golden -text
