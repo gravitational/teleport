@@ -110,7 +110,15 @@ field to the value of your token.
    namespace/teleport labeled
    ```
 
-2. Create a new ArgoCD application using the following as a template.
+2. Create a secret from your license file. Teleport will automatically discover
+   this secret as long as your file is named `license.pem`.
+   (!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+```code
+$ kubectl -n teleport create secret generic license --from-file=license.pem
+```
+
+3. Create a new ArgoCD application using the following as a template.
 
 ``` yaml
 apiVersion: argoproj.io/v1alpha1
