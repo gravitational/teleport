@@ -1,5 +1,26 @@
 # Changelog
 
+## 15.5.4 (07/03/25)
+
+### Security fixes
+
+This release also includes fixes for the following security issues:
+
+#### [Critical] Remote authentication bypass
+
+* Removed special handling for `*ssh.Certificate` authorities in the `IsHostAuthority` and `IsUserAuthority` callbacks used by `x/crypto/ssh.CertChecker`. [#56254](https://github.com/gravitational/teleport/pull/56254)
+
+Resolved an issue that allowed remote SSH authentication bypass on servers with Teleport SSH agents, OpenSSH-integrated deployments and Teleport Git proxy deployments.  [CVE-2025-49825](https://github.com/gravitational/teleport/security/advisories/GHSA-8cqv-pj7f-pwpc). Refer to the [RCA](https://trust.goteleport.com/resources?s=32t147ja8aawd6px7irxat&name=cve-2025-49825-rca) for the full details.
+
+### Other fixes and improvements
+
+* Updated WindowsDesktop and WindowsDesktopService APIs to use pagination to avoid exceeding message size limitations. [#56237](https://github.com/gravitational/teleport/pull/56237)
+* Fixed duplicated entries in `tctl inventory list` when using DynamoDB as cluster state storage. [#56184](https://github.com/gravitational/teleport/pull/56184)
+* Fixed an issue that could prevent Windows desktop sessions from terminating when the idle timeout was exceeded. [#56052](https://github.com/gravitational/teleport/pull/56052)
+* Added the `teleport-update status --is-up-to-date` flag to change the return code based on the update status. [#55952](https://github.com/gravitational/teleport/pull/55952)
+* Fixed a memory leak in Kubernetes Access caused by resources not being cleaned up when clients terminate watch streams. [#55769](https://github.com/gravitational/teleport/pull/55769)
+* Updated Go to 1.23.10. [#55604](https://github.com/gravitational/teleport/pull/55604)
+
 ## 15.5.2 (06/05/25)
 
 ### Security fixes
