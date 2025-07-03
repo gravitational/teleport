@@ -353,16 +353,14 @@ func TestSelectNextReviewDate(t *testing.T) {
 			expectedErr:       false,
 		},
 		{
-			name:              "six months, last day",
+			name:              "non-dynamic with audit unset",
 			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
-			frequency:         SixMonths,
-			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Time{},
 			expected:          time.Time{},
 			expectedErr:       true,
 		},
 		{
-			name:              "six months, last day",
+			name:              "non-dynamic with audit set",
 			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
