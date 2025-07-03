@@ -20,6 +20,7 @@ package inventory
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"os"
 	"strings"
@@ -340,6 +341,11 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, ok bool) {
 	handle, ok = c.store.Get(serverID)
 	return
+}
+
+// Handles gets the handles for the given server ID if they exist.
+func (c *Controller) Handles(serverID string) iter.Seq[UpstreamHandle] {
+	return c.store.Handles(serverID)
 }
 
 // UniqueHandles iterates across unique handles registered with this controller.
