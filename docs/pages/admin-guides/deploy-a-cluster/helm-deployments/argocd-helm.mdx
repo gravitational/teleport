@@ -26,6 +26,7 @@ with an existing Teleport cluster:
 
 - At least one Teleport Agent running in your cluster publicly reachable with
   valid TLS certificates
+
  - (!docs/pages/includes/tctl.mdx!)
 
 - An existing ArgoCD instance (version 2.10 or greater) that can deploy to the
@@ -70,7 +71,7 @@ Ensure you update the values file you use for the helm chart
 to include the required roles.
 
 See the `teleport-kube-agent` [chart
-reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
+reference](../../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
 roles and token types that the chart supports.
 
 Edit the values file to add the `kubeClusterName` field:
@@ -140,8 +141,7 @@ spec:
 ```
 
 3. Edit this example configuration to match your needs.
-More information on how to modify helm this the helm chart
-and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
+   More information on how to modify helm this the helm chart
+   and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
 
-4. Sync your changes to apply the configuration
-
+4. Sync your changes to apply the configuration.
