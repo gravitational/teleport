@@ -1,0 +1,174 @@
+---
+title: Request Access to Roles and Resources
+description: Explains how to request access to resources that your Teleport user does not have permissions to access.
+---
+
+If you cannot access a Teleport role or resource with your current Teleport
+permissions, you can create an Access Request to obtain elevated permissions for
+a limited time.
+
+This guide explains you how to use `tsh` to create Teleport Access Requests. 
+
+<Admonition type="tip">
+
+It is possible to create Access Requests in the Teleport Web UI by navigating
+from the left sidebar to **Identity Governance > Access Requests > New
+Request**.
+
+</Admonition>
+
+## Requesting access to roles
+
+You can request access to one or more Teleport roles using the `tsh request
+create` command and the `--roles` flag, e.g.:
+
+```code
+$ tsh request create --roles "dev,analyst"
+```
+
+The command above creates an Access Request for the `dev` and `analyst` roles.
+
+## Requesting access to Teleport cluster resources
+
+In addition to Teleport roles, you can request access to individual Teleport
+resources, including resources within a Teleport-protected Kubernetes cluster. 
+
+### Teleport cluster resources
+
+To request access to a Teleport-protected infrastructure resource, you can
+search for possible resources, retrieve the ID of a resource to request access
+to, then create an Access Request for that resource ID.
+
+<Admonition type="tip">
+
+In the Teleport Web UI, you can view the resources you can request access to by
+navigating to **Resources** in the sidebar. 
+
+</Admonition>
+
+1. Search for a resource to request access to:
+
+   ```code
+   $ tsh request search --kind=<KIND>
+   ```
+
+   Substitute `--kind` with the kind of Teleport resource you would like to
+   request access to. This can be one of the following:
+
+   - `node`
+   - `kube_cluster`
+   - `db`
+   - `app`
+   - `windows_desktop`
+
+1. Determine the ID of the resource to request access to. Resource IDs have the
+   following format:
+
+   ```
+   /CLUSTER_ADDRESS/TYPE/RESOURCE_NAME
+   ```
+
+   For example, assume that you have found the following Teleport-protected
+   server to request access to:
+
+   ```code
+   $ tsh request search --kind=node
+   Name                                 Hostname Labels Resource ID
+   ------------------------------------ -------- ------ ----------------------------------------------
+   00000000-0000-0000-0000-000000000000 myhost          /teleport.example.com/node/00000000-0000-00...
+   ```
+
+   While the resource ID on the right is clipped, you can use the format above
+   to infer that it is the following:
+
+   ```
+   /teleport.example.com/node/00000000-0000-0000-0000-000000000000
+   ```
+
+1. Request access to the resource by running the following command, inputting
+   the resource ID you found in the previous step:
+
+   ```code
+   $ tsh request create --resource RESOURCE_ID
+   ```
+
+### Kubernetes resources
+
+In addition to Teleport-protected Kubernetes clusters, you can request access to
+resources within a Kubernetes cluster. In this case, the procedure is slightly
+different than requesting access to a Teleport-protected infrastructure
+resource.
+
+1. Search for a resource to request access to:
+
+   ```code
+   $ tsh request search --kind=<KIND>
+   ```
+
+   Substitute `--kind` with the kind of Teleport resource you would like to
+   request access to. 
+
+   Kubernetes resources are scoped either to a cluster or a namespace.
+
+   You can specify the following namespaced resources: `pod`, `secret`,
+   `configmap`, `service`, `serviceaccount`, `persistentvolumeclaim`,
+   `deployment`, `replicaset`, `statefulset`, `daemonset`, `kube_role`,
+   `rolebinding`, `cronjob`, `job`, `ingress`.
+
+   Teleport supports the following cluster-wide resources: `namespace`,
+   `kube_node`, `clusterrole`, `clusterrolebinding`, `persistentvolume`,
+   `certificatesigningrequest`.
+
+1. Determine the ID of the resource to request access to. 
+
+   For Kubernetes namespaced resources, the `resource-id` is in the following format:
+
+   ```
+   /TELEPORT_CLUSTER/NAMESPACED_KIND/KUBE_CLUSTER/NAMESPACE/RESOURCE_NAME
+   ```
+
+   For example, a pod called `nginx-1` in the `development` namespace of the
+   `mycluster` cluster would have the following ID:
+
+   ```
+   /teleport.example.com/pod/mycluster/development/nginx-1
+   ```
+
+   For Kubernetes cluster-scoped resources, the `resource-id` is in the following format:
+   
+   ```
+   /TELEPORT_CLUSTER/CLUSTER_WIDE_KIND/KUBE_CLUSTER/RESOURCE_NAME
+   ```
+
+   For example, the ID of a namespace (a cluster-scoped resource) called `prod` in the cluster `mycluster`
+   would be:
+
+   ```
+   /teleport.example.com/namespace/mycluster/prod
+   ```
+
+1. Request access to the resource by running the following command, inputting
+   the resource ID you determined in the previous step.
+
+   ```code
+   $ tsh request create --resource RESOURCE_ID
+   ```
+
+   For example, to request access to a pod called `nginx-1` in the `development`
+   namespace, run the following command:
+
+   ```code
+   $ tsh request create --resource /teleport.example.com/pod/mycluster/development/nginx-1
+   ```
+
+   For the `NAMESPACE` and `RESOURCE_NAME` values, you can match ranges of
+   characters by supplying a wildcard (`*`) or regular expression. Regular
+   expressions must begin with `^` and end with `$`.
+
+   For example, to create a request to access all pods in all namespaces that
+   match the regular expression `/^nginx-[a-z0-9-]+$/`, run the following
+   command:
+
+   ```code
+   $ tsh request create --resource /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
+   ```
