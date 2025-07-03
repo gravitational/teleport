@@ -186,6 +186,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryTruncateRequest(in)
 	case TypeSharedDirectoryTruncateResponse:
 		return decodeSharedDirectoryTruncateResponse(in)
+	case TypeLatencyStats:
+		return decodeLatencyStats(in)
 	case TypePing:
 		return decodePing(in)
 	case TypeClientKeyboardLayout:
@@ -1651,6 +1653,17 @@ func (l LatencyStats) Encode() ([]byte, error) {
 	writeUint32(buf, l.ClientLatency)
 	writeUint32(buf, l.ServerLatency)
 	return buf.Bytes(), nil
+}
+
+func decodeLatencyStats(in io.Reader) (LatencyStats, error) {
+	var latencyStats LatencyStats
+	if err := binary.Read(in, binary.BigEndian, &latencyStats.ClientLatency); err != nil {
+		return latencyStats, trace.Wrap(err)
+	}
+	if err := binary.Read(in, binary.BigEndian, &latencyStats.ServerLatency); err != nil {
+		return latencyStats, trace.Wrap(err)
+	}
+	return latencyStats, nil
 }
 
 // Ping is used to measure the latency of the connection(s) between proxy and desktop (includes
