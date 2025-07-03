@@ -180,14 +180,15 @@ type Spec struct {
 type Type string
 
 const (
-	Dynamic Type = "dynamic"
-	Static  Type = "static"
-	SCIM    Type = "scim"
+	ImplicitDynamic Type = ""
+	Dynamic         Type = "dynamic"
+	Static          Type = "static"
+	SCIM            Type = "scim"
 )
 
 func NewTypeFromString(s string) (Type, error) {
 	switch s {
-	case "", string(Dynamic):
+	case string(ImplicitDynamic), string(Dynamic):
 		return Dynamic, nil
 	case string(Static):
 		return Static, nil
@@ -340,8 +341,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		}
 	}
 
-	switch a.Spec.Type {
-	case "", Dynamic:
+	if a.IsReviewable() {
 		if a.Spec.Audit.Recurrence.Frequency == 0 {
 			a.Spec.Audit.Recurrence.Frequency = SixMonths
 		}
@@ -363,15 +363,16 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		}
 
 		if a.Spec.Audit.NextAuditDate.IsZero() {
-			a.setInitialAuditDate(clockwork.NewRealClock())
+			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
+				return trace.Wrap(err, "setting initial audit date")
+			}
 		}
 
 		if a.Spec.Audit.Notifications.Start == 0 {
 			a.Spec.Audit.Notifications.Start = twoWeeks
 		}
-	default:
-		zeroAudit := Audit{}
-		if a.Spec.Audit != zeroAudit {
+	} else {
+		if !isZero(a.Spec.Audit) {
 			return trace.BadParameter("audit not supported for non-dynamic access_list")
 		}
 	}
@@ -553,12 +554,18 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// SelectNextReviewDate will select the next review date for the access list.
-func (a *AccessList) SelectNextReviewDate() time.Time {
+func (a *AccessList) IsReviewable() bool {
 	switch a.Spec.Type {
-	case Static, SCIM:
-		// no review data for non-dynamic access_lists
-		return time.Time{}
+	case ImplicitDynamic, Dynamic:
+		return true
+	}
+	return false
+}
+
+// SelectNextReviewDate will select the next review date for the access list.
+func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
+	if !a.IsReviewable() {
+		return time.Time{}, trace.BadParameter("access_list %q is not reviewable", a.GetName())
 	}
 
 	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
@@ -575,15 +582,16 @@ func (a *AccessList) SelectNextReviewDate() time.Time {
 	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
 		0, 0, 0, 0, time.UTC)
 
-	return nextDate
+	return nextDate, nil
 }
 
 // setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
 // The function is extracted from CheckAndSetDefaults for the sake of testing
 // (we need to pass a fake clock).
-func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	// We act as if the AccessList just got reviewed (we just created it, so
 	// we're pretty sure of what it does) and pick the next review date.
 	a.Spec.Audit.NextAuditDate = clock.Now()
-	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
+	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
+	return trace.Wrap(err)
 }

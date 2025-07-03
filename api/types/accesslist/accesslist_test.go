@@ -314,6 +314,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		dayOfMonth        ReviewDayOfMonth
 		currentReviewDate time.Time
 		expected          time.Time
+		expectedErr       bool
 	}{
 		{
 			name:              "one month, first day",
@@ -322,46 +323,52 @@ func TestSelectNextReviewDate(t *testing.T) {
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "one month, fifteenth day",
-			accessListTypes:   []Type{"", Dynamic},
+			accessListTypes:   []Type{ImplicitDynamic, Dynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "one month, last day",
-			accessListTypes:   []Type{"", Dynamic},
+			accessListTypes:   []Type{ImplicitDynamic, Dynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{"", Dynamic},
+			accessListTypes:   []Type{ImplicitDynamic, Dynamic},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM},
+			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Time{},
 			expected:          time.Time{},
+			expectedErr:       true,
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM},
+			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Time{},
+			expectedErr:       true,
 		},
 	}
 
@@ -377,7 +384,13 @@ func TestSelectNextReviewDate(t *testing.T) {
 						Frequency:  test.frequency,
 						DayOfMonth: test.dayOfMonth,
 					}
-					require.Equal(t, test.expected, accessList.SelectNextReviewDate())
+					nextReviewDate, err := accessList.SelectNextReviewDate()
+					if test.expectedErr {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, test.expected, nextReviewDate)
+					}
 				})
 			}
 		})
