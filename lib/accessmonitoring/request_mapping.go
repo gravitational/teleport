@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -30,6 +31,7 @@ import (
 type AccessRequestExpressionEnv struct {
 	Roles              []string
 	SuggestedReviewers []string
+	RequestedResources []types.ResourceWithLabels
 	Annotations        map[string][]string
 	User               string
 	RequestReason      string
@@ -87,12 +89,48 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 			return env.Expiry, nil
 		}),
 
+		"access_request.spec.requested_resources": typical.DynamicVariable(func(env AccessRequestExpressionEnv) ([]types.ResourceWithLabels, error) {
+			return env.RequestedResources, nil
+		}),
+		"access_request.spec.requested_resources.length": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (int, error) {
+			return len(env.RequestedResources), nil
+		}),
+
 		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
 			return expression.DictFromStringSliceMap(env.UserTraits), nil
 		}),
 	}
+
+	expFuncs := map[string]typical.Function{
+		"all_has_labels": typical.TernaryFunction[AccessRequestExpressionEnv](
+			func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
+				for _, resource := range resources {
+					if resource.GetAllLabels()[key] != val {
+						return false, nil
+					}
+				}
+				return true, nil
+			}),
+		"some_has_labels": typical.TernaryFunction[AccessRequestExpressionEnv](
+			func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
+				for _, resource := range resources {
+					if resource.GetAllLabels()[key] == val {
+						return true, nil
+					}
+				}
+				return false, nil
+			}),
+	}
+
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
+
+	// Set additional expression functions/methods, overwriting any defaults
+	// with the same name.
+	for key, fn := range expFuncs {
+		defParserSpec.Functions[key] = fn
+		defParserSpec.Methods[key] = fn
+	}
 
 	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {
