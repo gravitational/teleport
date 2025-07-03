@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpproxy"
@@ -250,8 +251,9 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusServiceUnavailable)
 		return
 	}
-	defer serverConn.Close()
 
+	defer serverConn.Close()
+	defer time.Sleep(1 * time.Second) // Give some time for the server to accept the connection.
 	// Send OK to client to let it know the tunnel is ready.
 	if ok := writeHeaderToHijackedConnection(clientConn, req, http.StatusOK); !ok {
 		return

@@ -20,6 +20,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -91,6 +92,6 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 			return trace.Wrap(context.Cause(ctx))
 		}
 	}
-
+	fmt.Println("ProxyConn: exiting after copying data between client and server connections", trace.NewAggregate(errors...))
 	return trace.NewAggregate(errors...)
 }
