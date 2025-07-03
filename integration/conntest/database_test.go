@@ -224,7 +224,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				DialTimeout:        time.Second,
 				InsecureSkipVerify: true,
 			}
-			respStatusCode, respBody := webPack.DoRequest(t, http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
+			respStatusCode, respBody := webPack.DoWebAPIRequest(t, http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
 			require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
@@ -310,7 +310,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 			TOTPCode: validToken,
 		},
 	}
-	respStatusCode, respBody := webPack.DoRequest(t, http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
+	respStatusCode, respBody := webPack.DoWebAPIRequest(t, http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	var connectionDiagnostic ui.ConnectionDiagnostic
