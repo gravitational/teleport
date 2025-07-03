@@ -1,273 +1,378 @@
----
-title: Getting Started With Access Controls
-description: Get started using Access Controls.
+--- 
+title: Getting Started With Role-Based Access Control
+description: Teleport Role-Based Access Control.
+tocDepth: 3
 ---
 
-In Teleport, any local, SSO, or robot user can be assigned one or several roles.
-Roles govern access to databases, SSH servers, Kubernetes clusters, Windows
-desktops, and web apps.
+Teleport Role-Based Access Control (RBAC) is a system for managing who can
+access what within your infrastructure. Instead of assigning permissions
+directly to users, you create roles that define sets of permissions, then assign
+those roles to users.
 
-We will start with local users and preset roles, assign roles to SSO users, and
-wrap up with creating your own role.
+This guide helps you understand and implement RBAC in Teleport. By the end of this guide, you'll be able to:
+
+- Understand how roles control access to resources.
+- Implement common access patterns.
+- Create and configure basic roles in Teleport.
+- Assign roles to users.
+- Follow best practices to scale and maintain roles.
 
 ## How it works
 
-Teleport roles specify the permissions of a user for interacting with a Teleport
-cluster, with rules including the Teleport-protected infrastructure resources a
-user can access and the Teleport API resources a user can manage.  When a user
-authenticates to Teleport, the TLS and SSH certificates they receive encode
-their roles. 
+In Teleport, **infrastructure resources** are infrastructure components like SSH
+servers, Kubernetes clusters, databases, and web applications. **Users**, which
+can be humans or bots, connect to resources. Teleport **roles** are [dynamic
+Teleport resources](../infrastructure-as-code/infrastructure-as-code.mdx) that
+allow or deny access to infrastructure resources, as well as to Teleport API
+operations like creating users or reviewing Access Requests.
 
-Teleport components can then inspect the user's roles for the required
-permissions before completing an action. For example, the Teleport Auth Service
-authorizes a user before reading or writing API resources, and Teleport Agents
-authorize a user before routing traffic to an infrastructure resource.
-
-When a user authenticates to Teleport with a single sign-on authentication
-connector, the user still receives TLS and SSH certificates that encode their
-roles. In this case, the Teleport Auth Service maps the user on the SSO identity
-provider to one or more Teleport roles using the configuration in the
-authentication connector.
+Roles control access to infrastructure resources using **label matching**. All
+infrastructure resources that are enrolled in your Teleport cluster have
+**labels**, which are key-value pairs such as `env:dev`. When a user attempts to
+connect to a resource, the [Teleport
+Agent](../../enroll-resources/agents/agents.mdx) that proxies the resource
+checks the user's Teleport roles to ensure that the user has the appropriate
+permissions and, if not, denies the connection.
 
 ## Prerequisites
+
+This guide illustrates how to register a server with Teleport using a Docker
+container and the Teleport SSH Service in order to apply RBAC rules for
+accessing the server. While the example uses a Teleport-protected server,
+applying RBAC rules for accessing infrastructure resources works in similar ways
+for any Teleport-protected resource.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
-(!docs/pages/includes/permission-warning.mdx!)
+- A Teleport user with permissions to create join tokens and other roles. We
+  recommend using a demo cluster with the preset `editor` role. 
 
-## Step 1/3. Add local users with preset roles
+- Docker installed on your workstation. Docker is only required for the local
+  demo environment used in this guide. You can find installation instructions
+  for Docker on [Docker's website](https://docs.docker.com/get-docker/). If you
+  want to register servers in Teleport without using Docker, see the getting
+  started guide for [server
+  access](../../enroll-resources/server-access/getting-started.mdx).
 
-Teleport provides several preset roles:
+## Step 1/2. Enroll resources with labels
 
-(!docs/pages/includes/preset-roles-table.mdx!)
+In this section, you will enroll two servers with your Teleport cluster. One
+server will have the `env:local-dev` label and the other will have the
+`env:local-prod`.  Later in this guide, you will create a role that will allow a
+user to access a server with the `env:local-dev` label and deny access to the
+`env:local-prod` label.
 
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-Invite the local user Alice as cluster `editor`:
+### Enroll a server with the `env:local-dev` label
 
-```code
-$ tctl users add alice --roles=editor
-```
-</TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
-Invite the local user Alice as cluster `editor` and `reviewer`:
+1. Create a join token for the server to use to join the cluster:
 
-```code
-$ tctl users add alice --roles=editor,reviewer
-```
-</TabItem>
+   ```code
+   $ tctl tokens add --type=node
+   ```
 
-</Tabs>
+1. Assign the token to <Var name="token" /> and the host and web port of your
+   Teleport Proxy Service to <Var name="example.teleport.sh:443" />.
 
-Once Alice signs up, she will be able to edit cluster configuration. You can list
-users and their roles using `tctl users ls`.
+1. Copy the following Teleport configuration to a file called `local-dev.yaml`:
 
-<Tabs>
-<TabItem scope={"oss"} label="Teleport Community Edition">
-```code
-$ tctl users ls
+   ```yaml
+   version: v3
+   teleport:
+     data_dir: /var/lib/teleport
+     join_params:
+       token_name: <Var name="token" />
+       method: token
+     proxy_server: <Var name="example.teleport.sh:443" />
+   auth_service:
+     enabled: "false"
+   ssh_service:
+     enabled: "true"
+     labels:
+       env: local-dev
+   proxy_service:
+     enabled: "false"
+   ```
 
-# User                 Roles
-# -------------------- --------------
-# alice                editor
-```
-</TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
-```code
-$ tctl users ls
+   This Teleport configuration enables the Teleport SSH Service, which enrolls a
+   server in your Teleport cluster. The `ssh_service.labels` field adds a label
+   to the server called `env:local`.
 
-# User                 Roles
-# -------------------- --------------
-# alice                editor, reviewer
-```
-</TabItem>
+1. Assign the absolute path to the configuration file you created to 
+   <Var name="dev-config-path"/>.
 
-</Tabs>
+1. Start the Teleport SSH Service on a local Docker container with the
+   configuration and join it to your cluster:
 
-You can update the user's roles using the `tctl users update` command:
+   ```code
+   $ docker run -v <Var name="dev-config-path"/>:/etc/teleport/teleport.yaml (=teleport.latest_ent_debug_docker_image=)
+   ```
 
-<Tabs>
-<TabItem scope={"oss"} label="Teleport Community Edition">
-```code
-# Once Alice logs back in, she will be able to view audit logs
-$ tctl users update alice --set-roles=editor,auditor
-```
-</TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
-```code
-# Once Alice logs back in, she will be able to view audit logs
-$ tctl users update alice --set-roles=editor,reviewer,auditor
-```
-</TabItem>
+1. Wait for a minute or so. Verify that you have logged in via [tsh login](../../connect-your-client/tsh#introduction) and check that the server has joined your cluster by
+   listing enrolled servers by label. You should see the server you just enrolled:
 
-</Tabs>
+   ```code
+   $ tsh ls env=local-dev
+   Node Name    Address    Labels
+   ------------ ---------- -------------
+   80f60427d316 ⟵ Tunnel   env=local-dev   
+   ```
 
-Because Alice has two or more roles, permissions from those roles create a union. She
-will be able to act as a system administrator and auditor at the same time.
+### Enroll a server with the `env:local-prod` label
 
-## Step 2/3. Map SSO users to roles
+1. Open a separate terminal.
 
-Next, follow the instructions to set up an authentication connector that maps
-users within your SSO solution to Teleport roles.
+1. Create a join token for the server to use to join the cluster:
 
-### Teleport Enterprise
+   ```code
+   $ tctl tokens add --type=node
+   ```
 
-Create a SAML or OIDC application that Teleport can integrate with, then
-create an authentication connector that maps users within your application to
-Teleport roles.
+1. Assign the token to <Var name="token" />.
 
-<Tabs>
-<TabItem label="SAML">
+1. Copy the following YAML document to a file called `local-prod.yaml`. This
+   configuration starts the Teleport SSH Service with the label
+   `env:local-prod`:
 
-Follow our [SAML Okta Guide](./sso/okta.mdx) to
-create a SAML application.
+   ```yaml
+   version: v3
+   teleport:
+     data_dir: /var/lib/teleport
+     join_params:
+       token_name: <Var name="token" />
+       method: token
+     proxy_server: <Var name="example.teleport.sh:443" />
+   auth_service:
+     enabled: "false"
+   ssh_service:
+     enabled: "true"
+     labels:
+       env: local-prod
+   proxy_service:
+     enabled: "false"
+   ```
 
-Save the file below as `okta.yaml` and update the `acs` field.
-Any member in Okta group `okta-admin` will assume a built-in role `admin`.
+1. Assign the absolute path to the configuration file you created to 
+   <Var name="prod-config-path" />.
+
+1. Start the Teleport SSH Service on a local Docker container with the
+   configuration and join it to your cluster:
+
+   ```code
+   $ docker run -v <Var name="prod-config-path" />:/etc/teleport/teleport.yaml (=teleport.latest_ent_debug_docker_image=)
+   ```
+
+1. Ensure that the server has joined the cluster:
+
+   ```code
+   $ tsh ls env=local-prod
+   Node Name    Address    Labels
+   ------------ ---------- --------------
+   ba2290caf694 ⟵ Tunnel   env=local-prod
+   ```
+
+## Step 2/3. Create a Teleport role
+
+Create a role that can access servers with the `env:local-dev` label but not the
+`env:local-prod` label.
+
+1. Create a file called `role.yaml` with the following content:
+
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: local-dev-only
+   spec:
+     allow:
+       logins: [root]
+       node_labels:
+         env: local-dev
+   ```
+
+   The `allow` block indicates what the user is allowed to access. By default,
+   nothing is allowed, so each role must include at least one `allow` field to
+   provide permissions.  
+
+   The `spec.allow.logins` field allows the user to assume the `root` login when
+   connecting to a server. You can change this to a less permissive login, but
+   we are using `root` because it is the only available login on the Docker
+   containers we spun up.
+
+   `spec.allow.node_labels` uses wildcard syntax, which matches one or more
+   characters, to allow users to connect to any server with a label that begins
+   `env:local-`, such as the `env:local-dev` and `env:local-prod` labels we
+   assigned to our servers.
+
+   However, since the `deny.node_labels` field specifies `env:local-prod`, a
+   user with this role would only be able to access the server with the
+   `env:local-dev` label.
+
+1. Create the role:
+
+   ```code
+   $ tctl create role.yaml
+   ```
+
+## Step 3/3. Access your server
+
+In this step, you will create a local Teleport user with the `local-dev-access`
+role, then list available servers and connect the one with the label
+`env:local-dev`.
+
+1. Create a local user named `alice` with the `local-dev-access` role:
+
+   ```code
+   $ tctl users add alice --roles=local-dev-access
+   ```
+
+1. Follow the instructions in your terminal to sign in as `alice`.
+
+1. In your terminal, log out of your cluster and log in again:
+
+   ```code
+   $ tsh logout
+   $ tsh login --user=alice --proxy=<Var name="example.teleport.sh" />
+   ```
+
+1. List all servers available for your user to access. You should only see one:
+
+   ```code
+   $ tsh ls
+   Node Name    Address    Labels
+   ------------ ---------- -------------
+   ba2290caf694 ⟵ Tunnel   env=local-dev
+   ```
+
+   Since `alice` is denied access to servers with the `env:local-prod` label,
+   only the server with the `env:local-dev` label is available to connect to.
+
+1. Access the server using the value of the `Node Name` field as shown in `tsh
+   ls`:
+
+   ```code
+   $ tsh ssh root@<Var name="ba2290caf694" />
+   ```
+
+## Next steps
+
+In this guide, you created a Teleport role that allowed and denied access to SSH
+servers based on the labels that the servers were enrolled with. Read about more
+things you can do with Teleport roles.
+
+### Refining resource labels
+
+Resource labeling is a crucial component of effective RBAC implementation in Teleport. Labels help you define which specific 
+resources users can access and why they need that access. Some common labels to consider using:
+
+- Environment (`dev`, `staging`, `production`)
+- Team ownership (`backend`, `frontend`, `data`)
+- Project or application (`auth-service`, `billing-api`)
+- Cost center or business unit (`marketing`, `engineering`)
+
+Example label structure:
 
 ```yaml
-kind: saml
-version: v2
+kind: role
+version: v7
 metadata:
-  name: okta
+  name: backend-developer
 spec:
-  acs: https://tele.example.com/v1/webapi/saml/acs
-  attributes_to_roles:
-  - {name: "groups", value: "okta-admin", roles: ["access"]}
-  entity_descriptor: |
-    <?xml !!! Make sure to shift all lines in XML descriptor
-    with 4 spaces, otherwise things will not work
+  allow:
+    node_labels:
+      environment: ['dev', 'staging']  # Environment context
+      team: 'backend'                  # Team context
+      project: 'auth-service'          # Project context
 ```
 
-Create the `saml` resource:
+Teleport roles can match labels in several ways:
 
-```code
-$ tctl create okta.yaml
-```
-
-</TabItem>
-<TabItem label="OIDC">
-
-Follow our [OIDC guides](./sso/oidc.mdx#identity-providers) to
-create an OIDC application.
-
-Copy the YAML below to a file called `oidc.yaml` and edit the information to
-include the details of your OIDC application.
+#### Exact matching
 
 ```yaml
-(!examples/resources/oidc-connector.yaml!)
+node_labels:
+  environment: 'production'  # Matches only 'production'
 ```
 
-Create the `oidc` resource:
-
-```code
-$ tctl create okta.yaml
-```
-
-</TabItem>
-</Tabs>
-
-### Teleport Community Edition
-
-Save the file below as `github.yaml` and update the fields. You will need to
-set up a
-[GitHub OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
-app. Any member belonging to the GitHub organization `octocats` and on team
-`admin` will be able to assume the built-in role `access`.
+#### Multiple values
 
 ```yaml
-kind: github
-version: v3
-metadata:
-  # connector name that will be used with `tsh --auth=github login`
-  name: github
-spec:
-  # client ID of GitHub OAuth app
-  client_id: client-id
-  # client secret of GitHub OAuth app
-  client_secret: client-secret
-  # This name will be shown on UI login screen
-  display: GitHub
-  # Change tele.example.com to your domain name
-  redirect_url: https://tele.example.com:443/v1/webapi/github/callback
-  # Map github teams to teleport roles
-  teams_to_roles:
-    - organization: octocats # GitHub organization name
-      team: admin            # GitHub team name within that organization
-      # map github admin team to Teleport's "access" role
-      roles: ["access"]
+node_labels:
+  environment: ['dev', 'staging']  # Matches either 'dev' or 'staging'
 ```
 
-Create the `github` resource:
+#### Wildcard matching
 
-```code
-$ tctl create github.yaml
+```yaml
+node_labels:
+  project: 'api-*'  # Matches any project starting with 'api-'
 ```
 
-## Step 3/3. Create a custom role
+### Maintaining your labeling strategy
 
-Let's create a custom role for interns. Interns will have access
-to test or staging SSH servers as `readonly` users. We will let them
-view some monitoring web applications and dev kubernetes cluster.
+- **Regular review:** Regular audits of your labeling scheme are essential for maintaining an effective RBAC system. Your organization's structure 
+and needs evolve over time, so your labels should be reviewed to ensure they accurately reflect these changes. 
+- **Documentation:** Maintaining consistency across your organization. Include clear guidelines for label naming conventions to ensure 
+standardization and prevent confusion as your team grows and your infrastructure expands.
+- **Automation:** Implementing automation in your labeling strategy will maintain consistency and reduce human error as your system scales and evolves. 
 
-Save this role as `interns.yaml`:
+### Common use cases examples
+
+Here are some examples of common patterns in Teleport labels.
+
+#### Basic developer access
+
+This role allows access to servers with the `env:staging` and `env:dev` labels
+and Kubernetes clusters with the `env:dev` label:
 
 ```yaml
 kind: role
 version: v8
 metadata:
-  name: interns
+  name: developer
 spec:
   allow:
-    # Logins configures SSH login principals
-    logins: ['readonly']
-    # Assigns users with this role to the built-in Kubernetes group "view"
-    kubernetes_groups: ["view"]
-    # Allow access to SSH nodes, Kubernetes clusters, apps or databases
-    # labeled with "staging" or "test"
+    logins: ['dev']
     node_labels:
-      'env': ['staging', 'test']
+      'env': ['staging', 'dev']
     kubernetes_labels:
       'env': 'dev'
-    kubernetes_resources:
-      - kind: "*"
-        api_group: "*"
-        namespace: "*"
-        name: "*"
-        verbs: ["*"]
-    app_labels:
-      'type': ['monitoring']
-  # The deny rules always override allow rules.
-  deny:
-    # deny access to any Node, database, app or Kubernetes cluster labeled
-    # as prod as any user.
-    node_labels:
-      'env': 'prod'
-    kubernetes_labels:
-      'env': 'prod'
-    kubernetes_resources:
-      - kind: "namespaces"
-        name: "prod"
-    db_labels:
-      'env': 'prod'
-    app_labels:
-      'env': 'prod'
 ```
 
-Create a role using the `tctl create -f` command:
+### RBAC for specific kinds of resources
 
-```code
-$ tctl create -f /tmp/interns.yaml
-# Get a list of all roles in the system
-$ tctl get roles --format text
-```
+You can label all Teleport-protected resources and use those labels to set RBAC
+policies. In addition, each kind of Teleport resource also has more specific
+attributes that you can use to control access. Read the guides below to refine
+your RBAC for each kind of resource:
 
-(!docs/pages/includes/create-role-using-web.mdx!)
+- [Servers](../../enroll-resources/server-access/rbac.mdx)
+- [Databases](../../enroll-resources/database-access/rbac.mdx)
+- [Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)
+- [Remote desktops](../../enroll-resources/desktop-access/rbac.mdx)
+- [Web applications](../../enroll-resources/application-access/controls.mdx)
 
-## Next steps
+### Best practices
 
-- [Mapping SSO and local users traits with role templates](./guides/role-templates.mdx)
-- [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)
+Keep these key principles in mind to maintain a secure environment:
 
+- **Regular audits**: 
+Periodically review and update RBAC policies to ensure they align with current organizational needs and security best practices.
+- **Principle of least privilege**: 
+Always start with minimal access and gradually increase permissions as needed. Use descriptive role names that reflect their purpose.
+- **Integration with identity providers (IdPs) like Okta and AWS OIDC**:
+Leverage existing identity management systems to streamline user management and access control.
+- **Monitoring and alerting**:
+Set up comprehensive logging and alerting for access events, especially for sensitive resources.
+- **User education**:
+Ensure that all users understand their access levels and the importance of adhering to security policies.
+Document your role configurations.
+
+## Further reading
+
+- [Mapping SSO and local users traits with role templates](../access-controls/guides/role-templates.mdx).
+- [Add Labels to Resources](../management/admin/labels.mdx).
+- [Access Control for Servers](../../enroll-resources/server-access/rbac.mdx).
+- [Access Control for Kubernetes](../../enroll-resources/kubernetes-access/controls.mdx).
+- [Enforce Device Trust with RBAC](../../identity-governance/device-trust/device-trust.mdx).
