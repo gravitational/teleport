@@ -59,7 +59,7 @@
     "@types/react-transition-group": "^4.4.12",
     "@types/wicg-file-system-access": "^2023.10.6",
     "cspell": "^9.0.1",
-    "jest": "^30.0.3",
+    "jest": "^30.0.4",
     "jsdom-testing-mocks": "^1.13.1",
     "msw": "^2.7.6",
     "msw-storybook-addon": "^2.0.4",
