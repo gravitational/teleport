@@ -147,6 +147,7 @@ export interface AlertProps
     WidthProps,
     ColorProps {
   linkColor?: string;
+  vertical?: boolean;
 }
 
 interface ThemedAlertProps extends AlertPropsWithRequiredKind {
@@ -180,6 +181,7 @@ export const Alert = ({
   bg,
   onDismiss,
   alignItems = 'center',
+  vertical = false,
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
@@ -196,8 +198,8 @@ export const Alert = ({
 
   return (
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
-      <InnerContainer kind={kind} alignItems={alignItems}>
-        <IconContainer kind={kind}>
+      <InnerContainer kind={kind} alignItems={alignItems} vertical={vertical}>
+        <IconContainer kind={kind} vertical={vertical}>
           <StatusIcon
             kind={iconKind(kind)}
             customIcon={icon}
@@ -212,6 +214,7 @@ export const Alert = ({
             // Thanks to it, each error line is nicely indented with tab,
             //  instead od being treated as a one, long line.
             white-space: pre-wrap;
+            flex-shrink: ${vertical ? 0 : 1};
           `}
         >
           <Text typography="h3">{children}</Text>
@@ -224,6 +227,7 @@ export const Alert = ({
           dismissible={dismissible}
           dismissed={dismissed}
           onDismiss={onDismissClick}
+          vertical={vertical}
         />
       </InnerContainer>
     </OuterContainer>
@@ -253,13 +257,18 @@ const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
 
 /** Renders a transparent color overlay. */
 const InnerContainer = styled.div<
-  Pick<WithRequired<AlertProps, 'kind' | 'alignItems'>, 'kind' | 'alignItems'>
+  Pick<
+    WithRequired<AlertProps, 'kind' | 'alignItems'>,
+    'kind' | 'alignItems' | 'vertical'
+  >
 >`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
   display: flex;
   align-items: ${p => p.alignItems};
+  gap: ${p => (p.vertical ? p.theme.space[3] : 0)}px;
+  flex-wrap: ${p => (p.vertical ? 'wrap' : 'initial')};
 
   ${backgroundColor}
 `;
@@ -307,10 +316,22 @@ const iconContainerStyles = ({
   }
 };
 
-const IconContainer = styled.div<{ kind: AlertKind }>`
+const IconContainer = styled.div<{ kind: AlertKind; vertical?: boolean }>`
   border-radius: 50%;
   line-height: 0;
-  margin-right: ${p => p.theme.space[3]}px;
+
+  ${p =>
+    p.vertical
+      ? `
+  align-self: flex-start;
+  margin-right: 0;
+  margin-top: ${p.theme.space[1]}px;
+  flex-shrink: 0;
+  flex-grow: 0;
+`
+      : `
+  margin-right: ${p.theme.space[3]}px;
+`}
 
   ${iconContainerStyles}
 `;
@@ -330,6 +351,7 @@ const ActionButtons = ({
   dismissible,
   dismissed,
   onDismiss,
+  vertical,
 }: {
   kind: AlertKind | BannerKind;
   primaryAction?: Action;
@@ -337,11 +359,12 @@ const ActionButtons = ({
   dismissible?: boolean;
   dismissed: boolean;
   onDismiss: () => void;
+  vertical?: boolean;
 }) => {
   if (!(primaryAction || secondaryAction || dismissible)) return;
 
   return (
-    <Flex ml={5} gap={2}>
+    <Flex ml={vertical ? 7 : 5} gap={2} flexBasis={vertical ? '100%' : 'auto'}>
       {primaryAction && (
         <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
       )}
