@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package identity
 
 import (
 	"context"
@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	IdentityOutputType = "identity"
-	IdentityFilePath   = internal.IdentityFilePath
+	OutputServiceType = "identity"
+	IdentityFilePath  = internal.IdentityFilePath
 )
 
 // SSHConfigMode controls whether to write an ssh_config file to the
@@ -55,18 +55,13 @@ const (
 	SSHConfigModeOn SSHConfigMode = "on"
 )
 
-var (
-	_ ServiceConfig = &IdentityOutput{}
-	_ Initable      = &IdentityOutput{}
-)
-
-// IdentityOutput produces credentials which can be used with `tsh`, `tctl`,
+// OutputConfig produces credentials which can be used with `tsh`, `tctl`,
 // `openssh` and most SSH compatible tooling. It can also be used with the
 // Teleport API and things which use the API client (e.g the terraform provider)
 //
 // It cannot be used to connect to Applications, Databases or Kubernetes
 // Clusters.
-type IdentityOutput struct {
+type OutputConfig struct {
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
@@ -99,17 +94,20 @@ type IdentityOutput struct {
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
-func (o *IdentityOutput) Init(ctx context.Context) error {
+func (o *OutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *IdentityOutput) GetDestination() destination.Destination {
+func (o *OutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *IdentityOutput) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+func (o *OutputConfig) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 
 	if _, ok := o.Destination.(*destination.Directory); !ok {
@@ -136,7 +134,7 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *IdentityOutput) Describe() []bot.FileDescription {
+func (o *OutputConfig) Describe() []bot.FileDescription {
 	var fds = []bot.FileDescription{
 		{
 			Name: internal.IdentityFilePath,
@@ -165,18 +163,22 @@ func (o *IdentityOutput) Describe() []bot.FileDescription {
 	return fds
 }
 
-func (o *IdentityOutput) MarshalYAML() (any, error) {
-	type raw IdentityOutput
-	return marshaling.WithTypeHeader((*raw)(o), IdentityOutputType)
+func (o *OutputConfig) MarshalYAML() (any, error) {
+	type raw OutputConfig
+	return marshaling.WithTypeHeader((*raw)(o), OutputServiceType)
 }
 
-func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *OutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *OutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := ctx.ExtractDestination(node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw IdentityOutput
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw OutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -184,10 +186,10 @@ func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *IdentityOutput) Type() string {
-	return IdentityOutputType
+func (o *OutputConfig) Type() string {
+	return OutputServiceType
 }
 
-func (o *IdentityOutput) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *OutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

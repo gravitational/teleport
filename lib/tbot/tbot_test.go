@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -281,14 +282,14 @@ func TestBot(t *testing.T) {
 		t, rootClient, "test", defaultRoles...,
 	)
 
-	identityOutput := &config.IdentityOutput{
+	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &config.IdentityOutput{
+	identityOutputWithRoles := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 		Roles:       []string{mainRole},
 	}
-	identityOutputWithReissue := &config.IdentityOutput{
+	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
@@ -651,7 +652,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	botConfig.Oneshot = false
 	outputDest := newWriteNotifier(&destination.Memory{})
 	require.NoError(t, outputDest.CheckAndSetDefaults())
-	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
+	botConfig.Services = append(botConfig.Services, &identitysvc.OutputConfig{
 		Destination: outputDest,
 	})
 	thirdBot := New(botConfig, log)

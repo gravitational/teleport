@@ -24,18 +24,19 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 func TestIdentityOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[IdentityOutput]{
+	tests := []testYAMLCase[identity.OutputConfig]{
 		{
 			name: "full",
-			in: IdentityOutput{
+			in: identity.OutputConfig{
 				Destination:   dest,
 				Roles:         []string{"access"},
 				Cluster:       "leaf.example.com",
-				SSHConfigMode: SSHConfigModeOff,
+				SSHConfigMode: identity.SSHConfigModeOff,
 				AllowReissue:  true,
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
@@ -45,7 +46,7 @@ func TestIdentityOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: IdentityOutput{
+			in: identity.OutputConfig{
 				Destination: dest,
 			},
 		},
@@ -54,33 +55,33 @@ func TestIdentityOutput_YAML(t *testing.T) {
 }
 
 func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*IdentityOutput]{
+	tests := []testCheckAndSetDefaultsCase[*identity.OutputConfig]{
 		{
 			name: "valid",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *identity.OutputConfig {
+				return &identity.OutputConfig{
 					Destination:   memoryDestForTest(),
 					Roles:         []string{"access"},
-					SSHConfigMode: SSHConfigModeOn,
+					SSHConfigMode: identity.SSHConfigModeOn,
 				}
 			},
 		},
 		{
 			name: "ssh config mode defaults",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *identity.OutputConfig {
+				return &identity.OutputConfig{
 					Destination: memoryDestForTest(),
 				}
 			},
-			want: &IdentityOutput{
+			want: &identity.OutputConfig{
 				Destination:   memoryDestForTest(),
-				SSHConfigMode: SSHConfigModeOn,
+				SSHConfigMode: identity.SSHConfigModeOn,
 			},
 		},
 		{
 			name: "missing destination",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *identity.OutputConfig {
+				return &identity.OutputConfig{
 					Destination: nil,
 				}
 			},
@@ -88,8 +89,8 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "invalid ssh config mode",
-			in: func() *IdentityOutput {
-				return &IdentityOutput{
+			in: func() *identity.OutputConfig {
+				return &identity.OutputConfig{
 					Destination:   memoryDestForTest(),
 					SSHConfigMode: "invalid",
 				}

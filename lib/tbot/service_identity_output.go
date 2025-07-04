@@ -42,13 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/loop"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func IdentityOutputServiceBuilder(
 	botCfg *config.BotConfig,
-	cfg *config.IdentityOutput,
+	cfg *identitysvc.OutputConfig,
 	alpnUpgradeCache *internal.ALPNUpgradeCache,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
@@ -80,7 +81,7 @@ type IdentityOutputService struct {
 	botAuthClient      *apiclient.Client
 	botIdentityReadyCh <-chan struct{}
 	botCfg             *config.BotConfig
-	cfg                *config.IdentityOutput
+	cfg                *identitysvc.OutputConfig
 	log                *slog.Logger
 	proxyPinger        connection.ProxyPinger
 	reloadCh           <-chan struct{}
@@ -180,7 +181,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if s.cfg.SSHConfigMode == config.SSHConfigModeOn {
+	if s.cfg.SSHConfigMode == identitysvc.SSHConfigModeOn {
 		clusterNames, err := internal.GetClusterNames(ctx, impersonatedClient, id.Get().ClusterName)
 		if err != nil {
 			return trace.Wrap(err)

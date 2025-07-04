@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -340,7 +341,7 @@ func (CredentialsFromIdentityFilePath) Name() string {
 
 // IsActive implements CredentialSource and returns if the source is active and why.
 func (CredentialsFromIdentityFilePath) IsActive(config providerData) (bool, string) {
-	identityFilePath := stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
+	identityFilePath := stringFromConfigOrEnv(identity.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
 
 	active := identityFilePath != ""
 
@@ -352,7 +353,7 @@ func (CredentialsFromIdentityFilePath) IsActive(config providerData) (bool, stri
 
 // Credentials implements CredentialSource and returns a client.Credentials for the provider.
 func (CredentialsFromIdentityFilePath) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
-	identityFilePath := stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
+	identityFilePath := stringFromConfigOrEnv(identity.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
 
 	return client.LoadIdentityFile(identityFilePath), nil
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // TestGetEnvForTSH ensures we generate a valid minimum subset of environment
@@ -60,7 +61,7 @@ func TestGetDestinationDirectory(t *testing.T) {
 	config := func(outputCount int) *config.BotConfig {
 		cfg := &config.BotConfig{}
 		for i := range outputCount {
-			cfg.Services = append(cfg.Services, &config.IdentityOutput{
+			cfg.Services = append(cfg.Services, &identitysvc.OutputConfig{
 				Destination: &destination.Directory{
 					Path: fmt.Sprintf("/from-bot-config%d", i),
 				},
