@@ -93,9 +93,6 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 		opt(&cfg)
 	}
 
-	if cfg.AuditDate.IsZero() {
-		cfg.AuditDate = sut.Clock.Now()
-	}
 	if cfg.Title == "" {
 		cfg.Title = cfg.Name
 	}
@@ -115,13 +112,27 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 		Title:  cfg.Title,
 		Owners: accessListOwners,
 		Grants: cfg.Grants,
-		Audit:  accesslist.Audit{NextAuditDate: cfg.AuditDate},
 		Type:   cfg.Type,
 	})
 	require.NoError(t, err)
 
 	accessList.Kind = cfg.Kind
 	accessList.SubKind = cfg.SubKind
+
+	// Creating a non-reviewable access AccessList with a review date is an error,
+	// but we currently can't decide if the resulting Access List will be
+	// reviewable until we have an access list. To avoid this we defer setting
+	// the configured review date until *after* the list is constructed, and then
+	// re-check that the list is still valid.
+	//
+	// TODO(tcsc): Convert the [AccessList.IsReviewable()] method in OSS Teleport
+	// to a function of accesslist.Type, so we can do this check before having a
+	// fully-fledged Access List.
+	if accessList.IsReviewable() && cfg.AuditDate.IsZero() {
+		cfg.AuditDate = sut.Clock.Now()
+	}
+	accessList.Spec.Audit = accesslist.Audit{NextAuditDate: cfg.AuditDate}
+	require.NoError(t, accessList.CheckAndSetDefaults())
 
 	var accessListMembers []*accesslist.AccessListMember
 	for _, member := range cfg.Members {
