@@ -1,20 +1,22 @@
-// Teleport
-// Copyright (C) 2025 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package tbot
+package workloadidentity
 
 import (
 	"context"
@@ -31,10 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -88,27 +90,43 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 
 	t.Run("By Name", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
-		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&workloadidentity.JWTOutputConfig{
-				Selector: bot.WorkloadIdentitySelector{
-					Name: workloadIdentity.GetMetadata().GetName(),
-				},
-				Destination: &destination.Directory{
-					Path: tmpDir,
-				},
-				Audiences: []string{"example", "foo"},
+		_, onboarding := testutils.MakeBot(t, rootClient.APIClient, "by-name", role.GetName())
+
+		proxyAddr, err := process.ProxyWebAddr()
+		require.NoError(t, err)
+
+		connCfg := connection.Config{
+			Address:     proxyAddr.Addr,
+			AddressKind: connection.AddressKindProxy,
+			Insecure:    true,
+		}
+
+		b, err := bot.New(bot.Config{
+			Connection: connCfg,
+			Logger:     log,
+			Onboarding: *onboarding,
+			Services: []bot.ServiceBuilder{
+				JWTOutputServiceBuilder(
+					&JWTOutputConfig{
+						Selector: bot.WorkloadIdentitySelector{
+							Name: workloadIdentity.GetMetadata().GetName(),
+						},
+						Destination: &destination.Directory{
+							Path: tmpDir,
+						},
+						Audiences: []string{"example", "foo"},
+					},
+					nil, // trustBundleCache
+					bot.DefaultCredentialLifetime,
+				),
 			},
-		}, defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
 		})
-		botConfig.Oneshot = true
-		b := New(botConfig, log)
+		require.NoError(t, err)
+
 		// Run Bot with 10 second timeout to catch hangs.
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		require.NoError(t, b.Run(ctx))
+		require.NoError(t, b.OneShot(ctx))
 
 		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, internal.JWTSVIDPath))
 		require.NoError(t, err)
@@ -119,29 +137,45 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 	})
 	t.Run("By Labels", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
-		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&workloadidentity.JWTOutputConfig{
-				Selector: bot.WorkloadIdentitySelector{
-					Labels: map[string][]string{
-						"foo": {"bar"},
+		_, onboarding := testutils.MakeBot(t, rootClient.APIClient, "by-labels", role.GetName())
+
+		authAddr, err := process.AuthAddr()
+		require.NoError(t, err)
+
+		connCfg := connection.Config{
+			Address:     authAddr.Addr,
+			AddressKind: connection.AddressKindAuth,
+			Insecure:    true,
+		}
+
+		b, err := bot.New(bot.Config{
+			Connection: connCfg,
+			Logger:     log,
+			Onboarding: *onboarding,
+			Services: []bot.ServiceBuilder{
+				JWTOutputServiceBuilder(
+					&JWTOutputConfig{
+						Selector: bot.WorkloadIdentitySelector{
+							Labels: map[string][]string{
+								"foo": {"bar"},
+							},
+						},
+						Destination: &destination.Directory{
+							Path: tmpDir,
+						},
+						Audiences: []string{"example"},
 					},
-				},
-				Destination: &destination.Directory{
-					Path: tmpDir,
-				},
-				Audiences: []string{"example"},
+					nil, // trustBundleCache
+					bot.DefaultCredentialLifetime,
+				),
 			},
-		}, defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
 		})
-		botConfig.Oneshot = true
-		b := New(botConfig, log)
+		require.NoError(t, err)
+
 		// Run Bot with 10 second timeout to catch hangs.
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		require.NoError(t, b.Run(ctx))
+		require.NoError(t, b.OneShot(ctx))
 
 		jwtBytes, err := os.ReadFile(filepath.Join(tmpDir, internal.JWTSVIDPath))
 		require.NoError(t, err)

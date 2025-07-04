@@ -58,7 +58,7 @@ func X509OutputServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &WorkloadIdentityX509Service{
+		svc := &X509OutputService{
 			botAuthClient:             deps.Client,
 			defaultCredentialLifetime: defaultCredentialLifetime,
 			cfg:                       cfg,
@@ -76,9 +76,9 @@ func X509OutputServiceBuilder(
 	}
 }
 
-// WorkloadIdentityX509Service is a service that retrieves X.509 certificates
+// X509OutputService is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
-type WorkloadIdentityX509Service struct {
+type X509OutputService struct {
 	botAuthClient             *apiclient.Client
 	defaultCredentialLifetime bot.CredentialLifetime
 	cfg                       *X509OutputConfig
@@ -93,13 +93,13 @@ type WorkloadIdentityX509Service struct {
 }
 
 // String returns a human-readable description of the service.
-func (s *WorkloadIdentityX509Service) String() string {
+func (s *X509OutputService) String() string {
 	return fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String())
 }
 
 // OneShot runs the service once, generating the output and writing it to the
 // destination, before exiting.
-func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
+func (s *X509OutputService) OneShot(ctx context.Context) error {
 	res, privateKey, err := s.requestSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
@@ -128,7 +128,7 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 
 // Run runs the service in daemon mode, periodically generating the output and
 // writing it to the destination.
-func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
+func (s *X509OutputService) Run(ctx context.Context) error {
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
@@ -209,7 +209,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	}
 }
 
-func (s *WorkloadIdentityX509Service) requestSVID(
+func (s *X509OutputService) requestSVID(
 	ctx context.Context,
 ) (
 	*workloadidentityv1pb.Credential,
@@ -277,7 +277,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	return x509Credential, privateKey, nil
 }
 
-func (s *WorkloadIdentityX509Service) render(
+func (s *X509OutputService) render(
 	ctx context.Context,
 	bundleSet *workloadidentity.BundleSet,
 	x509Cred *workloadidentityv1pb.Credential,
