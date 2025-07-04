@@ -216,7 +216,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				ctx,
 				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
 			)
-			botServices = append(botServices, SPIFFEWorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
+			botServices = append(botServices, legacyspiffe.SPIFFEWorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
 			botServices = append(botServices, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *example.Config:
@@ -234,7 +234,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *k8s.OutputV2Config:
 			botServices = append(botServices, k8s.OuputV2ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *legacyspiffe.SVIDOutputConfig:
-			botServices = append(botServices, SPIFFESVIDOutputServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
+			botServices = append(botServices, legacyspiffe.SPIFFESVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *ssh.HostOutputConfig:
 			botServices = append(botServices, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:

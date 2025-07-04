@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package legacyspiffe
 
 import (
 	"cmp"
@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
-	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -64,7 +63,7 @@ import (
 )
 
 func SPIFFEWorkloadAPIServiceBuilder(
-	cfg *legacyspiffe.WorkloadAPIConfig,
+	cfg *WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
@@ -107,7 +106,7 @@ type SPIFFEWorkloadAPIService struct {
 
 	svcIdentity               *clientcredentials.UnstableConfig
 	defaultCredentialLifetime bot.CredentialLifetime
-	cfg                       *legacyspiffe.WorkloadAPIConfig
+	cfg                       *WorkloadAPIConfig
 	log                       *slog.Logger
 	trustBundleCache          TrustBundleGetter
 	clientBuilder             *client.Builder
@@ -289,7 +288,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
 	localBundle *spiffebundle.Bundle,
-	svidRequests []legacyspiffe.SVIDRequest,
+	svidRequests []SVIDRequest,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
@@ -365,10 +364,10 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
-	svidRequests []legacyspiffe.SVIDRequestWithRules,
+	svidRequests []SVIDRequestWithRules,
 	att *attrs.WorkloadAttrs,
-) []legacyspiffe.SVIDRequest {
-	var filtered []legacyspiffe.SVIDRequest
+) []SVIDRequest {
+	var filtered []SVIDRequest
 	for _, req := range svidRequests {
 		log := log.With("svid", req.SVIDRequest)
 		// If no rules are configured, default to allow.
@@ -728,7 +727,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 			}
 			if spiffeID.String() == req.SpiffeId {
 				found = true
-				svidReqs = []legacyspiffe.SVIDRequest{svidReq}
+				svidReqs = []SVIDRequest{svidReq}
 				break
 			}
 		}
@@ -872,5 +871,5 @@ func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *SPIFFEWorkloadAPIService) String() string {
-	return fmt.Sprintf("%s:%s", legacyspiffe.WorkloadAPIServiceType, s.cfg.Listen)
+	return fmt.Sprintf("%s:%s", WorkloadAPIServiceType, s.cfg.Listen)
 }

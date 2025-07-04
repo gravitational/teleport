@@ -50,3 +50,10 @@ const (
 	SVIDTrustBundlePEMPath = "svid_bundle.pem"
 	SVIDCRLPemPath         = "svid_crl.pem"
 )
+
+const (
+	// PEMBlockTypePrivateKey is the PEM block type for a PKCS 8 encoded private key.
+	PEMBlockTypePrivateKey = "PRIVATE KEY"
+	// PEMBlockTypeCertificate is the PEM block type for a DER encoded certificate.
+	PEMBlockTypeCertificate = "CERTIFICATE"
+)

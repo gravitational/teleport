@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package legacyspiffe
 
 import (
 	"cmp"
@@ -39,33 +39,24 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
-const (
-	// pemPrivateKey is the PEM block type for a PKCS 8 encoded private key.
-	pemPrivateKey = "PRIVATE KEY"
-	// pemCertificate is the PEM block type for a DER encoded certificate.
-	pemCertificate = "CERTIFICATE"
-)
-
 func SPIFFESVIDOutputServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *legacyspiffe.SVIDOutputConfig,
+	cfg *SVIDOutputConfig,
 	trustBundleCache TrustBundleGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &SPIFFESVIDOutputService{
-			botAuthClient:     deps.Client,
-			botCfg:            botCfg,
-			cfg:               cfg,
-			getBotIdentity:    deps.BotIdentity,
-			identityGenerator: deps.IdentityGenerator,
-			clientBuilder:     deps.ClientBuilder,
+			botAuthClient:             deps.Client,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			getBotIdentity:            deps.BotIdentity,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -79,11 +70,11 @@ func SPIFFESVIDOutputServiceBuilder(
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient  *apiclient.Client
-	botCfg         *config.BotConfig
-	cfg            *legacyspiffe.SVIDOutputConfig
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
+	botAuthClient             *apiclient.Client
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *SVIDOutputConfig
+	getBotIdentity            func() *identity.Identity
+	log                       *slog.Logger
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache  TrustBundleGetter
@@ -159,7 +150,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			res = nil
 			privateKey = nil
@@ -198,7 +189,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	)
 	defer span.End()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -218,8 +209,8 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	res, privateKey, err := generateSVID(
 		ctx,
 		impersonatedClient,
-		[]legacyspiffe.SVIDRequest{s.cfg.SVID},
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		[]SVIDRequest{s.cfg.SVID},
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
@@ -230,7 +221,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		impersonatedClient,
 		s.cfg.SVID,
 		s.cfg.JWTs,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL)
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
 	}
@@ -270,7 +261,7 @@ func (s *SPIFFESVIDOutputService) render(
 	}
 
 	privPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  pemPrivateKey,
+		Type:  internal.PEMBlockTypePrivateKey,
 		Bytes: privBytes,
 	})
 
@@ -284,7 +275,7 @@ func (s *SPIFFESVIDOutputService) render(
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  pemCertificate,
+		Type:  internal.PEMBlockTypeCertificate,
 		Bytes: svid.Certificate,
 	})
 	if err := s.cfg.Destination.Write(ctx, internal.SVIDPEMPath, certPEM); err != nil {
@@ -324,8 +315,8 @@ func (s *SPIFFESVIDOutputService) render(
 func generateJWTSVIDs(
 	ctx context.Context,
 	clt *apiclient.Client,
-	svid legacyspiffe.SVIDRequest,
-	reqs []legacyspiffe.JWTSVID,
+	svid SVIDRequest,
+	reqs []JWTSVID,
 	ttl time.Duration,
 ) (map[string]string, error) {
 	ctx, span := tracer.Start(
@@ -376,7 +367,7 @@ func generateJWTSVIDs(
 func generateSVID(
 	ctx context.Context,
 	clt *apiclient.Client,
-	reqs []legacyspiffe.SVIDRequest,
+	reqs []SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
 	ctx, span := tracer.Start(

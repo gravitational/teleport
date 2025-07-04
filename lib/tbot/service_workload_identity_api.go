@@ -58,6 +58,10 @@ import (
 	"github.com/gravitational/teleport/lib/uds"
 )
 
+type TrustBundleGetter interface {
+	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
+}
+
 func WorkloadIdentityAPIServiceBuilder(
 	botCfg *config.BotConfig,
 	cfg *config.WorkloadIdentityAPIService,
