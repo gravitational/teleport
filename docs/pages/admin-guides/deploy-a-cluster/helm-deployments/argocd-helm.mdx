@@ -113,7 +113,8 @@ field to the value of your token.
 
 2. Create a secret from your license file. Teleport will automatically discover
    this secret as long as your file is named `license.pem`.
-   (!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 ```code
 $ kubectl -n teleport create secret generic license --from-file=license.pem
@@ -143,5 +144,4 @@ spec:
 3. Edit this example configuration to match your needs.
    More information on how to modify helm this the helm chart
    and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
-
 4. Sync your changes to apply the configuration.
