@@ -2022,10 +2022,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		if application.MCP != nil {
 			app.MCP = &types.MCP{
-				Command:         application.MCP.Command,
-				Args:            application.MCP.Args,
-				RunAsHostUser:   application.MCP.RunAsHostUser,
-				StatefulSession: application.MCP.StatefulSession,
+				Command:       application.MCP.Command,
+				Args:          application.MCP.Args,
+				RunAsHostUser: application.MCP.RunAsHostUser,
 			}
 		}
 

@@ -96,7 +96,7 @@ func ProxyStdioConnWithAutoReconnect(ctx context.Context, cfg ProxyStdioConnWith
 			// By spec, we should not reply to notifications. Try our best to
 			// send a notification with the error message. In practice, only the
 			// initialize notification is sent from client after receiving the
-			// initialize response so it's unlikely to fail.
+			// initialize response so it's unlikely to hit here.
 			if writeError := serverConn.WriteMessage(ctx, notification); writeError != nil {
 				cfg.Logger.WarnContext(ctx, "failed to write notification to server. Notification is dropped.", "error", writeError)
 				userMessage := cfg.MakeReconnectUserMessage(writeError)
@@ -184,7 +184,7 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 	serverStdioReader := mcputils.NewStdioReader(serverConn)
 	serverWriter := mcputils.NewStdioMessageWriter(serverConn)
 	if r.replayOnNextConn {
-		// Replay initialize sequence. Any error is here is likely permanent.
+		// Replay initialize sequence. Any error here is likely permanent.
 		if err := r.replayInitializeLocked(ctx, serverStdioReader, serverWriter); err != nil {
 			serverConn.Close()
 			return nil, trace.Wrap(err)
@@ -212,10 +212,10 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 			r.Logger.InfoContext(ctx, "Lost server connection, resetting...")
 			r.mu.Lock()
 			r.serverRequestWriter = nil
-			r.mu.Unlock()
 			if r.onServerConnClosed != nil {
 				r.onServerConnClosed()
 			}
+			r.mu.Unlock()
 		},
 		Logger:       r.Logger.With("server", "stdout"),
 		OnParseError: mcputils.LogAndIgnoreParseError(r.Logger),

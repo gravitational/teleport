@@ -53,7 +53,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 	}
 
 	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
-	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).BoolVar(&cmd.autoReconnect)
+	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).Default("true").BoolVar(&cmd.autoReconnect)
 	return cmd
 }
 
@@ -354,11 +354,7 @@ func (c *mcpConfigCommand) addMCPServersToConfig(config claudeConfig) error {
 	for _, app := range c.mcpServerApps {
 		localName := mcpServerAppConfigPrefix + app.GetName()
 		args := []string{"mcp", "connect", app.GetName()}
-		if c.shouldAutoReconnect(app) {
-			args = append(args, "--auto-reconnect")
-		} else {
-			args = append(args, "--no-auto-reconnect")
-		}
+		args = c.maybeAddAutoReconnect(args)
 		err := config.PutMCPServer(localName, makeLocalMCPServer(c.cf, args))
 		if err != nil {
 			return trace.Wrap(err)
@@ -367,15 +363,14 @@ func (c *mcpConfigCommand) addMCPServersToConfig(config claudeConfig) error {
 	return nil
 }
 
-func (c *mcpConfigCommand) shouldAutoReconnect(app types.Application) bool {
-	if c.autoReconnectSetByUser {
-		return c.autoReconnect
+func (c *mcpConfigCommand) maybeAddAutoReconnect(args []string) []string {
+	if !c.autoReconnectSetByUser {
+		return args
 	}
-	mcpSpec := app.GetMCP()
-	if mcpSpec == nil {
-		return false
+	if c.autoReconnect {
+		return append(args, "--auto-reconnect")
 	}
-	return !mcpSpec.StatefulSession
+	return append(args, "--no-auto-reconnect")
 }
 
 func (c *mcpConfigCommand) printJSONWithHint() error {
@@ -395,8 +390,10 @@ func (c *mcpConfigCommand) printJSONWithHint() error {
 	if err := config.Write(w, claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.printAutoReconnectHint(w); err != nil {
-		return trace.Wrap(err)
+	if !c.autoReconnectSetByUser {
+		if err := c.printAutoReconnectHint(w); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
 		return trace.Wrap(err)
@@ -433,11 +430,11 @@ configurations.
 
 func (c *mcpConfigCommand) printAutoReconnectHint(w io.Writer) error {
 	_, err := fmt.Fprintln(w, `
-Tip: the --auto-reconnect flag allows tsh to automatically starts a new remote MCP
-session when the previous remote session is interrupted by network issues or tsh
-session expirations. Use --auto-reconnect for better user experience if your MCP
-sessions are stateless across requests. If --no-auto-reconnect is set, you may
-need to restart your client when encountering "disconnected" errors.`)
+By default, tsh automatically starts a new remote MCP session if the previous
+one is interrupted by network issues or tsh session expiration.
+Auto-reconnection is recommended when MCP sessions are stateless across
+requests. To disable it, use the --no-auto-reconnect flag. If disabled, you may
+need to manually restart your client when encountering “disconnected” errors.`)
 	return trace.Wrap(err)
 }
 
@@ -445,7 +442,8 @@ const (
 	mcpServerAppConfigPrefix = "teleport-mcp-"
 	mcpAutoReconnectHelp     = "Automatically starts a new remote MCP session " +
 		"when the previous remote session is interrupted " +
-		"by network issues or tsh session expirations."
+		"by network issues or tsh session expirations. " +
+		"Recommended for stateless MCP sessions. Defaults to true."
 )
 
 // mcpConnectCommand implements `tsh mcp connect` command.

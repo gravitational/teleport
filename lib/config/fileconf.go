@@ -2210,9 +2210,6 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
-	// StatefulSession indicates that the MCP session maintains state across
-	// requests. Teleport uses this flag to apply specialized handling logic.
-	StatefulSession bool `yaml:"stateful_session,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
