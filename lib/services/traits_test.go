@@ -49,11 +49,20 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 			"staging-only",
 			"democracy",
 		},
+		"partial-wildcard": {
+			"admin",
+			"dev",
+			"admin-staging*",
+		},
+		"empty": {
+			"",
+		},
 	}
 
 	roles := []string{
 		"admin-prod",
 		"admin-staging",
+		"admin-staging-ops",
 		"dev-prod",
 		"dev-staging",
 		"dictator",
@@ -98,23 +107,50 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 				Value: "democracy",
 				Roles: []string{"{{regexp.not_match(\"dictator\")}}"},
 			},
-			matches: []string{"admin-prod", "admin-staging", "dev-prod", "dev-staging"},
+			matches: []string{"admin-prod", "admin-staging", "admin-staging-ops", "dev-prod", "dev-staging"},
 		},
 		{
-			desc: "pattern-like trait submatch substitution cannot result in non-literal matchers",
+			desc: "pattern-like trait submatch substitution result in non-literal matchers",
 			tm: types.TraitMapping{
 				Trait: "sketchy-pfx",
 				Value: "pfx-*",
-				Roles: []string{"${1}-prod", "${1}-staging", "${1}"},
+				Roles: []string{"${1}-prod", "${1}-staging"},
 			},
-			matches: []string{"dev-prod", "dev-staging"},
+			matches: []string{"admin-prod", "admin-staging", "dev-prod", "dev-staging"},
 		},
 		{
-			desc: "pattern-like trait value substitution cannot result in non-literal matchers",
+			desc: "pattern-like trait substitution result in non-literal matchers",
 			tm: types.TraitMapping{
 				Trait: "sketchy",
 				Value: "*",
-				Roles: []string{"dev-${1}", "admin-${1}", "${1}"},
+				Roles: []string{"dev-${1}", "admin-${1}"},
+			},
+			matches: []string{"dev-prod", "dev-staging", "admin-prod", "admin-staging", "admin-staging-ops"},
+		},
+		{
+			desc: "pattern-like trait submatch substitude containing wildcard matches everything",
+			tm: types.TraitMapping{
+				Trait: "sketchy-pfx",
+				Value: "pfx-*",
+				Roles: []string{"${1}"},
+			},
+			matches: roles,
+		},
+		{
+			desc: "wildcard trait value substitution result in non-literal matchers",
+			tm: types.TraitMapping{
+				Trait: "partial-wildcard",
+				Value: "*",
+				Roles: []string{"$1"},
+			},
+			matches: []string{"admin-staging", "admin-staging-ops"},
+		},
+		{
+			desc: "empty traits matches nothing",
+			tm: types.TraitMapping{
+				Trait: "empty",
+				Value: "*",
+				Roles: []string{"${1}"},
 			},
 			matches: []string{},
 		},

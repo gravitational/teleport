@@ -40,7 +40,7 @@ const maxMismatchedTraitValuesLogged = 100
 // Returns the list of roles mapped from traits.
 // `warnings` optionally contains the list of warnings potentially interesting to the user.
 func TraitsToRoles(ms types.TraitMappingSet, traits map[string][]string) (warnings []string, roles []string) {
-	warnings = traitsToRoles(ms, traits, func(role string, expanded bool) {
+	warnings = traitsToRoles(ms, traits, func(role string) {
 		roles = append(roles, role)
 	})
 	return warnings, apiutils.Deduplicate(roles)
@@ -53,8 +53,8 @@ func TraitsToRoles(ms types.TraitMappingSet, traits map[string][]string) (warnin
 func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) ([]parse.Matcher, error) {
 	var matchers []parse.Matcher
 	var firstErr error
-	traitsToRoles(ms, traits, func(role string, expanded bool) {
-		if expanded || utils.ContainsExpansion(role) {
+	traitsToRoles(ms, traits, func(role string) {
+		if utils.ContainsExpansion(role) {
 			// mapping process included variable expansion; we therefore
 			// "escape" normal matcher syntax and look only for exact matches.
 			// (note: this isn't about combatting maliciously constructed traits,
@@ -81,7 +81,7 @@ func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) 
 }
 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
-func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
+func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string)) (warnings []string) {
 TraitMappingLoop:
 	for _, mapping := range ms {
 		var regexpIgnoreCase *regexp.Regexp
@@ -136,8 +136,7 @@ TraitMappingLoop:
 							warnings = append(warnings, fmt.Sprintf("trait %q matches value %q case-insensitively and would have yielded %q role", traitValue, mapping.Value, outRole))
 							continue
 						}
-						// skip empty replacement or empty role
-						collect(outRole, outRole != role)
+						collect(outRole)
 					}
 				}
 			}
