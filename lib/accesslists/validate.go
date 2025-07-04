@@ -26,76 +26,71 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
-// ValidateAccessListWithMembers validates a new or existing AccessList with a list of AccessListMembers.
+// ValidateAccessListWithMembers validates a new or existing AccessList with a list of
+// AccessListMembers. This a complex server-side validation that should be performed before creation/update.
 func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+	if err := accessList.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
 	for _, owner := range accessList.Spec.Owners {
-		if owner.MembershipKind != accesslist.MembershipKindList {
-			continue
-		}
-		ownerList, err := g.GetAccessList(ctx, owner.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := validateAddition(ctx, accessList, ownerList, RelationshipKindOwner, g); err != nil {
+		if err := ValidateAccessListOwner(ctx, accessList, &owner, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for _, member := range members {
-		if member.Spec.MembershipKind != accesslist.MembershipKindList {
-			continue
-		}
-		memberList, err := g.GetAccessList(ctx, member.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := validateAddition(ctx, accessList, memberList, RelationshipKindMember, g); err != nil {
+		if err := ValidateAccessListMember(ctx, accessList, member, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-// ValidateAccessListMember validates a new or existing AccessListMember for an Access List.
+// ValidateAccessListMember validates a new or existing AccessListMember for an Access List. This a
+// complex server-side validation that should be performed before creation/update.
 func ValidateAccessListMember(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	member *accesslist.AccessListMember,
 	g AccessListAndMembersGetter,
 ) error {
-	if member.Spec.MembershipKind != accesslist.MembershipKindList {
-		return nil
+	if err := member.Validate(); err != nil {
+		return trace.Wrap(err)
 	}
-	return validateAccessListMemberOrOwner(ctx, parentList, member.GetName(), RelationshipKindMember, g)
+	err := validateAccessListMemberOrOwner(ctx, parentList, member.GetName(), member.Spec.MembershipKind, RelationshipKindMember, g)
+	return trace.Wrap(err)
 }
 
-// ValidateAccessListOwner validates a new or existing AccessListOwner for an Access List.
+// ValidateAccessListOwner validates a new or existing AccessListOwner for an Access List. This a
+// complex server-side validation that should be performed before creation/update.
 func ValidateAccessListOwner(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	owner *accesslist.Owner,
 	g AccessListAndMembersGetter,
 ) error {
-	if owner.MembershipKind != accesslist.MembershipKindList {
-		return nil
+	if err := owner.Validate(); err != nil {
+		return trace.Wrap(err)
 	}
-	return validateAccessListMemberOrOwner(ctx, parentList, owner.Name, RelationshipKindOwner, g)
+	err := validateAccessListMemberOrOwner(ctx, parentList, owner.Name, owner.MembershipKind, RelationshipKindOwner, g)
+	return trace.Wrap(err)
 }
 
 func validateAccessListMemberOrOwner(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	memberOrOwnerName string,
-	kind RelationshipKind,
+	membershipKind string,
+	relationshipKind RelationshipKind,
 	g AccessListAndMembersGetter,
 ) error {
-	// Ensure member or owner list exists
+	if membershipKind != accesslist.MembershipKindList {
+		return nil
+	}
 	memberOrOwnerList, err := g.GetAccessList(ctx, memberOrOwnerName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Validate addition
-	if err := validateAddition(ctx, parentList, memberOrOwnerList, kind, g); err != nil {
+	if err := validateAddition(ctx, parentList, memberOrOwnerList, relationshipKind, g); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
