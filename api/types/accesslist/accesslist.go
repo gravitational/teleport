@@ -180,14 +180,23 @@ type Spec struct {
 type Type string
 
 const (
+	// ImplicitDynamic type is for backward compatibility. It has the same semantics as
+	// [Dynamic].
+	ImplicitDynamic Type = ""
+	// Dynamic Access Lists are the default type supposed to be managed with the web UI. They
+	// require periodic audit reviews.
 	Dynamic Type = "dynamic"
-	Static  Type = "static"
-	SCIM    Type = "scim"
+	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
+	// reviews are not supported for them and the ownership is optional.
+	Static Type = "static"
+	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
+	// for them and the ownership is optional.
+	SCIM Type = "scim"
 )
 
 func NewTypeFromString(s string) (Type, error) {
 	switch s {
-	case "", string(Dynamic):
+	case string(ImplicitDynamic), string(Dynamic):
 		return Dynamic, nil
 	case string(Static):
 		return Static, nil
@@ -543,6 +552,15 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 		Alias: (Alias)(n),
 		Start: n.Start.String(),
 	})
+}
+
+// IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
+func (a *AccessList) IsReviewable() bool {
+	switch a.Spec.Type {
+	case ImplicitDynamic, Dynamic:
+		return true
+	}
+	return false
 }
 
 // SelectNextReviewDate will select the next review date for the access list.

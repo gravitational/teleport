@@ -168,6 +168,12 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		}
 
 		for _, accessList := range accessLists {
+			switch accessList.Spec.Type {
+			case accesslist.ImplicitDynamic, accesslist.Dynamic:
+				// ok, we want reviews for those
+			default:
+				continue
+			}
 			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
 			if err != nil {
 				log.WithError(err).Warnf("Error getting recipients to notify for review due for access list %q", accessList.Spec.Title)
@@ -217,7 +223,7 @@ func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *a
 		return nil, nil
 	}
 
-	allRecipients := a.fetchRecipients(ctx, accessList, now, notificationStart)
+	allRecipients := a.fetchRecipients(ctx, accessList)
 	if len(allRecipients) == 0 {
 		return nil, trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
 	}
@@ -246,7 +252,7 @@ func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *a
 }
 
 // fetchRecipients will return all recipients.
-func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList, now, notificationStart time.Time) map[string]common.Recipient {
+func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList) map[string]common.Recipient {
 	log := logger.Get(ctx)
 
 	var allOwners []*accesslist.Owner
