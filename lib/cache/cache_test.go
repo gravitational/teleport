@@ -162,6 +162,7 @@ type testPack struct {
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
+	plugin                  *local.PluginsService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -430,6 +431,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	p.plugin = local.NewPluginsService(p.backend)
 
 	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
 	if err != nil {
@@ -492,6 +494,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -759,6 +762,7 @@ func TestCompletenessInit(t *testing.T) {
 			GitServers:              p.gitServers,
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
+			Plugin:                  p.plugin,
 		}))
 		require.NoError(t, err)
 
@@ -844,6 +848,7 @@ func TestCompletenessReset(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1002,6 +1007,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1099,6 +1105,7 @@ func initStrategy(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1321,6 +1328,15 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
+		// Not all create functions will result in resource being updated
+		// with the latest revision. To avoid any conditional update
+		// failures caused by mismatched revisions, an updated
+		// copy of the resource is loaded prior to updating.
+		if funcs.cacheGet != nil {
+			var err error
+			r, err = funcs.cacheGet(ctx, r.GetName())
+			require.NoError(t, err)
+		}
 		// Update the resource and upsert it into the backend again.
 		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
@@ -1351,6 +1367,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		assert.NoError(t, err)
 		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
+
 }
 
 // testResources153 is a generic tester for RFD153-style resources.
@@ -1880,6 +1897,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
+		types.KindPlugin:                            &types.PluginV1{},
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
