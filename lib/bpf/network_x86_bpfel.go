@@ -8,11 +8,13 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"structs"
 
 	"github.com/cilium/ebpf"
 )
 
 type networkIpv4DataT struct {
+	_       structs.HostLayout
 	Cgroup  uint64
 	Ip      uint64
 	Pid     uint32
@@ -24,11 +26,24 @@ type networkIpv4DataT struct {
 }
 
 type networkIpv6DataT struct {
-	Cgroup  uint64
-	Ip      uint64
-	Pid     uint32
-	Saddr   struct{ In6U struct{ U6Addr8 [16]uint8 } }
-	Daddr   struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	_      structs.HostLayout
+	Cgroup uint64
+	Ip     uint64
+	Pid    uint32
+	Saddr  struct {
+		_    structs.HostLayout
+		In6U struct {
+			_       structs.HostLayout
+			U6Addr8 [16]uint8
+		}
+	}
+	Daddr struct {
+		_    structs.HostLayout
+		In6U struct {
+			_       structs.HostLayout
+			U6Addr8 [16]uint8
+		}
+	}
 	Dport   uint16
 	Command [16]int8
 	_       [2]byte
@@ -69,9 +84,10 @@ func loadNetworkObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
 type networkSpecs struct {
 	networkProgramSpecs
 	networkMapSpecs
+	networkVariableSpecs
 }
 
-// networkSpecs contains programs before they are loaded into the kernel.
+// networkProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type networkProgramSpecs struct {
@@ -93,12 +109,21 @@ type networkMapSpecs struct {
 	MonitoredCgroups *ebpf.MapSpec `ebpf:"monitored_cgroups"`
 }
 
+// networkVariableSpecs contains global variables before they are loaded into the kernel.
+//
+// It can be passed ebpf.CollectionSpec.Assign.
+type networkVariableSpecs struct {
+	UnusedIpv4DataT *ebpf.VariableSpec `ebpf:"unused_ipv4_data_t"`
+	UnusedIpv6DataT *ebpf.VariableSpec `ebpf:"unused_ipv6_data_t"`
+}
+
 // networkObjects contains all objects after they have been loaded into the kernel.
 //
 // It can be passed to loadNetworkObjects or ebpf.CollectionSpec.LoadAndAssign.
 type networkObjects struct {
 	networkPrograms
 	networkMaps
+	networkVariables
 }
 
 func (o *networkObjects) Close() error {
@@ -131,6 +156,14 @@ func (m *networkMaps) Close() error {
 	)
 }
 
+// networkVariables contains all global variables after they have been loaded into the kernel.
+//
+// It can be passed to loadNetworkObjects or ebpf.CollectionSpec.LoadAndAssign.
+type networkVariables struct {
+	UnusedIpv4DataT *ebpf.Variable `ebpf:"unused_ipv4_data_t"`
+	UnusedIpv6DataT *ebpf.Variable `ebpf:"unused_ipv6_data_t"`
+}
+
 // networkPrograms contains all programs after they have been loaded into the kernel.
 //
 // It can be passed to loadNetworkObjects or ebpf.CollectionSpec.LoadAndAssign.
@@ -161,5 +194,5 @@ func _NetworkClose(closers ...io.Closer) error {
 
 // Do not access this directly.
 //
-//go:embed network_bpfel_x86.o
+//go:embed network_x86_bpfel.o
 var _NetworkBytes []byte

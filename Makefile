@@ -455,13 +455,10 @@ tctl-app:
 
 #
 # BPF support (IF ENABLED)
-# Requires clang 11+
+# Requires clang 14+
 #
-
 # Enable target only if /usr/include/linux/bpf.h exists and clang is installed.
 # This is a requirement for building BPF bytecode.
-
-
 .PHONY: bpf-bytecode
 bpf-bytecode:
 ifneq ("$(wildcard /usr/include/linux/bpf.h)","")
