@@ -51,6 +51,7 @@ type collections struct {
 
 	botInstances   *collection[*machineidv1.BotInstance, botInstanceIndex]
 	remoteClusters *collection[types.RemoteCluster, remoteClusterIndex]
+	plugins        *collection[types.Plugin, pluginIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -96,6 +97,13 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.remoteClusters = collect
 			out.byKind[resourceKind] = out.remoteClusters
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {

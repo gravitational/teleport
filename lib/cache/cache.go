@@ -220,6 +220,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindBotInstance},
@@ -886,6 +887,7 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// BotInstanceService is the upstream service that we're caching
 	BotInstanceService services.BotInstance
+	Plugin             services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
