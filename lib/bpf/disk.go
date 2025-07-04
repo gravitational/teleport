@@ -21,6 +21,7 @@
 package bpf
 
 import (
+	"context"
 	_ "embed"
 	"io"
 	"runtime"
@@ -71,7 +72,8 @@ func startOpen(bufferSize int) (*open, error) {
 
 	// Remove resource limits for kernels <5.11.
 	if err := rlimit.RemoveMemlock(); err != nil {
-		log.Fatal("Removing memlock:", err)
+		logger.ErrorContext(context.Background(), "Removing memlock failed", "error", err)
+		return nil, trace.Wrap(err)
 	}
 
 	var objs diskObjects
@@ -88,8 +90,8 @@ func startOpen(bufferSize int) (*open, error) {
 			prog: objs.TracepointSyscallsSysEnterCreat,
 		},
 		{
-			name: "sys_enter_open",
-			prog: objs.TracepointSyscallsSysEnterOpen,
+			name: "sys_enter_openat",
+			prog: objs.TracepointSyscallsSysEnterOpenat,
 		},
 		{
 			name: "sys_enter_openat2",
@@ -195,12 +197,12 @@ func (o *open) close() {
 
 	for _, toClose := range o.toClose {
 		if err := toClose.Close(); err != nil {
-			log.Warn(err)
+			logger.WarnContext(context.Background(), "failed to close link", "error", err)
 		}
 	}
 
 	if err := o.objs.Close(); err != nil {
-		log.Warn(err)
+		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
 }
 
