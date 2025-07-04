@@ -46,7 +46,7 @@ export const traitsPreset = [
   'logins',
   'windows_logins',
   'github_orgs',
-];
+] as const;
 
 /**
  * TraitsEditor supports add, edit or remove traits functionality.
