@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package awsra
 
 import (
 	"testing"
@@ -24,17 +24,16 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 )
 
 func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[awsra.Config]{
+	tests := []testutils.TestYAMLCase[Config]{
 		{
 			Name: "full",
-			In: awsra.Config{
+			In: Config{
 				Destination: dest,
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -52,7 +51,7 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 		},
 		{
 			Name: "simple",
-			In: awsra.Config{
+			In: Config{
 				Destination: dest,
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -72,11 +71,11 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestCheckAndSetDefaultsCase[*awsra.Config]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*Config]{
 		{
 			Name: "valid",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -91,7 +90,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			Want: &awsra.Config{
+			Want: &Config{
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
@@ -100,8 +99,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					ACLs:     botfs.ACLOff,
 					Symlinks: botfs.SymlinksInsecure,
 				},
-				SessionDuration:        awsra.DefaultAWSSessionDuration,
-				SessionRenewalInterval: awsra.DefaultAWSSessionRenewalInterval,
+				SessionDuration:        DefaultAWSSessionDuration,
+				SessionRenewalInterval: DefaultAWSSessionRenewalInterval,
 				RoleARN:                "arn:aws:iam::123456789012:role/example-role",
 				TrustAnchorARN:         "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
 				ProfileARN:             "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
@@ -110,8 +109,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "valid with labels",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
@@ -133,8 +132,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing selectors",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
@@ -151,8 +150,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "too many selectors",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
@@ -174,8 +173,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing destination",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Destination: nil,
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -190,8 +189,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing role_arn",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -209,8 +208,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing trust_anchor_arn",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -228,8 +227,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing profile_arn",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -247,8 +246,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "invalid role arn",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -267,8 +266,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "invalid trust anchor arn",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -287,8 +286,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "invalid profile arn",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -307,8 +306,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "invalid region",
-			In: func() *awsra.Config {
-				return &awsra.Config{
+			In: func() *Config {
+				return &Config{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},

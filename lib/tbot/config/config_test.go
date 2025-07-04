@@ -257,14 +257,14 @@ func TestBotConfig_YAML(t *testing.T) {
 								Rules: []legacyspiffe.SVIDRequestRule{
 									{
 										Unix: legacyspiffe.SVIDRequestRuleUnix{
-											PID: ptr(100),
-											UID: ptr(1000),
-											GID: ptr(1234),
+											PID: testutils.Pointer(100),
+											UID: testutils.Pointer(1000),
+											GID: testutils.Pointer(1234),
 										},
 									},
 									{
 										Unix: legacyspiffe.SVIDRequestRuleUnix{
-											PID: ptr(100),
+											PID: testutils.Pointer(100),
 										},
 									},
 								},

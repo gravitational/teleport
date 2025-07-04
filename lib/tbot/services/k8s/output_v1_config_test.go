@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"testing"
@@ -25,18 +25,17 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
-func TestSSHHostOutput_YAML(t *testing.T) {
+func TestKubernetesOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[ssh.HostOutputConfig]{
+	tests := []testutils.TestYAMLCase[OutputV1Config]{
 		{
 			Name: "full",
-			In: ssh.HostOutputConfig{
-				Destination: dest,
-				Roles:       []string{"access"},
-				Principals:  []string{"host.example.com"},
+			In: OutputV1Config{
+				Destination:       dest,
+				Roles:             []string{"access"},
+				KubernetesCluster: "k8s.example.com",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -45,45 +44,45 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: ssh.HostOutputConfig{
-				Destination: dest,
-				Principals:  []string{"host.example.com"},
+			In: OutputV1Config{
+				Destination:       dest,
+				KubernetesCluster: "k8s.example.com",
 			},
 		},
 	}
 	testutils.TestYAML(t, tests)
 }
 
-func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testutils.TestCheckAndSetDefaultsCase[*ssh.HostOutputConfig]{
+func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testutils.TestCheckAndSetDefaultsCase[*OutputV1Config]{
 		{
 			Name: "valid",
-			In: func() *ssh.HostOutputConfig {
-				return &ssh.HostOutputConfig{
-					Destination: destination.NewMemory(),
-					Roles:       []string{"access"},
-					Principals:  []string{"host.example.com"},
+			In: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:       destination.NewMemory(),
+					Roles:             []string{"access"},
+					KubernetesCluster: "my-cluster",
 				}
 			},
 		},
 		{
 			Name: "missing destination",
-			In: func() *ssh.HostOutputConfig {
-				return &ssh.HostOutputConfig{
-					Destination: nil,
-					Principals:  []string{"host.example.com"},
+			In: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:       nil,
+					KubernetesCluster: "my-cluster",
 				}
 			},
 			WantErr: "no destination configured for output",
 		},
 		{
-			Name: "missing principals",
-			In: func() *ssh.HostOutputConfig {
-				return &ssh.HostOutputConfig{
+			Name: "missing kubernetes_config",
+			In: func() *OutputV1Config {
+				return &OutputV1Config{
 					Destination: destination.NewMemory(),
 				}
 			},
-			WantErr: "at least one principal must be specified",
+			WantErr: "kubernetes_cluster must not be empty",
 		},
 	}
 	testutils.TestCheckAndSetDefaults(t, tests)

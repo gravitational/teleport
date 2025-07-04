@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package ssh
 
 import (
 	"testing"
@@ -26,20 +26,19 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestSSHMultiplexerService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestYAMLCase[ssh.MultiplexerConfig]{
+	tests := []testutils.TestYAMLCase[MultiplexerConfig]{
 		{
 			Name: "full",
-			In: ssh.MultiplexerConfig{
+			In: MultiplexerConfig{
 				Destination: &destination.Directory{
 					Path: "/opt/machine-id",
 				},
-				EnableResumption:   ptr[bool](true),
+				EnableResumption:   testutils.Pointer(true),
 				ProxyTemplatesPath: "/etc/teleport/templates",
 				ProxyCommand:       []string{"rusty-boi"},
 				CredentialLifetime: bot.CredentialLifetime{
@@ -55,11 +54,11 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestCheckAndSetDefaultsCase[*ssh.MultiplexerConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*MultiplexerConfig]{
 		{
 			Name: "valid",
-			In: func() *ssh.MultiplexerConfig {
-				return &ssh.MultiplexerConfig{
+			In: func() *MultiplexerConfig {
+				return &MultiplexerConfig{
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
@@ -70,8 +69,8 @@ func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing destination",
-			In: func() *ssh.MultiplexerConfig {
-				return &ssh.MultiplexerConfig{
+			In: func() *MultiplexerConfig {
+				return &MultiplexerConfig{
 					Destination: nil,
 				}
 			},
@@ -79,8 +78,8 @@ func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "wrong destination type",
-			In: func() *ssh.MultiplexerConfig {
-				return &ssh.MultiplexerConfig{
+			In: func() *MultiplexerConfig {
+				return &MultiplexerConfig{
 					Destination: &destination.Memory{},
 				}
 			},

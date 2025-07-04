@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package legacyspiffe
 
 import (
 	"testing"
@@ -24,21 +24,16 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
-
-func ptr[T any](v T) *T {
-	return &v
-}
 
 func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestYAMLCase[legacyspiffe.WorkloadAPIConfig]{
+	tests := []testutils.TestYAMLCase[WorkloadAPIConfig]{
 		{
 			Name: "full",
-			In: legacyspiffe.WorkloadAPIConfig{
+			In: WorkloadAPIConfig{
 				Listen:     "unix:///var/run/spiffe.sock",
 				JWTSVIDTTL: time.Minute * 5,
 				Attestors: workloadattest.Config{
@@ -53,29 +48,29 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 						},
 					},
 				},
-				SVIDs: []legacyspiffe.SVIDRequestWithRules{
+				SVIDs: []SVIDRequestWithRules{
 					{
-						SVIDRequest: legacyspiffe.SVIDRequest{
+						SVIDRequest: SVIDRequest{
 							Path: "/foo",
 							Hint: "hint",
-							SANS: legacyspiffe.SVIDRequestSANs{
+							SANS: SVIDRequestSANs{
 								DNS: []string{"example.com"},
 								IP:  []string{"10.0.0.1", "10.42.0.1"},
 							},
 						},
-						Rules: []legacyspiffe.SVIDRequestRule{
+						Rules: []SVIDRequestRule{
 							{
-								Unix: legacyspiffe.SVIDRequestRuleUnix{
-									PID: ptr(100),
-									UID: ptr(1000),
-									GID: ptr(1234),
+								Unix: SVIDRequestRuleUnix{
+									PID: testutils.Pointer(100),
+									UID: testutils.Pointer(1000),
+									GID: testutils.Pointer(1234),
 								},
 							},
 							{
-								Unix: legacyspiffe.SVIDRequestRuleUnix{
-									PID: ptr(100),
+								Unix: SVIDRequestRuleUnix{
+									PID: testutils.Pointer(100),
 								},
-								Kubernetes: legacyspiffe.SVIDRequestRuleKubernetes{
+								Kubernetes: SVIDRequestRuleKubernetes{
 									Namespace:      "my-namespace",
 									PodName:        "my-pod",
 									ServiceAccount: "service-account",
@@ -92,11 +87,11 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: legacyspiffe.WorkloadAPIConfig{
+			In: WorkloadAPIConfig{
 				Listen: "unix:///var/run/spiffe.sock",
-				SVIDs: []legacyspiffe.SVIDRequestWithRules{
+				SVIDs: []SVIDRequestWithRules{
 					{
-						SVIDRequest: legacyspiffe.SVIDRequest{
+						SVIDRequest: SVIDRequest{
 							Path: "/foo",
 						},
 					},
@@ -110,19 +105,19 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestCheckAndSetDefaultsCase[*legacyspiffe.WorkloadAPIConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*WorkloadAPIConfig]{
 		{
 			Name: "valid",
-			In: func() *legacyspiffe.WorkloadAPIConfig {
-				return &legacyspiffe.WorkloadAPIConfig{
+			In: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
 					JWTSVIDTTL: time.Minute,
 					Listen:     "unix:///var/run/spiffe.sock",
-					SVIDs: []legacyspiffe.SVIDRequestWithRules{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							SVIDRequest: legacyspiffe.SVIDRequest{
+							SVIDRequest: SVIDRequest{
 								Path: "/foo",
 								Hint: "hint",
-								SANS: legacyspiffe.SVIDRequestSANs{
+								SANS: SVIDRequestSANs{
 									DNS: []string{"example.com"},
 									IP:  []string{"10.0.0.1", "10.42.0.1"},
 								},
@@ -131,15 +126,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			Want: &legacyspiffe.WorkloadAPIConfig{
+			Want: &WorkloadAPIConfig{
 				JWTSVIDTTL: time.Minute,
 				Listen:     "unix:///var/run/spiffe.sock",
-				SVIDs: []legacyspiffe.SVIDRequestWithRules{
+				SVIDs: []SVIDRequestWithRules{
 					{
-						SVIDRequest: legacyspiffe.SVIDRequest{
+						SVIDRequest: SVIDRequest{
 							Path: "/foo",
 							Hint: "hint",
-							SANS: legacyspiffe.SVIDRequestSANs{
+							SANS: SVIDRequestSANs{
 								DNS: []string{"example.com"},
 								IP:  []string{"10.0.0.1", "10.42.0.1"},
 							},
@@ -155,15 +150,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing path",
-			In: func() *legacyspiffe.WorkloadAPIConfig {
-				return &legacyspiffe.WorkloadAPIConfig{
+			In: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []legacyspiffe.SVIDRequestWithRules{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							SVIDRequest: legacyspiffe.SVIDRequest{
+							SVIDRequest: SVIDRequest{
 								Path: "",
 								Hint: "hint",
-								SANS: legacyspiffe.SVIDRequestSANs{
+								SANS: SVIDRequestSANs{
 									DNS: []string{"example.com"},
 									IP:  []string{"10.0.0.1", "10.42.0.1"},
 								},
@@ -176,15 +171,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "path missing leading slash",
-			In: func() *legacyspiffe.WorkloadAPIConfig {
-				return &legacyspiffe.WorkloadAPIConfig{
+			In: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []legacyspiffe.SVIDRequestWithRules{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							SVIDRequest: legacyspiffe.SVIDRequest{
+							SVIDRequest: SVIDRequest{
 								Path: "foo",
 								Hint: "hint",
-								SANS: legacyspiffe.SVIDRequestSANs{
+								SANS: SVIDRequestSANs{
 									DNS: []string{"example.com"},
 									IP:  []string{"10.0.0.1", "10.42.0.1"},
 								},
@@ -197,15 +192,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing listen addr",
-			In: func() *legacyspiffe.WorkloadAPIConfig {
-				return &legacyspiffe.WorkloadAPIConfig{
+			In: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
 					Listen: "",
-					SVIDs: []legacyspiffe.SVIDRequestWithRules{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							SVIDRequest: legacyspiffe.SVIDRequest{
+							SVIDRequest: SVIDRequest{
 								Path: "foo",
 								Hint: "hint",
-								SANS: legacyspiffe.SVIDRequestSANs{
+								SANS: SVIDRequestSANs{
 									DNS: []string{"example.com"},
 									IP:  []string{"10.0.0.1", "10.42.0.1"},
 								},
@@ -218,15 +213,15 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "invalid ip",
-			In: func() *legacyspiffe.WorkloadAPIConfig {
-				return &legacyspiffe.WorkloadAPIConfig{
+			In: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
 					Listen: "unix:///var/run/spiffe.sock",
-					SVIDs: []legacyspiffe.SVIDRequestWithRules{
+					SVIDs: []SVIDRequestWithRules{
 						{
-							SVIDRequest: legacyspiffe.SVIDRequest{
+							SVIDRequest: SVIDRequest{
 								Path: "/foo",
 								Hint: "hint",
-								SANS: legacyspiffe.SVIDRequestSANs{
+								SANS: SVIDRequestSANs{
 									DNS: []string{"example.com"},
 									IP:  []string{"invalid ip"},
 								},

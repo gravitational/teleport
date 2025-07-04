@@ -346,3 +346,11 @@ func TestCheckAndSetDefaults[T TestingT, CaseT CheckAndSetDefaulter](t Subtester
 }
 
 var exportAll = cmp.Exporter(func(reflect.Type) bool { return true })
+
+// Pointer returns a pointer to v. It's useful in expressions where it's
+// impossible to take a pointer of a literal value.
+//
+// Example: &"hi" doesn't work but Pointer("hi") does.
+func Pointer[T any](v T) *T {
+	return &v
+}

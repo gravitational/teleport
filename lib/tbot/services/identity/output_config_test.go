@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package identity
 
 import (
 	"testing"
@@ -25,18 +25,19 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
-func TestApplicationOutput_YAML(t *testing.T) {
+func TestIdentityOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[application.OutputConfig]{
+	tests := []testutils.TestYAMLCase[OutputConfig]{
 		{
 			Name: "full",
-			In: application.OutputConfig{
-				Destination: dest,
-				Roles:       []string{"access"},
-				AppName:     "my-app",
+			In: OutputConfig{
+				Destination:   dest,
+				Roles:         []string{"access"},
+				Cluster:       "leaf.example.com",
+				SSHConfigMode: SSHConfigModeOff,
+				AllowReissue:  true,
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -45,45 +46,56 @@ func TestApplicationOutput_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: application.OutputConfig{
+			In: OutputConfig{
 				Destination: dest,
-				AppName:     "my-app",
 			},
 		},
 	}
 	testutils.TestYAML(t, tests)
 }
 
-func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testutils.TestCheckAndSetDefaultsCase[*application.OutputConfig]{
+func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testutils.TestCheckAndSetDefaultsCase[*OutputConfig]{
 		{
 			Name: "valid",
-			In: func() *application.OutputConfig {
-				return &application.OutputConfig{
-					Destination: destination.NewMemory(),
-					Roles:       []string{"access"},
-					AppName:     "app",
+			In: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:   destination.NewMemory(),
+					Roles:         []string{"access"},
+					SSHConfigMode: SSHConfigModeOn,
 				}
 			},
 		},
 		{
+			Name: "ssh config mode defaults",
+			In: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+				}
+			},
+			Want: &OutputConfig{
+				Destination:   destination.NewMemory(),
+				SSHConfigMode: SSHConfigModeOn,
+			},
+		},
+		{
 			Name: "missing destination",
-			In: func() *application.OutputConfig {
-				return &application.OutputConfig{
+			In: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: nil,
-					AppName:     "app",
 				}
 			},
 			WantErr: "no destination configured for output",
 		},
 		{
-			Name: "missing app_name",
-			In: func() *application.OutputConfig {
-				return &application.OutputConfig{
-					Destination: destination.NewMemory(),
+			Name: "invalid ssh config mode",
+			In: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:   destination.NewMemory(),
+					SSHConfigMode: "invalid",
 				}
 			},
-			WantErr: "app_name must not be empty",
+			WantErr: "ssh_config: unrecognized value \"invalid\"",
 		},
 	}
 	testutils.TestCheckAndSetDefaults(t, tests)

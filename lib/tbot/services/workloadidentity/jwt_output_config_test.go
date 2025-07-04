@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package workloadidentity
 
 import (
 	"testing"
@@ -24,34 +24,24 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
-func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
+func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[workloadidentity.X509OutputConfig]{
+	tests := []testutils.TestYAMLCase[JWTOutputConfig]{
 		{
 			Name: "full",
-			In: workloadidentity.X509OutputConfig{
+			In: JWTOutputConfig{
 				Destination: dest,
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
-				IncludeFederatedTrustBundles: true,
+				Audiences: []string{"audience1", "audience2"},
 				CredentialLifetime: bot.CredentialLifetime{
-					TTL:             1 * time.Minute,
+					TTL:             time.Minute,
 					RenewalInterval: 30 * time.Second,
-				},
-			},
-		},
-		{
-			Name: "minimal",
-			In: workloadidentity.X509OutputConfig{
-				Destination: dest,
-				Selector: bot.WorkloadIdentitySelector{
-					Name: "my-workload-identity",
 				},
 			},
 		},
@@ -59,14 +49,14 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 	testutils.TestYAML(t, tests)
 }
 
-func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
+func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestCheckAndSetDefaultsCase[*workloadidentity.X509OutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*JWTOutputConfig]{
 		{
 			Name: "valid",
-			In: func() *workloadidentity.X509OutputConfig {
-				return &workloadidentity.X509OutputConfig{
+			In: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -75,13 +65,14 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
 					},
+					Audiences: []string{"audience1", "audience2"},
 				}
 			},
 		},
 		{
 			Name: "valid with labels",
-			In: func() *workloadidentity.X509OutputConfig {
-				return &workloadidentity.X509OutputConfig{
+			In: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
@@ -92,27 +83,45 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
 					},
+					Audiences: []string{"audience1", "audience2"},
 				}
 			},
 		},
 		{
+			Name: "missing audience",
+			In: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+				}
+			},
+			WantErr: "audiences: must have at least one value",
+		},
+		{
 			Name: "missing selectors",
-			In: func() *workloadidentity.X509OutputConfig {
-				return &workloadidentity.X509OutputConfig{
+			In: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
 					},
+					Audiences: []string{"audience1", "audience2"},
 				}
 			},
 			WantErr: "one of ['name', 'labels'] must be set",
 		},
 		{
 			Name: "too many selectors",
-			In: func() *workloadidentity.X509OutputConfig {
-				return &workloadidentity.X509OutputConfig{
+			In: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
@@ -124,15 +133,20 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
 					},
+					Audiences: []string{"audience1", "audience2"},
 				}
 			},
 			WantErr: "at most one of ['name', 'labels'] can be set",
 		},
 		{
 			Name: "missing destination",
-			In: func() *workloadidentity.X509OutputConfig {
-				return &workloadidentity.X509OutputConfig{
+			In: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
 					Destination: nil,
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Audiences: []string{"audience1", "audience2"},
 				}
 			},
 			WantErr: "no destination configured for output",

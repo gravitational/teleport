@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package ssh
 
 import (
 	"testing"
@@ -25,20 +25,17 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
-func TestIdentityOutput_YAML(t *testing.T) {
+func TestSSHHostOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[identity.OutputConfig]{
+	tests := []testutils.TestYAMLCase[HostOutputConfig]{
 		{
 			Name: "full",
-			In: identity.OutputConfig{
-				Destination:   dest,
-				Roles:         []string{"access"},
-				Cluster:       "leaf.example.com",
-				SSHConfigMode: identity.SSHConfigModeOff,
-				AllowReissue:  true,
+			In: HostOutputConfig{
+				Destination: dest,
+				Roles:       []string{"access"},
+				Principals:  []string{"host.example.com"},
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -47,56 +44,45 @@ func TestIdentityOutput_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: identity.OutputConfig{
+			In: HostOutputConfig{
 				Destination: dest,
+				Principals:  []string{"host.example.com"},
 			},
 		},
 	}
 	testutils.TestYAML(t, tests)
 }
 
-func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testutils.TestCheckAndSetDefaultsCase[*identity.OutputConfig]{
+func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testutils.TestCheckAndSetDefaultsCase[*HostOutputConfig]{
 		{
 			Name: "valid",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
-					Destination:   destination.NewMemory(),
-					Roles:         []string{"access"},
-					SSHConfigMode: identity.SSHConfigModeOn,
-				}
-			},
-		},
-		{
-			Name: "ssh config mode defaults",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
+			In: func() *HostOutputConfig {
+				return &HostOutputConfig{
 					Destination: destination.NewMemory(),
+					Roles:       []string{"access"},
+					Principals:  []string{"host.example.com"},
 				}
-			},
-			Want: &identity.OutputConfig{
-				Destination:   destination.NewMemory(),
-				SSHConfigMode: identity.SSHConfigModeOn,
 			},
 		},
 		{
 			Name: "missing destination",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
+			In: func() *HostOutputConfig {
+				return &HostOutputConfig{
 					Destination: nil,
+					Principals:  []string{"host.example.com"},
 				}
 			},
 			WantErr: "no destination configured for output",
 		},
 		{
-			Name: "invalid ssh config mode",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
-					Destination:   destination.NewMemory(),
-					SSHConfigMode: "invalid",
+			Name: "missing principals",
+			In: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
 				}
 			},
-			WantErr: "ssh_config: unrecognized value \"invalid\"",
+			WantErr: "at least one principal must be specified",
 		},
 	}
 	testutils.TestCheckAndSetDefaults(t, tests)

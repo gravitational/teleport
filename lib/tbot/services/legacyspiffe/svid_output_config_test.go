@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package legacyspiffe
 
 import (
 	"testing"
@@ -25,28 +25,27 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[legacyspiffe.SVIDOutputConfig]{
+	tests := []testutils.TestYAMLCase[SVIDOutputConfig]{
 		{
 			Name: "full",
-			In: legacyspiffe.SVIDOutputConfig{
+			In: SVIDOutputConfig{
 				Destination: dest,
-				SVID: legacyspiffe.SVIDRequest{
+				SVID: SVIDRequest{
 					Path: "/foo",
 					Hint: "hint",
-					SANS: legacyspiffe.SVIDRequestSANs{
+					SANS: SVIDRequestSANs{
 						DNS: []string{"example.com"},
 						IP:  []string{"10.0.0.1", "10.42.0.1"},
 					},
 				},
 				IncludeFederatedTrustBundles: true,
-				JWTs: []legacyspiffe.JWTSVID{
+				JWTs: []JWTSVID{
 					{
 						Audience: "example.com",
 						FileName: "foo",
@@ -64,9 +63,9 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: legacyspiffe.SVIDOutputConfig{
+			In: SVIDOutputConfig{
 				Destination: dest,
-				SVID: legacyspiffe.SVIDRequest{
+				SVID: SVIDRequest{
 					Path: "/foo",
 				},
 			},
@@ -76,21 +75,21 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 }
 
 func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testutils.TestCheckAndSetDefaultsCase[*legacyspiffe.SVIDOutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*SVIDOutputConfig]{
 		{
 			Name: "valid",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
 					},
-					JWTs: []legacyspiffe.JWTSVID{
+					JWTs: []JWTSVID{
 						{
 							FileName: "foo",
 							Audience: "example.com",
@@ -101,18 +100,18 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing jwt name",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
 					},
-					JWTs: []legacyspiffe.JWTSVID{
+					JWTs: []JWTSVID{
 						{
 							Audience: "example.com",
 						},
@@ -123,18 +122,18 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing jwt audience",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
 					},
-					JWTs: []legacyspiffe.JWTSVID{
+					JWTs: []JWTSVID{
 						{
 							FileName: "foo",
 						},
@@ -145,13 +144,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing destination",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: nil,
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
@@ -162,13 +161,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing path",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
@@ -179,13 +178,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "path missing leading slash",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "foo",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"10.0.0.1"},
 						},
@@ -196,13 +195,13 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "invalid ip",
-			In: func() *legacyspiffe.SVIDOutputConfig {
-				return &legacyspiffe.SVIDOutputConfig{
+			In: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
-					SVID: legacyspiffe.SVIDRequest{
+					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
-						SANS: legacyspiffe.SVIDRequestSANs{
+						SANS: SVIDRequestSANs{
 							DNS: []string{"example.com"},
 							IP:  []string{"thisisntanip"},
 						},

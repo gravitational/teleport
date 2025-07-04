@@ -61,10 +61,6 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) {
 		testenv.WithClusterName(t, "root")(o)
@@ -166,7 +162,7 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1000),
+								UID: testutils.Pointer(1000),
 							},
 						},
 					},
@@ -192,13 +188,13 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1000),
-								PID: ptr(1),
+								UID: testutils.Pointer(1000),
+								PID: testutils.Pointer(1),
 							},
 						},
 						{
 							Unix: SVIDRequestRuleUnix{
-								GID: ptr(1),
+								GID: testutils.Pointer(1),
 							},
 						},
 					},
@@ -210,7 +206,7 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1),
+								UID: testutils.Pointer(1),
 							},
 						},
 					},
@@ -228,12 +224,12 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								PID: ptr(1),
+								PID: testutils.Pointer(1),
 							},
 						},
 						{
 							Unix: SVIDRequestRuleUnix{
-								GID: ptr(1),
+								GID: testutils.Pointer(1),
 							},
 						},
 					},
@@ -245,7 +241,7 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1),
+								UID: testutils.Pointer(1),
 							},
 						},
 					},
@@ -271,7 +267,7 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1),
+								UID: testutils.Pointer(1),
 							},
 						},
 					},
@@ -289,14 +285,14 @@ func TestFilterSVIDRequests(t *testing.T) {
 					Rules: []SVIDRequestRule{
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1000),
-								GID: ptr(1500),
+								UID: testutils.Pointer(1000),
+								GID: testutils.Pointer(1500),
 							},
 						},
 						{
 							Unix: SVIDRequestRuleUnix{
-								UID: ptr(1000),
-								PID: ptr(1002),
+								UID: testutils.Pointer(1000),
+								PID: testutils.Pointer(1002),
 							},
 						},
 					},
@@ -333,7 +329,7 @@ func TestFilterSVIDRequests_field(t *testing.T) {
 			field: "unix.pid",
 			rule: SVIDRequestRule{
 				Unix: SVIDRequestRuleUnix{
-					PID: ptr(1000),
+					PID: testutils.Pointer(1000),
 				},
 			},
 			matching: &workloadidentityv1pb.WorkloadAttrs{
@@ -353,7 +349,7 @@ func TestFilterSVIDRequests_field(t *testing.T) {
 			field: "unix.uid",
 			rule: SVIDRequestRule{
 				Unix: SVIDRequestRuleUnix{
-					UID: ptr(1000),
+					UID: testutils.Pointer(1000),
 				},
 			},
 			matching: &workloadidentityv1pb.WorkloadAttrs{
@@ -373,7 +369,7 @@ func TestFilterSVIDRequests_field(t *testing.T) {
 			field: "unix.gid",
 			rule: SVIDRequestRule{
 				Unix: SVIDRequestRuleUnix{
-					GID: ptr(1000),
+					GID: testutils.Pointer(1000),
 				},
 			},
 			matching: &workloadidentityv1pb.WorkloadAttrs{
@@ -539,7 +535,7 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 							Rules: []SVIDRequestRule{
 								{
 									Unix: SVIDRequestRuleUnix{
-										PID: ptr(0),
+										PID: testutils.Pointer(0),
 									},
 								},
 							},
@@ -751,7 +747,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 							Rules: []SVIDRequestRule{
 								{
 									Unix: SVIDRequestRuleUnix{
-										PID: ptr(0),
+										PID: testutils.Pointer(0),
 									},
 								},
 							},
