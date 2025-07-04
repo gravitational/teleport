@@ -18,7 +18,7 @@
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:22.04 AS libfido2
+FROM buildpack-deps:22.04@sha256:d4dd8c4891377f710f1509f5a3aa777e9d64f3c93f9b3be198a10cdd497c8ac4 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -72,7 +72,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:22.04 AS libbpf
+FROM buildpack-deps:22.04@sha256:d4dd8c4891377f710f1509f5a3aa777e9d64f3c93f9b3be198a10cdd497c8ac4 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -107,7 +107,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:22.04 AS buildbox
+FROM ubuntu:22.04@sha256:01a3ee0b5e413cefaaffc6abe68c9c37879ae3cced56a8e088b1649e5b269eee AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile

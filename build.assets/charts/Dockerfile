@@ -4,7 +4,7 @@
 # TODO(hugoShaka): cleanup the Makefile docker/image targets and remove this file.
 
 # Stage to build the image, without FIPS entrypoint argument
-FROM ubuntu:20.04 AS teleport
+FROM ubuntu:20.04@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214 AS teleport
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
 # signals and orphaned processes are handled correctly. The ca-certificates
