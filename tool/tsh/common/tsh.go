@@ -1351,6 +1351,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	workloadIdentityCmd := newWorkloadIdentityCommands(app)
 
 	vnetCommand := newVnetCommand(app)
+	vnetSSHAutoConfigCommand := newVnetSSHAutoConfigCommand(app)
 	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
 	vnetDaemonCommand := newVnetDaemonCommand(app)
 	vnetServiceCommand := newVnetServiceCommand(app)
@@ -1770,6 +1771,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = workloadIdentityCmd.issueX509.run(&cf)
 	case vnetCommand.FullCommand():
 		err = vnetCommand.run(&cf)
+	case vnetSSHAutoConfigCommand.FullCommand():
+		err = vnetSSHAutoConfigCommand.run(&cf)
 	case vnetAdminSetupCommand.FullCommand():
 		err = vnetAdminSetupCommand.run(&cf)
 	case vnetDaemonCommand.FullCommand():
