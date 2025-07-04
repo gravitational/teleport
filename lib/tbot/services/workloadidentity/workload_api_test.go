@@ -1,20 +1,22 @@
-// Teleport
-// Copyright (C) 2025 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package tbot
+package workloadidentity
 
 import (
 	"context"
@@ -40,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/config"
-	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -100,20 +102,42 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		Scheme: "unix",
 		Path:   filepath.Join(tmpDir, "workload.sock"),
 	}
-	onboarding, _ := makeBot(t, rootClient, "api", role.GetName())
-	botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-		&workloadidentitysvc.WorkloadAPIConfig{
-			Selector: bot.WorkloadIdentitySelector{
-				Name: workloadIdentity.GetMetadata().GetName(),
-			},
-			Listen: listenAddr.String(),
+	_, onboarding := testutils.MakeBot(t, rootClient.APIClient, "api", role.GetName())
+
+	authAddr, err := process.AuthAddr()
+	require.NoError(t, err)
+
+	connCfg := connection.Config{
+		Address:     authAddr.Addr,
+		AddressKind: connection.AddressKindAuth,
+		Insecure:    true,
+	}
+	require.NoError(t, err)
+
+	trustBundleCache := workloadidentity.NewTrustBundleCacheFacade()
+	crlCache := workloadidentity.NewCRLCacheFacade()
+
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *onboarding,
+		Services: []bot.ServiceBuilder{
+			trustBundleCache.BuildService,
+			crlCache.BuildService,
+			WorkloadAPIServiceBuilder(
+				&WorkloadAPIConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: workloadIdentity.GetMetadata().GetName(),
+					},
+					Listen: listenAddr.String(),
+				},
+				trustBundleCache,
+				crlCache,
+				bot.DefaultCredentialLifetime,
+			),
 		},
-	}, defaultBotConfigOpts{
-		useAuthServer: true,
-		insecure:      true,
 	})
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
+	require.NoError(t, err)
 
 	// Spin up goroutine for bot to run in
 	botCtx, cancelBot := context.WithCancel(ctx)
@@ -123,7 +147,6 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		defer wg.Done()
 		err := b.Run(botCtx)
 		assert.NoError(t, err, "bot should not exit with error")
-		cancelBot()
 	}()
 	t.Cleanup(func() {
 		// Shut down bot and make sure it exits.

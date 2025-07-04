@@ -1,20 +1,22 @@
-// Teleport
-// Copyright (C) 2025 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package tbot
+package workloadidentity
 
 import (
 	"bytes"
@@ -48,41 +50,35 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
-	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
 
-type TrustBundleGetter interface {
-	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
-}
-
-func WorkloadIdentityAPIServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *workloadidentitysvc.WorkloadAPIConfig,
+func WorkloadAPIServiceBuilder(
+	cfg *WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
 	crlCache CRLGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		clientCredential := &clientcredentials.UnstableConfig{}
-		svcIdentity, err := clientcredentials.ServiceBuilder(botCfg.CredentialLifetime, clientCredential)(deps)
+		svcIdentity, err := clientcredentials.ServiceBuilder(defaultCredentialLifetime, clientCredential)(deps)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		svc := &WorkloadIdentityAPIService{
-			svcIdentity:      clientCredential,
-			botCfg:           botCfg,
-			cfg:              cfg,
-			trustBundleCache: trustBundleCache,
-			crlCache:         crlCache,
-			clientBuilder:    deps.ClientBuilder,
+			svcIdentity:               clientCredential,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			trustBundleCache:          trustBundleCache,
+			crlCache:                  crlCache,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
@@ -90,10 +86,6 @@ func WorkloadIdentityAPIServiceBuilder(
 
 		return bot.NewServicePair(svc, svcIdentity), nil
 	}
-}
-
-type CRLGetter interface {
-	GetCRLSet(ctx context.Context) (*workloadidentity.CRLSet, error)
 }
 
 // WorkloadIdentityAPIService implements a gRPC server that fulfills the SPIFFE
@@ -108,13 +100,13 @@ type CRLGetter interface {
 type WorkloadIdentityAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *clientcredentials.UnstableConfig
-	botCfg           *config.BotConfig
-	cfg              *workloadidentitysvc.WorkloadAPIConfig
-	log              *slog.Logger
-	trustBundleCache TrustBundleGetter
-	crlCache         CRLGetter
-	clientBuilder    *client.Builder
+	svcIdentity               *clientcredentials.UnstableConfig
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *WorkloadAPIConfig
+	log                       *slog.Logger
+	trustBundleCache          TrustBundleGetter
+	crlCache                  CRLGetter
+	clientBuilder             *client.Builder
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -209,7 +201,7 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
 		Logger:           s.log,
-		RenewalInterval:  s.botCfg.CredentialLifetime.RenewalInterval,
+		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)
@@ -412,7 +404,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			log.DebugContext(ctx, "CRL set has been updated, distributing to client")
 			crlSet = newCRLSet
 			continue
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -481,7 +473,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		log,
 		s.client,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		attest,
 	)
 	if err != nil {
@@ -572,7 +564,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		s.client,
 		s.cfg.Selector,
 		req.Audience,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		attr,
 	)
 	if err != nil {
@@ -741,5 +733,5 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *WorkloadIdentityAPIService) String() string {
-	return fmt.Sprintf("%s:%s", workloadidentitysvc.WorkloadAPIServiceType, s.cfg.Listen)
+	return fmt.Sprintf("%s:%s", WorkloadAPIServiceType, s.cfg.Listen)
 }
