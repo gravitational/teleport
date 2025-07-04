@@ -18,16 +18,22 @@
 
 import { useCallback } from 'react';
 import { useHistory, useParams } from 'react-router';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
+import { Question } from 'design/Icon/Icons/Question';
 import { Indicator } from 'design/Indicator/Indicator';
+import { Outline } from 'design/Label/Label';
+import Text from 'design/Text';
+import { fontWeights } from 'design/theme/typography';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
+import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
+import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import {
   FeatureBox,
@@ -36,12 +42,13 @@ import {
 } from 'teleport/components/Layout/Layout';
 import useTeleport from 'teleport/useTeleport';
 
+import { formatDuration } from '../formatDuration';
 import { useGetBot } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
-import { Config } from './Config';
 import { Panel } from './Panel';
-import { Roles } from './Roles';
-import { Traits } from './Traits';
+
+const botNameLabel = 'Bot name';
+const maxSessionDurationLabel = 'Max session duration';
 
 export function BotDetails() {
   const ctx = useTeleport();
@@ -105,15 +112,72 @@ export function BotDetails() {
             <ColumnContainer>
               <Panel title="Bot Details" />
               <Divider />
-              <Config
-                botName={data.name}
-                maxSessionDurationSeconds={data.max_session_ttl?.seconds}
-              />
+
+              <Panel title="Metadata" isSubPanel testId="config-panel">
+                <TransposedTable>
+                  <tbody>
+                    <tr>
+                      <th scope="row">{botNameLabel}</th>
+                      <td>
+                        <Flex inline alignItems={'center'} gap={1} mr={0}>
+                          <MonoText>{data.name}</MonoText>
+                          <CopyButton name={data.name} />
+                        </Flex>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">{maxSessionDurationLabel}</th>
+                      <td>
+                        {data.max_session_ttl?.seconds
+                          ? formatDuration(data.max_session_ttl.seconds)
+                          : '-'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </TransposedTable>
+              </Panel>
+
               <PaddedDivider />
-              <Roles roles={data.roles} />
+
+              <Panel title="Roles" isSubPanel testId="roles-panel">
+                <Flex>
+                  {data.roles.toSorted().map(r => (
+                    <Outline mr="1" key={r}>
+                      {r}
+                    </Outline>
+                  ))}
+                </Flex>
+              </Panel>
+
               <PaddedDivider />
-              <Traits traits={data.traits} />
+
+              <Panel title="Traits" isSubPanel testId="traits-panel">
+                <TransposedTable>
+                  <tbody>
+                    {data.traits
+                      .toSorted((a, b) => a.name.localeCompare(b.name))
+                      .map(r => (
+                        <tr key={r.name}>
+                          <th scope="row">
+                            <Trait traitName={r.name} />
+                          </th>
+                          <td>
+                            {r.values.length > 0
+                              ? r.values.toSorted().map(v => (
+                                  <Outline mr="1" key={v}>
+                                    {v}
+                                  </Outline>
+                                ))
+                              : 'no values'}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </TransposedTable>
+              </Panel>
+
               <Divider />
+
               <Panel title="Join Tokens">Coming soon</Panel>
             </ColumnContainer>
             <ColumnContainer>
@@ -154,3 +218,57 @@ const PaddedDivider = styled.div`
   margin-left: 16px;
   margin-right: 16px;
 `;
+
+const TransposedTable = styled.table`
+  th {
+    text-align: start;
+    padding-right: 16px;
+    width: 1%; // Minimum width to fit content
+    color: ${({ theme }) => theme.colors.text.muted};
+    font-weight: ${fontWeights.regular};
+  }
+`;
+
+const MonoText = styled(Text)`
+  font-family: ${({ theme }) => theme.fonts.mono};
+`;
+
+const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
+  aws_role_arns: 'List of allowed AWS role ARNS',
+  azure_identities: 'List of Azure identities',
+  db_names: 'List of allowed database names',
+  db_roles: 'List of allowed database roles',
+  db_users: 'List of allowed database users',
+  gcp_service_accounts: 'List of GCP service accounts',
+  kubernetes_groups: 'List of allowed Kubernetes groups',
+  kubernetes_users: 'List of allowed Kubernetes users',
+  logins: 'List of allowed logins',
+  windows_logins: 'List of allowed Windows logins',
+  host_user_gid: 'The group ID to use for auto-host-users',
+  host_user_uid: 'The user ID to use for auto-host-users',
+  github_orgs: 'List of allowed GitHub organizations for git command proxy',
+};
+
+function Trait(props: { traitName: string }) {
+  const theme = useTheme();
+
+  const description = traitDescriptions[props.traitName];
+
+  const help = (
+    <Question
+      size={'small'}
+      color={theme.colors.interactive.tonal.neutral[3]}
+    />
+  );
+
+  return description ? (
+    <Flex gap={1}>
+      {props.traitName}
+      <HoverTooltip placement="top" tipContent={description}>
+        {help}
+      </HoverTooltip>
+    </Flex>
+  ) : (
+    props.traitName
+  );
+}
