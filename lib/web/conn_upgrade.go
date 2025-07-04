@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -111,6 +112,11 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	defer cancel()
 
 	closeWebsocketFunc := func(closeCode ws.StatusCode, closeText string) {
+		// Set a read deadline to ensure we won't block indefinitely
+		// waiting for the client to respond with a close frame.
+		// This is important because the client may not send a close frame
+		// because older versions of tsh do not send a close frame.
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
 		defer func() {
 			if err := conn.Close(); err != nil {
 				h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
@@ -126,25 +132,17 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		closeFrame := ws.NewCloseFrame(
 			ws.NewCloseFrameBody(closeCode, closeText),
 		)
-		if err := ws.WriteFrame(conn, closeFrame); err != nil {
+		fmt.Println("2@@@@@@@@@@@@Sending close frame to client1,contextDone")
+		if err := conn.writeFrame(closeFrame); err != nil {
 			if !isOkNetworkErrOrTimeout(err) {
 				h.logger.DebugContext(r.Context(), "error writing close frame", "error", err)
 			}
 			return
 		}
-		// Set a read deadline to ensure we won't block indefinitely
-		// waiting for the client to respond with a close frame.
-		// This is important because the client may not send a close frame
-		// because older versions of tsh do not send a close frame.
-		const readDeadline = 5 * time.Second
-		if err := conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
-			if !isOkNetworkErrOrTimeout(err) {
-				h.logger.DebugContext(r.Context(), "error setting read deadline", "error", err)
-			}
-			return
-		}
 
+		fmt.Println("2@@@@@@@@@@@@Received close frame from client1")
 		frame, err := ws.ReadFrame(conn) // Read the close frame to ensure the client receives it.
+		fmt.Println("2@@@@@@@@@@@@Received close frame from client:", frame.Header.OpCode, string(frame.Payload), err)
 		if err != nil {
 			if !isOkNetworkErrOrTimeout(err) {
 				h.logger.DebugContext(r.Context(), "error reading close frame", "error", err)
@@ -157,6 +155,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 				frame.Header.OpCode, "error", err)
 			return
 		}
+		fmt.Println("2@@@@@@@@@@@@Received close frame from client:", frame.Header.OpCode, string(frame.Payload))
 
 	}
 
@@ -184,7 +183,9 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
 		)
 	}
+	fmt.Println("2@@@@@@@@@@@@Closing WebSocket connection after upgrade handler returns")
 	closeWebsocketFunc(ws.StatusNormalClosure, "")
+	fmt.Println("2@@@@@@@@@@@@WebSocket connection closed after upgrade handler returns")
 	return nil, nil
 }
 
@@ -385,8 +386,9 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 	for {
 		frame, err := ws.ReadFrame(c.Conn)
 		if err != nil {
+			fmt.Println("!!!!!!!!!ReadFrame error:", err, frame)
 			c.readError = err
-			return 0, trace.Wrap(err)
+			return 0, err
 		}
 
 		// All client frames should be masked.
@@ -398,6 +400,16 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 
 		switch frame.Header.OpCode {
 		case ws.OpClose:
+			fmt.Println("!!!!!!!!!Received close frame:", frame.Header.OpCode, string(frame.Payload))
+			// discard the error from writeFrame.
+			if err := c.writeFrame(
+				ws.NewCloseFrame(
+					ws.NewCloseFrameBody(ws.StatusNormalClosure, ""),
+				),
+			); err != nil && !isOkNetworkErrOrTimeout(err) {
+				c.logger.DebugContext(c.logContext, "Failed to write close frame.", "error", err)
+			}
+
 			return 0, io.EOF
 		case ws.OpBinary:
 			c.readBuffer = frame.Payload
