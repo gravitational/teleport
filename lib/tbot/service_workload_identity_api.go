@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
@@ -64,7 +65,7 @@ type TrustBundleGetter interface {
 
 func WorkloadIdentityAPIServiceBuilder(
 	botCfg *config.BotConfig,
-	cfg *config.WorkloadIdentityAPIService,
+	cfg *workloadidentitysvc.WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
 	crlCache CRLGetter,
 ) bot.ServiceBuilder {
@@ -109,7 +110,7 @@ type WorkloadIdentityAPIService struct {
 
 	svcIdentity      *clientcredentials.UnstableConfig
 	botCfg           *config.BotConfig
-	cfg              *config.WorkloadIdentityAPIService
+	cfg              *workloadidentitysvc.WorkloadAPIConfig
 	log              *slog.Logger
 	trustBundleCache TrustBundleGetter
 	crlCache         CRLGetter
@@ -740,5 +741,5 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *WorkloadIdentityAPIService) String() string {
-	return fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen)
+	return fmt.Sprintf("%s:%s", workloadidentitysvc.WorkloadAPIServiceType, s.cfg.Listen)
 }

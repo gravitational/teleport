@@ -252,7 +252,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			botServices = append(botServices, workloadidentitysvc.X509OutputServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *workloadidentitysvc.JWTOutputConfig:
 			botServices = append(botServices, workloadidentitysvc.JWTOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
-		case *config.WorkloadIdentityAPIService:
+		case *workloadidentitysvc.WorkloadAPIConfig:
 			botServices = append(botServices, WorkloadIdentityAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
 		case *awsra.Config:
 			botServices = append(botServices, awsra.ServiceBuilder(svcCfg))

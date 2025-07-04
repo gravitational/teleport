@@ -21,16 +21,17 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[WorkloadIdentityAPIService]{
+	tests := []testYAMLCase[workloadidentity.WorkloadAPIConfig]{
 		{
 			name: "full",
-			in: WorkloadIdentityAPIService{
+			in: workloadidentity.WorkloadAPIConfig{
 				Listen: "tcp://0.0.0.0:4040",
 				Attestors: workloadattest.Config{
 					Kubernetes: workloadattest.KubernetesAttestorConfig{
@@ -55,7 +56,7 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: WorkloadIdentityAPIService{
+			in: workloadidentity.WorkloadAPIConfig{
 				Listen: "tcp://0.0.0.0:4040",
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -69,18 +70,18 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*WorkloadIdentityAPIService]{
+	tests := []testCheckAndSetDefaultsCase[*workloadidentity.WorkloadAPIConfig]{
 		{
 			name: "valid",
-			in: func() *WorkloadIdentityAPIService {
-				return &WorkloadIdentityAPIService{
+			in: func() *workloadidentity.WorkloadAPIConfig {
+				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &WorkloadIdentityAPIService{
+			want: &workloadidentity.WorkloadAPIConfig{
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
@@ -94,8 +95,8 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "valid with labels",
-			in: func() *WorkloadIdentityAPIService {
-				return &WorkloadIdentityAPIService{
+			in: func() *workloadidentity.WorkloadAPIConfig {
+				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
@@ -104,7 +105,7 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &WorkloadIdentityAPIService{
+			want: &workloadidentity.WorkloadAPIConfig{
 				Selector: bot.WorkloadIdentitySelector{
 					Labels: map[string][]string{
 						"key": {"value"},
@@ -120,8 +121,8 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing selectors",
-			in: func() *WorkloadIdentityAPIService {
-				return &WorkloadIdentityAPIService{
+			in: func() *workloadidentity.WorkloadAPIConfig {
+				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{},
 					Listen:   "tcp://0.0.0.0:4040",
 				}
@@ -130,8 +131,8 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "too many selectors",
-			in: func() *WorkloadIdentityAPIService {
-				return &WorkloadIdentityAPIService{
+			in: func() *workloadidentity.WorkloadAPIConfig {
+				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
@@ -145,8 +146,8 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing listen",
-			in: func() *WorkloadIdentityAPIService {
-				return &WorkloadIdentityAPIService{
+			in: func() *workloadidentity.WorkloadAPIConfig {
+				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},

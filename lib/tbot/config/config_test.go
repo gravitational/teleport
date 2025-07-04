@@ -309,7 +309,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityAPIService{
+					&workloadidentity.WorkloadAPIConfig{
 						Listen: "tcp://127.0.0.1:123",
 						Selector: bot.WorkloadIdentitySelector{
 							Name: "my-workload-identity",

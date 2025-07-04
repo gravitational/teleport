@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -101,7 +102,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	}
 	onboarding, _ := makeBot(t, rootClient, "api", role.GetName())
 	botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-		&config.WorkloadIdentityAPIService{
+		&workloadidentitysvc.WorkloadAPIConfig{
 			Selector: bot.WorkloadIdentitySelector{
 				Name: workloadIdentity.GetMetadata().GetName(),
 			},
