@@ -81,7 +81,7 @@ type HandlerConfig struct {
 // CheckAndSetDefaults validates the HandlerConfig and sets default values.
 func (cfg *HandlerConfig) CheckAndSetDefaults() error {
 	if cfg.Logger == nil {
-		return cfg.Logger = slog.Default()
+		cfg.Logger = slog.Default()
 	}
 	if cfg.RenewalInterval <= 0 {
 		return trace.BadParameter("RenewalInterval must be positive")
