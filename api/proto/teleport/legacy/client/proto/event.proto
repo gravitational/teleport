@@ -230,5 +230,7 @@ message Event {
     teleport.presence.v1.RelayServer relay_server = 82;
     // RecordingEncryption is a resource for controlling session recording encryption.
     teleport.recordingencryption.v1.RecordingEncryption RecordingEncryption = 83;
+    // PluginV1 is a resource for Teleport plugins.
+    types.PluginV1 plugin = 84;
   }
 }
