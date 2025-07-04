@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -28,10 +29,10 @@ import (
 func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[workloadidentity.WorkloadAPIConfig]{
+	tests := []testutils.TestYAMLCase[workloadidentity.WorkloadAPIConfig]{
 		{
-			name: "full",
-			in: workloadidentity.WorkloadAPIConfig{
+			Name: "full",
+			In: workloadidentity.WorkloadAPIConfig{
 				Listen: "tcp://0.0.0.0:4040",
 				Attestors: workloadattest.Config{
 					Kubernetes: workloadattest.KubernetesAttestorConfig{
@@ -55,8 +56,8 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: workloadidentity.WorkloadAPIConfig{
+			Name: "minimal",
+			In: workloadidentity.WorkloadAPIConfig{
 				Listen: "tcp://0.0.0.0:4040",
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -64,16 +65,16 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*workloadidentity.WorkloadAPIConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*workloadidentity.WorkloadAPIConfig]{
 		{
-			name: "valid",
-			in: func() *workloadidentity.WorkloadAPIConfig {
+			Name: "valid",
+			In: func() *workloadidentity.WorkloadAPIConfig {
 				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -81,7 +82,7 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &workloadidentity.WorkloadAPIConfig{
+			Want: &workloadidentity.WorkloadAPIConfig{
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
@@ -94,8 +95,8 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid with labels",
-			in: func() *workloadidentity.WorkloadAPIConfig {
+			Name: "valid with labels",
+			In: func() *workloadidentity.WorkloadAPIConfig {
 				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
@@ -105,7 +106,7 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &workloadidentity.WorkloadAPIConfig{
+			Want: &workloadidentity.WorkloadAPIConfig{
 				Selector: bot.WorkloadIdentitySelector{
 					Labels: map[string][]string{
 						"key": {"value"},
@@ -120,18 +121,18 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing selectors",
-			in: func() *workloadidentity.WorkloadAPIConfig {
+			Name: "missing selectors",
+			In: func() *workloadidentity.WorkloadAPIConfig {
 				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{},
 					Listen:   "tcp://0.0.0.0:4040",
 				}
 			},
-			wantErr: "one of ['name', 'labels'] must be set",
+			WantErr: "one of ['name', 'labels'] must be set",
 		},
 		{
-			name: "too many selectors",
-			in: func() *workloadidentity.WorkloadAPIConfig {
+			Name: "too many selectors",
+			In: func() *workloadidentity.WorkloadAPIConfig {
 				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -142,19 +143,19 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			wantErr: "at most one of ['name', 'labels'] can be set",
+			WantErr: "at most one of ['name', 'labels'] can be set",
 		},
 		{
-			name: "missing listen",
-			in: func() *workloadidentity.WorkloadAPIConfig {
+			Name: "missing listen",
+			In: func() *workloadidentity.WorkloadAPIConfig {
 				return &workloadidentity.WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

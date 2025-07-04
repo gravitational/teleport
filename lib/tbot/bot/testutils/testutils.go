@@ -23,9 +23,13 @@
 package testutils
 
 import (
+	"bytes"
 	"context"
+	"reflect"
+	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/client"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -33,9 +37,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/internal/unmarshaling"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
 const MockClusterName = "tele.blackmesa.gov"
@@ -48,6 +58,14 @@ type TestingT interface {
 	Context() context.Context
 	Fatalf(format string, args ...any)
 	Helper()
+	Name() string
+}
+
+// Subtester extends TestingT with the Run method for subtests.
+type Subtester[T TestingT] interface {
+	TestingT
+
+	Run(name string, fn func(T)) bool
 }
 
 // MakeBot creates a bot server-side and returns the joining parameters.
@@ -187,3 +205,144 @@ func NewMockDiscoveredKubeCluster(t TestingT, name, discoveredName string) *type
 func FakeGetExecutablePath() (string, error) {
 	return "/path/to/tbot", nil
 }
+
+func TestYAML[T TestingT, CaseT any](t Subtester[T], tests []TestYAMLCase[CaseT]) {
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t T) {
+			b := bytes.NewBuffer(nil)
+			encoder := yaml.NewEncoder(b)
+			encoder.SetIndent(2)
+
+			if err := encoder.Encode(&tt.In); err != nil {
+				t.Fatalf("failed to encode: %v", err)
+			}
+
+			if golden.ShouldSet() {
+				golden.Set(t, b.Bytes())
+			}
+
+			if diff := cmp.Diff(
+				string(golden.Get(t)),
+				b.String(),
+			); diff != "" {
+				t.Fatalf("results of marshal did not match golden file, rerun tests with GOLDEN_UPDATE=1\n\n%s", diff)
+			}
+
+			// Now test unmarshaling to see if we get the same object back
+			var unmarshaled CaseT
+			decoder := yaml.NewDecoder(b)
+
+			// If the type supports UnmarshalConfig, we'll call it. Otherwise,
+			// we'll do regular YAML unmarshaling.
+			var anyUnmarshaled any = &unmarshaled
+			if uc, ok := (anyUnmarshaled).(interface {
+				UnmarshalConfig(bot.UnmarshalConfigContext, *yaml.Node) error
+			}); ok {
+				trmp := unmarshalYAMLFunc(func(node *yaml.Node) error {
+					return uc.UnmarshalConfig(unmarshalContext, node)
+				})
+				if err := decoder.Decode(&trmp); err != nil {
+					t.Fatalf("failed to decode: %v", err)
+				}
+			} else {
+				if err := decoder.Decode(&unmarshaled); err != nil {
+					t.Fatalf("failed to decode: %v", err)
+				}
+			}
+
+			if diff := cmp.Diff(
+				tt.In,
+				unmarshaled,
+				exportAll,
+			); diff != "" {
+				t.Fatalf("unmarshaling did not result in same object as input\n\n%s", diff)
+			}
+		})
+	}
+}
+
+var unmarshalContext = unmarshaling.ContextFunc(func(node *yaml.Node) (destination.Destination, error) {
+	header := struct {
+		Type string `yaml:"type"`
+	}{}
+	if err := node.Decode(&header); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch header.Type {
+	case destination.MemoryType:
+		v := &destination.Memory{}
+		if err := node.Decode(v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
+	case destination.DirectoryType:
+		v := &destination.Directory{}
+		if err := node.Decode(v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
+	default:
+		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
+	}
+})
+
+type TestYAMLCase[CaseT any] struct {
+	Name string
+	In   CaseT
+}
+
+// unmarshalYAMLFunc allows you to provide a custom unmarshal function to
+// Decode to test config structs that implement UnmarshalConfig.
+type unmarshalYAMLFunc func(node *yaml.Node) error
+
+func (fn unmarshalYAMLFunc) UnmarshalYAML(node *yaml.Node) error { return fn(node) }
+
+type CheckAndSetDefaulter interface {
+	CheckAndSetDefaults() error
+}
+
+type TestCheckAndSetDefaultsCase[T CheckAndSetDefaulter] struct {
+	Name string
+	In   func() T
+
+	// Want specifies the desired state of the checkAndSetDefaulter after
+	// check and set defaults has been run. If Want is nil, the Output is
+	// compared to its initial state.
+	Want    CheckAndSetDefaulter
+	WantErr string
+}
+
+func TestCheckAndSetDefaults[T TestingT, CaseT CheckAndSetDefaulter](t Subtester[T], tests []TestCheckAndSetDefaultsCase[CaseT]) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t T) {
+			got := tt.In()
+			err := got.CheckAndSetDefaults()
+			if tt.WantErr != "" {
+				if !strings.Contains(err.Error(), tt.WantErr) {
+					t.Fatalf("error %v does not contain %q", err, tt.WantErr)
+				}
+				return
+			}
+
+			want := tt.Want
+			if want == nil {
+				want = tt.In()
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(
+				want,
+				got,
+				exportAll,
+			); diff != "" {
+				t.Fatalf(diff)
+			}
+		})
+	}
+}
+
+var exportAll = cmp.Exporter(func(reflect.Type) bool { return true })

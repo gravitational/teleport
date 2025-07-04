@@ -24,15 +24,16 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestApplicationOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[application.OutputConfig]{
+	tests := []testutils.TestYAMLCase[application.OutputConfig]{
 		{
-			name: "full",
-			in: application.OutputConfig{
+			Name: "full",
+			In: application.OutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				AppName:     "my-app",
@@ -43,21 +44,21 @@ func TestApplicationOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: application.OutputConfig{
+			Name: "minimal",
+			In: application.OutputConfig{
 				Destination: dest,
 				AppName:     "my-app",
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*application.OutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*application.OutputConfig]{
 		{
-			name: "valid",
-			in: func() *application.OutputConfig {
+			Name: "valid",
+			In: func() *application.OutputConfig {
 				return &application.OutputConfig{
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
@@ -66,24 +67,24 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *application.OutputConfig {
+			Name: "missing destination",
+			In: func() *application.OutputConfig {
 				return &application.OutputConfig{
 					Destination: nil,
 					AppName:     "app",
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing app_name",
-			in: func() *application.OutputConfig {
+			Name: "missing app_name",
+			In: func() *application.OutputConfig {
 				return &application.OutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},
-			wantErr: "app_name must not be empty",
+			WantErr: "app_name must not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

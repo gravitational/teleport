@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
@@ -31,10 +32,10 @@ import (
 func TestSSHMultiplexerService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[ssh.MultiplexerConfig]{
+	tests := []testutils.TestYAMLCase[ssh.MultiplexerConfig]{
 		{
-			name: "full",
-			in: ssh.MultiplexerConfig{
+			Name: "full",
+			In: ssh.MultiplexerConfig{
 				Destination: &destination.Directory{
 					Path: "/opt/machine-id",
 				},
@@ -48,16 +49,16 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*ssh.MultiplexerConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*ssh.MultiplexerConfig]{
 		{
-			name: "valid",
-			in: func() *ssh.MultiplexerConfig {
+			Name: "valid",
+			In: func() *ssh.MultiplexerConfig {
 				return &ssh.MultiplexerConfig{
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
@@ -68,23 +69,23 @@ func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *ssh.MultiplexerConfig {
+			Name: "missing destination",
+			In: func() *ssh.MultiplexerConfig {
 				return &ssh.MultiplexerConfig{
 					Destination: nil,
 				}
 			},
-			wantErr: "destination: must be specified",
+			WantErr: "destination: must be specified",
 		},
 		{
-			name: "wrong destination type",
-			in: func() *ssh.MultiplexerConfig {
+			Name: "wrong destination type",
+			In: func() *ssh.MultiplexerConfig {
 				return &ssh.MultiplexerConfig{
 					Destination: &destination.Memory{},
 				}
 			},
-			wantErr: "destination: must be of type `directory`",
+			WantErr: "destination: must be of type `directory`",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

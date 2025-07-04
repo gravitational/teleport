@@ -19,7 +19,6 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,12 +27,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
-	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestConfigFile(t *testing.T) {
@@ -194,10 +192,10 @@ func TestDestinationFromURI(t *testing.T) {
 // prefer the Output YAML tests for testing the intricacies of marshaling and
 // unmarshaling specific objects.
 func TestBotConfig_YAML(t *testing.T) {
-	tests := []testYAMLCase[BotConfig]{
+	tests := []testutils.TestYAMLCase[BotConfig]{
 		{
-			name: "standard config",
-			in: BotConfig{
+			Name: "standard config",
+			In: BotConfig{
 				Version: V2,
 				Storage: &StorageConfig{
 					Destination: &destination.Directory{
@@ -333,8 +331,8 @@ func TestBotConfig_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal config",
-			in: BotConfig{
+			Name: "minimal config",
+			In: BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -349,8 +347,8 @@ func TestBotConfig_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal config using proxy addr",
-			in: BotConfig{
+			Name: "minimal config using proxy addr",
+			In: BotConfig{
 				Version:     V2,
 				ProxyServer: "example.teleport.sh:443",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -366,60 +364,8 @@ func TestBotConfig_YAML(t *testing.T) {
 		},
 	}
 
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
-
-type testYAMLCase[T any] struct {
-	name string
-	in   T
-}
-
-func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := bytes.NewBuffer(nil)
-			encoder := yaml.NewEncoder(b)
-			encoder.SetIndent(2)
-			require.NoError(t, encoder.Encode(&tt.in))
-
-			if golden.ShouldSet() {
-				golden.Set(t, b.Bytes())
-			}
-			require.Equal(
-				t,
-				string(golden.Get(t)),
-				b.String(),
-				"results of marshal did not match golden file, rerun tests with GOLDEN_UPDATE=1",
-			)
-
-			// Now test unmarshalling to see if we get the same object back
-			var unmarshalled T
-			decoder := yaml.NewDecoder(b)
-
-			// If the type supports UnmarshalConfig, we'll call it. Otherwise,
-			// we'll do regular YAML unmarshaling.
-			var anyUnmarshalled any = &unmarshalled
-			if uc, ok := (anyUnmarshalled).(interface {
-				UnmarshalConfig(bot.UnmarshalConfigContext, *yaml.Node) error
-			}); ok {
-				trmp := unmarshalYAMLFunc(func(node *yaml.Node) error {
-					return uc.UnmarshalConfig(unmarshalContext{}, node)
-				})
-				require.NoError(t, decoder.Decode(&trmp))
-			} else {
-				require.NoError(t, decoder.Decode(&unmarshalled))
-			}
-
-			require.Equal(t, tt.in, unmarshalled, "unmarshalling did not result in same object as input")
-		})
-	}
-}
-
-// unmarshalYAMLFunc allows you to provide a custom unmarshal function to
-// Decode to test config structs that implement UnmarshalConfig.
-type unmarshalYAMLFunc func(node *yaml.Node) error
-
-func (fn unmarshalYAMLFunc) UnmarshalYAML(node *yaml.Node) error { return fn(node) }
 
 func TestBotConfig_InsecureWithCAPins(t *testing.T) {
 	cfg := &BotConfig{

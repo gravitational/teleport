@@ -24,15 +24,16 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestSSHHostOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[ssh.HostOutputConfig]{
+	tests := []testutils.TestYAMLCase[ssh.HostOutputConfig]{
 		{
-			name: "full",
-			in: ssh.HostOutputConfig{
+			Name: "full",
+			In: ssh.HostOutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
@@ -43,21 +44,21 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: ssh.HostOutputConfig{
+			Name: "minimal",
+			In: ssh.HostOutputConfig{
 				Destination: dest,
 				Principals:  []string{"host.example.com"},
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*ssh.HostOutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*ssh.HostOutputConfig]{
 		{
-			name: "valid",
-			in: func() *ssh.HostOutputConfig {
+			Name: "valid",
+			In: func() *ssh.HostOutputConfig {
 				return &ssh.HostOutputConfig{
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
@@ -66,24 +67,24 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *ssh.HostOutputConfig {
+			Name: "missing destination",
+			In: func() *ssh.HostOutputConfig {
 				return &ssh.HostOutputConfig{
 					Destination: nil,
 					Principals:  []string{"host.example.com"},
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing principals",
-			in: func() *ssh.HostOutputConfig {
+			Name: "missing principals",
+			In: func() *ssh.HostOutputConfig {
 				return &ssh.HostOutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},
-			wantErr: "at least one principal must be specified",
+			WantErr: "at least one principal must be specified",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

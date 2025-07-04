@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -34,10 +35,10 @@ func ptr[T any](v T) *T {
 func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[legacyspiffe.WorkloadAPIConfig]{
+	tests := []testutils.TestYAMLCase[legacyspiffe.WorkloadAPIConfig]{
 		{
-			name: "full",
-			in: legacyspiffe.WorkloadAPIConfig{
+			Name: "full",
+			In: legacyspiffe.WorkloadAPIConfig{
 				Listen:     "unix:///var/run/spiffe.sock",
 				JWTSVIDTTL: time.Minute * 5,
 				Attestors: workloadattest.Config{
@@ -90,8 +91,8 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: legacyspiffe.WorkloadAPIConfig{
+			Name: "minimal",
+			In: legacyspiffe.WorkloadAPIConfig{
 				Listen: "unix:///var/run/spiffe.sock",
 				SVIDs: []legacyspiffe.SVIDRequestWithRules{
 					{
@@ -103,16 +104,16 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*legacyspiffe.WorkloadAPIConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*legacyspiffe.WorkloadAPIConfig]{
 		{
-			name: "valid",
-			in: func() *legacyspiffe.WorkloadAPIConfig {
+			Name: "valid",
+			In: func() *legacyspiffe.WorkloadAPIConfig {
 				return &legacyspiffe.WorkloadAPIConfig{
 					JWTSVIDTTL: time.Minute,
 					Listen:     "unix:///var/run/spiffe.sock",
@@ -130,7 +131,7 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			want: &legacyspiffe.WorkloadAPIConfig{
+			Want: &legacyspiffe.WorkloadAPIConfig{
 				JWTSVIDTTL: time.Minute,
 				Listen:     "unix:///var/run/spiffe.sock",
 				SVIDs: []legacyspiffe.SVIDRequestWithRules{
@@ -153,8 +154,8 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing path",
-			in: func() *legacyspiffe.WorkloadAPIConfig {
+			Name: "missing path",
+			In: func() *legacyspiffe.WorkloadAPIConfig {
 				return &legacyspiffe.WorkloadAPIConfig{
 					Listen: "unix:///var/run/spiffe.sock",
 					SVIDs: []legacyspiffe.SVIDRequestWithRules{
@@ -171,11 +172,11 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "svid.path: should not be empty",
+			WantErr: "svid.path: should not be empty",
 		},
 		{
-			name: "path missing leading slash",
-			in: func() *legacyspiffe.WorkloadAPIConfig {
+			Name: "path missing leading slash",
+			In: func() *legacyspiffe.WorkloadAPIConfig {
 				return &legacyspiffe.WorkloadAPIConfig{
 					Listen: "unix:///var/run/spiffe.sock",
 					SVIDs: []legacyspiffe.SVIDRequestWithRules{
@@ -192,11 +193,11 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "svid.path: should be prefixed with /",
+			WantErr: "svid.path: should be prefixed with /",
 		},
 		{
-			name: "missing listen addr",
-			in: func() *legacyspiffe.WorkloadAPIConfig {
+			Name: "missing listen addr",
+			In: func() *legacyspiffe.WorkloadAPIConfig {
 				return &legacyspiffe.WorkloadAPIConfig{
 					Listen: "",
 					SVIDs: []legacyspiffe.SVIDRequestWithRules{
@@ -213,11 +214,11 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 		{
-			name: "invalid ip",
-			in: func() *legacyspiffe.WorkloadAPIConfig {
+			Name: "invalid ip",
+			In: func() *legacyspiffe.WorkloadAPIConfig {
 				return &legacyspiffe.WorkloadAPIConfig{
 					Listen: "unix:///var/run/spiffe.sock",
 					SVIDs: []legacyspiffe.SVIDRequestWithRules{
@@ -234,8 +235,8 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "ip_sans[0]: invalid IP address",
+			WantErr: "ip_sans[0]: invalid IP address",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

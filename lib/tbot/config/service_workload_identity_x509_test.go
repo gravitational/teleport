@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
@@ -30,10 +31,10 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[workloadidentity.X509OutputConfig]{
+	tests := []testutils.TestYAMLCase[workloadidentity.X509OutputConfig]{
 		{
-			name: "full",
-			in: workloadidentity.X509OutputConfig{
+			Name: "full",
+			In: workloadidentity.X509OutputConfig{
 				Destination: dest,
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -46,8 +47,8 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: workloadidentity.X509OutputConfig{
+			Name: "minimal",
+			In: workloadidentity.X509OutputConfig{
 				Destination: dest,
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -55,16 +56,16 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*workloadidentity.X509OutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*workloadidentity.X509OutputConfig]{
 		{
-			name: "valid",
-			in: func() *workloadidentity.X509OutputConfig {
+			Name: "valid",
+			In: func() *workloadidentity.X509OutputConfig {
 				return &workloadidentity.X509OutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -78,8 +79,8 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid with labels",
-			in: func() *workloadidentity.X509OutputConfig {
+			Name: "valid with labels",
+			In: func() *workloadidentity.X509OutputConfig {
 				return &workloadidentity.X509OutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
@@ -95,8 +96,8 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing selectors",
-			in: func() *workloadidentity.X509OutputConfig {
+			Name: "missing selectors",
+			In: func() *workloadidentity.X509OutputConfig {
 				return &workloadidentity.X509OutputConfig{
 					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &destination.Directory{
@@ -106,11 +107,11 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "one of ['name', 'labels'] must be set",
+			WantErr: "one of ['name', 'labels'] must be set",
 		},
 		{
-			name: "too many selectors",
-			in: func() *workloadidentity.X509OutputConfig {
+			Name: "too many selectors",
+			In: func() *workloadidentity.X509OutputConfig {
 				return &workloadidentity.X509OutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -125,17 +126,17 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "at most one of ['name', 'labels'] can be set",
+			WantErr: "at most one of ['name', 'labels'] can be set",
 		},
 		{
-			name: "missing destination",
-			in: func() *workloadidentity.X509OutputConfig {
+			Name: "missing destination",
+			In: func() *workloadidentity.X509OutputConfig {
 				return &workloadidentity.X509OutputConfig{
 					Destination: nil,
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

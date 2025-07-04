@@ -19,37 +19,10 @@
 package config
 
 import (
-	"slices"
-
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
-
-// extractOutputDestination performs surgery on yaml.Node to unmarshal a
-// destination and then remove key/values from the yaml.Node that specify
-// the destination. This *hack* allows us to have the bot.Destination as a
-// field directly on an Output without needing a struct to wrap it for
-// polymorphic unmarshaling.
-//
-// If there's no destination in the provided yaml node, then this will return
-// nil, nil.
-func extractOutputDestination(node *yaml.Node) (destination.Destination, error) {
-	for i, subNode := range node.Content {
-		if subNode.Value == "destination" {
-			// Next node will be the contents
-			dest, err := unmarshalDestination(node.Content[i+1])
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// Remove key and contents from root node
-			node.Content = slices.Delete(node.Content, i, i+2)
-			return dest, nil
-		}
-	}
-	return nil, nil
-}
 
 func validateOutputDestination(dest destination.Destination) error {
 	if dest == nil {

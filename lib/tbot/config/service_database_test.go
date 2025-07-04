@@ -24,15 +24,16 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 func TestDatabaseOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[database.OutputConfig]{
+	tests := []testutils.TestYAMLCase[database.OutputConfig]{
 		{
-			name: "full",
-			in: database.OutputConfig{
+			Name: "full",
+			In: database.OutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Format:      database.TLSDatabaseFormat,
@@ -46,21 +47,21 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: database.OutputConfig{
+			Name: "minimal",
+			In: database.OutputConfig{
 				Destination: dest,
 				Service:     "my-database-service",
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*database.OutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*database.OutputConfig]{
 		{
-			name: "valid",
-			in: func() *database.OutputConfig {
+			Name: "valid",
+			In: func() *database.OutputConfig {
 				return &database.OutputConfig{
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
@@ -71,35 +72,35 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *database.OutputConfig {
+			Name: "missing destination",
+			In: func() *database.OutputConfig {
 				return &database.OutputConfig{
 					Destination: nil,
 					Service:     "service",
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing service",
-			in: func() *database.OutputConfig {
+			Name: "missing service",
+			In: func() *database.OutputConfig {
 				return &database.OutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},
-			wantErr: "service must not be empty",
+			WantErr: "service must not be empty",
 		},
 		{
-			name: "invalid format",
-			in: func() *database.OutputConfig {
+			Name: "invalid format",
+			In: func() *database.OutputConfig {
 				return &database.OutputConfig{
 					Destination: destination.NewMemory(),
 					Service:     "service",
 					Format:      "no-such-format",
 				}
 			},
-			wantErr: "unrecognized format (no-such-format)",
+			WantErr: "unrecognized format (no-such-format)",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

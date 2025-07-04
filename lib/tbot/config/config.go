@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/internal/unmarshaling"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
@@ -316,49 +317,49 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case ssh.MultiplexerServiceType:
 			v := &ssh.MultiplexerConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case k8s.OutputV1ServiceType:
 			v := &k8s.OutputV1Config{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case k8s.OutputV2ServiceType:
 			v := &k8s.OutputV2Config{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case legacyspiffe.SVIDOutputServiceType:
 			v := &legacyspiffe.SVIDOutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case ssh.HostOutputServiceType:
 			v := &ssh.HostOutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case application.OutputServiceType:
 			v := &application.OutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case database.OutputServiceType:
 			v := &database.OutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case identity.OutputServiceType:
 			v := &identity.OutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -370,7 +371,7 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case workloadidentity.X509OutputServiceType:
 			v := &workloadidentity.X509OutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -382,13 +383,13 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case workloadidentity.JWTOutputServiceType:
 			v := &workloadidentity.JWTOutputConfig{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
 		case awsra.ServiceType:
 			v := &awsra.Config{}
-			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -401,17 +402,7 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-type unmarshalContext struct{}
-
-func (unmarshalContext) UnmarshalDestination(node *yaml.Node) (destination.Destination, error) {
-	return unmarshalDestination(node)
-}
-
-func (unmarshalContext) ExtractDestination(node *yaml.Node) (destination.Destination, error) {
-	return extractOutputDestination(node)
-}
-
-var _ bot.UnmarshalConfigContext = (*unmarshalContext)(nil)
+var unmarshalContext = unmarshaling.ContextFunc(unmarshalDestination)
 
 // unmarshalDestination takes a *yaml.Node and produces a destination.Destination by
 // considering the `type` field.

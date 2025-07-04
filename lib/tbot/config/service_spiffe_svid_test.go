@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 )
 
@@ -31,10 +32,10 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[legacyspiffe.SVIDOutputConfig]{
+	tests := []testutils.TestYAMLCase[legacyspiffe.SVIDOutputConfig]{
 		{
-			name: "full",
-			in: legacyspiffe.SVIDOutputConfig{
+			Name: "full",
+			In: legacyspiffe.SVIDOutputConfig{
 				Destination: dest,
 				SVID: legacyspiffe.SVIDRequest{
 					Path: "/foo",
@@ -62,8 +63,8 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: legacyspiffe.SVIDOutputConfig{
+			Name: "minimal",
+			In: legacyspiffe.SVIDOutputConfig{
 				Destination: dest,
 				SVID: legacyspiffe.SVIDRequest{
 					Path: "/foo",
@@ -71,14 +72,14 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*legacyspiffe.SVIDOutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*legacyspiffe.SVIDOutputConfig]{
 		{
-			name: "valid",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "valid",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
@@ -99,8 +100,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing jwt name",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "missing jwt name",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
@@ -118,11 +119,11 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "name: should not be empty",
+			WantErr: "name: should not be empty",
 		},
 		{
-			name: "missing jwt audience",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "missing jwt audience",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
@@ -140,11 +141,11 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "audience: should not be empty",
+			WantErr: "audience: should not be empty",
 		},
 		{
-			name: "missing destination",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "missing destination",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: nil,
 					SVID: legacyspiffe.SVIDRequest{
@@ -157,11 +158,11 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing path",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "missing path",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
@@ -174,11 +175,11 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "svid.path: should not be empty",
+			WantErr: "svid.path: should not be empty",
 		},
 		{
-			name: "path missing leading slash",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "path missing leading slash",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
@@ -191,11 +192,11 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "svid.path: should be prefixed with /",
+			WantErr: "svid.path: should be prefixed with /",
 		},
 		{
-			name: "invalid ip",
-			in: func() *legacyspiffe.SVIDOutputConfig {
+			Name: "invalid ip",
+			In: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
@@ -208,8 +209,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "ip_sans[0]: invalid IP address",
+			WantErr: "ip_sans[0]: invalid IP address",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

@@ -23,16 +23,17 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[application.TunnelConfig]{
+	tests := []testutils.TestYAMLCase[application.TunnelConfig]{
 		{
-			name: "full",
-			in: application.TunnelConfig{
+			Name: "full",
+			In: application.TunnelConfig{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -42,55 +43,55 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*application.TunnelConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*application.TunnelConfig]{
 		{
-			name: "valid",
-			in: func() *application.TunnelConfig {
+			Name: "valid",
+			In: func() *application.TunnelConfig {
 				return &application.TunnelConfig{
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
-			wantErr: "",
+			WantErr: "",
 		},
 		{
-			name: "missing listen",
-			in: func() *application.TunnelConfig {
+			Name: "missing listen",
+			In: func() *application.TunnelConfig {
 				return &application.TunnelConfig{
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 		{
-			name: "listen not url",
-			in: func() *application.TunnelConfig {
+			Name: "listen not url",
+			In: func() *application.TunnelConfig {
 				return &application.TunnelConfig{
 					Listen:  "\x00",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
-			wantErr: "parsing listen",
+			WantErr: "parsing listen",
 		},
 		{
-			name: "missing app name",
-			in: func() *application.TunnelConfig {
+			Name: "missing app name",
+			In: func() *application.TunnelConfig {
 				return &application.TunnelConfig{
 					Listen: "tcp://0.0.0.0:3621",
 					Roles:  []string{"role1", "role2"},
 				}
 			},
-			wantErr: "app_name: should not be empty",
+			WantErr: "app_name: should not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }
