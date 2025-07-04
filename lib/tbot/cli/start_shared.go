@@ -106,6 +106,7 @@ func (a *AuthProxyArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 type sharedStartArgs struct {
 	*AuthProxyArgs
 
+	JoiningURI         string
 	JoinMethod         string
 	Token              string
 	CAPins             []string
@@ -123,6 +124,8 @@ type sharedStartArgs struct {
 
 // newSharedStartArgs initializes shared arguments on the given parent command.
 func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
+	cmd.Interspersed(true)
+
 	args := &sharedStartArgs{}
 	args.AuthProxyArgs = newAuthProxyArgs(cmd)
 
@@ -130,7 +133,7 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 		"(%s)",
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
-
+	cmd.Arg("joining-uri", "An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.").StringVar(&args.JoiningURI)
 	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&args.Token)
 	cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&args.CAPins)
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
@@ -146,6 +149,10 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 
 func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	// Note: Debug, FIPS, and Insecure are included from globals.
+
+	if s.JoiningURI != "" {
+		cfg.JoiningURI = s.JoiningURI
+	}
 
 	if s.AuthProxyArgs != nil {
 		if err := s.AuthProxyArgs.ApplyConfig(cfg, l); err != nil {
