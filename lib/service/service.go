@@ -2315,6 +2315,7 @@ func (process *TeleportProcess) initAuthService() error {
 			MultipartHandler:        uploadHandler,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
+			RetryInterval:           cfg.Testing.CASRetryInterval,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil

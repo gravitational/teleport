@@ -391,6 +391,13 @@ type InitConfig struct {
 
 	// MultipartHandler handles multipart uploads.
 	MultipartHandler events.MultipartHandler
+
+	// RetryInterval specifies the interval at which the auth server will retry
+	// operations that fail due to a CompareAndSwap mismatch.
+	// If set to 0, it defaults to 250ms. See: https://github.com/gravitational/teleport/blob/master/lib/backend/lock.go#L87
+	// This setting is particularly useful in tests where the failure rate is high,
+	// often due to overlapping internal intervals during system startup.
+	RetryInterval time.Duration
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -370,7 +370,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RetryInterval))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

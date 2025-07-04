@@ -314,6 +314,16 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
+
+	// CASRetryInterval is the interval at which the auth server retries
+	// operations that fail due to CompareAndSwap (CAS) conflicts.
+	//
+	// A zero value defaults to 250ms. See:
+	// https://github.com/gravitational/teleport/blob/master/lib/backend/lock.go#L87
+	//
+	// This setting is especially helpful in test environments where CAS
+	// failures are more frequent due to rapid, concurrent access patterns.
+	CASRetryInterval time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
