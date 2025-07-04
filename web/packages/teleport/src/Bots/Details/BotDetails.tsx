@@ -93,11 +93,11 @@ export function BotDetails() {
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">{`Error: ${error.message}`}</Alert>
+        <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
       {data === null && (
-        <Alert kind="warning">{`Bot ${params.name} does not exist`}</Alert>
+        <Alert kind="warning">Bot {params.name} does not exist</Alert>
       )}
 
       {!hasReadPermission && (

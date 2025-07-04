@@ -104,7 +104,7 @@ export function BotInstanceDetails(props: {
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">{`Error: ${error.message}`}</Alert>
+        <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
       {isSuccess && data.yaml ? (
