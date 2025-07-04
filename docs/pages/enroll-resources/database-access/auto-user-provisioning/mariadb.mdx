@@ -38,14 +38,14 @@ This database is also used to store custom user attributes and stored procedures
 The RDS MariaDB admin user must use `AWSAuthenticationPlugin` to allow IAM
 authentication:
 ```sql
-CREATE USER 'teleport-admin' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
-GRANT PROCESS, CREATE USER ON *.* TO 'teleport-admin';
-GRANT SELECT ON mysql.roles_mapping TO 'teleport-admin';
-GRANT UPDATE ON mysql.* TO 'teleport-admin'; -- For SET DEFAULT ROLE FOR
-GRANT SELECT ON *.* TO 'teleport-admin'; -- Required when using best_effort_drop mode for checking if users own resources before dropping them.
+CREATE USER '<Var name="teleport-admin"/>' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+GRANT PROCESS, CREATE USER ON *.* TO '<Var name="teleport-admin"/>';
+GRANT SELECT ON mysql.roles_mapping TO '<Var name="teleport-admin"/>';
+GRANT UPDATE ON mysql.* TO '<Var name="teleport-admin"/>'; -- For SET DEFAULT ROLE FOR
+GRANT SELECT ON *.* TO '<Var name="teleport-admin"/>'; -- Required when using best_effort_drop mode for checking if users own resources before dropping them.
 
 CREATE DATABASE IF NOT EXISTS `teleport`;
-GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
+GRANT ALL ON `teleport`.* TO '<Var name="teleport-admin"/>' WITH GRANT OPTION;
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
@@ -59,7 +59,7 @@ automatically designates the admin user as "Admin" of those roles.
 
 Alternatively, you can assign the admin user as the "Admin" of existing roles:
 ```sql
-UPDATE mysql.roles_mapping SET User ='teleport-admin' WHERE Admin_option='Y' AND Role='role1';
+UPDATE mysql.roles_mapping SET User ='<Var name="teleport-admin"/>' WHERE Admin_option='Y' AND Role='role1';
 FLUSH PRIVILEGES;
 ```
 
@@ -72,14 +72,14 @@ auto-provisioned users.
 <TabItem label="Self-hosted MariaDB">
 The self-hosted MariaDB admin user must have X.509 authentication configured:
 ```sql
-CREATE USER 'teleport-admin' REQUIRE SUBJECT '/CN=teleport-admin';
-GRANT PROCESS, CREATE USER ON *.* TO 'teleport-admin';
-GRANT SELECT ON mysql.roles_mapping TO 'teleport-admin';
-GRANT UPDATE ON mysql.* TO 'teleport-admin'; -- For SET DEFAULT ROLE FOR
-GRANT SELECT ON *.* TO 'teleport-admin'; -- Required when using best_effort_drop mode for checking if users own resources before dropping them.
+CREATE USER '<Var name="teleport-admin"/>' REQUIRE SUBJECT '/CN=<Var name="teleport-admin"/>';
+GRANT PROCESS, CREATE USER ON *.* TO '<Var name="teleport-admin"/>';
+GRANT SELECT ON mysql.roles_mapping TO '<Var name="teleport-admin"/>';
+GRANT UPDATE ON mysql.* TO '<Var name="teleport-admin"/>'; -- For SET DEFAULT ROLE FOR
+GRANT SELECT ON *.* TO '<Var name="teleport-admin"/>'; -- Required when using best_effort_drop mode for checking if users own resources before dropping them.
 
 CREATE DATABASE IF NOT EXISTS `teleport`;
-GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
+GRANT ALL ON `teleport`.* TO '<Var name="teleport-admin"/>' WITH GRANT OPTION;
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
@@ -90,12 +90,12 @@ the "Admin" of the role.
 
 One way to achieve this is to use the `WITH ADMIN` option when creating roles:
 ```sql
-CREATE ROLE role1 WITH ADMIN 'teleport-admin';
+CREATE ROLE role1 WITH ADMIN '<Var name="teleport-admin"/>';
 ```
 
 Alternatively, you can assign the admin user as the "Admin" of existing roles:
 ```sql
-UPDATE mysql.roles_mapping SET User ='teleport-admin' WHERE Admin_option='Y' AND Role='role1';
+UPDATE mysql.roles_mapping SET User ='<Var name="teleport-admin"/>' WHERE Admin_option='Y' AND Role='role1';
 FLUSH PRIVILEGES;
 ```
 

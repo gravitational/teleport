@@ -34,8 +34,8 @@ The RDS PostgreSQL admin user must have the `rds_iam` role attached to allow IAM
 authentication:
 
 ```sql
-CREATE USER "teleport-admin" login createrole;
-GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
+CREATE USER "<Var name="teleport-admin"/>" login createrole;
+GRANT rds_iam TO "<Var name="teleport-admin"/>" WITH ADMIN OPTION;
 ```
 
 Note that the RDS database must have IAM authentication enabled.
@@ -46,28 +46,28 @@ for more information.
 If the admin user needs to grant the `rds_superuser` role to auto-provisioned
 users, the admin user must also be a `rds_superuser`:
 ```sql
-GRANT rds_superuser TO "teleport-admin";
+GRANT rds_superuser TO "<Var name="teleport-admin"/>";
 ```
 
 For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
 PostgreSQL role that Teleport will assign to your Teleport user. For example, to
 allow the admin user to grant and revoke role `reader`:
 ```sql
-GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+GRANT reader TO "<Var name="teleport-admin"/>" WITH ADMIN OPTION;
 ```
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
 The self-hosted PostgreSQL admin user must have X.509 authentication configured.
 
 ```sql
-CREATE USER "teleport-admin" login createrole;
+CREATE USER "<Var name="teleport-admin"/>" login createrole;
 ```
 
 For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
 PostgreSQL role that Teleport will assign to your Teleport user. For example, to
 allow the admin user to grant and revoke role `reader`:
 ```sql
-GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+GRANT reader TO "<Var name="teleport-admin"/>" WITH ADMIN OPTION;
 ```
 
 Note that the database must be configured to accept client certificate auth
@@ -83,17 +83,17 @@ to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
-<Admonition type="note" title="Database Access Controls for `teleport-admin`">
+<Admonition type="note" title="Database Access Controls for the admin user">
 When [Database Access Controls](../rbac.mdx) feature is in use, the
-`teleport-admin` should have permissions to relevant database objects. You can
-grant `teleport-admin` the `SUPERUSER` option for self-hosted databases, or the
+admin user should have permissions to relevant database objects. You can
+give the admin user the `SUPERUSER` attribute for self-hosted databases, or grant it the
 `rds_superuser` role for RDS databases.
 
 For improved security through the principle of least privilege, you can also
 assign permissions directly to specific database objects. For example:
 
 ```sql
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "teleport-admin";
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "<Var name="teleport-admin"/>";
 ```
 </Admonition>
 
@@ -207,7 +207,7 @@ DETAIL: User does not have CONNECT privilege.
 
 Make sure `CONNECT` is granted to the admin user and the respective roles:
 ```sql
-GRANT CONNECT ON DATABASE <database> to "teleport-admin";
+GRANT CONNECT ON DATABASE <database> to "<Var name="teleport-admin"/>";
 GRANT CONNECT ON DATABASE <database> to "reader";
 ```
 
@@ -239,8 +239,8 @@ ERROR: no schema has been selected to create in (SQLSTATE 3F000)
 To fix this, make sure that the admin user is granted `USAGE` and `CREATE` on
 schema `public` in the target database:
 ```sql
-GRANT USAGE ON SCHEMA public TO "teleport-admin";
-GRANT CREATE ON SCHEMA public TO "teleport-admin";
+GRANT USAGE ON SCHEMA public TO "<Var name="teleport-admin"/>";
+GRANT CREATE ON SCHEMA public TO "<Var name="teleport-admin"/>";
 ```
 
 ### Permission denied to grant role "rds_iam"
@@ -257,7 +257,7 @@ This happens when the admin user does not have permission to grant the
 "rds_iam" role to other users. To fix this, grant the "rds_iam" role with the
 `ADMIN` option to the admin user:
 ```sql
-GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
+GRANT rds_iam TO "<Var name="teleport-admin"/>" WITH ADMIN OPTION;
 ```
 
 ### Use your mapped remote username error
