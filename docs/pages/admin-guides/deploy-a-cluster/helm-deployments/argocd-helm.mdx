@@ -1,0 +1,147 @@
+---
+title: Guides for running Teleport using Helm via ArgoCD
+description: How to install and configure Teleport in Kubernetes using Helm and ArgoCD
+---
+
+Teleport can provide secure, unified access to your Kubernetes clusters. This
+guide will show you how to deploy Teleport Kubernetes agent on a Kubernetes cluster using Helm
+and ArgoCD.
+
+## How it works
+
+The 'teleport-kube-agent' chart is a Teleport agent used to register any or all of the following services
+with an existing Teleport cluster:
+- Teleport Kubernetes access
+- Teleport Application access
+- Teleport Database access
+- Teleport Kubernetes App Discovery
+- Teleport Jamf service
+
+## Prerequisites
+
+- A registered domain name. This is required for Teleport to set up TLS via
+  Let's Encrypt and for Teleport clients to verify the Proxy Service host.
+
+- An existing Kubernetes cluster you wish to provide access to via Teleport.
+
+- At least one Teleport Agent running in your cluster publicly reachable with
+  valid TLS certificates
+
+ - (!docs/pages/includes/tctl.mdx!)
+
+- An existing ArgoCD instance (version 2.10 or greater) that can deploy to the
+  above Kubernetes cluster.
+
+- A persistent volume that the Auth Service can use for storing cluster state.
+  Make sure your Kubernetes cluster has one available.
+  
+  
+  ```code
+  $ kubectl get pv
+  ```
+
+  If there are no persistent volumes available, you will need to either provide
+  one or enable [dynamic volume
+  provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/#enabling-dynamic-provisioning)
+  for your cluster. For example, in Amazon Elastic Kubernetes Service, you can
+  configure the [Elastic Block Store Container Storage Interface driver
+  add-on](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html).
+
+  To tell whether you have dynamic volume provisioning enabled, check for the
+  presence of a default `StorageClass`:
+
+  ```code
+  $ kubectl get storageclasses
+  ```
+
+- The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
+  You can download this from our [installation page](../../../installation.mdx).
+  
+## Generate a join token
+
+```code
+$ tctl tokens add --type=kube,app --ttl=5m
+```
+
+You can specify the following token types:
+
+(!docs/pages/includes/token-types.mdx!)
+
+Ensure you update the values file you use for the helm chart
+to include the required roles.
+
+See the `teleport-kube-agent` [chart
+reference](../../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
+roles and token types that the chart supports.
+
+Edit the values file to add the `kubeClusterName` field:
+
+```yaml
+kubeClusterName: mycluster
+```
+
+### Update the join token
+
+Make sure the agent's configuration file refers to the new join token.
+
+1. Find the name of the join token you created:
+
+```code
+$ tctl tokens ls
+# Token                            Type        Labels Expiry Time (UTC)
+# -------------------------------- ----------- ------ -------------------------------
+# (=presets.tokens.first=) Node,Db,App        10 Aug 23 19:49 UTC (4m11s)
+```
+
+In this case, the name of the token is `(=presets.tokens.first=)`.
+
+Set the value of either the `authToken` field or the `joinParams.tokenName`
+field to the value of your token.
+
+## Install the `teleport-kube-agent` Helm chart via ArgoCD
+
+1. Create a namespace for Teleport and configure its Pod Security Admission,
+   which enforces security standards on pods in the namespace:
+
+   ```code
+   $ kubectl create namespace teleport
+   namespace/teleport created
+   
+   $ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+   namespace/teleport labeled
+   ```
+
+2. Create a secret from your license file. Teleport will automatically discover
+   this secret as long as your file is named `license.pem`.
+
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+```code
+$ kubectl -n teleport create secret generic license --from-file=license.pem
+```
+
+3. Create a new ArgoCD application using the following as a template.
+
+``` yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-kube-agent
+spec:
+  destination:
+    name: ''
+    namespace: teleport
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: ''
+    repoURL: 'https://charts.releases.teleport.dev'
+    targetRevision: (=teleport.version=)
+    chart: teleport-kube-agent
+  sources: []
+  project: default
+```
+
+3. Edit this example configuration to match your needs.
+   More information on how to modify helm this the helm chart
+   and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
+4. Sync your changes to apply the configuration.
