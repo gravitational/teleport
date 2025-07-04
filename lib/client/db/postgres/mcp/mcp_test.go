@@ -19,12 +19,18 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgproto3"
+	"github.com/jonboulle/clockwork"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
@@ -34,28 +40,55 @@ import (
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/listener"
+	"github.com/gravitational/trace"
 )
 
 func TestFormatResult(t *testing.T) {
 	for name, tc := range map[string]struct {
-		rows           pgx.Rows
+		results        []*pgconn.Result
 		expectedResult string
 	}{
 		"query results": {
-			rows:           newMockRows("SELECT 2", []string{"name", "age"}, [][]any{{"Alice", 30}, {"Bob", 31}}),
-			expectedResult: `{"data":[{"age":30,"name":"Alice"},{"age":31,"name":"Bob"}],"rowsCount":2}`,
+			results:        []*pgconn.Result{newMockResult("SELECT 2", nil, []string{"name", "age"}, [][][]byte{{[]byte("Alice"), []byte("30")}, {[]byte("Bob"), []byte("31")}})},
+			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_count":2}]}`,
+		},
+		"multiple query results": {
+			results: []*pgconn.Result{
+				newMockResult("SELECT 2", nil, []string{"name", "age"}, [][][]byte{{[]byte("Alice"), []byte("30")}, {[]byte("Bob"), []byte("31")}}),
+				newMockResult("SELECT 1", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}}),
+			},
+			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_count":2},{"data":[{"active":"true","id":"1"}],"rows_count":1}]}`,
+		},
+		"multiple query results different types": {
+			results: []*pgconn.Result{
+				newMockResult("INSERT 5", nil, []string{}, [][][]byte{}),
+				newMockResult("SELECT 2", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}, {[]byte("2"), []byte("false")}}),
+			},
+			expectedResult: `{"results":[{"data":null,"rows_count":5},{"data":[{"active":"true","id":"1"},{"active":"false","id":"2"}],"rows_count":2}]}`,
 		},
 		"empty query results": {
-			rows:           newMockRows("SELECT 0", []string{}, [][]any{}),
-			expectedResult: `{"data":[],"rowsCount":0}`,
+			results:        []*pgconn.Result{newMockResult("SELECT 0", nil, []string{}, [][][]byte{})},
+			expectedResult: `{"results":[{"data":[],"rows_count":0}]}`,
 		},
 		"non-data results": {
-			rows:           newMockRows("INSERT 1", []string{}, [][]any{}),
-			expectedResult: `{"data":null,"rowsCount":1}`,
+			results:        []*pgconn.Result{newMockResult("INSERT 1", nil, []string{}, [][][]byte{})},
+			expectedResult: `{"results":[{"data":null,"rows_count":1}]}`,
+		},
+		"query with error": {
+			results:        []*pgconn.Result{newMockResult("SELECT 0", errors.New("something wrong with query"), []string{}, [][][]byte{})},
+			expectedResult: `{"results":[{"data":null,"rows_count":0,"error":"something wrong with query"}]}`,
+		},
+		"multiple query with error": {
+			results: []*pgconn.Result{
+				newMockResult("INSERT 0", errors.New("constraint error"), []string{}, [][][]byte{}),
+				newMockResult("SELECT 1", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}}),
+				newMockResult("SELECT 0", errors.New("something wrong with query"), []string{}, [][][]byte{}),
+			},
+			expectedResult: `{"results":[{"data":null,"rows_count":0,"error":"constraint error"},{"data":[{"active":"true","id":"1"}],"rows_count":1},{"data":null,"rows_count":0,"error":"something wrong with query"}]}`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			res, err := buildQueryResult(tc.rows)
+			res, err := buildQueryResult(tc.results)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedResult, res)
 		})
@@ -86,6 +119,14 @@ func TestFormatErrors(t *testing.T) {
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
+	randomDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "random-database-name",
+		Labels: map[string]string{"env": "test"},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
 	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).WithoutParams().String()
 
 	for name, tc := range map[string]struct {
@@ -95,12 +136,28 @@ func TestFormatErrors(t *testing.T) {
 	}{
 		"database not found": {
 			databaseURI: "teleport://clusters/root/databases/not-found",
+			databases: []*dbmcp.Database{
+				{
+					DB:           randomDB,
+					ClusterName:  "root",
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
+				},
+			},
 			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.DatabaseNotFoundError.Error(), i1)
 			},
 		},
 		"malformed database uri": {
 			databaseURI: "not-found",
+			databases: []*dbmcp.Database{
+				{
+					DB:           randomDB,
+					ClusterName:  "root",
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
+				},
+			},
 			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.WrongDatabaseURIFormatError.Error(), i1)
 			},
@@ -108,7 +165,7 @@ func TestFormatErrors(t *testing.T) {
 		"local proxy rejects connection": {
 			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
-				&dbmcp.Database{
+				{
 					DB:           db,
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
@@ -126,7 +183,7 @@ func TestFormatErrors(t *testing.T) {
 		"relogin error": {
 			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
-				&dbmcp.Database{
+				{
 					DB:           db,
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
@@ -169,7 +226,7 @@ func TestFormatErrors(t *testing.T) {
 			require.IsType(t, mcp.TextContent{}, runResult.Content[0])
 
 			content := runResult.Content[0].(mcp.TextContent)
-			var res RunQueryResult
+			var res QueryResult
 			require.NoError(t, json.Unmarshal([]byte(content.Text), &res), "expected result to be in JSON format")
 			require.Empty(t, res.Data)
 			tc.expectErrorMessage(t, res.ErrorMessage)
@@ -177,49 +234,189 @@ func TestFormatErrors(t *testing.T) {
 	}
 }
 
-func newMockRows(commandTag string, fields []string, rows [][]any) pgx.Rows {
+func TestIdleConnections(t *testing.T) {
+	dbName := "local"
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name:   dbName,
+		Labels: map[string]string{"env": "test"},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+
+	dbConnsCh, dialDBFunc := newTestDatabaseServer(t)
+	dbMCP := &dbmcp.Database{
+		DB:           db,
+		ClusterName:  "root",
+		DatabaseUser: "postgres",
+		DatabaseName: "postgres",
+		LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
+			return []string{"memory"}, nil
+		},
+		DialContextFunc: dialDBFunc,
+	}
+
+	clock := clockwork.NewFakeClock()
+	logger := slog.New(slog.DiscardHandler)
+	rootServer := dbmcp.NewRootServer(logger)
+	srv, err := NewServer(t.Context(), &dbmcp.NewServerConfig{
+		Logger:     logger,
+		RootServer: rootServer,
+		Clock:      clock,
+		Databases:  []*dbmcp.Database{dbMCP},
+	})
+	require.NoError(t, err)
+	pgSrv := srv.(*Server)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		queryToolDatabaseParam: dbMCP.ResourceURI().WithoutParams().String(),
+		queryToolQueryParam:    "INSERT (something) VALUES (other)",
+	}
+
+	// First query should initialize a new connection.
+	runResult, err := pgSrv.RunQuery(t.Context(), req)
+	require.NoError(t, err)
+	require.False(t, runResult.IsError, "expected query execution to succeed")
+
+	var conn *testDatabaseConn
+	select {
+	case conn = <-dbConnsCh:
+	case <-time.After(time.Second):
+		require.Fail(t, "expected database connection but got nothing")
+	}
+
+	require.True(t, conn.connected.Load(), "expected connection to be established: %s", conn.err.Load())
+	require.False(t, conn.closed.Load(), "expected connection to not be closed: %s", conn.err.Load())
+
+	// Issue no queries to server and advance clock to close the connection due
+	// to inactivity.
+	clock.Advance(connectionIdleTime + 1)
+	require.Eventually(t, func() bool {
+		return conn.closed.Load()
+	}, time.Second, 100*time.Millisecond, "expected connection to be closed: %s", conn.err.Load())
+
+	// Issuing a new query should bring a brand new connection alive.
+	runResult, err = pgSrv.RunQuery(t.Context(), req)
+	require.NoError(t, err)
+	require.False(t, runResult.IsError, "expected query execution to succeed")
+
+	select {
+	case conn = <-dbConnsCh:
+	case <-time.After(time.Second):
+		require.Fail(t, "expected database connection but got nothing")
+	}
+
+	require.True(t, conn.connected.Load(), "expected connection to be established: %s", conn.err.Load())
+	require.False(t, conn.closed.Load(), "expected connection to not be closed: %s", conn.err.Load())
+}
+
+type testDatabaseConn struct {
+	closeOnce     sync.Once
+	pgBackend     pgproto3.Backend
+	rawClientConn net.Conn
+	rawServerConn net.Conn
+
+	err       atomic.Value
+	closed    atomic.Bool
+	connected atomic.Bool
+}
+
+func (td *testDatabaseConn) close() {
+	td.closeOnce.Do(func() {
+		td.rawClientConn.Close()
+		td.rawServerConn.Close()
+	})
+	td.closed.Store(true)
+}
+
+func (td *testDatabaseConn) processMessages() {
+	defer td.close()
+
+	startupMessage, err := td.pgBackend.ReceiveStartupMessage()
+	if err != nil {
+		td.err.Store(err)
+		return
+	}
+
+	switch msg := startupMessage.(type) {
+	case *pgproto3.StartupMessage:
+		// Accept auth and send ready for query.
+		td.pgBackend.Send(&pgproto3.AuthenticationOk{})
+		// Values on the backend key data are not relavant since we don't
+		// support canceling requests.
+		td.pgBackend.Send(&pgproto3.BackendKeyData{ProcessID: 0, SecretKey: 123})
+		td.pgBackend.Send(&pgproto3.ReadyForQuery{})
+		if err := td.pgBackend.Flush(); err != nil {
+			td.err.Store(err)
+			return
+		}
+	default:
+		td.err.Store(trace.BadParameter("expected *pgproto3.StartupMessage, got: %T", msg))
+		return
+	}
+
+	td.connected.Store(true)
+	for {
+		message, err := td.pgBackend.Receive()
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				return
+			}
+
+			td.err.Store(trace.Wrap(err))
+			return
+		}
+
+		switch message.(type) {
+		case *pgproto3.Query:
+			td.pgBackend.Send(&pgproto3.CommandComplete{CommandTag: []byte("INSERT 0 1")})
+			td.pgBackend.Send(&pgproto3.ReadyForQuery{})
+			if err := td.pgBackend.Flush(); err != nil {
+				td.err.Store(err)
+				return
+			}
+		case *pgproto3.Terminate:
+			return
+		default:
+			td.err.Store(trace.BadParameter("unsupported message %#v", message))
+			return
+		}
+	}
+}
+
+func newTestDatabaseServer(t *testing.T) (chan *testDatabaseConn, dbmcp.DialContextFunc) {
+	ch := make(chan *testDatabaseConn, 1)
+
+	return ch, func(ctx context.Context, _, _ string) (net.Conn, error) {
+		clientConn, serverConn := net.Pipe()
+		pgBackend := pgproto3.NewBackend(serverConn, serverConn)
+		td := &testDatabaseConn{
+			rawClientConn: clientConn,
+			rawServerConn: serverConn,
+			pgBackend:     *pgBackend,
+		}
+		t.Cleanup(td.close)
+		go td.processMessages()
+
+		select {
+		case <-t.Context().Done():
+			return nil, trace.ConnectionProblem(t.Context().Err(), "connection failure")
+		case ch <- td:
+		}
+		return clientConn, nil
+	}
+}
+
+func newMockResult(commandTag string, err error, fields []string, rows [][][]byte) *pgconn.Result {
 	var fds []pgconn.FieldDescription
 	for _, fieldName := range fields {
 		fds = append(fds, pgconn.FieldDescription{Name: fieldName})
 	}
-	return &mockRows{
-		commandTag:   commandTag,
-		descriptions: fds,
-		rows:         rows,
+	return &pgconn.Result{
+		FieldDescriptions: fds,
+		Rows:              rows,
+		CommandTag:        pgconn.NewCommandTag(commandTag),
+		Err:               err,
 	}
 }
-
-type mockRows struct {
-	pgx.Rows
-
-	started bool
-	cursor  int
-
-	commandTag   string
-	descriptions []pgconn.FieldDescription
-	rows         [][]any
-}
-
-func (mr *mockRows) FieldDescriptions() []pgconn.FieldDescription {
-	return mr.descriptions
-}
-
-func (mr *mockRows) Next() bool {
-	if !mr.started {
-		mr.started = true
-		return len(mr.rows) > 0
-	}
-
-	mr.cursor += 1
-	return len(mr.rows) > mr.cursor
-}
-
-func (mr *mockRows) Values() ([]any, error) {
-	return mr.rows[mr.cursor], nil
-}
-
-func (mr *mockRows) CommandTag() pgconn.CommandTag {
-	return pgconn.NewCommandTag(mr.commandTag)
-}
-
-func (mr *mockRows) Close() {}
