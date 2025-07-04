@@ -51,50 +51,48 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
+func discoveryConfigWithAWSMatchers(t *testing.T, discoveryGroup string, m ...types.AWSMatcher) *discoveryconfig.DiscoveryConfig {
+	t.Helper()
+	discoveryConfigName := uuid.NewString()
+	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: discoveryGroup,
+			AWS:            m,
+		},
+	)
+	require.NoError(t, err)
+	return discoveryConfig
+}
+
+func awsMatcherForEKS(t *testing.T, integrationName string) types.AWSMatcher {
+	t.Helper()
+	return types.AWSMatcher{
+		Types:       []string{"eks"},
+		Regions:     []string{"us-west-2"},
+		Tags:        map[string]utils.Strings{"RunDiscover": {"Please"}},
+		Integration: integrationName,
+	}
+}
+
+func awsMatcherForEKSWithAppDiscovery(t *testing.T, integrationName string) types.AWSMatcher {
+	t.Helper()
+	matcher := awsMatcherForEKS(t, integrationName)
+	matcher.KubeAppDiscovery = true
+	return matcher
+}
+
 func TestDiscoveryServerEKS(t *testing.T) {
 	t.Parallel()
 	integrationName := "my-integration"
-
 	defaultDiscoveryGroup := "dc001"
-	discoveryConfigForUserTaskEKSTestName := uuid.NewString()
-	discoveryConfigForUserTaskEKSTest, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: discoveryConfigForUserTaskEKSTestName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{{
-				Types:       []string{"eks"},
-				Regions:     []string{"eu-west-2"},
-				Tags:        map[string]utils.Strings{"RunDiscover": {"Please"}},
-				Integration: integrationName,
-			}},
-		},
-	)
-	require.NoError(t, err)
 
-	discoveryConfigWithAndWithoutAppDiscoveryTestName := uuid.NewString()
-	discoveryConfigWithAndWithoutAppDiscovery, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: discoveryConfigWithAndWithoutAppDiscoveryTestName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{
-				{
-					Types:            []string{"eks"},
-					Regions:          []string{"eu-west-2"},
-					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"No"}},
-					Integration:      integrationName,
-					KubeAppDiscovery: false,
-				},
-				{
-					Types:            []string{"eks"},
-					Regions:          []string{"eu-west-2"},
-					Tags:             map[string]utils.Strings{"EnableAppDiscovery": {"Yes"}},
-					Integration:      integrationName,
-					KubeAppDiscovery: true,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
+	eksMatcher := awsMatcherForEKS(t, integrationName)
+	discoveryConfigForUserTaskEKSTest := discoveryConfigWithAWSMatchers(t, defaultDiscoveryGroup, eksMatcher)
+
+	matcherWithAppDiscovery := awsMatcherForEKSWithAppDiscovery(t, integrationName)
+	matcherWithoutAppDiscovery := awsMatcherForEKS(t, integrationName)
+	discoveryConfigWithAndWithoutAppDiscovery := discoveryConfigWithAWSMatchers(t, defaultDiscoveryGroup, matcherWithAppDiscovery, matcherWithoutAppDiscovery)
 
 	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
 		Name: integrationName,
@@ -170,14 +168,14 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				taskCluster := taskClusters["cluster01"]
 
 				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTestName, taskCluster.DiscoveryConfig)
+				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster.DiscoveryConfig)
 				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
 
 				require.Contains(t, taskClusters, "cluster02")
 				taskCluster2 := taskClusters["cluster02"]
 
 				require.Equal(t, "cluster02", taskCluster2.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTestName, taskCluster2.DiscoveryConfig)
+				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster2.DiscoveryConfig)
 				require.Equal(t, defaultDiscoveryGroup, taskCluster2.DiscoveryGroup)
 			},
 		},
@@ -240,7 +238,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				taskCluster := taskClusters["cluster01"]
 
 				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigWithAndWithoutAppDiscoveryTestName, taskCluster.DiscoveryConfig)
+				require.Equal(t, discoveryConfigWithAndWithoutAppDiscovery.GetName(), taskCluster.DiscoveryConfig)
 				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
 			},
 		},
@@ -278,7 +276,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 					ClusterFeatures: func() proto.Features { return proto.Features{} },
 					AccessPoint:     mockAccessPoint,
 					Matchers:        Matchers{},
-					Emitter:         &mockEmitter{},
+					Emitter:         tt.emitter,
 					DiscoveryGroup:  defaultDiscoveryGroup,
 					Log:             libutils.NewSlogLoggerForTests(),
 				})
