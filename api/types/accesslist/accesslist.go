@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -207,35 +206,6 @@ func NewTypeFromString(s string) (Type, error) {
 	}
 }
 
-// Owner is an owner of an access list.
-type Owner struct {
-	// Name is the username of the owner.
-	Name string `json:"name" yaml:"name"`
-
-	// Description is the plaintext description of the owner and why they are an owner.
-	Description string `json:"description" yaml:"description"`
-
-	// IneligibleStatus describes the reason why this owner is not eligible.
-	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
-
-	// MembershipKind describes the kind of ownership,
-	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
-	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
-}
-
-// Audit describes the audit configuration for an access list.
-type Audit struct {
-	// NextAuditDate is the date that the next audit should be performed.
-	NextAuditDate time.Time `json:"next_audit_date" yaml:"next_audit_date"`
-
-	// Recurrence is the recurrence definition for auditing. Valid values are
-	// 1, first, 15, and last.
-	Recurrence Recurrence `json:"recurrence" yaml:"recurrence"`
-
-	// Notifications is the configuration for notifying users.
-	Notifications Notifications `json:"notifications" yaml:"notifications"`
-}
-
 // Recurrence defines when access list reviews should occur.
 type Recurrence struct {
 	// Frequency is the frequency between access list reviews.
@@ -325,10 +295,45 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
+	if err := a.SetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// SetDefaults sets the default values for the resource.
+func (a *AccessList) SetDefaults() error {
 	a.SetKind(types.KindAccessList)
 	a.SetVersion(types.V1)
+	if err := a.ResourceHeader.SetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 
-	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
+	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
+	// were created with duplicated owners before the backend checked for duplicate owners. In order to
+	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
+	a.Spec.Owners = deduplicateOwners(a.Spec.Owners)
+	for i := range a.Spec.Owners {
+		// Reference directly from the slice, because we don't want to modify the copy.
+		a.Spec.Owners[i].SetDefaults()
+	}
+
+	if a.IsReviewable() {
+		if err := a.Spec.Audit.SetDefaults(); err != nil {
+			return trace.Wrap(err, "setting audit defaults")
+		}
+	}
+
+	return nil
+}
+
+// Validate performs client-side resource validation which should be performed before sending
+// create/update request.
+func (a *AccessList) Validate() error {
+	if err := a.ResourceHeader.Validate(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -350,34 +355,8 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	}
 
 	if a.IsReviewable() {
-		if a.Spec.Audit.Recurrence.Frequency == 0 {
-			a.Spec.Audit.Recurrence.Frequency = SixMonths
-		}
-
-		switch a.Spec.Audit.Recurrence.Frequency {
-		case OneMonth, ThreeMonths, SixMonths, OneYear:
-		default:
-			return trace.BadParameter("recurrence frequency is an invalid value")
-		}
-
-		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
-			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
-		}
-
-		switch a.Spec.Audit.Recurrence.DayOfMonth {
-		case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
-		default:
-			return trace.BadParameter("recurrence day of month is an invalid value")
-		}
-
-		if a.Spec.Audit.NextAuditDate.IsZero() {
-			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
-				return trace.Wrap(err, "setting initial audit date")
-			}
-		}
-
-		if a.Spec.Audit.Notifications.Start == 0 {
-			a.Spec.Audit.Notifications.Start = twoWeeks
+		if err := a.Spec.Audit.Validate(); err != nil {
+			return trace.Wrap(err, "invalid audit")
 		}
 	} else {
 		if !isZero(a.Spec.Audit) {
@@ -385,27 +364,11 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		}
 	}
 
-	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
-	// were created with duplicated owners before the backend checked for duplicate owners. In order to
-	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
-	ownerMap := make(map[string]struct{}, len(a.Spec.Owners))
-	deduplicatedOwners := []Owner{}
 	for _, owner := range a.Spec.Owners {
-		if owner.Name == "" {
-			return trace.BadParameter("owner name is missing")
+		if err := owner.Validate(); err != nil {
+			return trace.Wrap(err, "invalid owner")
 		}
-		if owner.MembershipKind == "" {
-			owner.MembershipKind = MembershipKindUser
-		}
-
-		if _, ok := ownerMap[owner.Name]; ok {
-			continue
-		}
-
-		ownerMap[owner.Name] = struct{}{}
-		deduplicatedOwners = append(deduplicatedOwners, owner)
 	}
-	a.Spec.Owners = deduplicatedOwners
 
 	return nil
 }
@@ -576,31 +539,5 @@ func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
 	if !a.IsReviewable() {
 		return time.Time{}, trace.BadParameter("access_list %q is not reviewable", a.GetName())
 	}
-
-	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
-	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
-
-	// If the last day of the month has been specified, use the 0 day of the
-	// next month, which will result in the last day of the target month.
-	if dayOfMonth == int(LastDayOfMonth) {
-		numMonths += 1
-		dayOfMonth = 0
-	}
-
-	currentReviewDate := a.Spec.Audit.NextAuditDate
-	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
-		0, 0, 0, 0, time.UTC)
-
-	return nextDate, nil
-}
-
-// setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
-// The function is extracted from CheckAndSetDefaults for the sake of testing
-// (we need to pass a fake clock).
-func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
-	// We act as if the AccessList just got reviewed (we just created it, so
-	// we're pretty sure of what it does) and pick the next review date.
-	a.Spec.Audit.NextAuditDate = clock.Now()
-	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
-	return trace.Wrap(err)
+	return selectNextReviewDate(a.Spec.Audit), nil
 }
