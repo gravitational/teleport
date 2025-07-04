@@ -133,6 +133,22 @@ func GetReExecFromVersion(ctx context.Context) string {
 	return reExecFromVersion
 }
 
+// ResolveBaseURL calculates base URL.
+func ResolveBaseURL() (string, error) {
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if envBaseURL != "" {
+		return envBaseURL, nil
+	}
+
+	m := modules.GetModules()
+	if m.BuildType() == modules.BuildOSS {
+		slog.Warn("Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
+		return "", errNoBaseURL
+	}
+
+	return autoupdate.DefaultBaseURL, nil
+}
+
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks
 // if this package is optional, for such case download needs to be ignored if package
 // not found in CDN.
@@ -143,14 +159,15 @@ type packageURL struct {
 }
 
 // teleportPackageURLs returns URLs for the Teleport archives to download.
-func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
-	m := modules.GetModules()
-	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
-		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
-		return nil, errNoBaseURL
+func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
+	if baseURL == "" {
+		url, err := ResolveBaseURL()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		baseURL = url
 	}
-
+	m := modules.GetModules()
 	var flags autoupdate.InstallFlags
 	if m.IsBoringBinary() {
 		flags |= autoupdate.FlagFIPS

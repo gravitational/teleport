@@ -120,7 +120,6 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
 		uriTemplate:  autoupdate.DefaultCDNURITemplate,
-		baseURL:      autoupdate.DefaultBaseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {
@@ -266,7 +265,7 @@ func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string)
 // with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 	// Get platform specific download URLs.
-	packages, err := teleportPackageURLs(ctx, u.uriTemplate, u.baseURL, toolsVersion)
+	packages, err := teleportPackageURLs(u.uriTemplate, u.baseURL, toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
