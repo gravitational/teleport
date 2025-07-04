@@ -187,7 +187,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
 					Status: ekstypes.ClusterStatusActive,
 					Tags: map[string]string{
-						"EnableAppDiscovery": "Yes",
+						"RunDiscover": "Please",
 					},
 				},
 				{
@@ -195,7 +195,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
 					Status: ekstypes.ClusterStatusActive,
 					Tags: map[string]string{
-						"EnableAppDiscovery": "No",
+						"RunDiscover": "Please",
 					},
 				},
 			},
@@ -297,10 +297,8 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				require.Greater(t, len(mockAccessPoint.usageEvents), 0)
 
 				// Check the UserTasks created by the discovery server.
-				if tt.userTasksDiscoverCheck != nil {
-					existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))
-					tt.userTasksDiscoverCheck(t, existingTasks)
-				}
+				existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))
+				tt.userTasksDiscoverCheck(t, existingTasks)
 			})
 		})
 	}
