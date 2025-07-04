@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -296,7 +297,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityX509Service{
+					&workloadidentity.X509OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},

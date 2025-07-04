@@ -36,28 +36,28 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 func WorkloadIdentityX509ServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *config.WorkloadIdentityX509Service,
+	cfg *workloadidentitysvc.X509OutputConfig,
 	trustBundleCache TrustBundleGetter,
 	crlCache CRLGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &WorkloadIdentityX509Service{
-			botAuthClient:     deps.Client,
-			botCfg:            botCfg,
-			cfg:               cfg,
-			getBotIdentity:    deps.BotIdentity,
-			identityGenerator: deps.IdentityGenerator,
-			clientBuilder:     deps.ClientBuilder,
-			trustBundleCache:  trustBundleCache,
-			crlCache:          crlCache,
+			botAuthClient:             deps.Client,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			getBotIdentity:            deps.BotIdentity,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
+			trustBundleCache:          trustBundleCache,
+			crlCache:                  crlCache,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -70,11 +70,11 @@ func WorkloadIdentityX509ServiceBuilder(
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
 type WorkloadIdentityX509Service struct {
-	botAuthClient  *apiclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityX509Service
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
+	botAuthClient             *apiclient.Client
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *workloadidentitysvc.X509OutputConfig
+	getBotIdentity            getBotIdentityFn
+	log                       *slog.Logger
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache  TrustBundleGetter
@@ -173,7 +173,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			}
 			crlSet = newCRLSet
 			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -213,7 +213,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	)
 	defer span.End()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -235,7 +235,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {

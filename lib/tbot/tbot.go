@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -247,8 +248,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			botServices = append(botServices, clientcredentials.ServiceBuilder(b.cfg.CredentialLifetime, svcCfg))
 		case *application.TunnelConfig:
 			botServices = append(botServices, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
-		case *config.WorkloadIdentityX509Service:
-			botServices = append(botServices, WorkloadIdentityX509ServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
+		case *workloadidentitysvc.X509OutputConfig:
+			botServices = append(botServices, WorkloadIdentityX509ServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *config.WorkloadIdentityJWTService:
 			botServices = append(botServices, WorkloadIdentityJWTServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.WorkloadIdentityAPIService:
