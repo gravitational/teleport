@@ -59,7 +59,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *application.OutputConfig {
 				return &application.OutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					AppName:     "app",
 				}
@@ -79,7 +79,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing app_name",
 			in: func() *application.OutputConfig {
 				return &application.OutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "app_name must not be empty",

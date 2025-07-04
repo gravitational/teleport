@@ -22,8 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 type checkAndSetDefaulter interface {
@@ -39,12 +37,6 @@ type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 	// compared to its initial state.
 	want    checkAndSetDefaulter
 	wantErr string
-}
-
-func memoryDestForTest() destination.Destination {
-	memory := &destination.Memory{}
-	memory.CheckAndSetDefaults()
-	return memory
 }
 
 func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testCheckAndSetDefaultsCase[T]) {

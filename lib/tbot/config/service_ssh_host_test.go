@@ -59,7 +59,7 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *ssh.HostOutputConfig {
 				return &ssh.HostOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Principals:  []string{"host.example.com"},
 				}
@@ -79,7 +79,7 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing principals",
 			in: func() *ssh.HostOutputConfig {
 				return &ssh.HostOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "at least one principal must be specified",

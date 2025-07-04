@@ -80,7 +80,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
@@ -102,7 +102,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing jwt name",
 			in: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
@@ -124,7 +124,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing jwt audience",
 			in: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
@@ -163,7 +163,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing path",
 			in: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
 						Path: "",
 						Hint: "hint",
@@ -180,7 +180,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "path missing leading slash",
 			in: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
 						Path: "foo",
 						Hint: "hint",
@@ -197,7 +197,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid ip",
 			in: func() *legacyspiffe.SVIDOutputConfig {
 				return &legacyspiffe.SVIDOutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: legacyspiffe.SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",

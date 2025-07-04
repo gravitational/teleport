@@ -62,7 +62,7 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *database.OutputConfig {
 				return &database.OutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Database:    "db",
 					Service:     "service",
@@ -84,7 +84,7 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing service",
 			in: func() *database.OutputConfig {
 				return &database.OutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "service must not be empty",
@@ -93,7 +93,7 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid format",
 			in: func() *database.OutputConfig {
 				return &database.OutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Service:     "service",
 					Format:      "no-such-format",
 				}

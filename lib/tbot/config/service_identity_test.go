@@ -60,7 +60,7 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *identity.OutputConfig {
 				return &identity.OutputConfig{
-					Destination:   memoryDestForTest(),
+					Destination:   destination.NewMemory(),
 					Roles:         []string{"access"},
 					SSHConfigMode: identity.SSHConfigModeOn,
 				}
@@ -70,11 +70,11 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "ssh config mode defaults",
 			in: func() *identity.OutputConfig {
 				return &identity.OutputConfig{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			want: &identity.OutputConfig{
-				Destination:   memoryDestForTest(),
+				Destination:   destination.NewMemory(),
 				SSHConfigMode: identity.SSHConfigModeOn,
 			},
 		},
@@ -91,7 +91,7 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid ssh config mode",
 			in: func() *identity.OutputConfig {
 				return &identity.OutputConfig{
-					Destination:   memoryDestForTest(),
+					Destination:   destination.NewMemory(),
 					SSHConfigMode: "invalid",
 				}
 			},
