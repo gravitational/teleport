@@ -401,9 +401,22 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 			if i == len(groups)-1 {
 				groupName = groupName + " (catch-all)"
 			}
+			state := userFriendlyState(group.GetState())
+
+			// If this is the canary state, we annotate the group state with the canary progress
+			if group.GetState() == autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
+				successCount := 0
+				for _, canary := range group.Canaries {
+					if canary.Success {
+						successCount++
+					}
+				}
+				state = fmt.Sprintf("%s (%d/%d)", state, successCount, group.CanaryCount)
+			}
+
 			table.AddRow([]string{
 				groupName,
-				userFriendlyState(group.GetState()),
+				state,
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason(),
 				strconv.FormatUint(groupCount, 10),
@@ -521,6 +534,8 @@ func userFriendlyState[T autoupdatev1pb.AutoUpdateAgentGroupState | autoupdatev1
 		return "Done"
 	case 4:
 		return "Rolledback"
+	case 5:
+		return "Canary"
 	default:
 		// If we don't know anything about this state, we display its integer
 		return fmt.Sprintf("Unknown state (%d)", state)
