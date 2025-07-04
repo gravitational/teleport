@@ -38,24 +38,26 @@ export function Panel(
 ) {
   const { title, isSubPanel = false, action, children, testId } = props;
   return (
-    <Container data-testid={testId}>
-      <TitleContainer>
-        <Text
-          as={isSubPanel ? 'h3' : 'h2'}
-          typography={isSubPanel ? 'body2' : 'h2'}
-          fontWeight={fontWeights.bold}
-        >
-          {title}
-        </Text>
-        {action ? (
-          <ActionButton onClick={action.onClick}>
-            {action.icon}
-            {action.label}
-          </ActionButton>
-        ) : undefined}
-      </TitleContainer>
-      {children}
-    </Container>
+    <section>
+      <Container data-testid={testId}>
+        <TitleContainer>
+          <Text
+            as={isSubPanel ? 'h3' : 'h2'}
+            typography={isSubPanel ? 'body2' : 'h2'}
+            fontWeight={fontWeights.bold}
+          >
+            {title}
+          </Text>
+          {action ? (
+            <ActionButton onClick={action.onClick}>
+              {action.icon}
+              {action.label}
+            </ActionButton>
+          ) : undefined}
+        </TitleContainer>
+        {children}
+      </Container>
+    </section>
   );
 }
 

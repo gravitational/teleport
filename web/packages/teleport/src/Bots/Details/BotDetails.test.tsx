@@ -108,7 +108,9 @@ describe('BotDetails', () => {
     renderComponent();
     await waitForLoading();
 
-    const panel = screen.getByTestId('config-panel');
+    const panel = screen
+      .getByRole('heading', { name: 'Metadata' })
+      .closest('section');
     expect(panel).toBeInTheDocument();
 
     expect(within(panel).getByText('test-bot')).toBeInTheDocument();
@@ -120,7 +122,9 @@ describe('BotDetails', () => {
     renderComponent();
     await waitForLoading();
 
-    const panel = screen.getByTestId('roles-panel');
+    const panel = screen
+      .getByRole('heading', { name: 'Roles' })
+      .closest('section');
     expect(panel).toBeInTheDocument();
 
     expect(within(panel).getByText('admin')).toBeInTheDocument();
@@ -132,7 +136,9 @@ describe('BotDetails', () => {
     renderComponent();
     await waitForLoading();
 
-    const panel = screen.getByTestId('traits-panel');
+    const panel = screen
+      .getByRole('heading', { name: 'Traits' })
+      .closest('section');
     expect(panel).toBeInTheDocument();
 
     expect(within(panel).getByText('trait-1')).toBeInTheDocument();
