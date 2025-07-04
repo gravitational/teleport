@@ -17,9 +17,10 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, useHistory } from 'react-router';
+import { MemoryRouter, Route, Router } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -33,23 +34,13 @@ import {
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { getBotError, getBotSuccess } from 'teleport/test/helpers/bots';
 
 import { BotDetails } from './BotDetails';
-
-jest.mock('react-router', () => {
-  const actual = jest.requireActual('react-router');
-  return {
-    ...actual,
-    useHistory: jest.fn(),
-    useParams: jest.fn(() => ({
-      name: 'test-bot-name',
-    })),
-  };
-});
 
 const server = setupServer();
 
@@ -86,22 +77,19 @@ describe('BotDetails', () => {
   });
 
   it('should allow back navigation', async () => {
-    const goBack = jest.fn();
-    jest.mocked(useHistory).mockImplementation(
-      () =>
-        ({
-          goBack,
-        }) as unknown as ReturnType<typeof useHistory>
-    );
+    const history = createMemoryHistory({
+      initialEntries: ['/web/bot/test-bot-name'],
+    });
+    history.goBack = jest.fn();
 
     withFetchSuccess();
-    renderComponent();
+    renderComponent({ history });
     await waitForLoading();
 
     const backButton = screen.getByLabelText('back');
     fireEvent.click(backButton);
 
-    expect(goBack).toHaveBeenCalledTimes(1);
+    expect(history.goBack).toHaveBeenCalledTimes(1);
   });
 
   it('should show page title', async () => {
@@ -171,13 +159,11 @@ describe('BotDetails', () => {
 });
 
 const renderComponent = async (options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
-  const { customAcl } = options ?? {};
   render(<BotDetails />, {
-    wrapper: makeWrapper({
-      customAcl,
-    }),
+    wrapper: makeWrapper(options),
   });
 };
 
@@ -219,15 +205,21 @@ const withFetchSuccess = async () => {
   );
 };
 
-function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
+function makeWrapper(options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+  customAcl?: ReturnType<typeof makeAcl>;
+}) {
   const {
+    history = createMemoryHistory({
+      initialEntries: ['/web/bot/test-bot-name'],
+    }),
     customAcl = makeAcl({
       bots: {
         ...defaultAccess,
         read: true,
       },
     }),
-  } = params ?? {};
+  } = options ?? {};
   return ({ children }: PropsWithChildren) => {
     const ctx = createTeleportContext({
       customAcl,
@@ -237,7 +229,11 @@ function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
             <ContextProvider ctx={ctx}>
-              <InfoGuidePanelProvider>{children}</InfoGuidePanelProvider>
+              <InfoGuidePanelProvider>
+                <Router history={history}>
+                  <Route path={cfg.routes.bot}>{children}</Route>
+                </Router>
+              </InfoGuidePanelProvider>
             </ContextProvider>
           </ConfiguredThemeProvider>
         </QueryClientProvider>
