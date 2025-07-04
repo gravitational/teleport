@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { mock } from 'node:test';
-
 import { useState } from 'react';
 
 import Validation from 'shared/components/Validation';
