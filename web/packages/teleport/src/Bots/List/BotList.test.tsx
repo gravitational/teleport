@@ -67,6 +67,7 @@ test('renders View options if type is github actions ssh', async () => {
     name: 'github-actions-bot',
     roles: [],
     type: BotUiFlow.GitHubActionsSsh,
+    max_session_ttl: { seconds: 0 },
   };
 
   const props = makeProps();
@@ -90,6 +91,7 @@ test('doesnt renders View options if bot type is not github actions', async () =
     name: 'github-actions-bot',
     roles: [],
     type: null,
+    max_session_ttl: { seconds: 0 },
   };
 
   const props = makeProps();
