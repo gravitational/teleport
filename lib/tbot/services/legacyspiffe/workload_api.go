@@ -62,7 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/uds"
 )
 
-func SPIFFEWorkloadAPIServiceBuilder(
+func WorkloadAPIServiceBuilder(
 	cfg *WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
