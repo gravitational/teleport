@@ -163,13 +163,36 @@ func (h *ResourceHeader) GetAllLabels() map[string]string {
 // CheckAndSetDefaults will verify that the resource header is valid. This will additionally
 // verify that the metadata is valid.
 func (h *ResourceHeader) CheckAndSetDefaults() error {
+	if err := h.SetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := h.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// SetDefaults sets the default values for the header.
+func (h *ResourceHeader) SetDefaults() error {
+	if err := h.Metadata.SetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Validate performs client-side header which should be performed before sending create/update
+// request.
+func (h *ResourceHeader) Validate() error {
+	if err := h.Metadata.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
 	if h.Kind == "" {
 		return trace.BadParameter("resource has an empty Kind field")
 	}
 	if h.Version == "" {
 		return trace.BadParameter("resource has an empty Version field")
 	}
-	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
+	return nil
 }
 
 // IsEqual determines if two resource headers are equivalent to one another.
@@ -255,13 +278,29 @@ func (m *Metadata) SetOrigin(origin string) {
 
 // CheckAndSetDefaults verifies that the metadata object is valid.
 func (m *Metadata) CheckAndSetDefaults() error {
-	if m.Name == "" {
-		return trace.BadParameter("missing parameter Name")
+	if err := m.SetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
+	if err := m.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
+// SetDefaults sets the default values for the Metadata.
+func (m *Metadata) SetDefaults() error {
 	// adjust expires time to UTC if it's set
 	if !m.Expires.IsZero() {
 		utils.UTC(&m.Expires)
+	}
+	return nil
+}
+
+// Validate performs client-side metadata validation which should be performed before sending
+// create/update request.
+func (m *Metadata) Validate() error {
+	if m.Name == "" {
+		return trace.BadParameter("missing parameter Name")
 	}
 
 	for key := range m.Labels {
