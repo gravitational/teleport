@@ -83,33 +83,46 @@ func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessListMember) CheckAndSetDefaults() error {
-	a.SetKind(types.KindAccessListMember)
-	a.SetVersion(types.V1)
-
-	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
+	if err := a.SetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := a.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
+// SetDefaults sets the default values for the resource.
+func (a *AccessListMember) SetDefaults() error {
+	a.SetKind(types.KindAccessListMember)
+	a.SetVersion(types.V1)
+	if err := a.ResourceHeader.SetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 	if a.Spec.MembershipKind == "" {
 		a.Spec.MembershipKind = MembershipKindUser
 	}
+	return nil
+}
 
+// Validate performs client-side resource validation which should be performed before sending
+// create/update request.
+func (a *AccessListMember) Validate() error {
+	if err := a.ResourceHeader.Validate(); err != nil {
+		return trace.Wrap(err)
+	}
 	if a.Spec.AccessList == "" {
 		return trace.BadParameter("access list is missing")
 	}
-
 	if a.Spec.Name == "" {
 		return trace.BadParameter("member name is missing")
 	}
-
 	if a.Spec.Joined.IsZero() || a.Spec.Joined.Unix() == 0 {
 		return trace.BadParameter("member %s: joined field empty or missing", a.Spec.Name)
 	}
-
 	if a.Spec.AddedBy == "" {
 		return trace.BadParameter("member %s: added_by field is empty", a.Spec.Name)
 	}
-
 	return nil
 }
 
