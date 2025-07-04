@@ -35,12 +35,6 @@ import (
 
 const renewalRetryLimit = 5
 
-// newBotConfigWriter returns a new BotConfigWriter that writes to the given
-// Destination.
-func newBotConfigWriter(ctx context.Context, dest destination.Destination, subPath string) *internal.BotConfigWriter {
-	return internal.NewBotConfigWriter(ctx, dest, subPath)
-}
-
 // NewClientKeyRing returns a sane client.KeyRing for the given bot identity.
 func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
@@ -71,16 +65,6 @@ func writeIdentityFile(
 	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest destination.Destination,
 ) error {
 	return internal.WriteIdentityFile(ctx, log, keyRing, dest)
-}
-
-// writeIdentityFileTLS writes the identity file in TLS format according to the
-// core identityfile.Write method. This isn't usually needed but can be
-// useful when writing out TLS certificates with alternative prefix and file
-// extensions for application compatibility reasons.
-func writeIdentityFileTLS(
-	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest destination.Destination,
-) error {
-	return internal.WriteIdentityFileTLS(ctx, log, keyRing, dest)
 }
 
 // writeTLSCAs writes the three "main" TLS CAs to disk.
