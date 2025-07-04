@@ -370,7 +370,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Args are sent in their own event by execsnoop to save stack space. Store
 	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
-		key := strconv.FormatUint(event.PID, 10)
+		key := strconv.FormatUint(event.Pid, 10)
 
 		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return make([]string, 0), nil
@@ -387,7 +387,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
-		key := strconv.FormatUint(event.PID, 10)
+		key := strconv.FormatUint(event.Pid, 10)
 
 		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return nil, trace.NotFound("args missing")
@@ -428,8 +428,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			PPID:       event.Ppid,
 			ReturnCode: event.Retval,
-			Path:       argv[0],
-			Argv:       argv[1:],
+			Path:       args[0],
+			Argv:       args[1:],
 		}
 		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
 			logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)

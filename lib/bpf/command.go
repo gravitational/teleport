@@ -21,6 +21,7 @@
 package bpf
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"sync"
@@ -169,10 +170,10 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 		rec, err := eventBuf.Read()
 		if err != nil {
 			if errors.Is(err, ringbuf.ErrClosed) {
-				log.Debug("Received signal, exiting..")
+				logger.DebugContext(context.Background(), "Received signal, exiting")
 				return
 			}
-			log.Errorf("Error reading from ring buffer: %v", err)
+			logger.ErrorContext(context.Background(), "Error reading from ring buffer", err)
 			return
 		}
 
@@ -194,12 +195,12 @@ func (e *exec) close() {
 
 	for _, link := range e.toClose {
 		if err := link.Close(); err != nil {
-			log.Warn(err)
+			logger.WarnContext(context.Background(), "failed to close link", "error", err)
 		}
 	}
 
 	if err := e.objs.Close(); err != nil {
-		log.Warn(err)
+		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
 }
 

@@ -21,6 +21,7 @@
 package bpf
 
 import (
+	"context"
 	_ "embed"
 	"sync"
 
@@ -179,12 +180,12 @@ func (c *conn) close() {
 
 	for _, link := range c.toClose {
 		if err := link.Close(); err != nil {
-			log.Warn(err)
+			logger.WarnContext(context.Background(), "failed to close link", "error", err)
 		}
 	}
 
 	if err := c.objs.Close(); err != nil {
-		log.Warn(err)
+		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
 }
 

@@ -22,10 +22,7 @@ package bpf
 
 import (
 	"os"
-
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-
+	
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
