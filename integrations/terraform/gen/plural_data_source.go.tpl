@@ -57,18 +57,25 @@ func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p tfsd
 
 // Read reads teleport {{.Name}}
 func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+	{{ if .IDPrefix -}}
+	{{ $idPrefixPath := slice (split (toSnake .IDPrefix) ".") 1 -}}
+	{{ $root := index $idPrefixPath 0 -}}
+	{{ $atNames := slice $idPrefixPath 1 -}}
+	var idPrefix types.String
+	diags := req.Config.GetAttribute(ctx, path.Root("{{ $root }}"){{ range $atNames }}.AtName("{{ . }}"){{ end }}, &idPrefix)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	{{ end -}}
 	var id types.String
-	{{- if .ConvertPackagePath}}
-	diags := req.Config.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
-	{{- else }}
-	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
-	{{- end}}
+	diags {{ if not .IDPrefix }}:{{ end }}= req.Config.GetAttribute(ctx, path.Root({{ if .ConvertPackagePath }}"header").AtName({{ end }}"metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -86,13 +93,17 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
+		{{- if .IDPrefix }}
+		state.Attrs["id"] = types.String{Value: formatID(idPrefix.Value, id.Value)}
+		{{- else }}
 		state.Attrs["id"] = id
+		{{- end }}
 	}
 
 	{{if .IsPlainStruct -}}
 	{{.VarName}} := {{.VarName}}I
 	{{else if .ConvertPackagePath -}}
-	{{.VarName}} := convert.ToProto({{.VarName}}I)
+	{{.VarName}} := convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}I)
 	{{else}}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}
