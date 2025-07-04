@@ -1,9 +1,9 @@
 ---
-title: "Teleport Machine & Workload Identity: Integrated Security"
-description: "Provides information on the Machine & Workload Identity product."
+title: "Teleport Zero Trust Access & Flexible Workload Identity
+description: "Provides information on the Machine ID & Workload Identity product."
 ---
 
-Teleport Machine & Workload Identity offers two complementary types of identity for non-human entities in your infrastructure:
+Teleport Zero Trust Access & Flexible Workload Identity offers two complementary types of identity for non-human entities in your infrastructure:
 
 **Zero Trust Access for machines**: Enables machines (like CI/CD pipelines) to securely authenticate with your Teleport cluster to access protected resources and configure the cluster itself.
 **Flexible Workload Identities**: Issues short-lived cryptographic identities to workloads, compatible with the SPIFFE standard, enabling secure workload-to-workload communication and third-party API authentication.
@@ -28,7 +28,7 @@ Bots authenticate using join tokens that specify which bot user they grant acces
 
 ## Integrated use cases
 
-Workload Identity and Machine ID can work together to create a comprehensive security model. Machines can securely access resources while workloads communicate securely with each other and external services, all managed through Teleport's unified access plane.
+Zero Trust Access & Flexible Workload Identity can work together to create a comprehensive security model. Machines can securely access resources while workloads communicate securely with each other and external services, all managed through Teleport's unified access plane.
 
 ### CI/CD pipeline with end-to-end authentication
 
@@ -72,7 +72,7 @@ Instead of managing static credentials (e.g., API keys, database passwords), wor
 | Feature | Flexible Workload Identities | Zero Trust Access for machines |
 |---------|------------------------------|--------------------------------|
 | Purpose | Authenticate workloads to other workloads or third-party APIs | Authenticate bots to Teleport to access infrastructure |
-| Standards | SPIFFE (SVIDs, Workload API, mTLS, JWT) | Teleport-native x.509 credentials |
+| Standards | SPIFFE (SVIDs, Workload API, mTLS, JWT) | Teleport-native X.509 credentials |
 | Proxy Usage | No Teleport Proxy involved | Accesses go through the Teleport Proxy |
 | Use Case Focus | Service-to-service authentication | Infrastructure and configuration access |
 | Credential Delivery | Filesystem or SPIFFE API via tbot | Artifacts written to disk via tbot |
