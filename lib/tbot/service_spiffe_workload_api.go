@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
@@ -65,22 +64,22 @@ import (
 )
 
 func SPIFFEWorkloadAPIServiceBuilder(
-	botCfg *config.BotConfig,
 	cfg *legacyspiffe.WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		clientCredential := &clientcredentials.UnstableConfig{}
-		svcIdentity, err := clientcredentials.ServiceBuilder(botCfg.CredentialLifetime, clientCredential)(deps)
+		svcIdentity, err := clientcredentials.ServiceBuilder(defaultCredentialLifetime, clientCredential)(deps)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &SPIFFEWorkloadAPIService{
-			svcIdentity:      clientCredential,
-			botCfg:           botCfg,
-			cfg:              cfg,
-			trustBundleCache: trustBundleCache,
-			clientBuilder:    deps.ClientBuilder,
+			svcIdentity:               clientCredential,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			trustBundleCache:          trustBundleCache,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -106,12 +105,12 @@ type TrustBundleGetter interface {
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *clientcredentials.UnstableConfig
-	botCfg           *config.BotConfig
-	cfg              *legacyspiffe.WorkloadAPIConfig
-	log              *slog.Logger
-	trustBundleCache TrustBundleGetter
-	clientBuilder    *client.Builder
+	svcIdentity               *clientcredentials.UnstableConfig
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *legacyspiffe.WorkloadAPIConfig
+	log                       *slog.Logger
+	trustBundleCache          TrustBundleGetter
+	clientBuilder             *client.Builder
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -206,7 +205,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
 		Logger:           s.log,
-		RenewalInterval:  s.botCfg.CredentialLifetime.RenewalInterval,
+		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)
@@ -302,7 +301,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		ctx,
 		s.client,
 		svidRequests,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -624,7 +623,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 			}
 			bundleSet = newBundleSet
 			continue
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
