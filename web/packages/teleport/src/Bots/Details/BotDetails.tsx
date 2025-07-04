@@ -113,7 +113,7 @@ export function BotDetails() {
               <Panel title="Bot Details" />
               <Divider />
 
-              <Panel title="Metadata" isSubPanel testId="config-panel">
+              <Panel title="Metadata" isSubPanel>
                 <TransposedTable>
                   <tbody>
                     <tr>
@@ -139,7 +139,7 @@ export function BotDetails() {
 
               <PaddedDivider />
 
-              <Panel title="Roles" isSubPanel testId="roles-panel">
+              <Panel title="Roles" isSubPanel>
                 <Flex>
                   {data.roles.toSorted().map(r => (
                     <Outline mr="1" key={r}>
@@ -151,7 +151,7 @@ export function BotDetails() {
 
               <PaddedDivider />
 
-              <Panel title="Traits" isSubPanel testId="traits-panel">
+              <Panel title="Traits" isSubPanel>
                 <TransposedTable>
                   <tbody>
                     {data.traits
