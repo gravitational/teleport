@@ -78,48 +78,7 @@ To request access to these resources, run
 
 You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
 `windows_desktop`. Teleport also supports searching and requesting access to
-resources within Kubernetes clusters.
-
-<details>
-<summary>List of supported Kubernetes resources</summary>
-
-Teleport supports searching and requesting access to the following Kubernetes resources:
-
-<Admonition
-  type="tip"
-  title="Resource Access Requests to Kubernetes Namespaces"
->
-
-Requesting access to a Kubernetes namespace allows you to access all resources
-in that namespace, including the supported Kubernetes resources listed below.
-However, it prevents you from access any resources belonging to another namespace.
-
-</Admonition>
-
-- `pod`
-- `secret`
-- `configmap`
-- `namespace`
-- `service`
-- `serviceaccount`
-- `kube_node`
-- `persistentvolume`
-- `persistentvolumeclaim`
-- `deployment`
-- `replicaset`
-- `statefulset`
-- `daemonset`
-- `clusterrole`
-- `kube_role`
-- `clusterrolebinding`
-- `rolebinding`
-- `cronjob`
-- `job`
-- `certificatesigningrequest`
-- `ingress`
-
-
-</details>
+resources within Kubernetes clusters with kind `kube_resource`.
 
 Advanced filters and queries are supported. See our
 [filtering reference](../../reference/cli/cli.mdx) for more information.
@@ -331,7 +290,7 @@ spec:
     node_labels:
       env: staging
     logins:
-      - "{{internal.logins}}"
+      - '{{internal.logins}}'
   options:
     # Only allows the requester to use this role for 1 hour from time of request.
     max_session_ttl: 1h
@@ -350,15 +309,16 @@ label:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v8
 spec:
   allow:
     kubernetes_labels:
-      'env': 'staging'
+      env: staging
     kubernetes_resources:
       - kind: '*'
         namespace: '*'
         name: '*'
+        api_group: '*'
   deny: {}
 ```
 
@@ -374,85 +334,69 @@ namespace, and all pods in the `dev` namespace:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v8
 spec:
   allow:
     kubernetes_labels:
-      '*':'*'
+      '*': '*'
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "nginx*"
-      - kind: pod
-        namespace: "dev"
-        name: "*"
+      - kind: pods
+        namespace: '*'
+        name: 'nginx*'
+        api_group: ''
+      - kind: pods
+        namespace: dev
+        name: '*'
+        api_group: ''
     kubernetes_groups:
       - viewers
   deny: {}
 ```
 
-##### Preventing unintended access to Kubernetes resources
-
-If you are setting up a Teleport role to enable just-in-time access to a
-specific Kubernetes resources, you should set the role's `kubernetes_groups` and
-`kubernetes_users` to a role that has no access to Kubernetes resource beside
-the Kubernetes resources that Teleport is able to restrict access for.
-
-This is because, if a user requests access to a Kubernetes pod, and the request
-is approved, the Teleport Kubernetes Service will use the `kubernetes_groups`
-and `kubernetes_users` fields in the role to add impersonation headers to the user's
-requests to a Kubernetes API server. Under these conditions, Teleport will be able
-to restrict access to all Kubernetes resources kinds mentioned above except for
-the desired `pod`. Teleport is also able to restrict access to namespaced-scoped
-custom resources but not cluster-scoped custom resources - CRDs resources that
-are cluster-scoped will be accessible to the user if the principals in the
-`kubernetes_users` and `kubernetes_groups` fields have access to them.
-
-Requesting access to a Kubernetes Namespace allows you to access all resources
-in that namespace but you won't be able to access any other supported resources
-in the cluster.
-
 ##### Restrict Access Requests to specific Kubernetes resource kinds
 
-The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
+The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes
 resources a user can request access to. Configuring this field to any value will disallow
 requesting access to the entire Kubernetes cluster.
 
-If the `request.kubernetes_resources` field is not configured, then a user can request access 
+If the `request.kubernetes_resources` field is not configured, then a user can request access
 to any Kubernetes resources, including the entire Kubernetes cluster.
 
-The following role allows users to request access to Kubernetes namespaces. 
-Requests for Kubernetes resources other than `namespace` will not be allowed.
+The following role allows users to request access to Kubernetes namespaces.
+Requests for Kubernetes resources other than `pods` will not be allowed.
 
 ```yaml
 kind: role
 metadata:
   name: requester-kube-access
-version: v7
+version: v8
 spec:
   allow:
     request:
       search_as_roles:
-        - "kube-access"
+        - kube-access
       kubernetes_resources:
-        - kind: "namespace"
+        - kind: pods
+          api_group: ''
 ```
 
-The following role allows users to request access only to Kubernetes namespaces and/or pods.
+The following role allows users to request access only to Kubernetes deployments and/or pods.
 
 ```yaml
 kind: role
 metadata:
   name: requester-kube-access
-version: v7
+version: v8
 spec:
   allow:
     request:
       search_as_roles:
-        - "kube-access"
+        - kube-access
       kubernetes_resources:
-        - kind: "namespace"
-        - kind: "pod"
+        - kind: deployments
+          api_group: apps
+        - kind: pods
+          api_group: ''
 ```
 
 The following role allows users to request access to any specific Kubernetes resources.
@@ -461,22 +405,21 @@ The following role allows users to request access to any specific Kubernetes res
 kind: role
 metadata:
   name: requester-kube-access
-version: v7
+version: v8
 spec:
   allow:
     request:
       search_as_roles:
-        - "kube-access"
+        - kube-access
       kubernetes_resources:
-        - kind: "*"
+        - kind: '*'
+          api_group: '*'
 ```
 
-See related section about [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx) 
-to see a list of supported `kind` values.
-
-The `request.kubernetes_resources` field only restricts what `kinds` of Kubernetes resource requests are allowed.
-To control Kubernetes access to these resources see 
-[Preventing unintended access to Kubernetes resources](#preventing-unintended-access-to-kubernetes-resources) 
+The `request.kubernetes_resources` field only restricts what
+`kind` / `api_group` of Kubernetes resource requests are allowed.
+To control Kubernetes access to these resources see
+[Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx)
 section for more details.
 
 #### `db`
@@ -484,8 +427,8 @@ section for more details.
 You can restrict access to searching `db` resources by assigning values to the
 `db_labels` field in the `spec.allow` or `spec.deny` fields.
 
-The following role allows access to databases with the `environment:dev` or
-`environment:stage` labels:
+The following role allows access to databases with the `env:dev` or
+`env:staging` labels:
 
 ```yaml
 kind: role
@@ -495,7 +438,7 @@ metadata:
 spec:
   allow:
     db_labels:
-      environment: ["dev", "stage"]
+      env: ["dev", "staging"]
 
     # Database account names this role can connect as.
     db_users: ["viewer", "editor"]
@@ -531,7 +474,7 @@ values to the `windows_desktop_labels` field in the `spec.allow` or `spec.deny`
 fields.
 
 The following role allows access to all Windows desktops with the
-`environment:dev` or `environment:stage` labels.
+`env:dev` or `env:staging` labels.
 
 ```yaml
 kind: role
@@ -541,7 +484,7 @@ metadata:
 spec:
   allow:
     windows_desktop_labels:
-      environment: ["dev", "stage"]
+      env: ["dev", "staging"]
 
     windows_desktop_logins: ["{{internal.windows_logins}}"]
 ```
@@ -560,92 +503,169 @@ $ tsh request create <Var name="resource-id" />
 For Kubernetes namespaced resources, the `resource-id` is in the following format:
 
 ```
-/TELEPORT_CLUSTER/NAMESPACED_KIND/KUBE_CLUSTER/NAMESPACE/RESOURCE_NAME
+/TELEPORT_CLUSTER/kube:ns:NAMESPACED_PLURAL_KIND[.API_GROUP]/KUBE_CLUSTER/NAMESPACE/RESOURCE_NAME
 ```
 
-Teleport supports the following namespaced resources: `pod`, `secret`, `configmap`,
-`service`, `serviceaccount`, `persistentvolumeclaim`, `deployment`, `replicaset`,
-`statefulset`, `daemonset`, `kube_role`, `rolebinding`, `cronjob`, `job`,
-`ingress`.
+The `API_GROUP` part is only required for resources that are part of the core
+Kubernetes group.
 
-For example, to request access to a pod called `nginx-1` in the `development`
+<Admonition type="tip">
+You can run this command to list the namespaced Kubernetes resources,
+including their API groups:
+
+```code
+$ kubectl api-resources --namespaced=true -o name --sort-by=name
+```
+</Admonition>
+
+For example, to request access to a pod called `nginx-1` in the `dev`
 namespace, run the following command:
 
 ```code
-$ tsh request create --resources /teleport.example.com/pod/mycluster/development/nginx-1
+$ tsh request create --resource /teleport.example.com/kube:ns:pods/mycluster/dev/nginx-1
 ```
 
-For the `NAMESPACE` and `RESOURCE_NAME` values, you can match ranges of characters by
-supplying a wildcard (`*`) or regular expression. Regular expressions must begin
-with `^` and end with `$`.
-
-For example, to create a request to access all pods in all namespaces that match
-the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
+And to request access to a deployment called `website` in the `prod`
+namespace, run the following command:
 
 ```code
-$ tsh request create --resources /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
+$ tsh request create --resource /teleport.example.com/kube:ns:deployments.apps/mycluster/prod/website
+```
+
+For the `NAMESPACED_PLURAL_KIND` value you can use `*` to match all.
+For the `API_GROUP`, `NAMESPACE` and `RESOURCE_NAME`
+values, you can match ranges of characters by supplying a wildcard (`*`) or
+regular expression. Regular expressions must begin with `^` and end with `$`.
+
+For example, to create a request to access all pods in all namespaces that
+match the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
+
+```code
+$ tsh request create --resource '/teleport.example.com/kube:ns:pods/mycluster/*/^nginx-[a-z0-9-]+$'
 ```
 
 #### Cluster-scoped resources
 
-For Kubernetes cluster-scoped resources, the `resource-id` is in the following format:
+For Kubernetes cluster-scoped resources, the `resource-id` is in the following
+format:
 
 ```
-/TELEPORT_CLUSTER/CLUSTER_WIDE_KIND/KUBE_CLUSTER/RESOURCE_NAME
+/TELEPORT_CLUSTER/kube:cw:CLUSTER_WIDE_PLURAL_KIND[.API_GROUP]/KUBE_CLUSTER/RESOURCE_NAME
 ```
 
-Teleport supports the following cluster-wide resources: `namespace`, `kube_node`,
-`clusterrole`, `clusterrolebinding`, `persistentvolume`, `certificatesigningrequest`.
+The `API_GROUP` part is only required for resources that are part of the core
+kubernetes group.
 
-For example, to request access to a namespace called `prod`, run the following command:
+<Admonition type="tip">
+You can run this command to list the cluster-wide Kubernetes resources,
+including their API groups:
 
 ```code
-$ tsh request create --resources /teleport.example.com/namespace/mycluster/prod
+$ kubectl api-resources --namespaced=false -o name --sort-by=name
+```
+</Admonition>
+
+For example, to request access to a namespace called `prod`, run the
+following command:
+
+```code
+$ tsh request create --resource /teleport.example.com/kube:cw:namespaces/mycluster/prod
 ```
 
-For the `RESOURCE_NAME` value, you can match ranges of characters by
-supplying a wildcard (`*`) or regular expression. Regular expressions must begin
-with `^` and end with `$`.
+Note that this will only grant access to the namespace resource itself, not to
+any namespaced resources within it.
+
+For the `CLUSTER_WIDE_PLURAL_KIND` value you can use `*` to match all.
+For the `API_GROUP` and `RESOURCE_NAME` value, you
+can match ranges of characters by supplying a wildcard (`*`) or regular
+expression. Regular expressions must begin with `^` and end with `$`.
 
 For example, to create a request to access all namespaces prefixed with `dev` match
 the regular expression `/^dev-[a-z0-9-]+$/`, run the following command:
 
 ```code
-$ tsh request create --resources /teleport.example.com/namespace/mycluster/^dev-[a-z0-9-]+$
+$ tsh request create --resource '/teleport.example.com/kube:cw:namespaces/mycluster/^dev-[a-z0-9-]+$'
 ```
 
-Using cluster-scoped resource requests requires the role under `search_as_roles` to have the correct 
+Using cluster-scoped resource requests requires the role under `search_as_roles` to have the correct
 permissions for the cluster-scoped resource.  This is an example of the required permissions to
-request access only to the namespace `prod` (and all resources within it):
+request access only to the namespace `prod` (does not include any resources within it):
 
 ```yaml
 kind: role
+version: v8
 spec:
   allow:
     kubernetes_resources:
-    - kind: namespace
+    - kind: namespaces
+      api_group: ''
       name: prod
       verbs:
       - '*'
 ```
 
+#### Wildcard requests
+
+You can request access to a namespace and all resources within it, as well as to all cluster-wide resources. To do so, you can use wildcards in the resource ID.
+
+For cluster-wide resources, the `kind` format as described above is
+`kube:cw:CLUSTER_WIDE_PLURAL_KIND[.API_GROUP]`.
+To request access to all cluster-wide resources you can request access to
+`kube:cw:*.*`. Where the first `*` represents the kind, and the second `*`
+represents the `api group`.
+
+For namespaced resources, the `kind` format is
+`kube:ns:NAMESPACED_PLURAL_KIND[.API_GROUP]`.
+To request access to all namespaced resources within a specific namespace, you
+can request access to `kube:ns:*.*`, where the first `*` represents the kind,
+and the second `*` represents the `api group`.
+
+For example, to request access to the `prod` namespace (cluster-wide) all
+resources within it (i.e., namespaced), you can run the following command:
+
+```code
+$ tsh request create \
+  --resource /teleport.example.com/kube:cw:namespaces/mycluster/prod \
+  --resource '/teleport.example.com/kube:ns:*.*/mycluster/prod/*'
+```
+
+Similarly, to request access to everything within a cluster, you can use the
+following command:
+
+```code
+$ tsh request create \
+  --resource '/teleport.example.com/kube:cw:*.*/mycluster/*' \
+  --resource '/teleport.example.com/kube:ns:*.*/mycluster/*/*'
+```
+
+which is equivalent to:
+
+```code
+$ tsh request create \
+  --resource /teleport.example.com/kube_cluster/mycluster
+```
+
 #### Search for Kubernetes resources
 
 If a user has no access to a Kubernetes cluster, they can search the list of
-resources in the cluster by running the following command, replacing 
-<Var name="kube-cluster" /> with the name of the Kubernetes cluster and 
+resources in the cluster by running the following command, replacing
+<Var name="kube-cluster" /> with the name of the Kubernetes cluster and
 <Var name="namespace" /> with the name of a Kubernetes namespace:
 
 ```code
-$ tsh request search --kind=<kind> --kube-cluster=<Var name="kube-cluster" /> \
-[--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
+$ tsh request search \
+    --kind=kube_resource --kube-kind=pods --kube-api-group='' \
+    --kube-cluster=<Var name="kube-cluster" /> \
+    [--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
 Name               Namespace Labels    Resource ID
 -----------------  --------- --------- ----------------------------------------------------------
-nginx-deployment-0 default   app=nginx /teleport.example.com/pod/local/default/nginx-deployment-0
-nginx-deployment-1 default   app=nginx /teleport.example.com/pod/local/default/nginx-deployment-1
+nginx-deployment-0 default   app=nginx /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-0
+nginx-deployment-1 default   app=nginx /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-1
 
 To request access to these resources, run
-> tsh request create --resource /teleport.example.com/pod/local/default/nginx-deployment-0 --resource /teleport.example.com/pod/local/default/nginx-deployment-1 \
+> tsh request create \
+    --resource /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-0 \
+    --resource /teleport.example.com/kube:ns:pods/local/default/nginx-deployment-1 \
     --reason <request reason>
 ```
 
@@ -659,10 +679,11 @@ search` command.
 - Edit the command to request access to a subset of the resources.
 - Use a custom request with wildcards or regular expressions.
 
-`tsh request search --kind=<kind>` works even if the user has no permissions to interact
- with the desired Kubernetes cluster, but the user's `search_as_roles` values
-must allow access to the cluster. If the user is unsure of the name of the cluster,
-they can run the following command to search it:
+`tsh request search --kind=kube_resource --kube-kind=<kind>
+--kube-api-group=<api_group>` works even if the user has no permissions to
+interact with the desired Kubernetes cluster, but the user's `search_as_roles`
+values must allow access to the cluster. If the user is unsure of the name of
+the cluster, they can run the following command to search it:
 
 ```code
 $ tsh request search --kind=kube_cluster

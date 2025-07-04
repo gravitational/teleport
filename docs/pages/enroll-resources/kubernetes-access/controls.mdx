@@ -39,21 +39,21 @@ version: v8
 spec:
   allow:
     kubernetes_labels:
-      'region': '*'
-      'platform': 'minikube'
+      region: '*'
+      platform: minikube
     kubernetes_resources:
       - kind: pods
-        namespace: "production"
-        name: "^webapp-[a-z0-9-]+$"
-        api_group: ""
+        namespace: production
+        name: '^webapp-[a-z0-9-]+$'
+        api_group: ''
       - kind: pods
-        namespace: "development"
-        name: "*"
-        api_group: ""
+        namespace: development
+        name: '*'
+        api_group: ''
       - kind: deployments
-        namespace: "development"
-        name: "*"
-        api_group: "apps"
+        namespace: development
+        name: '*'
+        api_group: apps
     kubernetes_groups:
     - developers
     kubernetes_users:
@@ -71,12 +71,12 @@ using a role's  `kubernetes_labels` field.
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v8
 spec:
   allow:
     kubernetes_labels:
-      'region': '*'
-      'environment': 'development'
+      region: '*'
+      environment: development
       # ...
   deny: {}
 ```
@@ -140,8 +140,8 @@ Here is an example:
 spec:
   allow:
     kubernetes_labels:
-      'region': 'us-east-*'
-      'team': '^data-eng-[a-z-]+$'
+      region: 'us-east-*'
+      team: '^data-eng-[a-z-]+$'
     # ...
 ```
 
@@ -161,8 +161,8 @@ clusters with the `region:us-east-2` label and either the `development` or
 spec:
   allow:
     kubernetes_labels:
-      'region': 'us-east-*'
-      'environment': ['development', 'staging']
+      region: 'us-east-*'
+      environment: ['development', 'staging']
     # ...
 ```
 
