@@ -251,6 +251,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure samlidp gcp-workforce` command
 	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
 
+	// IntegrationConfAWSRATrustAnchorArguments contains the arguments of
+	// `teleport integration configure awsra-trust-anchor` command
+	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
+
 	// LogLevel is the new application's log level.
 	LogLevel string
 
@@ -407,6 +411,25 @@ type IntegrationConfAWSOIDCIdP struct {
 	// PolicyPreset is the name of a pre-defined policy statement which will be
 	// assigned to the AWS Role associate with the OIDC integration.
 	PolicyPreset string
+}
+
+// IntegrationConfAWSRATrustAnchor contains the arguments of
+// `teleport integration configure awsra-trust-anchor` command
+type IntegrationConfAWSRATrustAnchor struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// TrustAnchor is the AWS IAM Roles Anywhere Trust Anchor name to create.
+	TrustAnchor string
+	// TrustAnchorCertBase64 is trust anchor certificate, encoded in base64.
+	TrustAnchorCertBase64 string
+	// SyncProfile is the AWS IAM Roles Anywhere Profile name to create, that will be used to sync profiles as entry points for AWS Access.
+	SyncProfile string
+	// SyncRole is the AWS IAM Role name to create, that will be used to sync profiles as entry points for AWS Access.
+	SyncRole string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -723,6 +746,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	if fc.Relay.Enabled {
+		if err := applyRelayConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -922,9 +951,16 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
 	if fc.Auth.hasCustomSessionRecording() {
+		var encryption *types.SessionRecordingEncryptionConfig
+		if fc.Auth.SessionRecordingEncryption != nil && fc.Auth.SessionRecordingEncryption.Value {
+			encryption = &types.SessionRecordingEncryptionConfig{
+				Enabled: true,
+			}
+		}
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+			Encryption:          encryption,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2753,7 +2789,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.Hostname = hostname
 	cfg.OpenSSH.InstanceAddr = clf.Address
 	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
-	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
+	for principal := range strings.SplitSeq(clf.AdditionalPrincipals, ",") {
 		if principal == "" {
 			continue
 		}
@@ -3009,5 +3045,28 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		ExitOnSync:  fc.Jamf.ExitOnSync,
 		Credentials: creds,
 	}
+	return nil
+}
+
+func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// TODO(espadolini): potential compatibility checks here like requiring
+	// config v3+ and proxy_server
+
+	// we're here because fc.Relay.Enabled is true
+	cfg.Relay.Enabled = true
+
+	if fc.Relay.RelayGroup == "" {
+		return trace.BadParameter("missing relay_service.relay_group")
+	}
+	cfg.Relay.RelayGroup = fc.Relay.RelayGroup
+
+	if len(fc.Relay.APIPublicHostnames) < 1 {
+		return trace.BadParameter("missing relay_service.api_public_hostnames")
+	}
+	if slices.Contains(fc.Relay.APIPublicHostnames, "") {
+		return trace.BadParameter("empty string in relay_service.api_public_hostnames")
+	}
+	cfg.Relay.APIPublicHostnames = slices.Clone(fc.Relay.APIPublicHostnames)
+
 	return nil
 }

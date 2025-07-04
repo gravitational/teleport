@@ -85,7 +85,7 @@ func (f *fakeIDP) issuer(orgID string) string {
 }
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
-	response := map[string]interface{}{
+	response := map[string]any{
 		"claims_supported": []string{
 			"sub",
 			"aud",
@@ -147,7 +147,7 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]interface{}{
+	customClaims := map[string]any{
 		"org_id": orgID,
 	}
 	token, err := jwt.Signed(f.signer).
@@ -243,7 +243,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name: "mismatched org id",
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, "organization ID in token")
 			},

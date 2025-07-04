@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -69,6 +70,9 @@ type KeyStoreManager interface {
 	NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error)
 	// GetSSHSignerFromKeySet selects a usable SSH keypair from the provided key set.
 	GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error)
+	// GetTLSCertAndSigner selects a usable TLS keypair from the given CA
+	// and returns the PEM-encoded TLS certificate and a [crypto.Signer].
+	GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error)
 }
 
 // Backend defines the interface for all the backend services that the
@@ -89,6 +93,11 @@ type ServiceConfig struct {
 	Logger          *slog.Logger
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
+
+	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
+	// This is used to allow mocking in tests, because the real implementation does
+	// If not set, the default implementation is used.
+	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -123,6 +132,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 
+	if s.awsRolesAnywhereCreateSessionFn == nil {
+		s.awsRolesAnywhereCreateSessionFn = createsession.CreateSession
+	}
+
 	return nil
 }
 
@@ -136,6 +149,8 @@ type Service struct {
 	logger          *slog.Logger
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
+
+	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -152,6 +167,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		backend:         cfg.Backend,
 		clock:           cfg.Clock,
 		emitter:         cfg.Emitter,
+
+		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
 	}, nil
 }
 
@@ -233,9 +250,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.IntegrationSubKindAWSOIDC:
-		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
-		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
+		// AWS OIDC and Roles Anywhere Integrations can be used as source of credentials to access AWS Web/CLI.
+		// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+		// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
 			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())

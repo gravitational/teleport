@@ -635,7 +635,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 					},
 				},
 			}),
-			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+			assertResult: func(t require.TestingT, v any, _ ...any) {
 				db, _ := v.(Database)
 				require.ElementsMatch(t, []string{"*", "mydatabase"}, db.DatabaseNames)
 			},
@@ -651,7 +651,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 					},
 				},
 			}),
-			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+			assertResult: func(t require.TestingT, v any, _ ...any) {
 				db, _ := v.(Database)
 				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)
 			},
@@ -670,7 +670,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 					},
 				},
 			}),
-			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+			assertResult: func(t require.TestingT, v any, _ ...any) {
 				db, _ := v.(Database)
 				require.ElementsMatch(t, []string{"*", "myrole"}, db.DatabaseRoles)
 			},
@@ -691,7 +691,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 					},
 				},
 			}),
-			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+			assertResult: func(t require.TestingT, v any, _ ...any) {
 				db, _ := v.(Database)
 				require.ElementsMatch(t, []string{"*"}, db.DatabaseNames)
 				require.ElementsMatch(t, []string{"*"}, db.DatabaseUsers)
@@ -714,7 +714,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 					},
 				},
 			}),
-			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+			assertResult: func(t require.TestingT, v any, _ ...any) {
 				db, _ := v.(Database)
 				require.True(t, db.AutoUsersEnabled)
 				require.ElementsMatch(t, []string{"alice"}, db.DatabaseUsers)
@@ -736,7 +736,7 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 					},
 				},
 			}),
-			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+			assertResult: func(t require.TestingT, v any, _ ...any) {
 				db, _ := v.(Database)
 				require.False(t, db.AutoUsersEnabled)
 				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)

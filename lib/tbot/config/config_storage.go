@@ -47,7 +47,7 @@ func (sc *StorageConfig) CheckAndSetDefaults() error {
 	return trace.Wrap(sc.Destination.CheckAndSetDefaults(), "validating storage")
 }
 
-func (sc *StorageConfig) MarshalYAML() (interface{}, error) {
+func (sc *StorageConfig) MarshalYAML() (any, error) {
 	// Effectively inlines the destination
 	return sc.Destination.MarshalYAML()
 }

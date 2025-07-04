@@ -43,7 +43,9 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -208,6 +210,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindRelayServer},
+		{Kind: types.KindBotInstance},
+		{Kind: types.KindRecordingEncryption},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -264,6 +269,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -515,6 +521,8 @@ type Cache struct {
 	closed atomic.Bool
 }
 
+var _ authclient.Cache = (*Cache)(nil)
+
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {
 		c.initErr = err
@@ -681,8 +689,6 @@ type Config struct {
 	// WorkloadIdentity is the upstream Workload Identities service that we're
 	// caching
 	WorkloadIdentity services.WorkloadIdentities
-	// Backend is a backend for local cache
-	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
 	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
@@ -716,6 +722,8 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -739,15 +747,16 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
+	// RecordingEncryption manages state surrounding session recording encryption
+	RecordingEncryption services.RecordingEncryption
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
-	}
-	if c.Backend == nil {
-		return trace.BadParameter("missing Backend parameter")
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -789,6 +798,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Tracer == nil {
 		c.Tracer = tracing.NoopTracer(c.Component)
 	}
+	if c.Registerer == nil {
+		c.Registerer = prometheus.DefaultRegisterer
+	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
 	}
@@ -821,16 +833,20 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := backendmetrics.RegisterCollectors(config.Registerer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := metrics.RegisterCollectors(config.Registerer,
 		cacheEventsReceived,
 		cacheStaleEventsReceived,
 		cacheHealth,
 		cacheLastReset,
 	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -847,7 +863,7 @@ func New(config Config) (*Cache, error) {
 
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
-	for i := 0; i < config.FanoutShards; i++ {
+	for range config.FanoutShards {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
@@ -1755,6 +1771,14 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 					AccountAssignment: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
+		)
+		return resp, trace.Wrap(err)
+	case types.KindSAMLIdPServiceProvider:
+		resp, err := buildListResourcesResponse(
+			c.collections.samlIdPServiceProviders.store.resources(samlIdPServiceProviderNameIndex, req.StartKey, ""),
+			limit,
+			filter,
+			types.SAMLIdPServiceProvider.CloneResource,
 		)
 		return resp, trace.Wrap(err)
 	default:

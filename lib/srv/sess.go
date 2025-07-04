@@ -1009,14 +1009,14 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...interface{}) {
+func (s *session) BroadcastMessage(format string, args ...any) {
 	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 
 // BroadcastSystemMessage sends a message to all parties.
-func (s *session) BroadcastSystemMessage(format string, args ...interface{}) {
+func (s *session) BroadcastSystemMessage(format string, args ...any) {
 	s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 }
 

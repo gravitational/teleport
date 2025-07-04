@@ -2257,8 +2257,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			authCfg := setupConfig(t)
 			service, err := local.NewBackendInfoService(authCfg.Backend)
@@ -2390,7 +2389,6 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			m := &mockDatabaseObjectImportRules{

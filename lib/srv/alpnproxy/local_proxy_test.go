@@ -113,7 +113,6 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -323,7 +322,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 	}()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -407,7 +406,6 @@ func TestCheckDBCerts(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tlsCert := mustGenCertSignedWithCA(t, suite.ca,
 				withIdentity(tlsca.Identity{
@@ -659,7 +657,7 @@ func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *
 	return lp
 }
 
-func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
+func requireExpiredCertErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -669,7 +667,7 @@ func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
 	require.Equal(t, x509.Expired, certErr.Reason)
 }
 
-func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) {
+func requireCertSubjectUserErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -677,7 +675,7 @@ func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) 
 	require.ErrorContains(t, err, "certificate subject is for user")
 }
 
-func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...interface{}) {
+func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -751,7 +749,6 @@ func TestGetCertsForConn(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
-		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.

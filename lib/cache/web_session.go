@@ -38,6 +38,7 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 
 	return &collection[types.WebSession, webSessionIndex]{
 		store: newStore(
+			types.KindWebSession,
 			types.WebSession.Copy,
 			map[webSessionIndex]func(types.WebSession) string{
 				webSessionNameIndex: types.WebSession.GetName,
@@ -49,7 +50,7 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 			}
 
 			if !loadSecrets {
-				for i := 0; i < len(webSessions); i++ {
+				for i := range webSessions {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}
@@ -116,6 +117,7 @@ func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*
 
 	return &collection[types.WebSession, appSessionIndex]{
 		store: newStore(
+			types.KindAppSession,
 			types.WebSession.Copy,
 			map[appSessionIndex]func(types.WebSession) string{
 				appSessionNameIndex: types.WebSession.GetName,
@@ -134,7 +136,7 @@ func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*
 				}
 
 				if !loadSecrets {
-					for i := 0; i < len(webSessions); i++ {
+					for i := range webSessions {
 						webSessions[i] = webSessions[i].WithoutSecrets()
 					}
 				}
@@ -252,6 +254,7 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 
 	return &collection[types.WebSession, snowflakeSessionIndex]{
 		store: newStore(
+			types.KindSnowflakeSession,
 			types.WebSession.Copy,
 			map[snowflakeSessionIndex]func(types.WebSession) string{
 				snowflakeSessionNameIndex: types.WebSession.GetName,
@@ -263,7 +266,7 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 			}
 
 			if !loadSecrets {
-				for i := 0; i < len(webSessions); i++ {
+				for i := range webSessions {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}

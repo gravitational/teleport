@@ -23,11 +23,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -110,7 +115,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := 0; i < numMembers; i++ {
+	for i := range numMembers {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
@@ -139,7 +144,16 @@ func TestAccessListMembers(t *testing.T) {
 // TestAccessListReviews tests that CRUD operations on access list review resources are
 // replicated from the backend to the cache.
 func TestAccessListReviews(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {
+					Enabled: true,
+					Limit:   10,
+				},
+			},
+		},
+	})
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -185,6 +199,85 @@ func TestAccessListReviews(t *testing.T) {
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	})
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-1", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "fake-al-1", "member1"),
+			newAccessListMember(t, "fake-al-1", "member2"),
+		})
+	require.NoError(t, err)
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "fake-al-2", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "fake-al-2", "member1"),
+			newAccessListMember(t, "fake-al-2", "member2"),
+		})
+	require.NoError(t, err)
+
+	review1 := newAccessListReview(t, "fake-al-1", "initial-review-1")
+	review1, _, err = p.accessLists.CreateAccessListReview(t.Context(), review1)
+	require.NoError(t, err)
+	review2 := newAccessListReview(t, "fake-al-2", "initial-review-2")
+	review2, _, err = p.accessLists.CreateAccessListReview(t.Context(), review2)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
+		require.NoError(t, err)
+		assert.Empty(t, next)
+
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			protocmp.Transform()),
+		)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
+		require.NoError(t, err)
+		assert.Empty(t, next)
+
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			protocmp.Transform()),
+		)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	_, _, err = p.accessLists.UpsertAccessListWithMembers(t.Context(), newAccessList(t, "access-list-test", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "access-list-test", "member1"),
+			newAccessListMember(t, "access-list-test", "member2"),
+		})
+	require.NoError(t, err)
+
+	for i := range 10 {
+		review := newAccessListReview(t, "access-list-test", "fake-review-"+strconv.Itoa(i))
+		review.Spec.Changes = accesslist.ReviewChanges{}
+		_, _, err = p.accessLists.CreateAccessListReview(t.Context(), review)
+		require.NoError(t, err)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		count := p.cache.collections.accessListReviews.store.len()
+		_ = count
+
+		var start string
+		var out []*accesslist.Review
+		for range 10 {
+			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
+			require.NoError(t, err)
+
+			out = append(out, page...)
+			if next == "" {
+				break
+			}
+			start = next
+		}
+		assert.Len(t, out, 10)
+	}, 15*time.Second, 100*time.Millisecond)
+
 }
 
 func TestCountAccessListMembersScoping(t *testing.T) {

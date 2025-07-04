@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -40,6 +41,7 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 
 	return &collection[*accesslist.AccessList, accessListIndex]{
 		store: newStore(
+			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
 				accessListNameIndex: func(al *accesslist.AccessList) string {
@@ -162,6 +164,7 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 
 	return &collection[*accesslist.AccessListMember, accessListMemberIndex]{
 		store: newStore(
+			types.KindAccessListMember,
 			(*accesslist.AccessListMember).Clone,
 			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
 				accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
@@ -254,11 +257,8 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
-	start := accessListName
+	start := cmp.Or(pageToken, accessListName)
 	end := sortcache.NextKey(accessListName + "/")
-	if pageToken != "" {
-		start += "/" + pageToken
-	}
 
 	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
@@ -332,6 +332,7 @@ func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchK
 
 	return &collection[*accesslist.Review, accessListReviewIndex]{
 		store: newStore(
+			types.KindAccessListReview,
 			(*accesslist.Review).Clone,
 			map[accessListReviewIndex]func(*accesslist.Review) string{
 				accessListReviewNameIndex: func(r *accesslist.Review) string {
@@ -395,10 +396,11 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 
 	start := accessList
+	end := sortcache.NextKey(accessList + "/")
 	if pageToken != "" {
 		start += "/" + pageToken
 	}
 
-	out, next, err := lister.list(ctx, pageSize, start)
+	out, next, err := lister.listRange(ctx, pageSize, start, end)
 	return out, next, trace.Wrap(err)
 }

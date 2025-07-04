@@ -440,7 +440,7 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 	}
 
 	process := lib.NewProcess(ctx)
-	for i := 0; i < s.raceNumber; i++ {
+	for range s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
@@ -460,7 +460,7 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 	//
 	// Multiplier SIX means that we handle TWO messages for each request and also
 	// TWO comments for each message: 2 * (1 message + 2 comments).
-	for i := 0; i < 2*s.raceNumber; i++ {
+	for range 2 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeTeams.CheckNewMessage(ctx)
 			if err != nil {
@@ -500,7 +500,7 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 	}
 
 	// Multiplier TWO means that we handle updates for each of the two messages posted to reviewers.
-	for i := 0; i < 4*s.raceNumber; i++ {
+	for range 4 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeTeams.CheckMessageUpdate(ctx)
 			if err != nil {
@@ -524,7 +524,7 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 	require.NoError(t, raceErr)
 
 	require.Equal(t, int32(2*s.raceNumber), msgsCount)
-	msgIDs.Range(func(key, value interface{}) bool {
+	msgIDs.Range(func(key, value any) bool {
 		next := true
 
 		val, loaded := msgUpdateCounters.LoadAndDelete(key)

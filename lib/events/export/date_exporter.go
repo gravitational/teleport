@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -138,9 +139,7 @@ func (s *DateExporterState) Clone() DateExporterState {
 		Cursors:   make(map[string]string, len(s.Cursors)),
 	}
 	copy(cloned.Completed, s.Completed)
-	for chunk, cursor := range s.Cursors {
-		cloned.Cursors[chunk] = cursor
-	}
+	maps.Copy(cloned.Cursors, s.Cursors)
 	return cloned
 }
 
@@ -343,12 +342,12 @@ func (e *DateExporter) run(ctx context.Context) {
 // to halt.
 func (e *DateExporter) waitForInflightChunks() {
 	// acquire all semaphore tokens to block until all inflight chunks have been processed
-	for i := 0; i < e.cfg.Concurrency; i++ {
+	for range e.cfg.Concurrency {
 		e.sem <- struct{}{}
 	}
 
 	// release all semaphore tokens
-	for i := 0; i < e.cfg.Concurrency; i++ {
+	for range e.cfg.Concurrency {
 		<-e.sem
 	}
 }

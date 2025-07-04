@@ -35,10 +35,10 @@ func init() {
 // TeleportAccessList holds the kubernetes custom resources for login rules.
 type TeleportAccessList struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportAccessListSpec `json:"spec,omitempty"`
-	Status resources.Status       `json:"status,omitempty"`
+	Spec   TeleportAccessListSpec `json:"spec"`
+	Status resources.Status       `json:"status"`
 }
 
 // TeleportAccessListSpec defines the desired state of TeleportProvisionToken
@@ -49,7 +49,7 @@ type TeleportAccessListSpec accesslist.Spec
 // TeleportAccessListList contains a list of TeleportAccessList
 type TeleportAccessListList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportAccessList `json:"items"`
 }
 

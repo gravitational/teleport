@@ -336,7 +336,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		pref, err := s.cache.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -615,7 +615,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		cfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -864,7 +864,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 
 		cfg, err := s.cache.GetSessionRecordingConfig(ctx)
 		if err != nil {

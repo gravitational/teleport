@@ -21,6 +21,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -303,9 +304,7 @@ func cloneRolePolicies(in map[string]map[string]string) map[string]map[string]st
 	out := make(map[string]map[string]string, len(in))
 	for role, policies := range in {
 		out[role] = make(map[string]string, len(policies))
-		for policyName, policyDoc := range policies {
-			out[role][policyName] = policyDoc
-		}
+		maps.Copy(out[role], policies)
 	}
 	return out
 }

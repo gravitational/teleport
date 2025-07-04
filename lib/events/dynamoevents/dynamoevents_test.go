@@ -159,7 +159,7 @@ func TestSizeBreak(t *testing.T) {
 	blob := randStringAlpha(eventSize)
 
 	const eventCount int = 10
-	for i := 0; i < eventCount; i++ {
+	for i := range eventCount {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -168,7 +168,7 @@ func TestSizeBreak(t *testing.T) {
 				Type: events.UserLoginEvent,
 				Time: tt.suite.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
 			},
-			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
+			IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
 		})
 		require.NoError(t, err)
 	}
@@ -233,7 +233,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	const eventCount = 4000
-	for i := 0; i < eventCount; i++ {
+	for range eventCount {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -251,7 +251,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 		err     error
 	)
 	ctx := context.Background()
-	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
+	for range dynamoDBLargeQueryRetries {
 		time.Sleep(tt.suite.QueryDelay)
 
 		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -282,14 +282,14 @@ func TestFromWhereExpr(t *testing.T) {
 		R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
 	}}
 
-	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]interface{}{}}
+	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
 	expr, err := fromWhereExpr(cond, &params)
 	require.NoError(t, err)
 
 	require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
 	require.Equal(t, condFilterParams{
 		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
-		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
+		attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
 	}, params)
 }
 
@@ -511,8 +511,8 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 	const eventCount int = 10
 
 	// create events for two days
-	for dayDiff := 0; dayDiff < 2; dayDiff++ {
-		for i := 0; i < eventCount; i++ {
+	for dayDiff := range 2 {
+		for i := range eventCount {
 			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Method:       events.LoginMethodSAML,
 				Status:       apievents.Status{Success: true},
@@ -521,7 +521,7 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 					Type: events.UserLoginEvent,
 					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
+				IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
 			})
 			require.NoError(t, err)
 		}

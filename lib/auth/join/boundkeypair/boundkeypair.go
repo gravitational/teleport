@@ -183,24 +183,26 @@ func (c *ClientState) SignerForPublicKey(authorizedKeysBytes []byte) (crypto.Sig
 		return nil, trace.Wrap(err)
 	}
 
-	// Check the active key first.
-	activePubKeyBytes, err := c.ToPublicKeyBytes()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	equal, err := pubKeyEqual(desiredPubKey, activePubKeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	} else if equal {
-		// Parse a fresh copy of the key since this will escape the mutex and we
-		// can't be sure our local copy is thread safe.
-		key, err := keys.ParsePrivateKey(c.PrivateKeyBytes)
+	// Check the active key first, if available.
+	if c.PrivateKey != nil {
+		activePubKeyBytes, err := c.ToPublicKeyBytes()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return key.Signer, nil
+		equal, err := pubKeyEqual(desiredPubKey, activePubKeyBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if equal {
+			// Parse a fresh copy of the key since this will escape the mutex and we
+			// can't be sure our local copy is thread safe.
+			key, err := keys.ParsePrivateKey(c.PrivateKeyBytes)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return key.Signer, nil
+		}
 	}
 
 	// Otherwise, search through the key history. If a keypair rotation was
@@ -235,7 +237,7 @@ func (c *ClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuites
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshallng private key")
+		return nil, trace.Wrap(err, "marshaling private key")
 	}
 
 	// prepend the new key to the top of the list for faster lookup
@@ -268,14 +270,16 @@ func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	equal, err := pubKeyEqual(signer.Public(), c.PrivateKey.Public())
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	if c.PrivateKey != nil {
+		equal, err := pubKeyEqual(signer.Public(), c.PrivateKey.Public())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	if equal {
-		// nothing to do; specified key is already the active key
-		return nil
+		if equal {
+			// nothing to do; specified key is already the active key
+			return nil
+		}
 	}
 
 	key, err := keys.NewPrivateKey(signer)
@@ -285,7 +289,7 @@ func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key.Signer)
 	if err != nil {
-		return trace.Wrap(err, "marshallng private key")
+		return trace.Wrap(err, "marshaling private key")
 	}
 
 	sshPubKey, err := ssh.NewPublicKey(key.Public())
@@ -354,6 +358,13 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 	privateKeyBytes, err := fs.Read(ctx, PrivateKeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading private key")
+	}
+
+	// The private key may be empty if this is an initial join attempt using a
+	// configured registration secret. This is allowed, but callers should
+	// handle this via `NewEmptyClientState()`
+	if len(privateKeyBytes) == 0 {
+		return nil, trace.NotFound("no active private key found")
 	}
 
 	joinStateBytes, err := fs.Read(ctx, JoinStatePath)
@@ -443,7 +454,8 @@ func (c *ClientState) Store(ctx context.Context) error {
 
 // NewUnboundClientState creates a new client state that has not yet been bound,
 // i.e. a new keypair that has not been registered with Auth, and no prior join
-// state.
+// state. Join attempts using registration secrets should instead use
+// `NewEmptyClientState`, which does not immediately generate a keypair.
 func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.GetSuiteFunc) (*ClientState, error) {
 	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.BoundKeypairJoining)
 	if err != nil {
@@ -452,7 +464,7 @@ func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.Get
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshallng private key")
+		return nil, trace.Wrap(err, "marshaling private key")
 	}
 
 	sshPubKey, err := ssh.NewPublicKey(key.Public())
@@ -482,4 +494,13 @@ func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.Get
 		PrivateKey:      pk,
 		KeyHistory:      history,
 	}, nil
+}
+
+// NewEmptyClientState creates a new ClientState with no existing active private
+// key or key history. This is only appropriate when a registration secret
+// should be used.
+func NewEmptyClientState(fs FS) *ClientState {
+	return &ClientState{
+		fs: fs,
+	}
 }

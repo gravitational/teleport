@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -203,22 +204,22 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	// push events that show ephemeral containers were started if there
 	// are any ephemeral containers waiting to be created for this pod
 	// by this user
-	done := make(chan struct{})
 	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(req.Context())
 	if podName := isRequestTargetedToPod(req, sess.metaResource.requestedResource); podName != "" && ok {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			f.sendEphemeralContainerEvents(done, req, rw, sess, podName)
+			f.sendEphemeralContainerEvents(ctx, rw, sess, podName)
 		}()
 	}
-
 	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)
 	// Wait for the fake event pushing goroutine to finish
-	close(done)
+	cancel()
 	wg.Wait()
+
 	// Once the request terminates, close the watcher and waits for resources
 	// cleanup.
 	err = rw.Close()
@@ -229,21 +230,21 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 // each 5s from cache and see if they match the user and pod and namespace.
 // If any match exists, it will push a fake event to the watcher stream to trick
 // kubectl into creating the exec session.
-func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http.Request, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
+func (f *Forwarder) sendEphemeralContainerEvents(ctx context.Context, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
 	const backoff = 5 * time.Second
 	sentDebugContainers := map[string]struct{}{}
 	ticker := time.NewTicker(backoff)
 	defer ticker.Stop()
 	for {
 		wcs, err := f.getUserEphemeralContainersForPod(
-			req.Context(),
+			ctx,
 			sess.User.GetName(),
 			sess.kubeClusterName,
 			sess.metaResource.requestedResource.namespace,
 			podName,
 		)
 		if err != nil {
-			f.log.WarnContext(req.Context(), "error getting user ephemeral containers", "error", err)
+			f.log.WarnContext(ctx, "error getting user ephemeral containers", "error", err)
 			return
 		}
 
@@ -251,24 +252,22 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
 				continue
 			}
-			evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
+			evt, err := f.getPatchedPodEvent(ctx, sess, wc)
 			if err != nil {
-				f.log.WarnContext(req.Context(), "error pushing pod event", "error", err)
+				f.log.WarnContext(ctx, "error pushing pod event", "error", err)
 				continue
 			}
 			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
 			// push the event to the client
 			// this will lock until the event is pushed or the
 			// request context is done.
-			rw.PushVirtualEventToClient(req.Context(), evt)
+			rw.PushVirtualEventToClient(ctx, evt)
 		}
 
 		// wait a bit before querying the cache again, or return
 		// if the request has finished
 		select {
-		case <-req.Context().Done():
-			return
-		case <-done:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}

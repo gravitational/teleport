@@ -20,6 +20,8 @@ package srv
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"net"
 	"testing"
 
@@ -112,8 +114,7 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
 		Addr:     "1.2.3.4:22",
@@ -396,8 +397,7 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 func TestRBACJoinMFA(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	const clusterName = "localhost"
 	const username = "testuser"
@@ -573,4 +573,54 @@ func TestRBACJoinMFA(t *testing.T) {
 			tt.testError(t, err)
 		})
 	}
+}
+
+func TestAuthorityForCert(t *testing.T) {
+	rawCA1, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca1, err := ssh.NewPublicKey(rawCA1)
+	require.NoError(t, err)
+
+	rawCA2, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca2, err := ssh.NewPublicKey(rawCA2)
+	require.NoError(t, err)
+
+	rawCA3, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca3, err := ssh.NewPublicKey(rawCA3)
+	require.NoError(t, err)
+
+	ah := &AuthHandlers{c: &AuthHandlerConfig{
+		Server: (*mockServer)(nil),
+		AccessPoint: mockCAandAuthPrefGetter{
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {&types.CertAuthorityV2{
+					Spec: types.CertAuthoritySpecV2{
+						ActiveKeys: types.CAKeySet{
+							SSH: []*types.SSHKeyPair{
+								{PublicKey: ssh.MarshalAuthorizedKey(ca1)},
+								{PublicKey: ssh.MarshalAuthorizedKey(ca2)},
+							},
+						},
+					},
+				}},
+			},
+		},
+	}}
+
+	cert1 := &ssh.Certificate{
+		Key:          ca1,
+		SignatureKey: ca1,
+	}
+
+	_, err = ah.authorityForCert(types.UserCA, ca1)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca2)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca3)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = ah.authorityForCert(types.UserCA, cert1)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError), "a certificate signed by a certificate should not pass validation")
 }

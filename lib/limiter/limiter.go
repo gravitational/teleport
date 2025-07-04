@@ -132,7 +132,7 @@ type CustomRateFunc func(endpoint string) *RateSet
 // rate limits by client IP. Accepts a CustomRateFunc to set custom rates for
 // specific gRPC methods.
 func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		peerInfo, ok := peer.FromContext(ctx)
 		if !ok {
 			return nil, trace.AccessDenied("missing peer info")
@@ -155,7 +155,7 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 
 // StreamServerInterceptor is a gRPC stream interceptor that rate limits
 // incoming requests by client IP.
-func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
 	if !ok {
 		return trace.AccessDenied("missing peer info")

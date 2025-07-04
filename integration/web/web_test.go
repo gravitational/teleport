@@ -196,7 +196,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 						},
 					}
 
-					respStatusCode, respBody := webPack.DoRequest(t, http.MethodPost, endpoint, req)
+					respStatusCode, respBody := webPack.DoWebAPIRequest(t, http.MethodPost, endpoint, req)
 					require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 					var resp client.MFAAuthenticateChallenge

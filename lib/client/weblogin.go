@@ -819,7 +819,7 @@ type CreateWebSessionResponse struct {
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
-	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	SessionExpires time.Time `json:"sessionExpires"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.

@@ -25,7 +25,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/go-piv/piv-go/piv"
+	"github.com/go-piv/piv-go/v2/piv"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
