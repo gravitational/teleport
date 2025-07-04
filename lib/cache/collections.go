@@ -46,7 +46,8 @@ type collectionHandler interface {
 // collections is the group of resource [collection]s
 // that the [Cache] supports.
 type collections struct {
-	byKind map[resourceKind]collectionHandler
+	byKind  map[resourceKind]collectionHandler
+	plugins *collection[types.Plugin, pluginIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -76,6 +77,13 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {

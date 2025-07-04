@@ -220,6 +220,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 	}
@@ -883,6 +884,7 @@ type Config struct {
 	PluginStaticCredentials services.PluginStaticCredentials
 	// GitServers is the Git server service.
 	GitServers services.GitServerGetter
+	Plugin     services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
