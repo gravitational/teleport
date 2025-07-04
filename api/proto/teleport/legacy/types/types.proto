@@ -3124,6 +3124,19 @@ message AccessRequestSpecV3 {
 
   // DryRunEnrichment contains the extra info added in response to a dry run request.
   AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
+
+  // RequestKind indicates the kind (short/long-term) of request.
+  AccessRequestKind RequestKind = 24 [(gogoproto.jsontag) = "request_kind,omitempty"];
+}
+
+// AccessRequestKind represents the kind of Access Request being made (short/long-term).
+enum AccessRequestKind {
+  // UNDEFINED is the default value, and represents an undefined request kind.
+  UNDEFINED = 0;
+  // SHORT_TERM represents a short-term request, either role-based or resource-based.
+  SHORT_TERM = 1;
+  // LONG_TERM represents a long-term resource-based request.
+  LONG_TERM = 2;
 }
 
 enum AccessRequestScope {
