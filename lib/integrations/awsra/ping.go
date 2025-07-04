@@ -75,12 +75,15 @@ func NewPingClient(ctx context.Context, req *AWSClientConfig) (PingClient, error
 // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListTagsForResource.html
 // It returns a list of Roles Anywhere Profiles that are enabled.
 func Ping(ctx context.Context, clt PingClient) (*PingResponse, error) {
+	var errs []error
+
 	profileCounter := 0
 	var nextToken *string
 	for {
 		profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, nextToken)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			errs = append(errs, err)
+			break
 		}
 		for _, profile := range profiles {
 			if profile.Enabled && len(profile.Roles) > 0 {
@@ -95,7 +98,11 @@ func Ping(ctx context.Context, clt PingClient) (*PingResponse, error) {
 
 	callerIdentity, err := clt.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return nil, trace.NewAggregate(errs...)
 	}
 
 	return &PingResponse{

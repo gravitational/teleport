@@ -146,20 +146,39 @@ type AWSRolesAnywhereService struct {
 	authorizer         authz.Authorizer
 	logger             *slog.Logger
 	clock              clockwork.Clock
+
+	// newPingClient is used to initialize a PingClient.
+	// If nil, the service will create a new PingClient using the AWS client config.
+	// This is useful for testing purposes, allowing to inject a mock client.
+	newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)
+}
+
+type AWSRolesAnywhereServiceOptionFunc func(*AWSRolesAnywhereService)
+
+func withMockedPingClient(newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)) AWSRolesAnywhereServiceOptionFunc {
+	return func(cfg *AWSRolesAnywhereService) {
+		cfg.newPingClient = newPingClient
+	}
 }
 
 // NewAWSRolesAnywhereService returns a new AWSRolesAnywhereService.
-func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig) (*AWSRolesAnywhereService, error) {
+func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig, opts ...AWSRolesAnywhereServiceOptionFunc) (*AWSRolesAnywhereService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &AWSRolesAnywhereService{
+	ret := &AWSRolesAnywhereService{
 		integrationService: cfg.IntegrationService,
 		logger:             cfg.Logger,
 		authorizer:         cfg.Authorizer,
 		clock:              cfg.Clock,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(ret)
+	}
+
+	return ret, nil
 }
 
 var _ integrationpb.AWSRolesAnywhereServiceServer = (*AWSRolesAnywhereService)(nil)
@@ -257,6 +276,13 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		roleARN = spec.ProfileSyncConfig.RoleARN
 	}
 
+	s.logger.DebugContext(ctx, "Testing AWS IAM Roles Anywhere integration",
+		"integration", req.GetIntegration(),
+		"trust_anchor", trustAnchor,
+		"profile_arn", profileARN,
+		"role_arn", roleARN,
+	)
+
 	credentialsRequest := &integrationpb.GenerateAWSRACredentialsRequest{
 		ProfileArn:  profileARN,
 		RoleArn:     roleARN,
@@ -274,7 +300,7 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	pingClient, err := awsra.NewPingClient(ctx, &awsra.AWSClientConfig{
+	pingClient, err := s.newPingClient(ctx, &awsra.AWSClientConfig{
 		Credentials: awsra.Credentials{
 			AccessKeyID:     credentials.AccessKeyId,
 			SecretAccessKey: credentials.SecretAccessKey,
