@@ -94,8 +94,5 @@ type DatabaseResource struct {
 
 // ToolName generates a database access tool name.
 func ToolName(protocol, name string) string {
-	return ToolPrefix + protocol + "_" + name
+	return mcp.ToolName(protocol + "_" + name)
 }
-
-// ToolPrefix is the default tool prefix for every MCP tool.
-const ToolPrefix = "teleport_"
