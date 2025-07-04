@@ -202,6 +202,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
@@ -737,6 +738,7 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	Plugin            services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
