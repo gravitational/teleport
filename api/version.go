@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev.tiago.15"
+const Version = "18.0.0-dev.tiago.16"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.tiago.15"
+const VersionPreRelease = "dev.tiago.16"
 const VersionMetadata = ""
