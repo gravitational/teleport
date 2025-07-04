@@ -88,7 +88,7 @@ func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alp
 					return h.Region == region && h.AccountId == a.AccountID
 				},
 			)
-			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSOptions()...)
+			ec2Client, err := a.GetEC2Client(ctx, region, nil /* handled by getAWSOptions */, a.getAWSOptions()...)
 			if err != nil {
 				collectHosts(prevIterationEc2, trace.Wrap(err))
 				return nil

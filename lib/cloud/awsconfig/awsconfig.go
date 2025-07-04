@@ -36,6 +36,7 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -136,6 +137,9 @@ type options struct {
 	stsClientProvider STSClientProviderFunc
 	// baseCredentials is the base config used to assume the roles.
 	baseCredentials aws.CredentialsProvider
+	// useEC2IMDSRegion indicates that clients should determine their region from
+	// EC2 instance metadata if available.
+	useEC2IMDSRegion bool
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -164,6 +168,9 @@ func (o *options) checkAndSetDefaults() error {
 			return trace.BadParameter("missing credentials source (ambient or integration)")
 		}
 	}
+	o.assumeRoles = utils.DeduplicateAny(o.assumeRoles, func(ar1, ar2 AssumeRole) bool {
+		return ar1.RoleARN == ar2.RoleARN && ar1.ExternalID == ar2.ExternalID
+	})
 	if len(o.assumeRoles) > 2 {
 		return trace.BadParameter("role chain contains more than 2 roles")
 	}
@@ -324,6 +331,14 @@ func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider
 	}
 }
 
+// WithEC2IMDSRegion indicates that clients should determine their region from
+// EC2 instance metadata if available.
+func WithEC2IMDSRegion() OptionsFn {
+	return func(o *options) {
+		o.useEC2IMDSRegion = true
+	}
+}
+
 // GetConfig returns an AWS config for the specified region, optionally
 // assuming AWS IAM Roles.
 func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
@@ -361,6 +376,9 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 	}
 	if opts.maxRetries != nil {
 		configOpts = append(configOpts, config.WithRetryMaxAttempts(*opts.maxRetries))
+	}
+	if opts.useEC2IMDSRegion {
+		configOpts = append(configOpts, config.WithEC2IMDSRegion())
 	}
 	return configOpts
 }

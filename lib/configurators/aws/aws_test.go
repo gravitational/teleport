@@ -21,7 +21,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"io"
 	"regexp"
 	"sort"
 	"testing"
@@ -31,7 +30,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -1364,6 +1362,12 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	}
 }
 
+func identityFromArn(t *testing.T, arn string) awslib.Identity {
+	identity, err := awslib.IdentityFromArn(arn)
+	require.NoError(t, err)
+	return identity
+}
+
 func TestAWSDocumentConfigurator(t *testing.T) {
 	var err error
 	ctx := context.Background()
@@ -1388,7 +1392,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 	config := ConfiguratorConfig{
 		awsCfg:    &aws.Config{},
 		iamClient: &iamMock{},
-		stsClient: &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		Identity:  identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
 		ssmClients: map[string]ssmClient{
 			"eu-central-1": &ssmMock{
 				t: t,
@@ -1429,7 +1433,7 @@ func TestAWSConfigurator(t *testing.T) {
 	config := ConfiguratorConfig{
 		awsCfg:        &aws.Config{},
 		iamClient:     &iamMock{},
-		stsClient:     &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		Identity:      identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
 		ssmClients:    map[string]ssmClient{"eu-central-1": &ssmMock{}},
 		ServiceConfig: &servicecfg.Config{},
 		Flags: configurators.BootstrapFlags{
@@ -1863,17 +1867,6 @@ func (p *policiesMock) Attach(context.Context, string, awslib.Identity) error {
 	return p.attachError
 }
 
-type stsMock struct {
-	ARN               string
-	callerIdentityErr error
-}
-
-func (m *stsMock) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Arn: aws.String(m.ARN),
-	}, m.callerIdentityErr
-}
-
 type ssmMock struct {
 	t             *testing.T
 	expectedInput *ssm.CreateDocumentInput
@@ -1918,43 +1911,4 @@ func (m *iamMock) GetRole(ctx context.Context, input *iam.GetRoleInput, optFns .
 	}
 	arn := fmt.Sprintf("arn:%s:iam::%s:role%s%s", m.partition, m.account, path, roleName)
 	return &iam.GetRoleOutput{Role: &iamtypes.Role{Arn: &arn}}, nil
-}
-
-type mockLocalRegionGetter struct {
-	region string
-	err    error
-}
-
-func (m mockLocalRegionGetter) GetRegion(context.Context) (string, error) {
-	return m.region, m.err
-}
-
-func Test_getFallbackRegion(t *testing.T) {
-	tests := []struct {
-		name              string
-		localRegionGetter localRegionGetter
-		wantRegion        string
-	}{
-		{
-			name: "fallback to retrieved local region",
-			localRegionGetter: mockLocalRegionGetter{
-				region: "my-local-region",
-			},
-			wantRegion: "my-local-region",
-		},
-		{
-			name: "fallback to us-east",
-			localRegionGetter: mockLocalRegionGetter{
-				err: fmt.Errorf("failed to get local region"),
-			},
-			wantRegion: "us-east-1",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			region := getFallbackRegion(context.Background(), io.Discard, test.localRegionGetter)
-			require.Equal(t, test.wantRegion, region)
-		})
-	}
 }
