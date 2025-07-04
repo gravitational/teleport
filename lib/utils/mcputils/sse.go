@@ -57,14 +57,14 @@ func ConnectSSEServer(ctx context.Context, baseURL *url.URL) (*SSEResponseReader
 		return nil, nil, trace.Wrap(err, "sending SSE request")
 	}
 	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
+		resp.Body.Close()
 		return nil, nil, trace.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	reader := NewSSEResponseReader(resp.Body)
 	endpointURL, err := reader.ReadEndpoint(ctx, baseURL)
 	if err != nil {
-		defer reader.Close()
+		reader.Close()
 		return nil, nil, trace.Wrap(err, "reading SSE server endpoint")
 	}
 	requestWriter := NewSSERequestWriter(httpClient, endpointURL)
@@ -74,28 +74,28 @@ func ConnectSSEServer(ctx context.Context, baseURL *url.URL) (*SSEResponseReader
 // SSERequestWriter posts requests to the remote server. Implements
 // MessageWriter.
 type SSERequestWriter struct {
-	httpClient        *http.Client
-	endpointURL       *url.URL
-	endpointURLString string
+	httpClient  *http.Client
+	endpointURL string
+	sessionID   string
 }
 
 // NewSSERequestWriter creates a new SSERequestWriter.
 func NewSSERequestWriter(httpClient *http.Client, endpointURL *url.URL) *SSERequestWriter {
 	return &SSERequestWriter{
-		httpClient:        httpClient,
-		endpointURL:       endpointURL,
-		endpointURLString: endpointURL.String(),
+		httpClient:  httpClient,
+		endpointURL: endpointURL.String(),
+		sessionID:   endpointURL.Query().Get("sessionId"),
 	}
 }
 
 // GetSessionID returns the MCP session ID tracked by the remote MCP server.
 func (w *SSERequestWriter) GetSessionID() string {
-	return w.endpointURL.Query().Get("sessionId")
+	return w.sessionID
 }
 
 // GetEndpointURL returns the endpoint URL.
 func (w *SSERequestWriter) GetEndpointURL() string {
-	return w.endpointURLString
+	return w.endpointURL
 }
 
 // WriteMessage posts an HTTP request with the MCP message to the remote MCP
@@ -106,10 +106,10 @@ func (w *SSERequestWriter) GetEndpointURL() string {
 func (w *SSERequestWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return trace.Wrap(err, "marshalling MCP request")
+		return trace.Wrap(err, "marshaling MCP request")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.endpointURLString, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.endpointURL, bytes.NewReader(data))
 	if err != nil {
 		return trace.Wrap(err, "building SSE POST request")
 	}

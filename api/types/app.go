@@ -424,7 +424,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		case a.Spec.Cloud != "":
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
 		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
-			a.Spec.URI = SchemaMCPStdio + "://"
+			a.Spec.URI = SchemeMCPStdio + "://"
 		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
@@ -679,9 +679,9 @@ func GetMCPServerTransportType(uri string) string {
 	}
 
 	switch parsed.Scheme {
-	case SchemaMCPStdio:
+	case SchemeMCPStdio:
 		return MCPTransportStdio
-	case SchemaMCPSSEHTTP, SchemaMCPSSEHTTPS:
+	case SchemeMCPSSEHTTP, SchemeMCPSSEHTTPS:
 		return MCPTransportSSE
 	default:
 		return ""

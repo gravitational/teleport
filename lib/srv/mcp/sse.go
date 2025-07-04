@@ -32,9 +32,12 @@ import (
 
 // handleStdioToSSE proxies a stdio client connection to an SSE server.
 func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) error {
-	// Prep.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// The incoming context can be canceled by connection monitor.
+	// We create an extra cancel here to force stopping the handling of this
+	// connection, when either the client or the server reader finishes reading
+	// the stream.
+	ctx, stopHandling := context.WithCancel(ctx)
+	defer stopHandling()
 
 	baseURL, err := makeSSEBaseURI(sessionCtx.App)
 	if err != nil {
@@ -66,7 +69,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		Transport:      sseResponseReader,
 		Logger:         stdoutLogger,
 		ParentContext:  s.cfg.ParentContext,
-		OnClose:        cancel,
+		OnClose:        stopHandling,
 		OnParseError:   mcputils.LogAndIgnoreParseError(stdoutLogger),
 		OnNotification: session.onServerNotification(clientResponseWriter),
 		OnResponse:     session.onServerResponse(clientResponseWriter),
@@ -80,7 +83,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		Transport:      mcputils.NewStdioReader(sessionCtx.ClientConn),
 		Logger:         session.logger.With("stdio", "stdin"),
 		ParentContext:  s.cfg.ParentContext,
-		OnClose:        cancel,
+		OnClose:        stopHandling,
 		OnParseError:   mcputils.ReplyParseError(clientResponseWriter),
 		OnRequest:      session.onClientRequest(clientResponseWriter, sseRequestWriter),
 		OnNotification: session.onClientNotification(sseRequestWriter),
@@ -105,9 +108,9 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 		return nil, trace.Wrap(err, "parsing SSE URI")
 	}
 	switch {
-	case strings.HasPrefix(app.GetURI(), types.SchemaMCPSSEHTTP):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTP):
 		baseURL.Scheme = "http"
-	case strings.HasPrefix(app.GetURI(), types.SchemaMCPSSEHTTPS):
+	case strings.HasPrefix(app.GetURI(), types.SchemeMCPSSEHTTPS):
 		baseURL.Scheme = "https"
 	default:
 		return nil, trace.BadParameter("unknown scheme type: %v", baseURL.Scheme)
