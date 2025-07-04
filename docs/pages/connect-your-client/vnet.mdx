@@ -18,6 +18,11 @@ This is all done client-side – VNet sets up a local DNS name server that
 intercepts DNS requests for your Teleport resources and responds with a virtual IP
 address managed by VNet that will handle the connection.
 
+VNet's SSH support enables third-party SSH clients to connect to Teleport SSH
+servers with minimal configuration required, while still offering Teleport
+access controls and features like [Per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx)
+and [Hardware Key Support](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+
 ![Diagram showing VNet architecture](../../img/vnet/how-it-works.svg)
 
 VNet delivers an experience like a VPN through this local virtual network,
@@ -100,11 +105,6 @@ first connection over each port triggers an MFA check.
 </Admonition>
 
 ## Step 3/3. Connect to an SSH server
-
-VNet enables third-party SSH clients to connect to Teleport SSH servers with
-minimal configuration required, while still offering Teleport access controls
-and features like [Per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx)
-and [Hardware Key Support](../admin-guides/access-controls/guides/hardware-key-support.mdx).
 
 Find the SSH server you want to connect to, open the menu next to the "Connect"
 dropdown, and click "Connect with VNet".
