@@ -22,7 +22,7 @@ We support BPFs only on ARM64 and x86_64 architectures.
 You can also use our Dockerfile to build the environment:
 
 ```bash
-make -C build.assets release-centos7
+make -C build.assets bpf-bytecode
 ```
 
 ## BPF code structure
@@ -34,29 +34,14 @@ BPF code can be divided into two parts:
 
 BPF programs are located in `bpf` directory in our repository. They are C like programs with some limitations.
 The most important limitation is that you can't use any system calls in BPF programs. You can use only BPF helpers.
-The BPF programs are compiled using `clang` 10+, GCC is not supported. 
+The BPF programs are compiled using `clang` 12+, GCC is not supported.
 
-User space code is located in `lib/bpf` directory. It's written in Go and uses the `aquasecurity/libbpfgo` library to load BPF programs into the kernel.
-`aquasecurity/libbpfgo` is a Go wrapper around the `libbpf` library. It's a low-level library that allows you to load BPF programs into the kernel.
-
-Note: `aquasecurity/libbpfgo` is not backwards compatible, you need to use the
-exact `libbpf` version it requires. For that reason `aquasecurity/libbpfgo`
-doesn't use semantic versioning, instead the tags have the format
-`v0.4.5-libbpf-1.0.1`. The first part is the `aquasecurity/libbpfgo` version,
-the second part is the `libbpf` version. Using the wrong version of `libbpf`
-results in a runtime/compilation error.
-
-### libbpf installation
-
-`aquasecurity/libbpfgo` requires `libbpf` to be installed on the system. The most up-to-date installation instructions can be found 
-in our Docker file: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/build.assets/Dockerfile-centos7#L108-L131
-
-Remember that the library must be installed in `/opt` directory not in `/usr/local` or `/usr`.
+User space code is located in `lib/bpf` directory. It's written in Go and uses the `cilium/ebpf` library to load BPF programs into the kernel. `cilium/ebpf ` is a pure-Go library to read, modify and load eBPF programs and attach them to various hooks in the Linux kernel.
 
 ### BPF license
 
 BPF programs are compiled into ELF files. ELF files have a license field that is used to verify that the BPF program
-is allowed to run in the kernel. The license field is set to `GPL` by default. Teleport uses `Dual BSD/GPL` which 
+is allowed to run in the kernel. The license field is set to `GPL` by default. Teleport uses `Dual BSD/GPL` which
 disables some BPF features (like logging). To enable all BPF features set the license to `GPL` in the BPF program
 and revert back before merging the code.
 
@@ -72,10 +57,6 @@ BPF programs can communicate with user space using maps. Maps are key-value stor
 BPF programs and user space. BPF programs can only access maps using BPF helpers. User space can access maps using
 `aquasecurity/libbpfgo` library. Maps are defined in BPF programs and can be referenced by name from user space code.
 
-Example:
-
-* BPF: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/bpf/enhancedrecording/command.bpf.c#L18
-* User space: https://github.com/gravitational/teleport/blob/2fd8f75e38eebf5c6826ef594433e5165c3bfbe1/lib/bpf/common_linux.go#L40-L51
 
 ## BPF in Teleport
 
@@ -86,4 +67,3 @@ the kernel 5.8+. Enhanced session recording records all:
 * network connections
 
 All events are recorded in the audit log. See https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/.
-

@@ -1,5 +1,19 @@
-# Minmal container fo generating BPF bytecode
-FROM debian:12
+# syntax=docker/dockerfile:1
+
+# Minimal container for generating BPF bytecode
+# This Dockerfile is used to generate BPF bytecode used
+# by enhanced recording.
+FROM docker.io/library/debian:12
+
+ENV LANGUAGE="en_US.UTF-8" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive"
+
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by default).
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -9,14 +23,28 @@ RUN apt-get update && apt-get install -y \
     libbpf-dev && \
     rm -rf /var/lib/apt/lists/*
 
+RUN apt-get -y update && \
+    apt-get install -q -y --no-install-recommends \
+        build-essential \
+        clang \
+        curl \
+        libbpf-dev \
+        llvm && \
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Go.
 ARG GOLANG_VERSION
-ARG BUILDARCH
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && \
+    cd /opt && \
+    curl -fsSL "https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$BUILDARCH.tar.gz" | tar xz && \
+    mkdir -p /go/src/github.com/gravitational/teleport && \
+    chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
-ENV GOPATH="/home/bpf/go" \
+ENV GOPATH="/go" \
     GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:"
+    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 ARG UID
 ARG GID
