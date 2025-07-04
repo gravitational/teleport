@@ -127,7 +127,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 			ws.NewCloseFrameBody(closeCode, closeText),
 		)
 		if err := ws.WriteFrame(conn, closeFrame); err != nil {
-			if !utils.IsOKNetworkError(err) {
+			if !isOkNetworkErrOrTimeout(err) {
 				h.logger.DebugContext(r.Context(), "error writing close frame", "error", err)
 			}
 			return
@@ -138,7 +138,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		// because older versions of tsh do not send a close frame.
 		const readDeadline = 5 * time.Second
 		if err := conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
-			if !utils.IsOKNetworkError(err) {
+			if !isOkNetworkErrOrTimeout(err) {
 				h.logger.DebugContext(r.Context(), "error setting read deadline", "error", err)
 			}
 			return
@@ -146,7 +146,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 		frame, err := ws.ReadFrame(conn) // Read the close frame to ensure the client receives it.
 		if err != nil {
-			if !utils.IsOKNetworkError(err) {
+			if !isOkNetworkErrOrTimeout(err) {
 				h.logger.DebugContext(r.Context(), "error reading close frame", "error", err)
 			}
 			return
@@ -186,6 +186,17 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	}
 	closeWebsocketFunc(ws.StatusNormalClosure, "")
 	return nil, nil
+}
+
+// isOkNetworkErrOrTimeout checks if the error is a network error that we
+// should not log.
+func isOkNetworkErrOrTimeout(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		// Check if the error is a timeout or a temporary network error.
+		return netErr.Timeout()
+	}
+	return utils.IsOKNetworkError(err)
 }
 
 var (
