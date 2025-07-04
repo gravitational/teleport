@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package ssh
 
 import (
 	"testing"
@@ -25,15 +25,14 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestSSHHostOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[ssh.HostOutputConfig]{
+	tests := []testutils.TestYAMLCase[HostOutputConfig]{
 		{
 			Name: "full",
-			In: ssh.HostOutputConfig{
+			In: HostOutputConfig{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
@@ -45,7 +44,7 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: ssh.HostOutputConfig{
+			In: HostOutputConfig{
 				Destination: dest,
 				Principals:  []string{"host.example.com"},
 			},
@@ -55,11 +54,11 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 }
 
 func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testutils.TestCheckAndSetDefaultsCase[*ssh.HostOutputConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*HostOutputConfig]{
 		{
 			Name: "valid",
-			In: func() *ssh.HostOutputConfig {
-				return &ssh.HostOutputConfig{
+			In: func() *HostOutputConfig {
+				return &HostOutputConfig{
 					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Principals:  []string{"host.example.com"},
@@ -68,8 +67,8 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing destination",
-			In: func() *ssh.HostOutputConfig {
-				return &ssh.HostOutputConfig{
+			In: func() *HostOutputConfig {
+				return &HostOutputConfig{
 					Destination: nil,
 					Principals:  []string{"host.example.com"},
 				}
@@ -78,8 +77,8 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing principals",
-			In: func() *ssh.HostOutputConfig {
-				return &ssh.HostOutputConfig{
+			In: func() *HostOutputConfig {
+				return &HostOutputConfig{
 					Destination: destination.NewMemory(),
 				}
 			},

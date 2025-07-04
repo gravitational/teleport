@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package application
 
 import (
 	"testing"
@@ -24,16 +24,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestYAMLCase[application.TunnelConfig]{
+	tests := []testutils.TestYAMLCase[TunnelConfig]{
 		{
 			Name: "full",
-			In: application.TunnelConfig{
+			In: TunnelConfig{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -49,11 +48,11 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testutils.TestCheckAndSetDefaultsCase[*application.TunnelConfig]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*TunnelConfig]{
 		{
 			Name: "valid",
-			In: func() *application.TunnelConfig {
-				return &application.TunnelConfig{
+			In: func() *TunnelConfig {
+				return &TunnelConfig{
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
@@ -63,8 +62,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing listen",
-			In: func() *application.TunnelConfig {
-				return &application.TunnelConfig{
+			In: func() *TunnelConfig {
+				return &TunnelConfig{
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
@@ -73,8 +72,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "listen not url",
-			In: func() *application.TunnelConfig {
-				return &application.TunnelConfig{
+			In: func() *TunnelConfig {
+				return &TunnelConfig{
 					Listen:  "\x00",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
@@ -84,8 +83,8 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			Name: "missing app name",
-			In: func() *application.TunnelConfig {
-				return &application.TunnelConfig{
+			In: func() *TunnelConfig {
+				return &TunnelConfig{
 					Listen: "tcp://0.0.0.0:3621",
 					Roles:  []string{"role1", "role2"},
 				}

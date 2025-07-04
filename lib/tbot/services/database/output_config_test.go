@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package database
 
 import (
 	"testing"
@@ -25,20 +25,20 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/testutils"
-	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
-func TestIdentityOutput_YAML(t *testing.T) {
+func TestDatabaseOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testutils.TestYAMLCase[identity.OutputConfig]{
+	tests := []testutils.TestYAMLCase[OutputConfig]{
 		{
 			Name: "full",
-			In: identity.OutputConfig{
-				Destination:   dest,
-				Roles:         []string{"access"},
-				Cluster:       "leaf.example.com",
-				SSHConfigMode: identity.SSHConfigModeOff,
-				AllowReissue:  true,
+			In: OutputConfig{
+				Destination: dest,
+				Roles:       []string{"access"},
+				Format:      TLSDatabaseFormat,
+				Service:     "my-database-service",
+				Database:    "my-database",
+				Username:    "my-username",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -47,56 +47,58 @@ func TestIdentityOutput_YAML(t *testing.T) {
 		},
 		{
 			Name: "minimal",
-			In: identity.OutputConfig{
+			In: OutputConfig{
 				Destination: dest,
+				Service:     "my-database-service",
 			},
 		},
 	}
 	testutils.TestYAML(t, tests)
 }
 
-func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testutils.TestCheckAndSetDefaultsCase[*identity.OutputConfig]{
+func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testutils.TestCheckAndSetDefaultsCase[*OutputConfig]{
 		{
 			Name: "valid",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
-					Destination:   destination.NewMemory(),
-					Roles:         []string{"access"},
-					SSHConfigMode: identity.SSHConfigModeOn,
-				}
-			},
-		},
-		{
-			Name: "ssh config mode defaults",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
+			In: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: destination.NewMemory(),
+					Roles:       []string{"access"},
+					Database:    "db",
+					Service:     "service",
+					Username:    "username",
 				}
-			},
-			Want: &identity.OutputConfig{
-				Destination:   destination.NewMemory(),
-				SSHConfigMode: identity.SSHConfigModeOn,
 			},
 		},
 		{
 			Name: "missing destination",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
+			In: func() *OutputConfig {
+				return &OutputConfig{
 					Destination: nil,
+					Service:     "service",
 				}
 			},
 			WantErr: "no destination configured for output",
 		},
 		{
-			Name: "invalid ssh config mode",
-			In: func() *identity.OutputConfig {
-				return &identity.OutputConfig{
-					Destination:   destination.NewMemory(),
-					SSHConfigMode: "invalid",
+			Name: "missing service",
+			In: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
 				}
 			},
-			WantErr: "ssh_config: unrecognized value \"invalid\"",
+			WantErr: "service must not be empty",
+		},
+		{
+			Name: "invalid format",
+			In: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					Service:     "service",
+					Format:      "no-such-format",
+				}
+			},
+			WantErr: "unrecognized format (no-such-format)",
 		},
 	}
 	testutils.TestCheckAndSetDefaults(t, tests)
