@@ -107,6 +107,9 @@ export const Primary = (props: LabelPropsWithoutKind) => (
 export const Secondary = (props: LabelPropsWithoutKind) => (
   <Label kind="secondary" {...props} />
 );
+export const Outline = (props: LabelPropsWithoutKind) => (
+  <Label kind="outline" {...props} />
+);
 export const Warning = (props: LabelPropsWithoutKind) => (
   <Label kind="warning" {...props} />
 );

@@ -17,7 +17,7 @@
  */
 
 import Flex from 'design/Flex';
-import Label from 'design/Label/Label';
+import { Outline } from 'design/Label/Label';
 
 import { Panel } from './Panel';
 
@@ -28,9 +28,9 @@ export function Roles(props: { roles: string[] }) {
     <Panel title="Roles" isSubPanel testId="roles-panel">
       <Flex>
         {roles.map(r => (
-          <Label mr="1" key={r} kind="outline">
+          <Outline mr="1" key={r}>
             {r}
-          </Label>
+          </Outline>
         ))}
       </Flex>
     </Panel>
