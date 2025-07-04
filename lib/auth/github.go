@@ -427,7 +427,7 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubA
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
+	ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
@@ -445,7 +445,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}
 
-	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
+	auth, err := m.ValidateGithubAuthRedirect(ctx, diagCtx, q)
 	diagCtx.Info.Error = trace.UserMessage(err)
 	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
 
@@ -535,8 +535,8 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 	}
 }
 
-// ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+// ValidateGithubAuthRedirect validates Github auth callback redirect
+func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	logger := a.logger.With(teleport.ComponentKey, "github")
 
 	if errParam := q.Get("error"); errParam != "" {
