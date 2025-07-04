@@ -114,6 +114,11 @@ type AWSRolesAnywhereServiceConfig struct {
 
 	Clock  clockwork.Clock
 	Logger *slog.Logger
+
+	// newPingClient is used to initialize a PingClient.
+	// If nil, the service will create a new PingClient using the AWS client config.
+	// This is useful for testing purposes, allowing to inject a mock client.
+	newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)
 }
 
 // CheckAndSetDefaults checks the AWSRolesAnywhereServiceConfig fields and returns an error if a required param is not provided.
@@ -135,6 +140,10 @@ func (s *AWSRolesAnywhereServiceConfig) CheckAndSetDefaults() error {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsra.service")
 	}
 
+	if s.newPingClient == nil {
+		s.newPingClient = awsra.NewPingClient
+	}
+
 	return nil
 }
 
@@ -153,16 +162,8 @@ type AWSRolesAnywhereService struct {
 	newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)
 }
 
-type AWSRolesAnywhereServiceOptionFunc func(*AWSRolesAnywhereService)
-
-func withMockedPingClient(newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)) AWSRolesAnywhereServiceOptionFunc {
-	return func(cfg *AWSRolesAnywhereService) {
-		cfg.newPingClient = newPingClient
-	}
-}
-
 // NewAWSRolesAnywhereService returns a new AWSRolesAnywhereService.
-func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig, opts ...AWSRolesAnywhereServiceOptionFunc) (*AWSRolesAnywhereService, error) {
+func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig) (*AWSRolesAnywhereService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,10 +173,7 @@ func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig, opts ...AWSR
 		logger:             cfg.Logger,
 		authorizer:         cfg.Authorizer,
 		clock:              cfg.Clock,
-	}
-
-	for _, opt := range opts {
-		opt(ret)
+		newPingClient:      cfg.newPingClient,
 	}
 
 	return ret, nil

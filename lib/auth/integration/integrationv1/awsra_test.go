@@ -141,22 +141,20 @@ func TestAWSRolesAnywherePing(t *testing.T) {
 		},
 	}
 
-	awsRolesAnywhereService, err := NewAWSRolesAnywhereService(
-		&AWSRolesAnywhereServiceConfig{
-			IntegrationService: resourceSvc,
-			Authorizer:         resourceSvc.authorizer,
-			Clock:              resourceSvc.clock,
-			Logger:             resourceSvc.logger,
-		},
-		withMockedPingClient(func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error) {
+	awsRolesAnywhereService, err := NewAWSRolesAnywhereService(&AWSRolesAnywhereServiceConfig{
+		IntegrationService: resourceSvc,
+		Authorizer:         resourceSvc.authorizer,
+		Clock:              resourceSvc.clock,
+		Logger:             resourceSvc.logger,
+		newPingClient: func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error) {
 			return &mockPingClient{
 				accountID: "123456789012",
 				profiles: []ratypes.ProfileDetail{
 					exampleProfile,
 				},
 			}, nil
-		}),
-	)
+		},
+	})
 	require.NoError(t, err)
 
 	t.Run("test connection using an integration", func(t *testing.T) {
