@@ -20,6 +20,7 @@ package servicecfg
 
 import (
 	"crypto/x509"
+	"log/slog"
 	"maps"
 	"regexp"
 	"time"
@@ -146,6 +147,15 @@ type HostLabelRule struct {
 	Labels map[string]string
 }
 
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool
+	// Site is an LDAP site to locate servers from a specific logical site.
+	Site string
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the address:port of the LDAP server (typically port 389).
@@ -162,4 +172,9 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
+	// LocateServer automatically locates the LDAP server using DNS SRV records.
+	// https://ldap.com/dns-srv-records-for-ldap/
+	LocateServer
+	// Logger is the logger for the service.
+	Logger *slog.Logger
 }
