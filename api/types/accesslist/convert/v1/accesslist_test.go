@@ -33,6 +33,8 @@ import (
 )
 
 func TestWithOwnersIneligibleStatusField(t *testing.T) {
+	t.Parallel()
+
 	proto := []*accesslistv1.AccessListOwner{
 		{
 			Name:             "expired",
@@ -89,26 +91,54 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 }
 
 func TestRoundtrip(t *testing.T) {
-	t.Run("with custom subkind", func(t *testing.T) {
-		accessList := newAccessList(t, "access-list")
-		accessList.ResourceHeader.SetSubKind("access-list-subkind")
+	t.Parallel()
 
-		converted, err := FromProto(ToProto(accessList))
-		require.NoError(t, err)
+	type testCase struct {
+		name           string
+		modificationFn func(*accesslist.AccessList)
+	}
 
-		require.Empty(t, cmp.Diff(accessList, converted))
-	})
+	for _, tc := range []testCase{
+		{
+			name:           "no-modifications",
+			modificationFn: func(accessList *accesslist.AccessList) {},
+		},
+		{
+			name: "with-subkind",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.ResourceHeader.SetSubKind("access-list-subkind")
+			},
+		},
+		{
+			name: "dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Dynamic
+			},
+		},
+		{
+			name: "implicit-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = ""
+			},
+		},
+		{
+			name: "static-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Static
+				accessList.Spec.Audit = accesslist.Audit{}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accessList := newAccessList(t, "access-list")
+			tc.modificationFn(accessList)
 
-	t.Run("with non-default type", func(t *testing.T) {
-		accessList := newAccessList(t, "access-list")
-		accessList.Spec.Type = accesslist.Static
+			converted, err := FromProto(ToProto(accessList))
+			require.NoError(t, err)
 
-		converted, err := FromProto(ToProto(accessList))
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(accessList, converted))
-		require.Equal(t, accesslist.Static, converted.Spec.Type)
-	})
+			require.Empty(t, cmp.Diff(accessList, converted))
+		})
+	}
 }
 
 func Test_FromProto_withBadType(t *testing.T) {
@@ -122,6 +152,8 @@ func Test_FromProto_withBadType(t *testing.T) {
 
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
+	t.Parallel()
+
 	t.Run("spec", func(t *testing.T) {
 		accessList := ToProto(newAccessList(t, "access-list"))
 		accessList.Spec = nil
@@ -275,6 +307,8 @@ func TestNextAuditDateZeroTime(t *testing.T) {
 }
 
 func TestConvAccessList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input *accesslistv1.AccessList
@@ -357,6 +391,28 @@ func TestConvAccessList(t *testing.T) {
 				Status: &accesslistv1.AccessListStatus{},
 			},
 		},
+		{
+			name: "SCIM, Static access list allows for empty owners",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Type:        string(accesslist.SCIM),
+					Title:       "test access list",
+					Description: "test description",
+					Owners:      []*accesslistv1.AccessListOwner{},
+					Grants: &accesslistv1.AccessListGrants{
+						Roles: []string{"role1"},
+					},
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -366,10 +422,6 @@ func TestConvAccessList(t *testing.T) {
 
 			got := ToProto(acl)
 			require.NoError(t, err)
-
-			if tt.input.Spec.Type == "" {
-				tt.input.Spec.Type = string(accesslist.Dynamic)
-			}
 
 			require.Equal(t, tt.input, got)
 		})

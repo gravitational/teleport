@@ -99,7 +99,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		bearerToken: csResp.Token,
 	}
 
-	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	respStatusCode, bs := webClient.DoWebAPIRequest(t, http.MethodGet, "sites", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
 
 	var clusters []ui.Cluster
@@ -189,7 +189,7 @@ func LoginMFAWebClient(t *testing.T, host string, passwordlessDevice *mocku2f.Ke
 		bearerToken: csResp.Token,
 	}
 
-	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	respStatusCode, bs := webClient.DoWebAPIRequest(t, http.MethodGet, "sites", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
 
 	var clusters []ui.Cluster
@@ -200,14 +200,12 @@ func LoginMFAWebClient(t *testing.T, host string, passwordlessDevice *mocku2f.Ke
 	return webClient
 }
 
-// DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
+// DoWebAPIRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Status Code and Body are returned.
 // "$site" in the endpoint is substituted by the current site.
-func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
-	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
-	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
-	u, err := url.Parse(endpoint)
+func (w *WebClientPack) DoWebAPIRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
+	u, err := url.Parse(w.Endpoint("v1", "webapi", endpoint))
 	require.NoError(t, err)
 
 	bs, err := json.Marshal(payload)
@@ -216,14 +214,8 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(bs))
 	require.NoError(t, err)
 
-	req.AddCookie(&http.Cookie{
-		Name:  websession.CookieName,
-		Value: w.webCookie,
-	})
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", w.bearerToken))
 	req.Header.Add("Content-Type", "application/json")
-
-	resp, err := w.clt.Do(req)
+	resp, err := w.Do(req)
 	require.NoError(t, err)
 
 	defer resp.Body.Close()
@@ -232,6 +224,24 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	require.NoError(t, err)
 
 	return resp.StatusCode, body
+}
+
+// Do sends an HTTP request with the web session cookie and bearer token.
+func (w *WebClientPack) Do(req *http.Request) (*http.Response, error) {
+	req.AddCookie(&http.Cookie{
+		Name:  websession.CookieName,
+		Value: w.webCookie,
+	})
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", w.bearerToken))
+
+	resp, err := w.clt.Do(req)
+	return resp, err
+}
+
+// Endpoint returns a Teleport API endpoint URL.
+func (w *WebClientPack) Endpoint(params ...string) string {
+	endpoint := fmt.Sprintf("%s://%s/%s", client.HTTPS, w.host, strings.Join(params, "/"))
+	return strings.ReplaceAll(endpoint, "$site", w.clusterName)
 }
 
 // OpenWebsocket opens a websocket on a given Teleport API endpoint.
