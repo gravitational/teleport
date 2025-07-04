@@ -101,30 +101,21 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 }
 
 func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (any, error) {
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-		Subprotocols: []string{
-			constants.WebAPIConnUpgradeTypeALPN,
-			constants.WebAPIConnUpgradeTypeALPNPing,
-		},
-	}
-	wsConn, err := upgrader.Upgrade(w, r, nil)
+	conn, hs, err := h.websocketUpgrade(r, w)
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
-	// websocketALPNServerConn uses "github.com/gobwas/ws" on the raw net.Conn
-	// instead of gorilla's websocket.Conn to workaround an issue that
-	// websocket.Conn caches read error when websocketALPNServerConn is passed
-	// to a HTTP server and get hijacked for another upgrade. Note that client
-	// side's (api/client) websocket ALPN connection wrapper also uses
-	// "github.com/gobwas/ws".
-	conn := newWebSocketALPNServerConn(r.Context(), wsConn.NetConn(), h.logger)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	closeWebsocketFunc := func(closeCode int, closeText string) {
+	closeWebsocketFunc := func(closeCode ws.StatusCode, closeText string) {
+		defer func() {
+			if err := conn.Close(); err != nil {
+				h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
+			}
+		}()
 		// Ensure the WebSocket connection is closed when the handler returns.
 		// This is important because intermediate load balancers may not
 		// properly handle the WebSocket connection if it is not closed
@@ -132,38 +123,46 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		// Calling wsConn.Close() will not send a close frame, so we
 		// send a close frame first otherwise the client may see it as an
 		// io.EOF error.
-		closeMessage := websocket.FormatCloseMessage(closeCode, closeText)
-		h.logger.DebugContext(r.Context(), "Closing websocket")
-		if err := wsConn.WriteMessage(websocket.CloseMessage, closeMessage); err != nil {
-			h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
-		}
-		closeC := make(chan struct{})
-		go func() {
-			defer close(closeC)
-			msgType, _, err := wsConn.ReadMessage()
-			if err != nil && !errors.Is(err, io.EOF) {
-				h.logger.DebugContext(r.Context(), "error reading close message", "error", err)
-				return
+		closeFrame := ws.NewCloseFrame(
+			ws.NewCloseFrameBody(closeCode, closeText),
+		)
+		if err := ws.WriteFrame(conn, closeFrame); err != nil {
+			if !utils.IsOKNetworkError(err) {
+				h.logger.DebugContext(r.Context(), "error writing close frame", "error", err)
 			}
-			// After reading the close message, we can safely close the connection.
-			if msgType != websocket.CloseMessage {
-				h.logger.DebugContext(r.Context(), "unexpected message type after close", "msg_type",
-					msgType, "error", err)
+			return
+		}
+		// Set a read deadline to ensure we won't block indefinitely
+		// waiting for the client to respond with a close frame.
+		// This is important because the client may not send a close frame
+		// because older versions of tsh do not send a close frame.
+		const readDeadline = 5 * time.Second
+		if err := conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
+			if !utils.IsOKNetworkError(err) {
+				h.logger.DebugContext(r.Context(), "error setting read deadline", "error", err)
 			}
-		}()
-		select {
-		case <-closeC:
-		case <-time.After(5 * time.Second):
-			h.logger.DebugContext(r.Context(), "timeout waiting for close message")
+			return
 		}
-		if err := wsConn.Close(); err != nil {
-			h.logger.DebugContext(r.Context(), "error closing websocket", "error", err)
+
+		frame, err := ws.ReadFrame(conn) // Read the close frame to ensure the client receives it.
+		if err != nil {
+			if !utils.IsOKNetworkError(err) {
+				h.logger.DebugContext(r.Context(), "error reading close frame", "error", err)
+			}
+			return
 		}
+
+		if frame.Header.OpCode != ws.OpClose {
+			h.logger.DebugContext(r.Context(), "unexpected frame type after close", "op_code",
+				frame.Header.OpCode, "error", err)
+			return
+		}
+
 	}
 
-	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
+	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", hs.Protocol)
 
-	switch wsConn.Subprotocol() {
+	switch hs.Protocol {
 	case constants.WebAPIConnUpgradeTypeALPNPing:
 		// Starts native WebSocket ping for "alpn-ping".
 		go h.startPing(ctx, conn)
@@ -173,20 +172,40 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		// Just close the connection. Upgrader hijacks the connection so no
 		// point returning an error.
 		h.logger.DebugContext(ctx, "Unknown or empty WebSocket subprotocol.", "client_protocols", websocket.Subprotocols(r))
-		closeWebsocketFunc(websocket.CloseUnsupportedData, "unknown or empty subprotocol")
+		closeWebsocketFunc(ws.StatusUnsupportedData, "unknown or empty subprotocol")
 		return nil, nil
 	}
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
 		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request",
-			"protocol", wsConn.Subprotocol(),
+			"protocol", hs.Protocol,
 			"error", err,
 			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
 		)
 	}
-	closeWebsocketFunc(websocket.CloseNormalClosure, "")
+	closeWebsocketFunc(ws.StatusNormalClosure, "")
 	return nil, nil
+}
+
+var (
+	wsProtocolUpgrader = ws.HTTPUpgrader{
+		Protocol: func(clientProtocol string) bool {
+			// Accepts any protocol, but we only use ALPN ping and ALPN.
+			return clientProtocol == constants.WebAPIConnUpgradeTypeALPNPing ||
+				clientProtocol == constants.WebAPIConnUpgradeTypeALPN
+		},
+	}
+)
+
+// websocketUpgrade upgrades the HTTP request to a WebSocket connection and
+// returns the WebSocket connection and the handshake information.
+func (h *Handler) websocketUpgrade(r *http.Request, w http.ResponseWriter) (*websocketALPNServerConn, ws.Handshake, error) {
+	conn, _, hs, err := wsProtocolUpgrader.Upgrade(r, w)
+	if err != nil {
+		return nil, hs, trace.Wrap(err)
+	}
+	return newWebSocketALPNServerConn(r.Context(), conn, h.logger), hs, nil
 }
 
 func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
