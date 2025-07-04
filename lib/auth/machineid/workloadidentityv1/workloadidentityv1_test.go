@@ -2067,9 +2067,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, res.WorkloadIdentities, 29)
 		require.Empty(t, res.NextPageToken)
 		for _, created := range created {
-			slices.ContainsFunc(res.WorkloadIdentities, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(res.WorkloadIdentities, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 
@@ -2098,9 +2098,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		require.Len(t, fetched, 29)
 		require.Equal(t, 3, iterations)
 		for _, created := range created {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentity) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }
@@ -2969,9 +2969,9 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 		require.Len(t, res.WorkloadIdentityX509Revocations, 29)
 		require.Empty(t, res.NextPageToken)
 		for _, created := range created {
-			slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 
@@ -3000,9 +3000,9 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 		require.Len(t, fetched, 29)
 		require.Equal(t, 3, iterations)
 		for _, created := range created {
-			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
 				return proto.Equal(created, resource)
-			})
+			}))
 		}
 	})
 }
