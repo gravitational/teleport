@@ -217,3 +217,22 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 		)
 	}
 }
+
+// ReadOneResponse reads one message from the reader and marshals it to a
+// response.
+func ReadOneResponse(ctx context.Context, reader TransportReader) (*JSONRPCResponse, error) {
+	rawMessage, err := reader.ReadMessage(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var base baseJSONRPCMessage
+	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
+		return nil, trace.Wrap(parseError)
+	}
+
+	if !base.isResponse() {
+		return nil, trace.BadParameter("message is not a response")
+	}
+	return base.makeResponse(), nil
+}
