@@ -20,7 +20,7 @@ import { styled, useTheme } from 'styled-components';
 
 import Flex from 'design/Flex';
 import { Question } from 'design/Icon/Icons/Question';
-import Label from 'design/Label/Label';
+import { Outline } from 'design/Label/Label';
 import { fontWeights } from 'design/theme/typography';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
@@ -45,9 +45,9 @@ export function Traits(props: { traits: ApiBotTrait[] }) {
                 <td>
                   {r.values.length > 0
                     ? r.values.map(v => (
-                        <Label mr="1" key={v} kind="outline">
+                        <Outline mr="1" key={v}>
                           {v}
-                        </Label>
+                        </Outline>
                       ))
                     : 'no values'}
                 </td>
