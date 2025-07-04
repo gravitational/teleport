@@ -4378,6 +4378,238 @@ func (*SetSharedDirectoryForDesktopSessionResponse) Descriptor() ([]byte, []int)
 	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{77}
 }
 
+// Request for GetAutoUpdateVersions.
+type GetAutoUpdateVersionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoUpdateVersionsRequest) Reset() {
+	*x = GetAutoUpdateVersionsRequest{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoUpdateVersionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoUpdateVersionsRequest) ProtoMessage() {}
+
+func (x *GetAutoUpdateVersionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoUpdateVersionsRequest.ProtoReflect.Descriptor instead.
+func (*GetAutoUpdateVersionsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{78}
+}
+
+// Response for GetAutoUpdateVersions.
+type GetAutoUpdateVersionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Versions      []*Version             `protobuf:"bytes,3,rep,name=versions,proto3" json:"versions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoUpdateVersionsResponse) Reset() {
+	*x = GetAutoUpdateVersionsResponse{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoUpdateVersionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoUpdateVersionsResponse) ProtoMessage() {}
+
+func (x *GetAutoUpdateVersionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoUpdateVersionsResponse.ProtoReflect.Descriptor instead.
+func (*GetAutoUpdateVersionsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *GetAutoUpdateVersionsResponse) GetVersions() []*Version {
+	if x != nil {
+		return x.Versions
+	}
+	return nil
+}
+
+type Version struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ClusterUri      string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	ToolsAutoUpdate bool                   `protobuf:"varint,2,opt,name=tools_auto_update,json=toolsAutoUpdate,proto3" json:"tools_auto_update,omitempty"`
+	ToolsVersion    string                 `protobuf:"bytes,3,opt,name=tools_version,json=toolsVersion,proto3" json:"tools_version,omitempty"`
+	MinToolsVersion string                 `protobuf:"bytes,4,opt,name=min_tools_version,json=minToolsVersion,proto3" json:"min_tools_version,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *Version) Reset() {
+	*x = Version{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Version) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Version) ProtoMessage() {}
+
+func (x *Version) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Version.ProtoReflect.Descriptor instead.
+func (*Version) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *Version) GetClusterUri() string {
+	if x != nil {
+		return x.ClusterUri
+	}
+	return ""
+}
+
+func (x *Version) GetToolsAutoUpdate() bool {
+	if x != nil {
+		return x.ToolsAutoUpdate
+	}
+	return false
+}
+
+func (x *Version) GetToolsVersion() string {
+	if x != nil {
+		return x.ToolsVersion
+	}
+	return ""
+}
+
+func (x *Version) GetMinToolsVersion() string {
+	if x != nil {
+		return x.MinToolsVersion
+	}
+	return ""
+}
+
+// Request for GetAutoUpdateBaseUrl.
+type GetAutoUpdateBaseUrlRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoUpdateBaseUrlRequest) Reset() {
+	*x = GetAutoUpdateBaseUrlRequest{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoUpdateBaseUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoUpdateBaseUrlRequest) ProtoMessage() {}
+
+func (x *GetAutoUpdateBaseUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoUpdateBaseUrlRequest.ProtoReflect.Descriptor instead.
+func (*GetAutoUpdateBaseUrlRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{81}
+}
+
+// Response for GetAutoUpdateBaseUrl.
+type GetAutoUpdateBaseUrlResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BaseUrl       string                 `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoUpdateBaseUrlResponse) Reset() {
+	*x = GetAutoUpdateBaseUrlResponse{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoUpdateBaseUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoUpdateBaseUrlResponse) ProtoMessage() {}
+
+func (x *GetAutoUpdateBaseUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoUpdateBaseUrlResponse.ProtoReflect.Descriptor instead.
+func (*GetAutoUpdateBaseUrlResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *GetAutoUpdateBaseUrlResponse) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
 // LoginPasswordlessRequestInit contains fields needed to init the stream request.
 type LoginPasswordlessRequest_LoginPasswordlessRequestInit struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4389,7 +4621,7 @@ type LoginPasswordlessRequest_LoginPasswordlessRequestInit struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessRequestInit{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4401,7 +4633,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) String() string 
 func (*LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4435,7 +4667,7 @@ type LoginPasswordlessRequest_LoginPasswordlessPINResponse struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessPINResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4447,7 +4679,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) String() string 
 func (*LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4483,7 +4715,7 @@ type LoginPasswordlessRequest_LoginPasswordlessCredentialResponse struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4495,7 +4727,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) String() 
 func (*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4533,7 +4765,7 @@ type LoginRequest_LocalParams struct {
 
 func (x *LoginRequest_LocalParams) Reset() {
 	*x = LoginRequest_LocalParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4545,7 +4777,7 @@ func (x *LoginRequest_LocalParams) String() string {
 func (*LoginRequest_LocalParams) ProtoMessage() {}
 
 func (x *LoginRequest_LocalParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4595,7 +4827,7 @@ type LoginRequest_SsoParams struct {
 
 func (x *LoginRequest_SsoParams) Reset() {
 	*x = LoginRequest_SsoParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4607,7 +4839,7 @@ func (x *LoginRequest_SsoParams) String() string {
 func (*LoginRequest_SsoParams) ProtoMessage() {}
 
 func (x *LoginRequest_SsoParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4913,7 +5145,19 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"desktopUri\x12\x14\n" +
 	"\x05login\x18\x02 \x01(\tR\x05login\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\"-\n" +
-	"+SetSharedDirectoryForDesktopSessionResponse*\x97\x01\n" +
+	"+SetSharedDirectoryForDesktopSessionResponse\"\x1e\n" +
+	"\x1cGetAutoUpdateVersionsRequest\"^\n" +
+	"\x1dGetAutoUpdateVersionsResponse\x12=\n" +
+	"\bversions\x18\x03 \x03(\v2!.teleport.lib.teleterm.v1.VersionR\bversions\"\xa7\x01\n" +
+	"\aVersion\x12\x1f\n" +
+	"\vcluster_uri\x18\x01 \x01(\tR\n" +
+	"clusterUri\x12*\n" +
+	"\x11tools_auto_update\x18\x02 \x01(\bR\x0ftoolsAutoUpdate\x12#\n" +
+	"\rtools_version\x18\x03 \x01(\tR\ftoolsVersion\x12*\n" +
+	"\x11min_tools_version\x18\x04 \x01(\tR\x0fminToolsVersion\"\x1d\n" +
+	"\x1bGetAutoUpdateBaseUrlRequest\"9\n" +
+	"\x1cGetAutoUpdateBaseUrlResponse\x12\x19\n" +
+	"\bbase_url\x18\x01 \x01(\tR\abaseUrl*\x97\x01\n" +
 	"\x12PasswordlessPrompt\x12#\n" +
 	"\x1fPASSWORDLESS_PROMPT_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17PASSWORDLESS_PROMPT_PIN\x10\x01\x12\x1b\n" +
@@ -4927,7 +5171,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	")HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED\x10\x00\x12)\n" +
 	"%HEADLESS_AUTHENTICATION_STATE_PENDING\x10\x01\x12(\n" +
 	"$HEADLESS_AUTHENTICATION_STATE_DENIED\x10\x02\x12*\n" +
-	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\xa9+\n" +
+	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\xbc-\n" +
 	"\x0fTerminalService\x12\xa0\x01\n" +
 	"\x1dUpdateTshdEventsServerAddress\x12>.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest\x1a?.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse\x12q\n" +
 	"\x10ListRootClusters\x12-.teleport.lib.teleterm.v1.ListClustersRequest\x1a..teleport.lib.teleterm.v1.ListClustersResponse\x12u\n" +
@@ -4974,7 +5218,9 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x15AuthenticateWebDevice\x126.teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest\x1a7.teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse\x12[\n" +
 	"\x06GetApp\x12'.teleport.lib.teleterm.v1.GetAppRequest\x1a(.teleport.lib.teleterm.v1.GetAppResponse\x12}\n" +
 	"\x10ConnectToDesktop\x121.teleport.lib.teleterm.v1.ConnectToDesktopRequest\x1a2.teleport.lib.teleterm.v1.ConnectToDesktopResponse(\x010\x01\x12\xb2\x01\n" +
-	"#SetSharedDirectoryForDesktopSession\x12D.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest\x1aE.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"#SetSharedDirectoryForDesktopSession\x12D.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest\x1aE.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse\x12\x88\x01\n" +
+	"\x15GetAutoUpdateVersions\x126.teleport.lib.teleterm.v1.GetAutoUpdateVersionsRequest\x1a7.teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse\x12\x85\x01\n" +
+	"\x14GetAutoUpdateBaseUrl\x125.teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlRequest\x1a6.teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_service_proto_rawDescOnce sync.Once
@@ -4989,7 +5235,7 @@ func file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_lib_teleterm_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_lib_teleterm_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 83)
+var file_teleport_lib_teleterm_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
 var file_teleport_lib_teleterm_v1_service_proto_goTypes = []any{
 	(PasswordlessPrompt)(0),                                              // 0: teleport.lib.teleterm.v1.PasswordlessPrompt
 	(FileTransferDirection)(0),                                           // 1: teleport.lib.teleterm.v1.FileTransferDirection
@@ -5072,166 +5318,176 @@ var file_teleport_lib_teleterm_v1_service_proto_goTypes = []any{
 	(*ConnectToDesktopResponse)(nil),                                     // 78: teleport.lib.teleterm.v1.ConnectToDesktopResponse
 	(*SetSharedDirectoryForDesktopSessionRequest)(nil),                   // 79: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
 	(*SetSharedDirectoryForDesktopSessionResponse)(nil),                  // 80: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
-	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 81: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
-	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 82: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
-	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 83: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
-	(*LoginRequest_LocalParams)(nil),                                     // 84: teleport.lib.teleterm.v1.LoginRequest.LocalParams
-	(*LoginRequest_SsoParams)(nil),                                       // 85: teleport.lib.teleterm.v1.LoginRequest.SsoParams
-	(*AccessRequest)(nil),                                                // 86: teleport.lib.teleterm.v1.AccessRequest
-	(*ResourceID)(nil),                                                   // 87: teleport.lib.teleterm.v1.ResourceID
-	(*timestamppb.Timestamp)(nil),                                        // 88: google.protobuf.Timestamp
-	(*v1.AccessList)(nil),                                                // 89: teleport.accesslist.v1.AccessList
-	(*KubeResource)(nil),                                                 // 90: teleport.lib.teleterm.v1.KubeResource
-	(*Cluster)(nil),                                                      // 91: teleport.lib.teleterm.v1.Cluster
-	(*DatabaseServer)(nil),                                               // 92: teleport.lib.teleterm.v1.DatabaseServer
-	(*Gateway)(nil),                                                      // 93: teleport.lib.teleterm.v1.Gateway
-	(*Server)(nil),                                                       // 94: teleport.lib.teleterm.v1.Server
-	(*Database)(nil),                                                     // 95: teleport.lib.teleterm.v1.Database
-	(*Kube)(nil),                                                         // 96: teleport.lib.teleterm.v1.Kube
-	(*App)(nil),                                                          // 97: teleport.lib.teleterm.v1.App
-	(*WindowsDesktop)(nil),                                               // 98: teleport.lib.teleterm.v1.WindowsDesktop
-	(*v11.ClusterUserPreferences)(nil),                                   // 99: teleport.userpreferences.v1.ClusterUserPreferences
-	(*v11.UnifiedResourcePreferences)(nil),                               // 100: teleport.userpreferences.v1.UnifiedResourcePreferences
-	(*v12.DeviceWebToken)(nil),                                           // 101: teleport.devicetrust.v1.DeviceWebToken
-	(*v12.DeviceConfirmationToken)(nil),                                  // 102: teleport.devicetrust.v1.DeviceConfirmationToken
-	(*ReportUsageEventRequest)(nil),                                      // 103: teleport.lib.teleterm.v1.ReportUsageEventRequest
-	(*AuthSettings)(nil),                                                 // 104: teleport.lib.teleterm.v1.AuthSettings
+	(*GetAutoUpdateVersionsRequest)(nil),                                 // 81: teleport.lib.teleterm.v1.GetAutoUpdateVersionsRequest
+	(*GetAutoUpdateVersionsResponse)(nil),                                // 82: teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse
+	(*Version)(nil),                                                      // 83: teleport.lib.teleterm.v1.Version
+	(*GetAutoUpdateBaseUrlRequest)(nil),                                  // 84: teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlRequest
+	(*GetAutoUpdateBaseUrlResponse)(nil),                                 // 85: teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlResponse
+	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 86: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
+	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 87: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
+	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 88: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
+	(*LoginRequest_LocalParams)(nil),                                     // 89: teleport.lib.teleterm.v1.LoginRequest.LocalParams
+	(*LoginRequest_SsoParams)(nil),                                       // 90: teleport.lib.teleterm.v1.LoginRequest.SsoParams
+	(*AccessRequest)(nil),                                                // 91: teleport.lib.teleterm.v1.AccessRequest
+	(*ResourceID)(nil),                                                   // 92: teleport.lib.teleterm.v1.ResourceID
+	(*timestamppb.Timestamp)(nil),                                        // 93: google.protobuf.Timestamp
+	(*v1.AccessList)(nil),                                                // 94: teleport.accesslist.v1.AccessList
+	(*KubeResource)(nil),                                                 // 95: teleport.lib.teleterm.v1.KubeResource
+	(*Cluster)(nil),                                                      // 96: teleport.lib.teleterm.v1.Cluster
+	(*DatabaseServer)(nil),                                               // 97: teleport.lib.teleterm.v1.DatabaseServer
+	(*Gateway)(nil),                                                      // 98: teleport.lib.teleterm.v1.Gateway
+	(*Server)(nil),                                                       // 99: teleport.lib.teleterm.v1.Server
+	(*Database)(nil),                                                     // 100: teleport.lib.teleterm.v1.Database
+	(*Kube)(nil),                                                         // 101: teleport.lib.teleterm.v1.Kube
+	(*App)(nil),                                                          // 102: teleport.lib.teleterm.v1.App
+	(*WindowsDesktop)(nil),                                               // 103: teleport.lib.teleterm.v1.WindowsDesktop
+	(*v11.ClusterUserPreferences)(nil),                                   // 104: teleport.userpreferences.v1.ClusterUserPreferences
+	(*v11.UnifiedResourcePreferences)(nil),                               // 105: teleport.userpreferences.v1.UnifiedResourcePreferences
+	(*v12.DeviceWebToken)(nil),                                           // 106: teleport.devicetrust.v1.DeviceWebToken
+	(*v12.DeviceConfirmationToken)(nil),                                  // 107: teleport.devicetrust.v1.DeviceConfirmationToken
+	(*ReportUsageEventRequest)(nil),                                      // 108: teleport.lib.teleterm.v1.ReportUsageEventRequest
+	(*AuthSettings)(nil),                                                 // 109: teleport.lib.teleterm.v1.AuthSettings
 }
 var file_teleport_lib_teleterm_v1_service_proto_depIdxs = []int32{
-	86,  // 0: teleport.lib.teleterm.v1.GetAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	86,  // 1: teleport.lib.teleterm.v1.GetAccessRequestsResponse.requests:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	87,  // 2: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	88,  // 3: teleport.lib.teleterm.v1.CreateAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	88,  // 4: teleport.lib.teleterm.v1.CreateAccessRequestRequest.max_duration:type_name -> google.protobuf.Timestamp
-	88,  // 5: teleport.lib.teleterm.v1.CreateAccessRequestRequest.request_ttl:type_name -> google.protobuf.Timestamp
-	86,  // 6: teleport.lib.teleterm.v1.CreateAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	87,  // 7: teleport.lib.teleterm.v1.GetRequestableRolesRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	88,  // 8: teleport.lib.teleterm.v1.ReviewAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	86,  // 9: teleport.lib.teleterm.v1.ReviewAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	86,  // 10: teleport.lib.teleterm.v1.PromoteAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	89,  // 11: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	90,  // 12: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeResource
+	91,  // 0: teleport.lib.teleterm.v1.GetAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	91,  // 1: teleport.lib.teleterm.v1.GetAccessRequestsResponse.requests:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	92,  // 2: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	93,  // 3: teleport.lib.teleterm.v1.CreateAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	93,  // 4: teleport.lib.teleterm.v1.CreateAccessRequestRequest.max_duration:type_name -> google.protobuf.Timestamp
+	93,  // 5: teleport.lib.teleterm.v1.CreateAccessRequestRequest.request_ttl:type_name -> google.protobuf.Timestamp
+	91,  // 6: teleport.lib.teleterm.v1.CreateAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	92,  // 7: teleport.lib.teleterm.v1.GetRequestableRolesRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	93,  // 8: teleport.lib.teleterm.v1.ReviewAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	91,  // 9: teleport.lib.teleterm.v1.ReviewAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	91,  // 10: teleport.lib.teleterm.v1.PromoteAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	94,  // 11: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	95,  // 12: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeResource
 	0,   // 13: teleport.lib.teleterm.v1.LoginPasswordlessResponse.prompt:type_name -> teleport.lib.teleterm.v1.PasswordlessPrompt
 	27,  // 14: teleport.lib.teleterm.v1.LoginPasswordlessResponse.credentials:type_name -> teleport.lib.teleterm.v1.CredentialInfo
-	81,  // 15: teleport.lib.teleterm.v1.LoginPasswordlessRequest.init:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
-	82,  // 16: teleport.lib.teleterm.v1.LoginPasswordlessRequest.pin:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
-	83,  // 17: teleport.lib.teleterm.v1.LoginPasswordlessRequest.credential:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
+	86,  // 15: teleport.lib.teleterm.v1.LoginPasswordlessRequest.init:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
+	87,  // 16: teleport.lib.teleterm.v1.LoginPasswordlessRequest.pin:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
+	88,  // 17: teleport.lib.teleterm.v1.LoginPasswordlessRequest.credential:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
 	1,   // 18: teleport.lib.teleterm.v1.FileTransferRequest.direction:type_name -> teleport.lib.teleterm.v1.FileTransferDirection
-	84,  // 19: teleport.lib.teleterm.v1.LoginRequest.local:type_name -> teleport.lib.teleterm.v1.LoginRequest.LocalParams
-	85,  // 20: teleport.lib.teleterm.v1.LoginRequest.sso:type_name -> teleport.lib.teleterm.v1.LoginRequest.SsoParams
-	91,  // 21: teleport.lib.teleterm.v1.ListClustersResponse.clusters:type_name -> teleport.lib.teleterm.v1.Cluster
+	89,  // 19: teleport.lib.teleterm.v1.LoginRequest.local:type_name -> teleport.lib.teleterm.v1.LoginRequest.LocalParams
+	90,  // 20: teleport.lib.teleterm.v1.LoginRequest.sso:type_name -> teleport.lib.teleterm.v1.LoginRequest.SsoParams
+	96,  // 21: teleport.lib.teleterm.v1.ListClustersResponse.clusters:type_name -> teleport.lib.teleterm.v1.Cluster
 	39,  // 22: teleport.lib.teleterm.v1.ListDatabaseServersRequest.params:type_name -> teleport.lib.teleterm.v1.ListResourcesParams
-	92,  // 23: teleport.lib.teleterm.v1.ListDatabaseServersResponse.resources:type_name -> teleport.lib.teleterm.v1.DatabaseServer
-	93,  // 24: teleport.lib.teleterm.v1.ListGatewaysResponse.gateways:type_name -> teleport.lib.teleterm.v1.Gateway
+	97,  // 23: teleport.lib.teleterm.v1.ListDatabaseServersResponse.resources:type_name -> teleport.lib.teleterm.v1.DatabaseServer
+	98,  // 24: teleport.lib.teleterm.v1.ListGatewaysResponse.gateways:type_name -> teleport.lib.teleterm.v1.Gateway
 	2,   // 25: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.state:type_name -> teleport.lib.teleterm.v1.HeadlessAuthenticationState
-	94,  // 26: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.server:type_name -> teleport.lib.teleterm.v1.Server
+	99,  // 26: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.server:type_name -> teleport.lib.teleterm.v1.Server
 	64,  // 27: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.sort_by:type_name -> teleport.lib.teleterm.v1.SortBy
 	66,  // 28: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.PaginatedResource
-	95,  // 29: teleport.lib.teleterm.v1.PaginatedResource.database:type_name -> teleport.lib.teleterm.v1.Database
-	94,  // 30: teleport.lib.teleterm.v1.PaginatedResource.server:type_name -> teleport.lib.teleterm.v1.Server
-	96,  // 31: teleport.lib.teleterm.v1.PaginatedResource.kube:type_name -> teleport.lib.teleterm.v1.Kube
-	97,  // 32: teleport.lib.teleterm.v1.PaginatedResource.app:type_name -> teleport.lib.teleterm.v1.App
-	98,  // 33: teleport.lib.teleterm.v1.PaginatedResource.windows_desktop:type_name -> teleport.lib.teleterm.v1.WindowsDesktop
+	100, // 29: teleport.lib.teleterm.v1.PaginatedResource.database:type_name -> teleport.lib.teleterm.v1.Database
+	99,  // 30: teleport.lib.teleterm.v1.PaginatedResource.server:type_name -> teleport.lib.teleterm.v1.Server
+	101, // 31: teleport.lib.teleterm.v1.PaginatedResource.kube:type_name -> teleport.lib.teleterm.v1.Kube
+	102, // 32: teleport.lib.teleterm.v1.PaginatedResource.app:type_name -> teleport.lib.teleterm.v1.App
+	103, // 33: teleport.lib.teleterm.v1.PaginatedResource.windows_desktop:type_name -> teleport.lib.teleterm.v1.WindowsDesktop
 	71,  // 34: teleport.lib.teleterm.v1.GetUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
 	71,  // 35: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
 	71,  // 36: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	99,  // 37: teleport.lib.teleterm.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
-	100, // 38: teleport.lib.teleterm.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
-	101, // 39: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
-	102, // 40: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
-	97,  // 41: teleport.lib.teleterm.v1.GetAppResponse.app:type_name -> teleport.lib.teleterm.v1.App
+	104, // 37: teleport.lib.teleterm.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
+	105, // 38: teleport.lib.teleterm.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
+	106, // 39: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
+	107, // 40: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
+	102, // 41: teleport.lib.teleterm.v1.GetAppResponse.app:type_name -> teleport.lib.teleterm.v1.App
 	76,  // 42: teleport.lib.teleterm.v1.ConnectToDesktopRequest.target_desktop:type_name -> teleport.lib.teleterm.v1.TargetDesktop
-	49,  // 43: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:input_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
-	34,  // 44: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:input_type -> teleport.lib.teleterm.v1.ListClustersRequest
-	36,  // 45: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:input_type -> teleport.lib.teleterm.v1.ListLeafClustersRequest
-	7,   // 46: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:input_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
-	37,  // 47: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:input_type -> teleport.lib.teleterm.v1.ListDatabaseUsersRequest
-	40,  // 48: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:input_type -> teleport.lib.teleterm.v1.ListDatabaseServersRequest
-	10,  // 49: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:input_type -> teleport.lib.teleterm.v1.GetAccessRequestsRequest
-	9,   // 50: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:input_type -> teleport.lib.teleterm.v1.GetAccessRequestRequest
-	13,  // 51: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:input_type -> teleport.lib.teleterm.v1.DeleteAccessRequestRequest
-	14,  // 52: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:input_type -> teleport.lib.teleterm.v1.CreateAccessRequestRequest
-	19,  // 53: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:input_type -> teleport.lib.teleterm.v1.ReviewAccessRequestRequest
-	17,  // 54: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:input_type -> teleport.lib.teleterm.v1.GetRequestableRolesRequest
-	16,  // 55: teleport.lib.teleterm.v1.TerminalService.AssumeRole:input_type -> teleport.lib.teleterm.v1.AssumeRoleRequest
-	21,  // 56: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:input_type -> teleport.lib.teleterm.v1.PromoteAccessRequestRequest
-	23,  // 57: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:input_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
-	25,  // 58: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:input_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
-	33,  // 59: teleport.lib.teleterm.v1.TerminalService.AddCluster:input_type -> teleport.lib.teleterm.v1.AddClusterRequest
-	4,   // 60: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:input_type -> teleport.lib.teleterm.v1.RemoveClusterRequest
-	43,  // 61: teleport.lib.teleterm.v1.TerminalService.ListGateways:input_type -> teleport.lib.teleterm.v1.ListGatewaysRequest
-	42,  // 62: teleport.lib.teleterm.v1.TerminalService.CreateGateway:input_type -> teleport.lib.teleterm.v1.CreateGatewayRequest
-	45,  // 63: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:input_type -> teleport.lib.teleterm.v1.RemoveGatewayRequest
-	46,  // 64: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:input_type -> teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
-	47,  // 65: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:input_type -> teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
-	48,  // 66: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:input_type -> teleport.lib.teleterm.v1.GetAuthSettingsRequest
-	5,   // 67: teleport.lib.teleterm.v1.TerminalService.GetCluster:input_type -> teleport.lib.teleterm.v1.GetClusterRequest
-	32,  // 68: teleport.lib.teleterm.v1.TerminalService.Login:input_type -> teleport.lib.teleterm.v1.LoginRequest
-	29,  // 69: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:input_type -> teleport.lib.teleterm.v1.LoginPasswordlessRequest
-	6,   // 70: teleport.lib.teleterm.v1.TerminalService.Logout:input_type -> teleport.lib.teleterm.v1.LogoutRequest
-	30,  // 71: teleport.lib.teleterm.v1.TerminalService.TransferFile:input_type -> teleport.lib.teleterm.v1.FileTransferRequest
-	103, // 72: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:input_type -> teleport.lib.teleterm.v1.ReportUsageEventRequest
-	51,  // 73: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:input_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
-	53,  // 74: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
-	55,  // 75: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
-	57,  // 76: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:input_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
-	59,  // 77: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:input_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
-	61,  // 78: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:input_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
-	63,  // 79: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:input_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
-	67,  // 80: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:input_type -> teleport.lib.teleterm.v1.GetUserPreferencesRequest
-	69,  // 81: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:input_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
-	72,  // 82: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
-	74,  // 83: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
-	77,  // 84: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
-	79,  // 85: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
-	50,  // 86: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
-	35,  // 87: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
-	35,  // 88: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
-	8,   // 89: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:output_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
-	38,  // 90: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:output_type -> teleport.lib.teleterm.v1.ListDatabaseUsersResponse
-	41,  // 91: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:output_type -> teleport.lib.teleterm.v1.ListDatabaseServersResponse
-	12,  // 92: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:output_type -> teleport.lib.teleterm.v1.GetAccessRequestsResponse
-	11,  // 93: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:output_type -> teleport.lib.teleterm.v1.GetAccessRequestResponse
-	3,   // 94: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	15,  // 95: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:output_type -> teleport.lib.teleterm.v1.CreateAccessRequestResponse
-	20,  // 96: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:output_type -> teleport.lib.teleterm.v1.ReviewAccessRequestResponse
-	18,  // 97: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:output_type -> teleport.lib.teleterm.v1.GetRequestableRolesResponse
-	3,   // 98: teleport.lib.teleterm.v1.TerminalService.AssumeRole:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	22,  // 99: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:output_type -> teleport.lib.teleterm.v1.PromoteAccessRequestResponse
-	24,  // 100: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:output_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
-	26,  // 101: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:output_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
-	91,  // 102: teleport.lib.teleterm.v1.TerminalService.AddCluster:output_type -> teleport.lib.teleterm.v1.Cluster
-	3,   // 103: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	44,  // 104: teleport.lib.teleterm.v1.TerminalService.ListGateways:output_type -> teleport.lib.teleterm.v1.ListGatewaysResponse
-	93,  // 105: teleport.lib.teleterm.v1.TerminalService.CreateGateway:output_type -> teleport.lib.teleterm.v1.Gateway
-	3,   // 106: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	93,  // 107: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:output_type -> teleport.lib.teleterm.v1.Gateway
-	93,  // 108: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:output_type -> teleport.lib.teleterm.v1.Gateway
-	104, // 109: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:output_type -> teleport.lib.teleterm.v1.AuthSettings
-	91,  // 110: teleport.lib.teleterm.v1.TerminalService.GetCluster:output_type -> teleport.lib.teleterm.v1.Cluster
-	3,   // 111: teleport.lib.teleterm.v1.TerminalService.Login:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	28,  // 112: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:output_type -> teleport.lib.teleterm.v1.LoginPasswordlessResponse
-	3,   // 113: teleport.lib.teleterm.v1.TerminalService.Logout:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	31,  // 114: teleport.lib.teleterm.v1.TerminalService.TransferFile:output_type -> teleport.lib.teleterm.v1.FileTransferProgress
-	3,   // 115: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	52,  // 116: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:output_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
-	54,  // 117: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
-	56,  // 118: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
-	58,  // 119: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:output_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
-	60,  // 120: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:output_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
-	62,  // 121: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:output_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
-	65,  // 122: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:output_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
-	68,  // 123: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:output_type -> teleport.lib.teleterm.v1.GetUserPreferencesResponse
-	70,  // 124: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:output_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
-	73,  // 125: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
-	75,  // 126: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
-	78,  // 127: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	80,  // 128: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
-	86,  // [86:129] is the sub-list for method output_type
-	43,  // [43:86] is the sub-list for method input_type
-	43,  // [43:43] is the sub-list for extension type_name
-	43,  // [43:43] is the sub-list for extension extendee
-	0,   // [0:43] is the sub-list for field type_name
+	83,  // 43: teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse.versions:type_name -> teleport.lib.teleterm.v1.Version
+	49,  // 44: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:input_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
+	34,  // 45: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:input_type -> teleport.lib.teleterm.v1.ListClustersRequest
+	36,  // 46: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:input_type -> teleport.lib.teleterm.v1.ListLeafClustersRequest
+	7,   // 47: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:input_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+	37,  // 48: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:input_type -> teleport.lib.teleterm.v1.ListDatabaseUsersRequest
+	40,  // 49: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:input_type -> teleport.lib.teleterm.v1.ListDatabaseServersRequest
+	10,  // 50: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:input_type -> teleport.lib.teleterm.v1.GetAccessRequestsRequest
+	9,   // 51: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:input_type -> teleport.lib.teleterm.v1.GetAccessRequestRequest
+	13,  // 52: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:input_type -> teleport.lib.teleterm.v1.DeleteAccessRequestRequest
+	14,  // 53: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:input_type -> teleport.lib.teleterm.v1.CreateAccessRequestRequest
+	19,  // 54: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:input_type -> teleport.lib.teleterm.v1.ReviewAccessRequestRequest
+	17,  // 55: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:input_type -> teleport.lib.teleterm.v1.GetRequestableRolesRequest
+	16,  // 56: teleport.lib.teleterm.v1.TerminalService.AssumeRole:input_type -> teleport.lib.teleterm.v1.AssumeRoleRequest
+	21,  // 57: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:input_type -> teleport.lib.teleterm.v1.PromoteAccessRequestRequest
+	23,  // 58: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:input_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
+	25,  // 59: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:input_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+	33,  // 60: teleport.lib.teleterm.v1.TerminalService.AddCluster:input_type -> teleport.lib.teleterm.v1.AddClusterRequest
+	4,   // 61: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:input_type -> teleport.lib.teleterm.v1.RemoveClusterRequest
+	43,  // 62: teleport.lib.teleterm.v1.TerminalService.ListGateways:input_type -> teleport.lib.teleterm.v1.ListGatewaysRequest
+	42,  // 63: teleport.lib.teleterm.v1.TerminalService.CreateGateway:input_type -> teleport.lib.teleterm.v1.CreateGatewayRequest
+	45,  // 64: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:input_type -> teleport.lib.teleterm.v1.RemoveGatewayRequest
+	46,  // 65: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:input_type -> teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
+	47,  // 66: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:input_type -> teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
+	48,  // 67: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:input_type -> teleport.lib.teleterm.v1.GetAuthSettingsRequest
+	5,   // 68: teleport.lib.teleterm.v1.TerminalService.GetCluster:input_type -> teleport.lib.teleterm.v1.GetClusterRequest
+	32,  // 69: teleport.lib.teleterm.v1.TerminalService.Login:input_type -> teleport.lib.teleterm.v1.LoginRequest
+	29,  // 70: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:input_type -> teleport.lib.teleterm.v1.LoginPasswordlessRequest
+	6,   // 71: teleport.lib.teleterm.v1.TerminalService.Logout:input_type -> teleport.lib.teleterm.v1.LogoutRequest
+	30,  // 72: teleport.lib.teleterm.v1.TerminalService.TransferFile:input_type -> teleport.lib.teleterm.v1.FileTransferRequest
+	108, // 73: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:input_type -> teleport.lib.teleterm.v1.ReportUsageEventRequest
+	51,  // 74: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:input_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
+	53,  // 75: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
+	55,  // 76: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
+	57,  // 77: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:input_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
+	59,  // 78: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:input_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
+	61,  // 79: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:input_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
+	63,  // 80: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:input_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
+	67,  // 81: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:input_type -> teleport.lib.teleterm.v1.GetUserPreferencesRequest
+	69,  // 82: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:input_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
+	72,  // 83: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+	74,  // 84: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
+	77,  // 85: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
+	79,  // 86: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+	81,  // 87: teleport.lib.teleterm.v1.TerminalService.GetAutoUpdateVersions:input_type -> teleport.lib.teleterm.v1.GetAutoUpdateVersionsRequest
+	84,  // 88: teleport.lib.teleterm.v1.TerminalService.GetAutoUpdateBaseUrl:input_type -> teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlRequest
+	50,  // 89: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
+	35,  // 90: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
+	35,  // 91: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
+	8,   // 92: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:output_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+	38,  // 93: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:output_type -> teleport.lib.teleterm.v1.ListDatabaseUsersResponse
+	41,  // 94: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:output_type -> teleport.lib.teleterm.v1.ListDatabaseServersResponse
+	12,  // 95: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:output_type -> teleport.lib.teleterm.v1.GetAccessRequestsResponse
+	11,  // 96: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:output_type -> teleport.lib.teleterm.v1.GetAccessRequestResponse
+	3,   // 97: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	15,  // 98: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:output_type -> teleport.lib.teleterm.v1.CreateAccessRequestResponse
+	20,  // 99: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:output_type -> teleport.lib.teleterm.v1.ReviewAccessRequestResponse
+	18,  // 100: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:output_type -> teleport.lib.teleterm.v1.GetRequestableRolesResponse
+	3,   // 101: teleport.lib.teleterm.v1.TerminalService.AssumeRole:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	22,  // 102: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:output_type -> teleport.lib.teleterm.v1.PromoteAccessRequestResponse
+	24,  // 103: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:output_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
+	26,  // 104: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:output_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+	96,  // 105: teleport.lib.teleterm.v1.TerminalService.AddCluster:output_type -> teleport.lib.teleterm.v1.Cluster
+	3,   // 106: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	44,  // 107: teleport.lib.teleterm.v1.TerminalService.ListGateways:output_type -> teleport.lib.teleterm.v1.ListGatewaysResponse
+	98,  // 108: teleport.lib.teleterm.v1.TerminalService.CreateGateway:output_type -> teleport.lib.teleterm.v1.Gateway
+	3,   // 109: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	98,  // 110: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:output_type -> teleport.lib.teleterm.v1.Gateway
+	98,  // 111: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:output_type -> teleport.lib.teleterm.v1.Gateway
+	109, // 112: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:output_type -> teleport.lib.teleterm.v1.AuthSettings
+	96,  // 113: teleport.lib.teleterm.v1.TerminalService.GetCluster:output_type -> teleport.lib.teleterm.v1.Cluster
+	3,   // 114: teleport.lib.teleterm.v1.TerminalService.Login:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	28,  // 115: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:output_type -> teleport.lib.teleterm.v1.LoginPasswordlessResponse
+	3,   // 116: teleport.lib.teleterm.v1.TerminalService.Logout:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	31,  // 117: teleport.lib.teleterm.v1.TerminalService.TransferFile:output_type -> teleport.lib.teleterm.v1.FileTransferProgress
+	3,   // 118: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	52,  // 119: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:output_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
+	54,  // 120: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
+	56,  // 121: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
+	58,  // 122: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:output_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
+	60,  // 123: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:output_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
+	62,  // 124: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:output_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
+	65,  // 125: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:output_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
+	68,  // 126: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:output_type -> teleport.lib.teleterm.v1.GetUserPreferencesResponse
+	70,  // 127: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:output_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
+	73,  // 128: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+	75,  // 129: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
+	78,  // 130: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
+	80,  // 131: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+	82,  // 132: teleport.lib.teleterm.v1.TerminalService.GetAutoUpdateVersions:output_type -> teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse
+	85,  // 133: teleport.lib.teleterm.v1.TerminalService.GetAutoUpdateBaseUrl:output_type -> teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlResponse
+	89,  // [89:134] is the sub-list for method output_type
+	44,  // [44:89] is the sub-list for method input_type
+	44,  // [44:44] is the sub-list for extension type_name
+	44,  // [44:44] is the sub-list for extension extendee
+	0,   // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_service_proto_init() }
@@ -5271,7 +5527,7 @@ func file_teleport_lib_teleterm_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   83,
+			NumMessages:   88,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

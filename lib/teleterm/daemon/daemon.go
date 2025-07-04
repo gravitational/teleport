@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/autoupdate"
 	"github.com/gravitational/teleport/lib/teleterm/services/desktop"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
@@ -743,6 +744,17 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI ur
 	})
 
 	return response, trace.Wrap(err)
+}
+
+// GetAutoUpdateVersions returns auto update version for clusters that are reachable.
+func (s *Service) GetAutoUpdateVersions(ctx context.Context) ([]*api.Version, error) {
+	rootClusters, err := s.ListRootClusters(ctx)
+	if err != nil {
+		return []*api.Version{}, trace.Wrap(err)
+	}
+
+	versions, err := autoupdate.GetVersions(ctx, s.cfg.Logger, s.ResolveClusterURI, rootClusters)
+	return versions, trace.Wrap(err)
 }
 
 // GetAccessRequests returns all access requests with filtered input
