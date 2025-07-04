@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -89,7 +90,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
 		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&config.WorkloadIdentityJWTService{
+			&workloadidentity.JWTOutputConfig{
 				Selector: bot.WorkloadIdentitySelector{
 					Name: workloadIdentity.GetMetadata().GetName(),
 				},
@@ -120,7 +121,7 @@ func TestBotWorkloadIdentityJWT(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
 		botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-			&config.WorkloadIdentityJWTService{
+			&workloadidentity.JWTOutputConfig{
 				Selector: bot.WorkloadIdentitySelector{
 					Labels: map[string][]string{
 						"foo": {"bar"},

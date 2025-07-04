@@ -35,12 +35,13 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 func WorkloadIdentityJWTServiceBuilder(
 	botCfg *config.BotConfig,
-	cfg *config.WorkloadIdentityJWTService,
+	cfg *workloadidentitysvc.JWTOutputConfig,
 	trustBundleCache TrustBundleGetter,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
@@ -65,7 +66,7 @@ func WorkloadIdentityJWTServiceBuilder(
 type WorkloadIdentityJWTService struct {
 	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityJWTService
+	cfg            *workloadidentitysvc.JWTOutputConfig
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
 	// trustBundleCache is the cache of trust bundles. It only needs to be

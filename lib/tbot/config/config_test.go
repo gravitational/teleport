@@ -319,7 +319,7 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
-					&WorkloadIdentityJWTService{
+					&workloadidentity.JWTOutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
 						},

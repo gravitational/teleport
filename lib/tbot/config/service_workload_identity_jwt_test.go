@@ -23,16 +23,17 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[WorkloadIdentityJWTService]{
+	tests := []testYAMLCase[workloadidentity.JWTOutputConfig]{
 		{
 			name: "full",
-			in: WorkloadIdentityJWTService{
+			in: workloadidentity.JWTOutputConfig{
 				Destination: dest,
 				Selector: bot.WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -51,11 +52,11 @@ func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*WorkloadIdentityJWTService]{
+	tests := []testCheckAndSetDefaultsCase[*workloadidentity.JWTOutputConfig]{
 		{
 			name: "valid",
-			in: func() *WorkloadIdentityJWTService {
-				return &WorkloadIdentityJWTService{
+			in: func() *workloadidentity.JWTOutputConfig {
+				return &workloadidentity.JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -70,8 +71,8 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "valid with labels",
-			in: func() *WorkloadIdentityJWTService {
-				return &WorkloadIdentityJWTService{
+			in: func() *workloadidentity.JWTOutputConfig {
+				return &workloadidentity.JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Labels: map[string][]string{
 							"key": {"value"},
@@ -88,8 +89,8 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing audience",
-			in: func() *WorkloadIdentityJWTService {
-				return &WorkloadIdentityJWTService{
+			in: func() *workloadidentity.JWTOutputConfig {
+				return &workloadidentity.JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
@@ -104,8 +105,8 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing selectors",
-			in: func() *WorkloadIdentityJWTService {
-				return &WorkloadIdentityJWTService{
+			in: func() *workloadidentity.JWTOutputConfig {
+				return &workloadidentity.JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{},
 					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
@@ -119,8 +120,8 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "too many selectors",
-			in: func() *WorkloadIdentityJWTService {
-				return &WorkloadIdentityJWTService{
+			in: func() *workloadidentity.JWTOutputConfig {
+				return &workloadidentity.JWTOutputConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 						Labels: map[string][]string{
@@ -139,8 +140,8 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *WorkloadIdentityJWTService {
-				return &WorkloadIdentityJWTService{
+			in: func() *workloadidentity.JWTOutputConfig {
+				return &workloadidentity.JWTOutputConfig{
 					Destination: nil,
 					Selector: bot.WorkloadIdentitySelector{
 						Name: "my-workload-identity",

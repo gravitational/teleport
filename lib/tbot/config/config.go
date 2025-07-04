@@ -379,9 +379,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case WorkloadIdentityJWTOutputType:
-			v := &WorkloadIdentityJWTService{}
-			if err := node.Decode(v); err != nil {
+		case workloadidentity.JWTOutputServiceType:
+			v := &workloadidentity.JWTOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext{}, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
