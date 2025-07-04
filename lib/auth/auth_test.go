@@ -4734,7 +4734,7 @@ func withOwners(owners []accesslist.Owner) createAccessListOpt {
 
 func createAccessList(t *testing.T, authServer *Server, name string, opts ...createAccessListOpt) {
 	t.Helper()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	options := createAccessListOptions{}
 	for _, o := range opts {
