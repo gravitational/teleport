@@ -108,121 +108,109 @@ export function BotDetails() {
 
       {hasReadPermission && isSuccess && data ? (
         <Container>
-          <ContentContainer>
-            <ColumnContainer>
-              <Panel title="Bot Details" />
-              <Divider />
+          <ColumnContainer>
+            <Panel title="Bot Details" />
+            <Divider />
 
-              <Panel title="Metadata" isSubPanel>
-                <TransposedTable>
-                  <tbody>
-                    <tr>
-                      <th scope="row">{botNameLabel}</th>
-                      <td>
-                        <Flex inline alignItems={'center'} gap={1} mr={0}>
-                          <MonoText>{data.name}</MonoText>
-                          <CopyButton name={data.name} />
-                        </Flex>
-                      </td>
-                    </tr>
-                    <tr>
-                      <th scope="row">{maxSessionDurationLabel}</th>
-                      <td>
-                        {data.max_session_ttl?.seconds
-                          ? formatDuration(data.max_session_ttl.seconds)
-                          : '-'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </TransposedTable>
-              </Panel>
+            <Panel title="Metadata" isSubPanel>
+              <TransposedTable>
+                <tbody>
+                  <tr>
+                    <th scope="row">{botNameLabel}</th>
+                    <td>
+                      <Flex inline alignItems={'center'} gap={1} mr={0}>
+                        <MonoText>{data.name}</MonoText>
+                        <CopyButton name={data.name} />
+                      </Flex>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">{maxSessionDurationLabel}</th>
+                    <td>
+                      {data.max_session_ttl?.seconds
+                        ? formatDuration(data.max_session_ttl.seconds)
+                        : '-'}
+                    </td>
+                  </tr>
+                </tbody>
+              </TransposedTable>
+            </Panel>
 
-              <PaddedDivider />
+            <PaddedDivider />
 
-              <Panel title="Roles" isSubPanel>
-                <Flex>
-                  {data.roles.toSorted().map(r => (
-                    <Outline mr="1" key={r}>
-                      {r}
-                    </Outline>
-                  ))}
-                </Flex>
-              </Panel>
+            <Panel title="Roles" isSubPanel>
+              <Flex>
+                {data.roles.toSorted().map(r => (
+                  <Outline mr="1" key={r}>
+                    {r}
+                  </Outline>
+                ))}
+              </Flex>
+            </Panel>
 
-              <PaddedDivider />
+            <PaddedDivider />
 
-              <Panel title="Traits" isSubPanel>
-                <TransposedTable>
-                  <tbody>
-                    {data.traits
-                      .toSorted((a, b) => a.name.localeCompare(b.name))
-                      .map(r => (
-                        <tr key={r.name}>
-                          <th scope="row">
-                            <Trait traitName={r.name} />
-                          </th>
-                          <td>
-                            {r.values.length > 0
-                              ? r.values.toSorted().map(v => (
-                                  <Outline mr="1" key={v}>
-                                    {v}
-                                  </Outline>
-                                ))
-                              : 'no values'}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </TransposedTable>
-              </Panel>
+            <Panel title="Traits" isSubPanel>
+              <TransposedTable>
+                <tbody>
+                  {data.traits
+                    .toSorted((a, b) => a.name.localeCompare(b.name))
+                    .map(r => (
+                      <tr key={r.name}>
+                        <th scope="row">
+                          <Trait traitName={r.name} />
+                        </th>
+                        <td>
+                          {r.values.length > 0
+                            ? r.values.toSorted().map(v => (
+                                <Outline mr="1" key={v}>
+                                  {v}
+                                </Outline>
+                              ))
+                            : 'no values'}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </TransposedTable>
+            </Panel>
 
-              <Divider />
+            <Divider />
 
-              <Panel title="Join Tokens">Coming soon</Panel>
-            </ColumnContainer>
-            <ColumnContainer>
-              <Panel title="Active Instances">Coming soon</Panel>
-            </ColumnContainer>
-          </ContentContainer>
+            <Panel title="Join Tokens">Coming soon</Panel>
+          </ColumnContainer>
+          <ColumnContainer>
+            <Panel title="Active Instances">Coming soon</Panel>
+          </ColumnContainer>
         </Container>
       ) : undefined}
     </FeatureBox>
   );
 }
 
-const Container = styled(Flex)`
-  flex-direction: column;
-  gap: 24px;
-`;
-
-const ContentContainer = styled(Flex)`
-  gap: 16px;
-`;
+const Container = styled(Flex).attrs({ gap: 3 })``;
 
 const ColumnContainer = styled(Flex)`
   flex: 1;
   flex-direction: column;
   background-color: ${p => p.theme.colors.levels.surface};
-  border-radius: 4px;
+  border-radius: ${props => props.theme.space[1]}px;
 `;
 
 const Divider = styled.div`
   height: 1px;
-  width: 100%;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
 `;
 
-const PaddedDivider = styled.div`
-  height: 1px;
-  background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
-  margin-left: 16px;
-  margin-right: 16px;
+const PaddedDivider = styled(Divider)`
+  margin-left: ${props => props.theme.space[3]}px;
+  margin-right: ${props => props.theme.space[3]}px;
 `;
 
 const TransposedTable = styled.table`
   th {
     text-align: start;
-    padding-right: 16px;
+    padding-right: ${props => props.theme.space[3]}px;
     width: 1%; // Minimum width to fit content
     color: ${({ theme }) => theme.colors.text.muted};
     font-weight: ${fontWeights.regular};
