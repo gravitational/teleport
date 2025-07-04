@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        teleport-major-version: [15, 16, 17]
+        teleport-major-version: [15, 16, 17, 18]
         arch: ['amd64', 'arm64']
         mode: ['debug', 'production']
         release: ['oss', 'enterprise', 'fips']
