@@ -244,7 +244,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *database.OutputConfig:
 			botServices = append(botServices, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *identitysvc.OutputConfig:
-			botServices = append(botServices, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
+			botServices = append(botServices, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
 		case *clientcredentials.UnstableConfig:
 			botServices = append(botServices, clientcredentials.ServiceBuilder(b.cfg.CredentialLifetime, svcCfg))
 		case *application.TunnelConfig:
