@@ -20,13 +20,10 @@ package web
 
 import (
 	"context"
-	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/gobwas/ws"
@@ -34,7 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/websocketupgradeproto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -101,34 +98,20 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 }
 
 func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (any, error) {
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-		Subprotocols: []string{
-			constants.WebAPIConnUpgradeTypeALPN,
-			constants.WebAPIConnUpgradeTypeALPNPing,
-		},
-	}
-	wsConn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.websocketUpgrade(r, w)
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
-	defer wsConn.Close()
+	defer conn.Close()
 
-	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", wsConn.Subprotocol())
-
-	// websocketALPNServerConn uses "github.com/gobwas/ws" on the raw net.Conn
-	// instead of gorilla's websocket.Conn to workaround an issue that
-	// websocket.Conn caches read error when websocketALPNServerConn is passed
-	// to a HTTP server and get hijacked for another upgrade. Note that client
-	// side's (api/client) websocket ALPN connection wrapper also uses
-	// "github.com/gobwas/ws".
-	conn := newWebSocketALPNServerConn(r.Context(), wsConn.NetConn(), h.logger)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	switch wsConn.Subprotocol() {
-	case constants.WebAPIConnUpgradeTypeALPNPing:
+	h.logger.Log(r.Context(), logutils.TraceLevel, "Received WebSocket upgrade.", "protocol", conn.Protocol())
+
+	switch conn.Protocol() {
+	case constants.WebAPIConnUpgradeTypeALPNPing, constants.WebAPIConnUpgradeProtocolWebSocketClose:
 		// Starts native WebSocket ping for "alpn-ping".
 		go h.startPing(ctx, conn)
 	case constants.WebAPIConnUpgradeTypeALPN:
@@ -137,18 +120,29 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		// Just close the connection. Upgrader hijacks the connection so no
 		// point returning an error.
 		h.logger.DebugContext(ctx, "Unknown or empty WebSocket subprotocol.", "client_protocols", websocket.Subprotocols(r))
+		conn.CloseWithStatus(ws.StatusUnsupportedData, "unknown or empty subprotocol")
 		return nil, nil
 	}
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
 		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request",
-			"protocol", wsConn.Subprotocol(),
+			"protocol", conn.Protocol(),
 			"error", err,
 			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
 		)
 	}
 	return nil, nil
+}
+
+// websocketUpgrade upgrades the HTTP request to a WebSocket connection and
+// returns the WebSocket connection and the handshake information.
+func (h *Handler) websocketUpgrade(r *http.Request, w http.ResponseWriter) (*websocketupgradeproto.WebsocketUpgradeConn, error) {
+	conn, err := websocketupgradeproto.NewServerConnection(
+		h.logger.With("component", websocketupgradeproto.ComponentTeleport),
+		r, w,
+	)
+	return conn, trace.Wrap(err, "failed to upgrade WebSocket connection")
 }
 
 func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
@@ -242,138 +236,15 @@ func (conn *waitConn) WaitForClose() {
 }
 
 // Close implements net.Conn.
+// This function cancels the context to unblock WaitForClose but
+// it should never close the underlying connection. This occurs because the
+// connection is a websocket connection that requires a graceful close
+// with a close frame.
 func (conn *waitConn) Close() error {
-	err := conn.Conn.Close()
 	conn.cancel()
-	return trace.Wrap(err)
+	return nil
 }
 
 func (conn *waitConn) NetConn() net.Conn {
 	return conn.Conn
-}
-
-type websocketALPNServerConn struct {
-	net.Conn
-	readBuffer []byte
-	readError  error
-	readMutex  sync.Mutex
-	writeMutex sync.Mutex
-
-	logContext context.Context
-	logger     *slog.Logger
-}
-
-func newWebSocketALPNServerConn(ctx context.Context, conn net.Conn, logger *slog.Logger) *websocketALPNServerConn {
-	return &websocketALPNServerConn{
-		Conn:       conn,
-		logContext: ctx,
-		logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
-	}
-}
-
-func (c *websocketALPNServerConn) NetConn() net.Conn {
-	return c.Conn
-}
-
-func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
-	c.readMutex.Lock()
-	defer c.readMutex.Unlock()
-
-	n, err := c.readLocked(b)
-
-	// Timeout errors can be temporary. For example, when this connection is
-	// passed to the kube TLS server, it may get "hijacked" again. During the
-	// hijack, the SetReadDeadline is called with a past timepoint to fail this
-	// Read so that the HTTP server's background read can be stopped. In such
-	// cases, return the original net.Error and clear the cached read error.
-	var netError net.Error
-	if errors.As(err, &netError) && netError.Timeout() {
-		c.readError = nil
-		c.logger.Log(c.logContext, logutils.TraceLevel, "Cleared cached read error.", "err", netError)
-		return n, netError
-	}
-	return n, trace.Wrap(err)
-}
-
-func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
-	// Stop reading if any previous read err.
-	if c.readError != nil {
-		return 0, trace.Wrap(c.readError)
-	}
-
-	if len(c.readBuffer) > 0 {
-		n := copy(b, c.readBuffer)
-		if n < len(c.readBuffer) {
-			c.readBuffer = c.readBuffer[n:]
-		} else {
-			c.readBuffer = nil
-		}
-		return n, nil
-	}
-
-	for {
-		frame, err := ws.ReadFrame(c.Conn)
-		if err != nil {
-			c.readError = err
-			return 0, trace.Wrap(err)
-		}
-
-		// All client frames should be masked.
-		if frame.Header.Masked {
-			frame = ws.UnmaskFrame(frame)
-		}
-
-		c.logger.Log(c.logContext, logutils.TraceLevel, "Read websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
-
-		switch frame.Header.OpCode {
-		case ws.OpClose:
-			return 0, io.EOF
-		case ws.OpBinary:
-			c.readBuffer = frame.Payload
-			return c.readLocked(b)
-		case ws.OpPong:
-			// Receives Pong as response to Ping. Nothing to do.
-		}
-	}
-}
-
-func (c *websocketALPNServerConn) writeFrame(frame ws.Frame) error {
-	c.logger.Log(c.logContext, logutils.TraceLevel, "Writing websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
-
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
-
-	// There is no need to mask from server to client.
-	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
-}
-
-func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
-	binaryFrame := ws.NewBinaryFrame(b)
-	if err := c.writeFrame(binaryFrame); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return len(b), nil
-}
-
-func (c *websocketALPNServerConn) WritePing() error {
-	pingFrame := ws.NewPingFrame([]byte(teleport.ComponentTeleport))
-	return trace.Wrap(c.writeFrame(pingFrame))
-}
-
-func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
-	return trace.Wrap(c.Conn.SetDeadline(t))
-}
-
-func (c *websocketALPNServerConn) SetWriteDeadline(t time.Time) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
-	return trace.Wrap(c.Conn.SetWriteDeadline(t))
-}
-
-func (c *websocketALPNServerConn) SetReadDeadline(t time.Time) error {
-	c.writeMutex.Lock()
-	defer c.writeMutex.Unlock()
-	return trace.Wrap(c.Conn.SetReadDeadline(t))
 }
