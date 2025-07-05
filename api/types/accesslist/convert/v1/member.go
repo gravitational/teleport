@@ -37,13 +37,13 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListMemberSpec{
-		AccessList: msg.Spec.AccessList,
-		Name:       msg.Spec.Name,
-		Joined:     msg.Spec.Joined.AsTime(),
-		Expires:    msg.Spec.Expires.AsTime(),
-		Reason:     msg.Spec.Reason,
-		AddedBy:    msg.Spec.AddedBy,
+	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
+		AccessList: msg.GetSpec().GetAccessList(),
+		Name:       msg.GetSpec().GetName(),
+		Joined:     msg.GetSpec().GetJoined().AsTime(),
+		Expires:    msg.GetSpec().GetExpires().AsTime(),
+		Reason:     msg.GetSpec().GetReason(),
+		AddedBy:    msg.GetSpec().GetAddedBy(),
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
