@@ -38,10 +38,6 @@ func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 	cmd.Flag("connector", "Name of the Teleport SAML connector to use.").
 		Required().
 		StringVar(&p.install.scim.samlConnector)
-
-	cmd.Flag("name", "Name of SCIM Plugin to create.").
-		Default("scim").
-		StringVar(&p.install.scim.pluginName)
 }
 
 // InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
@@ -49,13 +45,14 @@ func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 func (p *PluginsCommand) InstallSCIM(ctx context.Context, args installPluginArgs) error {
 	scimArgs := p.install.scim
 
+	pluginName := types.PluginTypeSCIM
 	plugin := &types.PluginV1{
 		SubKind: types.PluginSubkindAccess,
 		Metadata: types.Metadata{
 			Labels: map[string]string{
 				"teleport.dev/hosted-plugin": "true",
 			},
-			Name: scimArgs.pluginName,
+			Name: pluginName,
 		},
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Scim{
@@ -89,8 +86,8 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, args installPluginArgs
 		return trace.Wrap(err)
 	}
 
-	scimBaseURL := fmt.Sprintf("https://%s/v1/webapi/scim/%s", pingResp.GetProxyPublicAddr(), scimArgs.pluginName)
-	scimTokenURL := fmt.Sprintf("https://%s/v1/webapi/plugin/%s/token", pingResp.GetProxyPublicAddr(), scimArgs.pluginName)
+	scimBaseURL := fmt.Sprintf("https://%s/v1/webapi/scim/%s", pingResp.GetProxyPublicAddr(), pluginName)
+	scimTokenURL := fmt.Sprintf("https://%s/v1/webapi/plugin/%s/token", pingResp.GetProxyPublicAddr(), pluginName)
 
 	fmt.Printf("\nSCIM Plugin Installed Successfully\n")
 	fmt.Println(" Base URL:        ", scimBaseURL)

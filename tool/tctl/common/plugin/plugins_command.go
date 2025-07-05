@@ -56,7 +56,6 @@ type pluginInstallArgs struct {
 type scimArgs struct {
 	cmd           *kingpin.CmdClause
 	samlConnector string
-	pluginName    string
 }
 
 type pluginDeleteArgs struct {
