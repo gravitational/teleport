@@ -1,4 +1,11 @@
 # GHA workflows and custom actions control merging and CI/CD processes.
 # Protect the `.github` directory using CODEOWNERS.
-/.github/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @tcsc @doggydogworld @rosstimothy
+/.github/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @doggydogworld @rosstimothy
 /.environments/ @klizhentas @russjones @r0mant @fheinecke @camscale @doggydogworld
+
+
+# Owners for Go dependency updates.
+/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @fheinecke @camscale @doggydogworld
+
+# Owners for Rust dependency updates.
+/windowsauth/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski

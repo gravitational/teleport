@@ -1,89 +1,69 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: "/tooling/os-package-repo-tool"
+    directory: '/tooling/os-package-repo-tool'
     schedule:
       interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
+      day: 'sunday'
+      time: '09:00' # 9am UTC
     open-pull-requests-limit: 10
     groups:
       go:
         update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - fheinecke
-      - rosstimothy
-      - zmb3
+          - 'minor'
+          - 'patch'
   - package-ecosystem: cargo
-    directory: "/windowsauth"
+    directory: '/windowsauth'
     schedule:
       interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
+      day: 'sunday'
+      time: '09:00' # 9am UTC
     open-pull-requests-limit: 10
     groups:
       rust:
         update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - probakowski
-      - rosstimothy
-      - zmb3
+          - 'minor'
+          - 'patch'
 
   - package-ecosystem: github-actions
-    directory: "/.github/workflows"
+    directory: '/.github/workflows'
     schedule:
       interval: monthly
       day: monday
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    reviewers:
-      - fheinecke
-      - camscale
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
 
   # Every custom action directory must be defined individually. See:
   # * https://github.com/dependabot/dependabot-core/issues/6704
   # * https://github.com/dependabot/dependabot-core/issues/2178
   - package-ecosystem: github-actions
-    directory: "/.github/actions/checkout-teleport"
+    directory: '/.github/actions/checkout-teleport'
     schedule:
       interval: monthly
       day: monday
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    reviewers:
-      - fheinecke
-      - camscale
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+
   - package-ecosystem: github-actions
-    directory: "/.github/actions/deploy-os-package"
+    directory: '/.github/actions/deploy-os-package'
     schedule:
       interval: monthly
       day: monday
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    reviewers:
-      - fheinecke
-      - camscale
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+
   - package-ecosystem: github-actions
-    directory: "/.github/actions/load-gpg-key"
+    directory: '/.github/actions/load-gpg-key'
     schedule:
       interval: monthly
       day: monday
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    reviewers:
-      - fheinecke
-      - camscale
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+
   - package-ecosystem: github-actions
-    directory: "/.github/actions/parse-version"
+    directory: '/.github/actions/parse-version'
     schedule:
       interval: monthly
       day: monday
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    reviewers:
-      - fheinecke
-      - camscale
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
