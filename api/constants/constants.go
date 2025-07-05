@@ -478,6 +478,17 @@ const (
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeProtocolWebSocketClose is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the WebSocket handler
+	// and that both sides should send a close frame
+	// before closing the connection.
+	//
+	// This connection upgrade type also automatically sets enables the ping
+	// protocol on the WebSocket connection.
+	// This is useful when the tunneled TLS Routing protocol cannot keep
+	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
+	// has very short idle timeouts.
+	WebAPIConnUpgradeProtocolWebSocketClose = "websocket-close"
 	// WebAPIConnUpgradeTypeWebSocket is the standard upgrade type for WebSocket.
 	WebAPIConnUpgradeTypeWebSocket = "websocket"
 	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
