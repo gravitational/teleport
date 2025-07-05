@@ -205,4 +205,6 @@ type WebConfigAuthSettings struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"privateKeyPolicy,omitempty"`
 	// MOTD is message of the day. MOTD is displayed to users before login.
 	MOTD string `json:"motd"`
+	// IdentifierFirstLoginEnabled is whether identifier-first login is enabled, this will be true if one or more auth connectors has a `user_matchers` field set.
+	IdentifierFirstLoginEnabled bool `json:"identifierFirstLoginEnabled,omitempty"`
 }

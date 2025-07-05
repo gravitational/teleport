@@ -25,9 +25,50 @@
           "id": "linux-demo"
         },
         {
-          "type": "doc",
+          "type": "category",
           "label": "Installation",
-          "id": "installation"
+          "collapsible": true,
+          "items": [
+            {
+              "type": "doc",
+              "label": "Linux",
+              "id": "installation/linux"
+            },
+            {
+              "type": "doc",
+              "label": "Docker",
+              "id": "installation/docker"
+            },
+            {
+              "type": "doc",
+              "label": "Amazon EC2",
+              "id": "installation/amazon-ec2"
+            },
+            {
+              "type": "doc",
+              "label": "Helm",
+              "id": "installation/helm"
+            },
+            {
+              "type": "doc",
+              "label": "macOS",
+              "id": "installation/macos"
+            },
+            {
+              "type": "doc",
+              "label": "Windows",
+              "id": "installation/windows"
+            },
+            {
+              "type": "doc",
+              "label": "Source",
+              "id": "installation/source"
+            }
+          ],
+          "link": {
+            "type": "doc",
+            "id": "installation/installation"
+          }
         },
         {
           "type": "category",

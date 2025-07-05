@@ -677,6 +677,3 @@ func (r *ReporterWatcher) watch(ctx context.Context) {
 		return
 	}
 }
-
-// TODO(tross): Remove once crdb is converted to use backendmetrics directly.
-var AtomicWriteContention = backendmetrics.AtomicWriteContention

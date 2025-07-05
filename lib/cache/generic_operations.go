@@ -70,6 +70,8 @@ type genericLister[T any, I comparable] struct {
 	collection *collection[T, I]
 	// index of the collection to read with.
 	index I
+	// isDesc indicates whether the lister should retrieve items in descending order.
+	isDesc bool
 	// defaultPageSize optionally defines a page size to use if
 	// one is not specified by the caller. If not set then
 	// [defaults.DefaultChunkSize] is used.
@@ -109,8 +111,13 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 		pageSize = defaultPageSize
 	}
 
+	fetchFn := rg.store.cache.Ascend
+	if l.isDesc {
+		fetchFn = rg.store.cache.Descend
+	}
+
 	var out []T
-	for sf := range rg.store.resources(l.index, startToken, endToken) {
+	for sf := range fetchFn(l.index, startToken, endToken) {
 		if len(out) == pageSize {
 			return out, l.nextToken(sf), nil
 		}

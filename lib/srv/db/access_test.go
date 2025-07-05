@@ -78,7 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
-	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
+	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"

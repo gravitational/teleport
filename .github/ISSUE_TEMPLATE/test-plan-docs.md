@@ -102,7 +102,7 @@ version of Teleport.
   and verify their accuracy while using the newly released major version of
   Teleport.
 
-  - [ ] General [installation page](../../docs/pages/installation.mdx): ensure
+  - [ ] General [installation page](../../docs/pages/installation/installation.mdx): ensure
     that installation methods support the new release candidate.
   - [ ] [Teleport Community
     Edition](../../docs/pages/admin-guides/deploy-a-cluster/linux-demo.mdx) demo
