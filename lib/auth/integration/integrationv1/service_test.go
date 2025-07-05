@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/keystoretest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -893,7 +893,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Backend:         backendSvc,
 		Authorizer:      authorizer,
 		Cache:           cache,
-		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
+		KeyStoreManager: keystoretest.NewTestKeystore(),
 		Emitter:         events.NewDiscardEmitter(),
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{

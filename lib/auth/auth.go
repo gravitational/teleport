@@ -7797,9 +7797,15 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 	return trace.Errorf("too many conflicts attempting to set additional trusted keys for ca %q of type %q", ca.GetClusterName(), ca.GetType())
 }
 
+type Keystore interface {
+	NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error)
+	NewTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error)
+	NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error)
+}
+
 // newKeySet generates a new sets of keys for a given CA type.
 // Keep this function in sync with lib/services/suite/suite.go:NewTestCAWithConfig().
-func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
+func newKeySet(ctx context.Context, keyStore Keystore, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 
 	// Add SSH keys if necessary.

@@ -58,7 +58,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/keystoretest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -216,7 +216,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
 		if hsm {
-			cfg.KeyStoreConfig = keystore.HSMTestConfig(t)
+			cfg.KeyStoreConfig = keystoretest.HSMTestConfig(t)
 		}
 		cfg.AuthPreference.SetOrigin(capOrigin)
 		if capOrigin != types.OriginDefaults {
@@ -387,7 +387,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 					},
 				}
 				if tc.hsm {
-					cfg.KeystoreConfig = keystore.HSMTestConfig(t)
+					cfg.KeystoreConfig = keystoretest.HSMTestConfig(t)
 				}
 				testAuthServer, err := NewTestAuthServer(cfg)
 				require.NoError(t, err)

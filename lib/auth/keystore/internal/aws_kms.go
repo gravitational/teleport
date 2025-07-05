@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package keystore
+package internal
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -52,19 +53,19 @@ import (
 
 const (
 	awskmsPrefix  = "awskms:"
-	clusterTagKey = "TeleportCluster"
+	ClusterTagKey = "TeleportCluster"
 	awsOAEPHash   = crypto.SHA256
 
-	pendingKeyBaseRetryInterval = time.Second / 2
-	pendingKeyMaxRetryInterval  = 4 * time.Second
+	PendingKeyBaseRetryInterval = time.Second / 2
+	PendingKeyMaxRetryInterval  = 4 * time.Second
 	// TODO(dboslee): waiting on AWS support to answer question regarding
 	// long time for GetPublicKey to succeed after updating key via UpdatePrimaryRegion.
-	pendingKeyTimeout = 120 * time.Second
+	PendingKeyTimeout = 120 * time.Second
 )
 
-type awsKMSKeystore struct {
-	kms                kmsClient
-	mrk                mrkClient
+type AWSKMSKeystore struct {
+	kms                KMSClient
+	mrk                MRKClient
 	awsAccount         string
 	awsRegion          string
 	multiRegionEnabled bool
@@ -75,13 +76,28 @@ type awsKMSKeystore struct {
 	logger             *slog.Logger
 }
 
-func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *Options) (*awsKMSKeystore, error) {
-	stsClient, kmsClient := opts.awsSTSClient, opts.awsKMSClient
-	mrkClient := opts.mrkClient
+type AWSKMSKeystoreConfig struct {
+	*servicecfg.AWSKMSConfig
+
+	FIPS bool
+
+	Logger      *slog.Logger
+	ClusterName string
+
+	Clock clockwork.Clock
+
+	KMSClient KMSClient
+	MRKClient MRKClient
+	STSClient STSClient
+}
+
+func NewAWSKMSKeystore(ctx context.Context, cfg AWSKMSKeystoreConfig) (*AWSKMSKeystore, error) {
+	stsClient, kmsClient := cfg.STSClient, cfg.KMSClient
+	mrkClient := cfg.MRKClient
 
 	if stsClient == nil || kmsClient == nil {
 		useFIPSEndpoint := aws.FIPSEndpointStateUnset
-		if opts.FIPS {
+		if cfg.FIPS {
 			useFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		}
 		awsCfg, err := config.LoadDefaultConfig(ctx,
@@ -123,14 +139,12 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 	if tags == nil {
 		tags = make(map[string]string, 1)
 	}
-	if _, ok := tags[clusterTagKey]; !ok {
-		tags[clusterTagKey] = opts.ClusterName.GetClusterName()
+	if _, ok := tags[ClusterTagKey]; !ok {
+		tags[ClusterTagKey] = cfg.ClusterName
 	}
 
-	clock := opts.clockworkOverride
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+
 	primary := cfg.MultiRegion.PrimaryRegion
 	if primary == "" {
 		primary = cfg.AWSRegion
@@ -140,7 +154,7 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		replicas[region] = struct{}{}
 	}
 
-	return &awsKMSKeystore{
+	return &AWSKMSKeystore{
 		awsAccount:         cfg.AWSAccount,
 		awsRegion:          cfg.AWSRegion,
 		tags:               tags,
@@ -150,33 +164,24 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		kms:                kmsClient,
 		mrk:                mrkClient,
 		clock:              clock,
-		logger:             opts.Logger,
+		logger:             cfg.Logger,
 	}, nil
 }
 
-func (a *awsKMSKeystore) name() string {
-	return storeAWS
+func (a *AWSKMSKeystore) Name() string {
+	return "aws_kms"
 }
 
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
-func (a *awsKMSKeystore) keyTypeDescription() string {
+func (a *AWSKMSKeystore) KeyTypeDescription() string {
 	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
-func (u keyUsage) toAWS() kmstypes.KeyUsageType {
-	switch u {
-	case keyUsageDecrypt:
-		return kmstypes.KeyUsageTypeEncryptDecrypt
-	default:
-		return kmstypes.KeyUsageTypeSignVerify
-	}
-}
-
-func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (awsKMSKeyID, error) {
+func (a *AWSKMSKeystore) GenerateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (AWSKMSKeyID, error) {
 	alg, err := awsAlgorithm(algorithm)
 	if err != nil {
-		return awsKMSKeyID{}, trace.Wrap(err)
+		return AWSKMSKeyID{}, trace.Wrap(err)
 	}
 
 	a.logger.InfoContext(ctx, "Creating new AWS KMS keypair.",
@@ -199,15 +204,15 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 		MultiRegion: aws.Bool(a.multiRegionEnabled),
 	})
 	if err != nil {
-		return awsKMSKeyID{}, trace.Wrap(err)
+		return AWSKMSKeyID{}, trace.Wrap(err)
 	}
 	if output.KeyMetadata == nil {
-		return awsKMSKeyID{}, trace.Errorf("KeyMetadata of generated key is nil")
+		return AWSKMSKeyID{}, trace.Errorf("KeyMetadata of generated key is nil")
 	}
 	keyARN := aws.ToString(output.KeyMetadata.Arn)
 	key, err := keyIDFromArn(keyARN)
 	if err != nil {
-		return awsKMSKeyID{}, trace.Wrap(err)
+		return AWSKMSKeyID{}, trace.Wrap(err)
 	}
 
 	return key, nil
@@ -215,8 +220,8 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 
 // generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	key, err := a.generateKey(ctx, algorithm, keyUsageSign)
+func (a *AWSKMSKeystore) GenerateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+	key, err := a.GenerateKey(ctx, algorithm, keyUsageSign)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -233,8 +238,8 @@ func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosui
 
 // generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
 // identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
-func (a *awsKMSKeystore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
-	key, err := a.generateKey(ctx, algorithm, keyUsageDecrypt)
+func (a *AWSKMSKeystore) GenerateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+	key, err := a.GenerateKey(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
 		return nil, nil, awsOAEPHash, trace.Wrap(err)
 	}
@@ -260,8 +265,8 @@ func awsAlgorithm(alg cryptosuites.Algorithm) (kmstypes.KeySpec, error) {
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
-	key, err := parseAWSKMSKeyID(rawKey)
+func (a *AWSKMSKeystore) GetSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	key, err := ParseAWSKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -269,8 +274,8 @@ func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey
 }
 
 // getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
-func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
-	key, err := parseAWSKMSKeyID(rawKey)
+func (a *AWSKMSKeystore) GetDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
+	key, err := ParseAWSKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,20 +283,20 @@ func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, public
 }
 
 type awsKMSKey struct {
-	key awsKMSKeyID
+	key AWSKMSKeyID
 	pub crypto.PublicKey
-	kms kmsClient
+	kms KMSClient
 }
 
-func (a *awsKMSKeystore) newKMSKey(ctx context.Context, key awsKMSKeyID) (*awsKMSKey, error) {
+func (a *AWSKMSKeystore) newKMSKey(ctx context.Context, key AWSKMSKeyID) (*awsKMSKey, error) {
 	var pubkeyDER []byte
 	err := a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
-		a.logger.DebugContext(ctx, "Fetching public key", "key_arn", key.arn)
+		a.logger.DebugContext(ctx, "Fetching public key", "key_arn", key.ARN)
 		output, err := a.kms.GetPublicKey(ctx, &kms.GetPublicKeyInput{
-			KeyId: aws.String(key.id),
+			KeyId: aws.String(key.ID),
 		})
 		if err != nil {
-			a.logger.DebugContext(ctx, "Failed to fetch public key", "key_arn", key.arn, "err", err)
+			a.logger.DebugContext(ctx, "Failed to fetch public key", "key_arn", key.ARN, "err", err)
 			return trace.Wrap(err, "fetching public key")
 		}
 		pubkeyDER = output.PublicKey
@@ -311,20 +316,20 @@ func (a *awsKMSKeystore) newKMSKey(ctx context.Context, key awsKMSKeyID) (*awsKM
 // retryOnConsistencyError handles retrying KMS key operations that may fail
 // temporarily due to eventual consistency.
 // https://docs.aws.amazon.com/kms/latest/developerguide/programming-eventual-consistency.html
-func (a *awsKMSKeystore) retryOnConsistencyError(ctx context.Context, fn func(ctx context.Context) error) error {
+func (a *AWSKMSKeystore) retryOnConsistencyError(ctx context.Context, fn func(ctx context.Context) error) error {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  pendingKeyBaseRetryInterval,
-		Driver: retryutils.NewExponentialDriver(pendingKeyBaseRetryInterval),
-		Max:    pendingKeyMaxRetryInterval,
+		First:  PendingKeyBaseRetryInterval,
+		Driver: retryutils.NewExponentialDriver(PendingKeyBaseRetryInterval),
+		Max:    PendingKeyMaxRetryInterval,
 		Jitter: retryutils.HalfJitter,
 		Clock:  a.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, pendingKeyTimeout)
+	ctx, cancel := context.WithTimeout(ctx, PendingKeyTimeout)
 	defer cancel()
-	timeout := a.clock.NewTimer(pendingKeyTimeout)
+	timeout := a.clock.NewTimer(PendingKeyTimeout)
 	defer timeout.Stop()
 	for {
 		err := fn(ctx)
@@ -350,7 +355,7 @@ func (a *awsKMSKeystore) retryOnConsistencyError(ctx context.Context, fn func(ct
 	}
 }
 
-func (a *awsKMSKeystore) newKMSKeyWithPublicKey(_ context.Context, key awsKMSKeyID, publicKey crypto.PublicKey) (*awsKMSKey, error) {
+func (a *AWSKMSKeystore) newKMSKeyWithPublicKey(_ context.Context, key AWSKMSKeyID, publicKey crypto.PublicKey) (*awsKMSKey, error) {
 	return &awsKMSKey{
 		key: key,
 		pub: publicKey,
@@ -389,7 +394,7 @@ func (a *awsKMSKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) 
 		return nil, trace.BadParameter("unsupported hash func %q for AWS KMS key", opts.HashFunc())
 	}
 	output, err := a.kms.Sign(context.TODO(), &kms.SignInput{
-		KeyId:            aws.String(a.key.id),
+		KeyId:            aws.String(a.key.ID),
 		Message:          digest,
 		MessageType:      kmstypes.MessageTypeDigest,
 		SigningAlgorithm: signingAlg,
@@ -411,7 +416,7 @@ func (a *awsKMSKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.Decry
 	}
 
 	output, err := a.kms.Decrypt(context.TODO(), &kms.DecryptInput{
-		KeyId:               aws.String(a.key.id),
+		KeyId:               aws.String(a.key.ID),
 		CiphertextBlob:      ciphertext,
 		EncryptionAlgorithm: encAlg,
 	})
@@ -422,13 +427,13 @@ func (a *awsKMSKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.Decry
 }
 
 // deleteKey deletes the given key from the KeyStore.
-func (a *awsKMSKeystore) deleteKey(ctx context.Context, rawKey []byte) error {
-	keyID, err := parseAWSKMSKeyID(rawKey)
+func (a *AWSKMSKeystore) DeleteKey(ctx context.Context, rawKey []byte) error {
+	keyID, err := ParseAWSKMSKeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	_, err = a.kms.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
-		KeyId:               aws.String(keyID.arn),
+		KeyId:               aws.String(keyID.ARN),
 		PendingWindowInDays: aws.Int32(7),
 	})
 	return trace.Wrap(err, "error deleting AWS KMS key")
@@ -436,15 +441,15 @@ func (a *awsKMSKeystore) deleteKey(ctx context.Context, rawKey []byte) error {
 
 // canUseKey returns true if this KeyStore is able to sign with the given
 // key.
-func (a *awsKMSKeystore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (a *AWSKMSKeystore) CanUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_AWS_KMS {
 		return false, nil
 	}
-	key, err := parseAWSKMSKeyID(raw)
+	key, err := ParseAWSKMSKeyID(raw)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return key.account == a.awsAccount && (key.region == a.awsRegion || key.isMRK()), nil
+	return key.Account == a.awsAccount && (key.Region == a.awsRegion || key.isMRK()), nil
 }
 
 // DeleteUnusedKeys deletes all keys readable from the AWS KMS account and
@@ -461,10 +466,10 @@ func (a *awsKMSKeystore) canUseKey(ctx context.Context, raw []byte, keyType type
 // 1. A different auth server (auth2) creates a new key in GCP KMS
 // 2. This function (running on auth1) deletes that new key
 // 3. auth2 saves the id of this deleted key to the backend CA
-func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (a *AWSKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	activeAWSKMSKeys := make(map[string]int)
 	for _, activeKey := range activeKeys {
-		keyIsRelevent, err := a.canUseKey(ctx, activeKey, keyType(activeKey))
+		keyIsRelevent, err := a.CanUseKey(ctx, activeKey, KeyType(activeKey))
 		if err != nil {
 			// Don't expect this error to ever hit, safer to return if it does.
 			return trace.Wrap(err)
@@ -474,13 +479,13 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// account and region that this Auth is configured to use.
 			continue
 		}
-		keyID, err := parseAWSKMSKeyID(activeKey)
+		keyID, err := ParseAWSKMSKeyID(activeKey)
 		if err != nil {
 			// Realistically we should not hit this since canSignWithKey already
 			// calls parseAWSKMSKeyID.
 			return trace.Wrap(err)
 		}
-		activeAWSKMSKeys[keyID.id] = 0
+		activeAWSKMSKeys[keyID.ID] = 0
 	}
 
 	var keysToDelete []string
@@ -491,20 +496,20 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			return trace.Wrap(err)
 		}
 		mu.RLock()
-		_, active := activeAWSKMSKeys[key.id]
+		_, active := activeAWSKMSKeys[key.ID]
 		mu.RUnlock()
 		if active {
 			// This is a known active key, record that it was found and return
 			// (since it should never be deleted).
 			mu.Lock()
 			defer mu.Unlock()
-			activeAWSKMSKeys[key.id] += 1
+			activeAWSKMSKeys[key.ID] += 1
 			return nil
 		}
 
 		// Check if this key was created by this Teleport cluster.
 		output, err := a.kms.ListResourceTags(ctx, &kms.ListResourceTagsInput{
-			KeyId: aws.String(key.id),
+			KeyId: aws.String(key.ID),
 		})
 		if err != nil {
 			// It's entirely expected that we won't be allowed to fetch
@@ -524,7 +529,7 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 
 		// Check if this key is not enabled or was created in the past 5 minutes.
 		describeOutput, err := a.kms.DescribeKey(ctx, &kms.DescribeKeyInput{
-			KeyId: aws.String(key.id),
+			KeyId: aws.String(key.ID),
 		})
 		if err != nil {
 			return trace.Wrap(err, "failed to describe AWS KMS key %q", arn)
@@ -581,7 +586,7 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 
 // forEachKey calls fn with the AWS key ID of all keys in the AWS account and
 // region that would be returned by ListKeys. It may call fn concurrently.
-func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Context, keyARN string) error) error {
+func (a *AWSKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Context, keyARN string) error) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 	marker := ""
 	more := true
@@ -609,11 +614,11 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 	return trace.Wrap(errGroup.Wait())
 }
 
-func (a *awsKMSKeystore) applyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
-	if keyType(keyID) != types.PrivateKeyType_AWS_KMS {
+func (a *AWSKMSKeystore) ApplyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
+	if KeyType(keyID) != types.PrivateKeyType_AWS_KMS {
 		return keyID, nil
 	}
-	key, err := parseAWSKMSKeyID(keyID)
+	key, err := ParseAWSKMSKeyID(keyID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -624,12 +629,12 @@ func (a *awsKMSKeystore) applyMultiRegionConfig(ctx context.Context, keyID []byt
 	return keyID, nil
 }
 
-func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([]byte, error) {
+func (a *AWSKMSKeystore) applyMRKConfig(ctx context.Context, key AWSKMSKeyID) ([]byte, error) {
 	if !key.isMRK() {
 		if a.multiRegionEnabled {
-			a.logger.WarnContext(ctx, "Unable to replicate single-region key. A CA rotation is required to migrate to a multi-region key.", "key_arn", key.arn)
+			a.logger.WarnContext(ctx, "Unable to replicate single-region key. A CA rotation is required to migrate to a multi-region key.", "key_arn", key.ARN)
 		}
-		return key.marshal(), nil
+		return key.Marshal(), nil
 	}
 
 	tags := make([]kmstypes.Tag, 0, len(a.tags))
@@ -645,7 +650,7 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 	err := a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
 		var err error
 		describeKeyOut, err = client.DescribeKey(ctx, &kms.DescribeKeyInput{
-			KeyId: aws.String(key.id),
+			KeyId: aws.String(key.ID),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -666,14 +671,14 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 	if describeKeyOut.KeyMetadata.MultiRegionConfiguration == nil {
 		// This error is not expected to be reached since we check that the key
 		// is a multi-region key above.
-		return nil, trace.Errorf("kms key %s missing multi-region configuration", currRegionKey.arn)
+		return nil, trace.Errorf("kms key %s missing multi-region configuration", currRegionKey.ARN)
 	}
 
 	currPrimaryKey, err := keyIDFromArn(*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey.Arn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var existingReplicas []awsKMSKeyID
+	var existingReplicas []AWSKMSKeyID
 	for _, replica := range append(
 		describeKeyOut.KeyMetadata.MultiRegionConfiguration.ReplicaKeys,
 		*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey,
@@ -687,20 +692,20 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 
 	// Only the primary region can replicate keys and update the primary region
 	// so return early if we are operating outside of the primary region.
-	if currRegionKey.region != currPrimaryKey.region {
-		return key.marshal(), nil
+	if currRegionKey.Region != currPrimaryKey.Region {
+		return key.Marshal(), nil
 	}
 
 	for region := range a.replicaRegions {
 		// Check if a replica already exists in this region.
-		if slices.ContainsFunc(existingReplicas, func(key awsKMSKeyID) bool {
-			return key.region == region
+		if slices.ContainsFunc(existingReplicas, func(key AWSKMSKeyID) bool {
+			return key.Region == region
 		}) {
 			continue
 		}
-		a.logger.DebugContext(ctx, "Replicating key", "kms_arn", currPrimaryKey.arn, "replica_region", region)
+		a.logger.DebugContext(ctx, "Replicating key", "kms_arn", currPrimaryKey.ARN, "replica_region", region)
 		out, err := client.ReplicateKey(ctx, &kms.ReplicateKeyInput{
-			KeyId:         &key.id,
+			KeyId:         &key.ID,
 			ReplicaRegion: &region,
 			Tags:          tags,
 		})
@@ -713,14 +718,14 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		}
 		existingReplicas = append(existingReplicas, key)
 	}
-	if currPrimaryKey.region == a.primaryRegion {
-		return currPrimaryKey.marshal(), nil
+	if currPrimaryKey.Region == a.primaryRegion {
+		return currPrimaryKey.Marshal(), nil
 	}
 
 	err = a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
-		a.logger.DebugContext(ctx, "Updating primary region", "kms_arn", currPrimaryKey.arn, "primary", a.primaryRegion)
+		a.logger.DebugContext(ctx, "Updating primary region", "kms_arn", currPrimaryKey.ARN, "primary", a.primaryRegion)
 		_, err := client.UpdatePrimaryRegion(ctx, &kms.UpdatePrimaryRegionInput{
-			KeyId:         aws.String(currPrimaryKey.id),
+			KeyId:         aws.String(currPrimaryKey.ID),
 			PrimaryRegion: aws.String(a.primaryRegion),
 		})
 		if err != nil {
@@ -733,21 +738,21 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 	}
 
 	for _, key := range existingReplicas {
-		if key.region == a.primaryRegion {
-			return key.marshal(), nil
+		if key.Region == a.primaryRegion {
+			return key.Marshal(), nil
 		}
 	}
-	return nil, trace.Errorf("failed to find updated primary key region=%s key_id=%s", a.primaryRegion, key.id)
+	return nil, trace.Errorf("failed to find updated primary key region=%s key_id=%s", a.primaryRegion, key.ID)
 }
 
-func (a *awsKMSKeystore) waitForKeyEnabled(ctx context.Context, client mrkClient, key awsKMSKeyID) error {
+func (a *AWSKMSKeystore) waitForKeyEnabled(ctx context.Context, client MRKClient, key AWSKMSKeyID) error {
 	err := a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
-		a.logger.DebugContext(ctx, "Waiting for key to be enabled", "key_arn", key.arn)
+		a.logger.DebugContext(ctx, "Waiting for key to be enabled", "key_arn", key.ARN)
 		out, err := client.DescribeKey(ctx, &kms.DescribeKeyInput{
-			KeyId: aws.String(key.id),
+			KeyId: aws.String(key.ID),
 		})
 		if err != nil {
-			a.logger.DebugContext(ctx, "Failed to get key state", "key_arn", key.arn, "err", err)
+			a.logger.DebugContext(ctx, "Failed to get key state", "key_arn", key.ARN, "err", err)
 			return trace.Wrap(err, "failed to get key state")
 		}
 		// Return a KMSInvalidStateException so this can be retired by
@@ -762,43 +767,43 @@ func (a *awsKMSKeystore) waitForKeyEnabled(ctx context.Context, client mrkClient
 	return trace.Wrap(err)
 }
 
-type awsKMSKeyID struct {
-	id, arn, account, region string
+type AWSKMSKeyID struct {
+	ID, ARN, Account, Region string
 }
 
-func (a awsKMSKeyID) marshal() []byte {
-	return []byte(awskmsPrefix + a.arn)
+func (a AWSKMSKeyID) Marshal() []byte {
+	return []byte(awskmsPrefix + a.ARN)
 }
 
 // isMRK checks if a key is a multi-region key.
-func (a awsKMSKeyID) isMRK() bool {
-	return strings.HasPrefix(a.id, "mrk-")
+func (a AWSKMSKeyID) isMRK() bool {
+	return strings.HasPrefix(a.ID, "mrk-")
 }
 
-func keyIDFromArn(keyARN string) (awsKMSKeyID, error) {
+func keyIDFromArn(keyARN string) (AWSKMSKeyID, error) {
 	parsedARN, err := arn.Parse(keyARN)
 	if err != nil {
-		return awsKMSKeyID{}, trace.Wrap(err, "unable parse ARN of AWS KMS key")
+		return AWSKMSKeyID{}, trace.Wrap(err, "unable parse ARN of AWS KMS key")
 	}
 	id := strings.TrimPrefix(parsedARN.Resource, "key/")
-	return awsKMSKeyID{
-		id:      id,
-		arn:     keyARN,
-		account: parsedARN.AccountID,
-		region:  parsedARN.Region,
+	return AWSKMSKeyID{
+		ID:      id,
+		ARN:     keyARN,
+		Account: parsedARN.AccountID,
+		Region:  parsedARN.Region,
 	}, nil
 }
 
-func parseAWSKMSKeyID(raw []byte) (awsKMSKeyID, error) {
-	if keyType(raw) != types.PrivateKeyType_AWS_KMS {
-		return awsKMSKeyID{}, trace.BadParameter("unable to parse invalid AWS KMS key")
+func ParseAWSKMSKeyID(raw []byte) (AWSKMSKeyID, error) {
+	if KeyType(raw) != types.PrivateKeyType_AWS_KMS {
+		return AWSKMSKeyID{}, trace.BadParameter("unable to parse invalid AWS KMS key")
 	}
 	keyARN := strings.TrimPrefix(string(raw), awskmsPrefix)
 	key, err := keyIDFromArn(keyARN)
 	return key, trace.Wrap(err)
 }
 
-type kmsClient interface {
+type KMSClient interface {
 	CreateKey(context.Context, *kms.CreateKeyInput, ...func(*kms.Options)) (*kms.CreateKeyOutput, error)
 	GetPublicKey(context.Context, *kms.GetPublicKeyInput, ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error)
 	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
@@ -809,13 +814,13 @@ type kmsClient interface {
 	Decrypt(context.Context, *kms.DecryptInput, ...func(*kms.Options)) (*kms.DecryptOutput, error)
 }
 
-// mrkClient is a client for managing multi-region keys.
-type mrkClient interface {
+// MRKClient is a client for managing multi-region keys.
+type MRKClient interface {
 	ReplicateKey(context.Context, *kms.ReplicateKeyInput, ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error)
 	UpdatePrimaryRegion(context.Context, *kms.UpdatePrimaryRegionInput, ...func(*kms.Options)) (*kms.UpdatePrimaryRegionOutput, error)
 	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
 }
 
-type stsClient interface {
+type STSClient interface {
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }

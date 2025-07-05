@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package keystore
+package internal
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -44,17 +45,17 @@ import (
 
 const (
 	// GCP does not allow "." or "/" in labels
-	hostLabel                      = "teleport_auth_host"
+	HostLabel                      = "teleport_auth_host"
 	gcpkmsPrefix                   = "gcpkms:"
 	gcpOAEPHash                    = crypto.SHA256
 	defaultGCPRequestTimeout       = 30 * time.Second
 	defaultGCPPendingTimeout       = 2 * time.Minute
 	defaultGCPPendingRetryInterval = 5 * time.Second
 	// We always use version 1, during rotation brand new keys are created.
-	keyVersionSuffix = "/cryptoKeyVersions/1"
+	KeyVersionSuffix = "/cryptoKeyVersions/1"
 )
 
-type pendingRetryTag struct{}
+type PendingRetryTag struct{}
 
 var (
 	gcpKMSProtectionLevels = map[string]kmspb.ProtectionLevel{
@@ -63,7 +64,7 @@ var (
 	}
 )
 
-type gcpKMSKeyStore struct {
+type GCPKMSKeyStore struct {
 	hostUUID        string
 	keyRing         string
 	protectionLevel kmspb.ProtectionLevel
@@ -73,10 +74,19 @@ type gcpKMSKeyStore struct {
 	waiting         chan struct{}
 }
 
-// newGCPKMSKeyStore returns a new keystore configured to use a GCP KMS keyring
+type GCPKMSKeyStoreConfig struct {
+	servicecfg.GCPKMSConfig
+
+	KMSClient *kms.KeyManagementClient
+	Clock     faketime.Clock
+	HostUUID  string
+	Logger    *slog.Logger
+}
+
+// NewGCPKMSKeyStore returns a new keystore configured to use a GCP KMS keyring
 // to manage all key material.
-func newGCPKMSKeyStore(ctx context.Context, cfg *servicecfg.GCPKMSConfig, opts *Options) (*gcpKMSKeyStore, error) {
-	kmsClient := opts.kmsClient
+func NewGCPKMSKeyStore(ctx context.Context, cfg GCPKMSKeyStoreConfig) (*GCPKMSKeyStore, error) {
+	kmsClient := cfg.KMSClient
 	if kmsClient == nil {
 		var err error
 		kmsClient, err = kms.NewKeyManagementClient(ctx)
@@ -85,36 +95,33 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *servicecfg.GCPKMSConfig, opts *
 		}
 	}
 
-	clock := opts.faketimeOverride
-	if clock == nil {
-		clock = faketime.NewRealClock()
-	}
+	clock := cmp.Or(cfg.Clock, faketime.NewRealClock())
 
-	return &gcpKMSKeyStore{
-		hostUUID:        opts.HostUUID,
+	return &GCPKMSKeyStore{
+		hostUUID:        cfg.HostUUID,
 		keyRing:         cfg.KeyRing,
 		protectionLevel: gcpKMSProtectionLevels[cfg.ProtectionLevel],
 		kmsClient:       kmsClient,
-		log:             opts.Logger,
+		log:             cfg.Logger,
 		clock:           clock,
 		waiting:         make(chan struct{}),
 	}, nil
 }
 
-func (a *gcpKMSKeyStore) name() string {
-	return storeGCP
+func (a *GCPKMSKeyStore) Name() string {
+	return "gcp_kms"
 }
 
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
-func (g *gcpKMSKeyStore) keyTypeDescription() string {
+func (g *GCPKMSKeyStore) KeyTypeDescription() string {
 	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
 }
 
-func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
+func (g *GCPKMSKeyStore) GenerateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (GCPKMSKeyID, error) {
 	alg, err := gcpAlgorithm(algorithm)
 	if err != nil {
-		return gcpKMSKeyID{}, trace.Wrap(err)
+		return GCPKMSKeyID{}, trace.Wrap(err)
 	}
 
 	keyUUID := uuid.NewString()
@@ -126,7 +133,7 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 		CryptoKey: &kmspb.CryptoKey{
 			Purpose: usage.toGCP(),
 			Labels: map[string]string{
-				hostLabel: g.hostUUID,
+				HostLabel: g.hostUUID,
 			},
 			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
 				ProtectionLevel: g.protectionLevel,
@@ -136,19 +143,19 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 	}
 	resp, err := doGCPRequest(ctx, g, g.kmsClient.CreateCryptoKey, req)
 	if err != nil {
-		return gcpKMSKeyID{}, trace.Wrap(err, "error while attempting to generate new GCP KMS key")
+		return GCPKMSKeyID{}, trace.Wrap(err, "error while attempting to generate new GCP KMS key")
 	}
 
-	return gcpKMSKeyID{
-		keyVersionName: resp.Name + keyVersionSuffix,
+	return GCPKMSKeyID{
+		KeyVersionName: resp.Name + KeyVersionSuffix,
 	}, nil
 }
 
 // generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
 // later to get an equivalent crypto.Signer.
-func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	keyID, err := g.generateKey(ctx, algorithm, keyUsageSign)
+func (g *GCPKMSKeyStore) GenerateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+	keyID, err := g.GenerateKey(ctx, algorithm, keyUsageSign)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -157,14 +164,14 @@ func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosui
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return keyID.marshal(), signer, nil
+	return keyID.Marshal(), signer, nil
 }
 
 // generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getDecrypter
 // later to get an equivalent crypto.Decrypter.
-func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
-	keyID, err := g.generateKey(ctx, algorithm, keyUsageDecrypt)
+func (g *GCPKMSKeyStore) GenerateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+	keyID, err := g.GenerateKey(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
 		return nil, nil, gcpOAEPHash, trace.Wrap(err)
 	}
@@ -173,7 +180,7 @@ func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm crypto
 	if err != nil {
 		return nil, nil, gcpOAEPHash, trace.Wrap(err)
 	}
-	return keyID.marshal(), decrypter, gcpOAEPHash, nil
+	return keyID.Marshal(), decrypter, gcpOAEPHash, nil
 }
 
 func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
@@ -187,8 +194,8 @@ func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyV
 }
 
 // getSigner returns a crypto.Signer for the given raw private key.
-func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
-	keyID, err := parseGCPKMSKeyID(rawKey)
+func (g *GCPKMSKeyStore) GetSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	keyID, err := ParseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,8 +204,8 @@ func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey
 }
 
 // getDecrypter returns a crypto.Decrypter for the given raw private key.
-func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
-	keyID, err := parseGCPKMSKeyID(rawKey)
+func (g *GCPKMSKeyStore) GetDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
+	keyID, err := ParseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,13 +214,13 @@ func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 }
 
 // deleteKey deletes the given key from the KeyStore.
-func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
-	keyID, err := parseGCPKMSKeyID(rawKey)
+func (g *GCPKMSKeyStore) DeleteKey(ctx context.Context, rawKey []byte) error {
+	keyID, err := ParseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req := &kmspb.DestroyCryptoKeyVersionRequest{
-		Name: keyID.keyVersionName,
+		Name: keyID.KeyVersionName,
 	}
 	// Retry to destroy while the key is still pending creation.
 	_, err = retryWhilePending(ctx, g, g.kmsClient.DestroyCryptoKeyVersion, req)
@@ -226,15 +233,15 @@ func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 // configured with the same keyring. This is a divergence from the PKCS#11
 // keystore where different auth servers will always create their own keys even
 // if configured to use the same HSM
-func (g *gcpKMSKeyStore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (g *GCPKMSKeyStore) CanUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_GCP_KMS {
 		return false, nil
 	}
-	keyID, err := parseGCPKMSKeyID(raw)
+	keyID, err := ParseGCPKMSKeyID(raw)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	if !strings.HasPrefix(keyID.keyVersionName, g.keyRing) {
+	if !strings.HasPrefix(keyID.KeyVersionName, g.keyRing) {
 		return false, nil
 	}
 
@@ -258,12 +265,12 @@ func (g *gcpKMSKeyStore) canUseKey(ctx context.Context, raw []byte, keyType type
 // or a simpler case where: the other auth server is running in a completely
 // different Teleport cluster and the keys it's actively using will never appear
 // in the activeKeys argument.
-func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (g *GCPKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	// Make a map of currently active key versions, this is used for lookups to
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
 	for _, activeKey := range activeKeys {
-		keyIsRelevant, err := g.canUseKey(ctx, activeKey, keyType(activeKey))
+		keyIsRelevant, err := g.CanUseKey(ctx, activeKey, KeyType(activeKey))
 		if err != nil {
 			// Don't expect this error to ever hit, safer to return if it does.
 			return trace.Wrap(err)
@@ -273,16 +280,16 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// different keyring than the one this Auth is configured to use.
 			continue
 		}
-		keyID, err := parseGCPKMSKeyID(activeKey)
+		keyID, err := ParseGCPKMSKeyID(activeKey)
 		if err != nil {
 			// Realistically we should not hit this since canUseKey already
 			// calls parseGCPKMSKeyID.
 			return trace.Wrap(err)
 		}
-		activeKmsKeyVersions[keyID.keyVersionName] = 0
+		activeKmsKeyVersions[keyID.KeyVersionName] = 0
 	}
 
-	var keysToDelete []gcpKMSKeyID
+	var keysToDelete []GCPKMSKeyID
 
 	listKeyRequest := &kmspb.ListCryptoKeysRequest{
 		Parent: g.keyRing,
@@ -291,26 +298,26 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		// defined.
 		// https://cloud.google.com/sdk/gcloud/reference/topic/filters
 		// > Use key:* to test if key is defined
-		Filter: fmt.Sprintf("labels.%s:*", hostLabel),
+		Filter: fmt.Sprintf("labels.%s:*", HostLabel),
 	}
 	iter := g.kmsClient.ListCryptoKeys(ctx, listKeyRequest)
 	key, err := iter.Next()
 	for err == nil {
-		keyVersionName := key.Name + keyVersionSuffix
+		keyVersionName := key.Name + KeyVersionSuffix
 		if _, active := activeKmsKeyVersions[keyVersionName]; active {
 			// Record that this current active key was actually found.
 			activeKmsKeyVersions[keyVersionName] += 1
-		} else if key.Labels[hostLabel] == g.hostUUID {
+		} else if key.Labels[HostLabel] == g.hostUUID {
 			// This key is not active (it is not currently stored in any
 			// Teleport CA) and it was created by this Auth server, so it should
 			// be safe to delete.
-			keysToDelete = append(keysToDelete, gcpKMSKeyID{
-				keyVersionName: keyVersionName,
+			keysToDelete = append(keysToDelete, GCPKMSKeyID{
+				KeyVersionName: keyVersionName,
 			})
 		}
 		key, err = iter.Next()
 	}
-	if err != nil && !errors.Is(err, iterator.Done) {
+	if !errors.Is(err, iterator.Done) {
 		return trace.Wrap(err, "unexpected error while iterating GCP KMS keys")
 	}
 
@@ -328,12 +335,12 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	}
 
 	for _, unusedKey := range keysToDelete {
-		g.log.InfoContext(ctx, "Deleting unused GCP KMS key.", "key_version", unusedKey.keyVersionName)
-		err := g.deleteKey(ctx, unusedKey.marshal())
+		g.log.InfoContext(ctx, "Deleting unused GCP KMS key.", "key_version", unusedKey.KeyVersionName)
+		err := g.DeleteKey(ctx, unusedKey.Marshal())
 		// Ignore errors where we can't destroy because the state is already
 		// DESTROYED or DESTROY_SCHEDULED
 		if err != nil && !strings.Contains(err.Error(), "has value DESTROY") {
-			return trace.Wrap(err, "error deleting unused GCP KMS key %q", unusedKey.keyVersionName)
+			return trace.Wrap(err, "error deleting unused GCP KMS key %q", unusedKey.KeyVersionName)
 		}
 	}
 	return nil
@@ -342,14 +349,14 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 // kmsKey implements the crypto.Signer and crypto.Decrypter interface
 type kmsKey struct {
 	ctx    context.Context
-	g      *gcpKMSKeyStore
-	keyID  gcpKMSKeyID
+	g      *GCPKMSKeyStore
+	keyID  GCPKMSKeyID
 	public crypto.PublicKey
 }
 
-func (g *gcpKMSKeyStore) newKmsKey(ctx context.Context, keyID gcpKMSKeyID) (*kmsKey, error) {
+func (g *GCPKMSKeyStore) newKmsKey(ctx context.Context, keyID GCPKMSKeyID) (*kmsKey, error) {
 	req := &kmspb.GetPublicKeyRequest{
-		Name: keyID.keyVersionName,
+		Name: keyID.KeyVersionName,
 	}
 	// Retry fetching the public key while the key is pending creation.
 	resp, err := retryWhilePending(ctx, g, g.kmsClient.GetPublicKey, req)
@@ -359,7 +366,7 @@ func (g *gcpKMSKeyStore) newKmsKey(ctx context.Context, keyID gcpKMSKeyID) (*kms
 
 	block, _ := pem.Decode([]byte(resp.Pem))
 	if block == nil {
-		return nil, trace.BadParameter("GCP KMS key %s has invalid public key PEM", keyID.keyVersionName)
+		return nil, trace.BadParameter("GCP KMS key %s has invalid public key PEM", keyID.KeyVersionName)
 	}
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
@@ -369,7 +376,7 @@ func (g *gcpKMSKeyStore) newKmsKey(ctx context.Context, keyID gcpKMSKeyID) (*kms
 	return g.newKmsKeyWithPublicKey(ctx, keyID, pub)
 }
 
-func (g *gcpKMSKeyStore) newKmsKeyWithPublicKey(ctx context.Context, keyID gcpKMSKeyID, publicKey crypto.PublicKey) (*kmsKey, error) {
+func (g *GCPKMSKeyStore) newKmsKeyWithPublicKey(ctx context.Context, keyID GCPKMSKeyID, publicKey crypto.PublicKey) (*kmsKey, error) {
 	return &kmsKey{
 		ctx:    ctx,
 		g:      g,
@@ -408,7 +415,7 @@ func (s *kmsKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (si
 	}
 
 	resp, err := doGCPRequest(s.ctx, s.g, s.g.kmsClient.AsymmetricSign, &kmspb.AsymmetricSignRequest{
-		Name:   s.keyID.keyVersionName,
+		Name:   s.keyID.KeyVersionName,
 		Digest: requestDigest,
 		Data:   data,
 	})
@@ -420,7 +427,7 @@ func (s *kmsKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (si
 
 func (s *kmsKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) (plaintext []byte, err error) {
 	resp, err := doGCPRequest(s.ctx, s.g, s.g.kmsClient.AsymmetricDecrypt, &kmspb.AsymmetricDecryptRequest{
-		Name:       s.keyID.keyVersionName,
+		Name:       s.keyID.KeyVersionName,
 		Ciphertext: ciphertext,
 	})
 	if err != nil {
@@ -438,47 +445,47 @@ func (u keyUsage) toGCP() kmspb.CryptoKey_CryptoKeyPurpose {
 	}
 }
 
-type gcpKMSKeyID struct {
-	keyVersionName string
+type GCPKMSKeyID struct {
+	KeyVersionName string
 }
 
-func (g gcpKMSKeyID) marshal() []byte {
-	return []byte(gcpkmsPrefix + g.keyVersionName)
+func (g GCPKMSKeyID) Marshal() []byte {
+	return []byte(gcpkmsPrefix + g.KeyVersionName)
 }
 
-func (g gcpKMSKeyID) keyring() (string, error) {
+func (g GCPKMSKeyID) keyring() (string, error) {
 	// keyVersionName has this format:
 	//   projects/*/locations/*/keyRings/*/cryptoKeys/*/cryptoKeyVersions/1
 	// want to extract:
 	//   projects/*/locations/*/keyRings/*
 	// project name, location, and keyRing name can't contain '/'
-	splits := strings.SplitN(g.keyVersionName, "/", 7)
+	splits := strings.SplitN(g.KeyVersionName, "/", 7)
 	if len(splits) < 7 {
 		return "", trace.BadParameter("GCP KMS keyVersionName has bad format")
 	}
 	return strings.Join(splits[:6], "/"), nil
 }
 
-func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {
-	var keyID gcpKMSKeyID
-	if keyType(key) != types.PrivateKeyType_GCP_KMS {
+func ParseGCPKMSKeyID(key []byte) (GCPKMSKeyID, error) {
+	var keyID GCPKMSKeyID
+	if KeyType(key) != types.PrivateKeyType_GCP_KMS {
 		return keyID, trace.BadParameter("unable to parse invalid GCP KMS key")
 	}
 	// strip gcpkms: prefix
-	keyID.keyVersionName = strings.TrimPrefix(string(key), gcpkmsPrefix)
+	keyID.KeyVersionName = strings.TrimPrefix(string(key), gcpkmsPrefix)
 	return keyID, nil
 }
 
 func retryWhilePending[reqType, optType, respType any](
 	ctx context.Context,
-	g *gcpKMSKeyStore,
+	g *GCPKMSKeyStore,
 	f func(context.Context, reqType, ...optType) (*respType, error),
 	req reqType,
 ) (*respType, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultGCPPendingTimeout)
 	defer cancel()
 
-	ticker := g.clock.NewTicker(defaultGCPPendingRetryInterval, pendingRetryTag{})
+	ticker := g.clock.NewTicker(defaultGCPPendingRetryInterval, PendingRetryTag{})
 	defer ticker.Stop()
 	for {
 		resp, err := doGCPRequest(ctx, g, f, req)
@@ -498,7 +505,7 @@ func retryWhilePending[reqType, optType, respType any](
 
 func doGCPRequest[reqType, optType, respType any](
 	ctx context.Context,
-	g *gcpKMSKeyStore,
+	g *GCPKMSKeyStore,
 	f func(context.Context, reqType, ...optType) (*respType, error),
 	req reqType,
 ) (*respType, error) {

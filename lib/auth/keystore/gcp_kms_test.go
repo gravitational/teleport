@@ -48,6 +48,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -286,13 +287,13 @@ func (f *fakeGCPKMSServer) DestroyCryptoKeyVersion(ctx context.Context, req *kms
 // deleteKey is a test helper to delete a key by the raw ID which would be
 // stored in the teleport CA.
 func (f *fakeGCPKMSServer) deleteKey(raw []byte) error {
-	keyID, err := parseGCPKMSKeyID(raw)
+	keyID, err := internal.ParseGCPKMSKeyID(raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.keyVersions, keyID.keyVersionName)
+	delete(f.keyVersions, keyID.KeyVersionName)
 	return nil
 }
 
@@ -439,8 +440,8 @@ func TestGCPKMSKeystore(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             "test-host-id",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				kmsClient:            kmsClient,
-				faketimeOverride:     clock,
+				GCPKMSClient:         kmsClient,
+				FakeTime:             clock,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")
 
@@ -448,7 +449,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			// of the test. The keystore creates a ticker when waiting for a key
 			// that is currently pending.
 			handleTicker := func(ticker *faketime.FakeTicker) error {
-				if ticker.Tag != (pendingRetryTag{}) {
+				if ticker.Tag != (internal.PendingRetryTag{}) {
 					return trace.BadParameter("unknown ticker tag %v, test currently only handles tickers tagged with pendingRetryTag", ticker.Tag)
 				}
 				if tc.initialKeyState == kmspb.CryptoKeyVersion_ENABLED {
@@ -715,7 +716,7 @@ func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             localHostID,
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				kmsClient:            kmsClient,
+				GCPKMSClient:         kmsClient,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")
 
@@ -756,13 +757,13 @@ type keySpec struct {
 }
 
 func (ks *keySpec) keyVersionName() string {
-	return ks.keyring + "/cryptoKeys/" + ks.id + keyVersionSuffix
+	return ks.keyring + "/cryptoKeys/" + ks.id + internal.KeyVersionSuffix
 }
 
 func (ks *keySpec) keyID() []byte {
-	return gcpKMSKeyID{
-		keyVersionName: ks.keyVersionName(),
-	}.marshal()
+	return internal.GCPKMSKeyID{
+		KeyVersionName: ks.keyVersionName(),
+	}.Marshal()
 }
 
 func createKeyRequest(ks keySpec) *kmspb.CreateCryptoKeyRequest {
@@ -772,7 +773,7 @@ func createKeyRequest(ks keySpec) *kmspb.CreateCryptoKeyRequest {
 		CryptoKey: &kmspb.CryptoKey{
 			Purpose: kmspb.CryptoKey_ASYMMETRIC_SIGN,
 			Labels: map[string]string{
-				hostLabel: ks.host,
+				internal.HostLabel: ks.host,
 			},
 			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
 				ProtectionLevel: kmspb.ProtectionLevel_SOFTWARE,

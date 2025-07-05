@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/keystoretest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
@@ -69,7 +69,7 @@ func TestMain(m *testing.M) {
 func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
 	config := newAuthConfig(t, log, clock)
 	config.Auth.StorageConfig = *storageConfig
-	config.Auth.KeyStore = keystore.HSMTestConfig(t)
+	config.Auth.KeyStore = keystoretest.HSMTestConfig(t)
 	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 	})
@@ -423,7 +423,7 @@ func TestHSMMigrate(t *testing.T) {
 	// Phase 1: migrate auth1 to HSM
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.Auth.KeyStore = keystore.HSMTestConfig(t)
+	auth1Config.Auth.KeyStore = keystoretest.HSMTestConfig(t)
 	auth1, err = newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
 
@@ -499,7 +499,7 @@ func TestHSMMigrate(t *testing.T) {
 	// Phase 2: migrate auth2 to HSM
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
-	auth2Config.Auth.KeyStore = keystore.HSMTestConfig(t)
+	auth2Config.Auth.KeyStore = keystoretest.HSMTestConfig(t)
 	auth2, err = newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 	authServices = teleportServices{auth1, auth2}

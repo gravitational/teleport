@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal"
 )
 
 // TestSSHSignatureAlgorithm asserts that [ssh.(*Certificate).SignCert] honors
@@ -79,7 +80,7 @@ func TestSSHSignatureAlgorithm(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			sshSigner, err := sshSignerFromCryptoSigner(tc.signer)
+			sshSigner, err := internal.SSHSignerFromCryptoSigner(tc.signer)
 			require.NoError(t, err)
 			cert := ssh.Certificate{
 				Key:         subjectPubKey,

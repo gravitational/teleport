@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -93,18 +94,18 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             "uuid",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				awsKMSClient:         fakeKMS,
-				awsSTSClient: &fakeAWSSTSClient{
+				AWSKMSClient:         fakeKMS,
+				AWSSTSClient: &fakeAWSSTSClient{
 					account: "123456789012",
 				},
-				clockworkOverride: clock,
+				Clock: clock,
 			}
 			keyStore, err := NewManager(ctx, &cfg, opts)
 			require.NoError(t, err)
 
 			var otherTags []kmstypes.Tag
-			for k, v := range keyStore.backendForNewKeys.(*awsKMSKeystore).tags {
-				if k != clusterTagKey {
+			for k, v := range tc.tags {
+				if k != internal.ClusterTagKey {
 					otherTags = append(otherTags, kmstypes.Tag{
 						TagKey:   aws.String(k),
 						TagValue: aws.String(v),
@@ -138,7 +139,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			output, err := fakeKMS.CreateKey(ctx, &kms.CreateKeyInput{
 				KeySpec: kmstypes.KeySpecEccNistP256,
 				Tags: append(otherTags, kmstypes.Tag{
-					TagKey:   aws.String(clusterTagKey),
+					TagKey:   aws.String(internal.ClusterTagKey),
 					TagValue: aws.String("other-cluster"),
 				}),
 			})
@@ -173,8 +174,8 @@ func TestAWSKMS_WrongAccount(t *testing.T) {
 		ClusterName:          clusterName,
 		HostUUID:             "uuid",
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
-		awsSTSClient: &fakeAWSSTSClient{
+		AWSKMSClient:         newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
+		AWSSTSClient: &fakeAWSSTSClient{
 			account: "222222222222",
 		},
 	}
@@ -204,17 +205,17 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		ClusterName:          clusterName,
 		HostUUID:             "uuid",
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         kms,
-		awsSTSClient: &fakeAWSSTSClient{
+		AWSKMSClient:         kms,
+		AWSSTSClient: &fakeAWSSTSClient{
 			account: "111111111111",
 		},
-		clockworkOverride: clock,
+		Clock: clock,
 	}
 	manager, err := NewManager(ctx, cfg, opts)
 	require.NoError(t, err)
 
 	// Test with one retry required.
-	kms.keyPendingDuration = pendingKeyBaseRetryInterval
+	kms.keyPendingDuration = internal.PendingKeyBaseRetryInterval
 	go func() {
 		clock.BlockUntil(2)
 		clock.Advance(kms.keyPendingDuration)
@@ -223,7 +224,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with two retries required.
-	kms.keyPendingDuration = 4 * pendingKeyBaseRetryInterval
+	kms.keyPendingDuration = 4 * internal.PendingKeyBaseRetryInterval
 	go func() {
 		clock.BlockUntil(2)
 		clock.Advance(kms.keyPendingDuration / 2)
@@ -234,12 +235,12 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test a timeout.
-	kms.keyPendingDuration = 2 * pendingKeyTimeout
+	kms.keyPendingDuration = 2 * internal.PendingKeyTimeout
 	go func() {
 		clock.BlockUntil(2)
-		clock.Advance(pendingKeyBaseRetryInterval)
+		clock.Advance(internal.PendingKeyBaseRetryInterval)
 		clock.BlockUntil(2)
-		clock.Advance(pendingKeyTimeout)
+		clock.Advance(internal.PendingKeyTimeout)
 	}()
 	_, err = manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 	require.Error(t, err)
@@ -263,12 +264,12 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 		ClusterName:          clusterName,
 		HostUUID:             "uuid",
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         fakeKMS,
-		mrkClient:            fakeKMS,
-		awsSTSClient: &fakeAWSSTSClient{
+		AWSKMSClient:         fakeKMS,
+		AWSMRKClient:         fakeKMS,
+		AWSSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
-		clockworkOverride: clock,
+		Clock: clock,
 	}
 
 	for _, tc := range []struct {
@@ -310,16 +311,16 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 			sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 			require.NoError(t, err)
 
-			keyID, err := parseAWSKMSKeyID(sshKeyPair.PrivateKey)
+			keyID, err := internal.ParseAWSKMSKeyID(sshKeyPair.PrivateKey)
 			require.NoError(t, err)
 
 			if tc.multiRegion {
-				assert.Contains(t, keyID.arn, "mrk-")
+				assert.Contains(t, keyID.ARN, "mrk-")
 			} else {
-				assert.NotContains(t, keyID.arn, "mrk-")
+				assert.NotContains(t, keyID.ARN, "mrk-")
 			}
 
-			tagsOut, err := fakeKMS.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.arn})
+			tagsOut, err := fakeKMS.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.ARN})
 			require.NoError(t, err)
 			if len(tc.tags) == 0 {
 				tc.tags = map[string]string{
@@ -767,12 +768,12 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 				ClusterName:          cluster,
 				HostUUID:             "uuid",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				awsKMSClient:         fakeKMS,
-				mrkClient:            fakeKMS,
-				awsSTSClient: &fakeAWSSTSClient{
+				AWSKMSClient:         fakeKMS,
+				AWSMRKClient:         fakeKMS,
+				AWSSTSClient: &fakeAWSSTSClient{
 					account: testAccount,
 				},
-				clockworkOverride: clock,
+				Clock: clock,
 			}
 
 			existingPrimary := tc.existingPrimary
@@ -795,10 +796,10 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 
 			kp, err := primary.NewTLSKeyPair(ctx, cluster.GetName(), cryptosuites.HostCATLS)
 			require.NoError(t, err, trace.DebugReport(err))
-			key, err := parseAWSKMSKeyID(kp.Key)
+			key, err := internal.ParseAWSKMSKeyID(kp.Key)
 			require.NoError(t, err)
-			require.Equal(t, key.region, existingPrimary)
-			require.Contains(t, key.arn, "mrk-")
+			require.Equal(t, key.Region, existingPrimary)
+			require.Contains(t, key.ARN, "mrk-")
 			require.ElementsMatch(t, tc.existingReplicas, fakeKMS.keys[0].replicas)
 
 			fakeKMS.region = tc.config.AWSRegion
@@ -810,12 +811,12 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			id, err := mgr.ApplyMultiRegionConfig(ctx, kp.Key)
 			require.NoError(t, err)
 
-			key, err = parseAWSKMSKeyID(id)
+			key, err = internal.ParseAWSKMSKeyID(id)
 			require.NoError(t, err)
-			require.Equal(t, tc.expectedPrimary, key.region)
+			require.Equal(t, tc.expectedPrimary, key.Region)
 
 			out, err := fakeKMS.DescribeKey(ctx, &kms.DescribeKeyInput{
-				KeyId: &key.id,
+				KeyId: &key.ID,
 			})
 			require.NoError(t, err)
 
@@ -836,5 +837,16 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			}
 		})
 	}
+}
 
+type fakeAuthPreferenceGetter struct {
+	suite types.SignatureAlgorithmSuite
+}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SignatureAlgorithmSuite: f.suite,
+		},
+	}, nil
 }

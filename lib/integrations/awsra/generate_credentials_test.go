@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/keystoretest"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -57,7 +57,7 @@ func TestGenerateCredentials(t *testing.T) {
 		SubjectCommonName:     "test-common-name",
 		DurationSeconds:       nil,
 		AcceptRoleSessionName: true,
-		KeyStoreManager:       keystore.NewSoftwareKeystoreForTests(t),
+		KeyStoreManager:       keystoretest.NewTestKeystore(),
 		Cache: &mockCache{
 			domainName: "cluster-name",
 			ca:         ca,

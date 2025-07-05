@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package keystore
+package internal
 
 import (
 	"context"
@@ -43,7 +43,7 @@ import (
 
 var pkcs11Prefix = []byte("pkcs11:")
 
-type pkcs11KeyStore struct {
+type PKCS11KeyStore struct {
 	ctx       *crypto11.Context
 	hostUUID  string
 	log       *slog.Logger
@@ -52,7 +52,14 @@ type pkcs11KeyStore struct {
 	oaepHash  crypto.Hash
 }
 
-func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11KeyStore, error) {
+type PKCS11KeyStoreConfig struct {
+	servicecfg.PKCS11Config
+	HostUUID string
+	Logger   *slog.Logger
+	OAEPHash crypto.Hash
+}
+
+func NewPKCS11KeyStore(config PKCS11KeyStoreConfig) (*PKCS11KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:        config.Path,
 		TokenLabel:  config.TokenLabel,
@@ -73,37 +80,37 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 	}
 
 	oaepHash := crypto.SHA256
-	if opts.OAEPHash != crypto.Hash(0) {
-		oaepHash = opts.OAEPHash
+	if config.OAEPHash != crypto.Hash(0) {
+		oaepHash = config.OAEPHash
 	}
 
-	return &pkcs11KeyStore{
+	return &PKCS11KeyStore{
 		ctx:       ctx,
-		hostUUID:  opts.HostUUID,
-		log:       opts.Logger,
+		hostUUID:  config.HostUUID,
+		log:       config.Logger,
 		isYubiHSM: strings.HasPrefix(info.ManufacturerID, "Yubico"),
 		semaphore: make(chan struct{}, 1),
 		oaepHash:  oaepHash,
 	}, nil
 }
 
-func (p *pkcs11KeyStore) name() string {
-	return storePKCS11
+func (p *PKCS11KeyStore) Name() string {
+	return "pkcs11"
 }
 
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
-func (p *pkcs11KeyStore) keyTypeDescription() string {
+func (p *PKCS11KeyStore) KeyTypeDescription() string {
 	return fmt.Sprintf("PKCS#11 HSM keys created by %s", p.hostUUID)
 }
 
-func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
+func (p *PKCS11KeyStore) findUnusedID(ctx context.Context) (KeyID, error) {
 	if !p.isYubiHSM {
 		id, err := uuid.NewRandom()
 		if err != nil {
-			return keyID{}, trace.Wrap(err, "generating UUID")
+			return KeyID{}, trace.Wrap(err, "generating UUID")
 		}
-		return keyID{
+		return KeyID{
 			HostID: p.hostUUID,
 			KeyID:  id.String(),
 		}, nil
@@ -118,22 +125,22 @@ func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
 		// FindKeyPair is expected to return nil, nil if the id is not found,
 		// any error is unexpected.
 		if err != nil {
-			return keyID{}, trace.Wrap(err)
+			return KeyID{}, trace.Wrap(err)
 		}
 		if existingSigner == nil {
 			// There is no existing keypair with this ID
-			return keyID{
+			return KeyID{
 				HostID: p.hostUUID,
 				KeyID:  fmt.Sprintf("%04x", id),
 			}, nil
 		}
 	}
-	return keyID{}, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
+	return KeyID{}, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
 }
 
 // generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+func (p *PKCS11KeyStore) GenerateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	// The key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
 	select {
@@ -150,7 +157,7 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rawTeleportID, err := id.marshal()
+	rawTeleportID, err := id.Marshal()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -177,7 +184,7 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 
 // generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
 // identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
-func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+func (p *PKCS11KeyStore) GenerateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
 	// The key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
 	select {
@@ -194,7 +201,7 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 		return nil, nil, p.oaepHash, trace.Wrap(err)
 	}
 
-	rawTeleportID, err := id.marshal()
+	rawTeleportID, err := id.Marshal()
 	if err != nil {
 		return nil, nil, p.oaepHash, trace.Wrap(err)
 	}
@@ -216,23 +223,23 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 	}
 }
 
-func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
+func (p *PKCS11KeyStore) generateRSA2048(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
 	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSAKeySize)
 	return signer, trace.Wrap(err)
 }
 
-func (p *pkcs11KeyStore) generateECDSAP256(ckaID, label []byte) (crypto.Signer, error) {
+func (p *PKCS11KeyStore) generateECDSAP256(ckaID, label []byte) (crypto.Signer, error) {
 	signer, err := p.ctx.GenerateECDSAKeyPairWithLabel(ckaID, label, elliptic.P256())
 	return signer, trace.Wrap(err)
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+func (p *PKCS11KeyStore) GetSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	return p.getSignerWithoutPublicKey(ctx, rawKey)
 }
 
 // getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
+func (p *PKCS11KeyStore) GetDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	signer, err := p.getSignerWithoutPublicKey(ctx, rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -245,8 +252,8 @@ func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return nil, trace.BadParameter("pkcs11 key does not support decryption")
 }
 
-func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
-	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
+func (p *PKCS11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+	if t := KeyType(rawKey); t != types.PrivateKeyType_PKCS11 {
 		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())
 	}
 	keyID, err := parsePKCS11KeyID(rawKey)
@@ -274,7 +281,7 @@ func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey [
 // this host. If the HSM is disconnected or the key material has been deleted
 // the error will not be detected here but when the first signature or
 // decryption is attempted.
-func (p *pkcs11KeyStore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (p *PKCS11KeyStore) CanUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_PKCS11 {
 		return false, nil
 	}
@@ -287,7 +294,7 @@ func (p *pkcs11KeyStore) canUseKey(ctx context.Context, raw []byte, keyType type
 }
 
 // deleteKey deletes the given key from the HSM
-func (p *pkcs11KeyStore) deleteKey(_ context.Context, rawKey []byte) error {
+func (p *PKCS11KeyStore) DeleteKey(_ context.Context, rawKey []byte) error {
 	keyID, err := parsePKCS11KeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -314,7 +321,7 @@ func (p *pkcs11KeyStore) deleteKey(_ context.Context, rawKey []byte) error {
 // 2. Not included in the argument activeKeys
 // This is meant to delete unused keys after they have been rotated out by a CA
 // rotation.
-func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (p *PKCS11KeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	p.log.DebugContext(ctx, "Deleting unused keys from HSM.")
 
 	// It's necessary to fetch all PublicKeys for the known activeKeys in order to
@@ -322,7 +329,7 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	// to find the CKA_ID of an unused key if it is not known.
 	var activePublicKeys []publicKey
 	for _, activeKey := range activeKeys {
-		if keyType(activeKey) != types.PrivateKeyType_PKCS11 {
+		if KeyType(activeKey) != types.PrivateKeyType_PKCS11 {
 			continue
 		}
 		keyID, err := parsePKCS11KeyID(activeKey)
@@ -383,12 +390,12 @@ type publicKey interface {
 	Equal(other crypto.PublicKey) bool
 }
 
-type keyID struct {
+type KeyID struct {
 	HostID string `json:"host_id"`
 	KeyID  string `json:"key_id"`
 }
 
-func (k keyID) marshal() ([]byte, error) {
+func (k KeyID) Marshal() ([]byte, error) {
 	buf, err := json.Marshal(k)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -397,7 +404,7 @@ func (k keyID) marshal() ([]byte, error) {
 	return buf, nil
 }
 
-func (k keyID) pkcs11Key(isYubiHSM bool) ([]byte, error) {
+func (k KeyID) pkcs11Key(isYubiHSM bool) ([]byte, error) {
 	// YubiHSM IDs are 16 bits, stored as a hex string. In older Teleport
 	// versions these keys were stored as normal UUIDs and the YubiHSM SDK
 	// silently truncated them to two bytes. The first two bytes of a UUID are
@@ -418,9 +425,9 @@ func (k keyID) pkcs11Key(isYubiHSM bool) ([]byte, error) {
 	return id[:], nil
 }
 
-func parsePKCS11KeyID(key []byte) (keyID, error) {
-	var keyID keyID
-	if keyType(key) != types.PrivateKeyType_PKCS11 {
+func parsePKCS11KeyID(key []byte) (KeyID, error) {
+	var keyID KeyID
+	if KeyType(key) != types.PrivateKeyType_PKCS11 {
 		return keyID, trace.BadParameter("unable to parse invalid pkcs11 key")
 	}
 	// strip pkcs11: prefix

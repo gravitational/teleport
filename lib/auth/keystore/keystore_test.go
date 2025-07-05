@@ -40,6 +40,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal"
+	"github.com/gravitational/teleport/lib/auth/keystore/keystoretest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -181,15 +183,15 @@ func TestBackends(t *testing.T) {
 			} {
 				t.Run(tc.alg.String(), func(t *testing.T) {
 					// create a key
-					key, signer, err := backend.generateSigner(ctx, tc.alg)
+					key, signer, err := backend.GenerateSigner(ctx, tc.alg)
 					require.NoError(t, err, trace.DebugReport(err))
-					require.Equal(t, backendDesc.expectedKeyType, keyType(key))
+					require.Equal(t, backendDesc.expectedKeyType, internal.KeyType(key))
 
 					// delete the key when we're done with it
-					t.Cleanup(func() { require.NoError(t, backend.deleteKey(ctx, key)) })
+					t.Cleanup(func() { require.NoError(t, backend.DeleteKey(ctx, key)) })
 
 					// get a signer from the key
-					signer, err = backend.getSigner(ctx, key, signer.Public())
+					signer, err = backend.GetSigner(ctx, key, signer.Public())
 					require.NoError(t, err)
 
 					// try signing something
@@ -212,7 +214,7 @@ func TestBackends(t *testing.T) {
 			for i := range numKeys {
 				var signer crypto.Signer
 				var err error
-				rawPrivateKeys[i], signer, err = backend.generateSigner(ctx, cryptosuites.ECDSAP256)
+				rawPrivateKeys[i], signer, err = backend.GenerateSigner(ctx, cryptosuites.ECDSAP256)
 				require.NoError(t, err)
 				publicKeys[i] = signer.Public()
 			}
@@ -223,18 +225,18 @@ func TestBackends(t *testing.T) {
 
 			// say that only the first key is in use, delete the rest
 			usedKeys := [][]byte{rawPrivateKeys[0]}
-			err := backend.deleteUnusedKeys(ctx, usedKeys)
+			err := backend.DeleteUnusedKeys(ctx, usedKeys)
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// make sure the first key is still good
-			signer, err := backend.getSigner(ctx, rawPrivateKeys[0], publicKeys[0])
+			signer, err := backend.GetSigner(ctx, rawPrivateKeys[0], publicKeys[0])
 			require.NoError(t, err)
 			_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 			require.NoError(t, err)
 
 			// make sure all other keys are deleted
 			for i := 1; i < numKeys; i++ {
-				signer, err := backend.getSigner(ctx, rawPrivateKeys[i], publicKeys[0])
+				signer, err := backend.GetSigner(ctx, rawPrivateKeys[i], publicKeys[0])
 				if err != nil {
 					// For PKCS11 we expect to fail to get the signer, for cloud
 					// KMS backends it won't fail until actually signing.
@@ -252,7 +254,7 @@ func TestBackends(t *testing.T) {
 			// cannot be found. This makes sure that we don't accidentally
 			// delete current active keys in case the ListKeys operation fails.
 			fakeActiveKey := backendDesc.unusedRawKey
-			err = backend.deleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
+			err = backend.DeleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
 			if backendDesc.deletionDoesNothing {
 				require.NoError(t, err)
 			} else {
@@ -260,7 +262,7 @@ func TestBackends(t *testing.T) {
 			}
 
 			// delete the final key so we don't leak it
-			err = backend.deleteKey(ctx, rawPrivateKeys[0])
+			err = backend.DeleteKey(ctx, rawPrivateKeys[0])
 			require.NoError(t, err)
 		})
 	}
@@ -534,7 +536,7 @@ type backendDesc struct {
 	name                string
 	config              servicecfg.KeystoreConfig
 	opts                *Options
-	backend             backend
+	backend             internal.Backend
 	expectedKeyType     types.PrivateKeyType
 	unusedRawKey        []byte
 	deletionDoesNothing bool
@@ -547,10 +549,10 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	hostUUID := uuid.NewString()
 	logger := utils.NewSlogLoggerForTests()
 
-	unusedPKCS11Key, err := keyID{
+	unusedPKCS11Key, err := internal.KeyID{
 		HostID: hostUUID,
 		KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-	}.marshal()
+	}.Marshal()
 	require.NoError(t, err)
 
 	_, gcpKMSDialer := newTestGCPKMSService(t)
@@ -567,16 +569,16 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		HostUUID:             hostUUID,
 		Logger:               logger,
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         fakeKMS,
-		mrkClient:            fakeKMS,
-		awsSTSClient: &fakeAWSSTSClient{
+		AWSKMSClient:         fakeKMS,
+		AWSMRKClient:         fakeKMS,
+		AWSSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
-		kmsClient:         testGCPKMSClient,
-		clockworkOverride: clock,
+		GCPKMSClient: testGCPKMSClient,
+		Clock:        clock,
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := internal.NewSoftwareKeyStore(nil)
 	backends = append(backends, &backendDesc{
 		name:                "software",
 		config:              servicecfg.KeystoreConfig{},
@@ -586,11 +588,16 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		deletionDoesNothing: true,
 	})
 
-	if config, ok := softHSMTestConfig(t); ok {
+	if config, ok := keystoretest.SoftHSMTestConfig(t); ok {
 		hsmOpts := baseOpts
 		// softhsm2 seems to only support OAEP with SHA1
 		hsmOpts.OAEPHash = crypto.SHA1
-		backend, err := newPKCS11KeyStore(&config.PKCS11, &hsmOpts)
+		backend, err := internal.NewPKCS11KeyStore(internal.PKCS11KeyStoreConfig{
+			PKCS11Config: config.PKCS11,
+			HostUUID:     baseOpts.HostUUID,
+			Logger:       baseOpts.Logger,
+			OAEPHash:     crypto.SHA1,
+		})
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "softhsm",
@@ -602,8 +609,13 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
-	if config, ok := yubiHSMTestConfig(t); ok {
-		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
+	if config, ok := keystoretest.YubiHSMTestConfig(t); ok {
+		backend, err := internal.NewPKCS11KeyStore(internal.PKCS11KeyStoreConfig{
+			PKCS11Config: config.PKCS11,
+			HostUUID:     baseOpts.HostUUID,
+			Logger:       baseOpts.Logger,
+			OAEPHash:     baseOpts.OAEPHash,
+		})
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "yubihsm",
@@ -615,8 +627,13 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
-	if config, ok := cloudHSMTestConfig(t); ok {
-		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
+	if config, ok := keystoretest.CloudHSMTestConfig(t); ok {
+		backend, err := internal.NewPKCS11KeyStore(internal.PKCS11KeyStoreConfig{
+			PKCS11Config: config.PKCS11,
+			HostUUID:     baseOpts.HostUUID,
+			Logger:       baseOpts.Logger,
+			OAEPHash:     baseOpts.OAEPHash,
+		})
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "yubihsm",
@@ -629,11 +646,17 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}
 
 	// Test with real GCP account if environment is enabled.
-	if config, ok := gcpKMSTestConfig(t); ok {
+	if config, ok := keystoretest.GCPKMSTestConfig(t); ok {
 		opts := baseOpts
-		opts.kmsClient = nil
+		opts.GCPKMSClient = nil
 
-		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, &opts)
+		backend, err := internal.NewGCPKMSKeyStore(ctx, internal.GCPKMSKeyStoreConfig{
+			GCPKMSConfig: config.GCPKMS,
+			KMSClient:    nil,
+			Clock:        opts.FakeTime,
+			HostUUID:     opts.HostUUID,
+			Logger:       opts.Logger,
+		})
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "gcp_kms",
@@ -641,9 +664,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			opts:            &opts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_GCP_KMS,
-			unusedRawKey: gcpKMSKeyID{
-				keyVersionName: config.GCPKMS.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
-			}.marshal(),
+			unusedRawKey: internal.GCPKMSKeyID{
+				KeyVersionName: config.GCPKMS.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + internal.KeyVersionSuffix,
+			}.Marshal(),
 		})
 	}
 	// Always test with fake GCP client.
@@ -653,7 +676,13 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			KeyRing:         "test-keyring",
 		},
 	}
-	fakeGCPKMSBackend, err := newGCPKMSKeyStore(ctx, &fakeGCPKMSConfig.GCPKMS, &baseOpts)
+	fakeGCPKMSBackend, err := internal.NewGCPKMSKeyStore(ctx, internal.GCPKMSKeyStoreConfig{
+		GCPKMSConfig: fakeGCPKMSConfig.GCPKMS,
+		KMSClient:    baseOpts.GCPKMSClient,
+		Clock:        baseOpts.FakeTime,
+		HostUUID:     baseOpts.HostUUID,
+		Logger:       baseOpts.Logger,
+	})
 	require.NoError(t, err)
 	backends = append(backends, &backendDesc{
 		name:            "fake_gcp_kms",
@@ -661,22 +690,27 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		opts:            &baseOpts,
 		backend:         fakeGCPKMSBackend,
 		expectedKeyType: types.PrivateKeyType_GCP_KMS,
-		unusedRawKey: gcpKMSKeyID{
-			keyVersionName: "test-keyring/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
-		}.marshal(),
+		unusedRawKey: internal.GCPKMSKeyID{
+			KeyVersionName: "test-keyring/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + internal.KeyVersionSuffix,
+		}.Marshal(),
 	})
 
 	// Test AWS with and without multi-region keys
 	for _, multiRegion := range []bool{false, true} {
 		// Test with real AWS account if environment is enabled.
-		if config, ok := awsKMSTestConfig(t); ok {
+		if config, ok := keystoretest.AWSKMSTestConfig(t); ok {
 			config.AWSKMS.MultiRegion.Enabled = multiRegion
 			opts := baseOpts
 			// Unset the fake clients so this test can use the real AWS clients.
-			opts.awsKMSClient = nil
-			opts.awsSTSClient = nil
+			opts.AWSKMSClient = nil
+			opts.AWSSTSClient = nil
 
-			backend, err := newAWSKMSKeystore(ctx, config.AWSKMS, &opts)
+			backend, err := internal.NewAWSKMSKeystore(ctx, internal.AWSKMSKeystoreConfig{
+				AWSKMSConfig: config.AWSKMS,
+				Logger:       opts.Logger,
+				ClusterName:  opts.ClusterName.GetClusterName(),
+				Clock:        opts.Clock,
+			})
 			require.NoError(t, err)
 			name := "aws_kms"
 			if multiRegion {
@@ -688,17 +722,17 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 				opts:            &opts,
 				backend:         backend,
 				expectedKeyType: types.PrivateKeyType_AWS_KMS,
-				unusedRawKey: awsKMSKeyID{
-					arn: arn.ARN{
+				unusedRawKey: internal.AWSKMSKeyID{
+					ARN: arn.ARN{
 						Partition: "aws",
 						Service:   "kms",
 						Region:    config.AWSKMS.AWSRegion,
 						AccountID: config.AWSKMS.AWSAccount,
 						Resource:  "unused",
 					}.String(),
-					account: config.AWSKMS.AWSAccount,
-					region:  config.AWSKMS.AWSRegion,
-				}.marshal(),
+					Account: config.AWSKMS.AWSAccount,
+					Region:  config.AWSKMS.AWSRegion,
+				}.Marshal(),
 			})
 		}
 
@@ -712,7 +746,15 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 				},
 			},
 		}
-		fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, fakeAWSKMSConfig.AWSKMS, &baseOpts)
+		fakeAWSKMSBackend, err := internal.NewAWSKMSKeystore(ctx, internal.AWSKMSKeystoreConfig{
+			AWSKMSConfig: fakeAWSKMSConfig.AWSKMS,
+			Logger:       baseOpts.Logger,
+			ClusterName:  baseOpts.ClusterName.GetClusterName(),
+			Clock:        baseOpts.Clock,
+			KMSClient:    baseOpts.AWSKMSClient,
+			MRKClient:    baseOpts.AWSMRKClient,
+			STSClient:    baseOpts.AWSSTSClient,
+		})
 		require.NoError(t, err)
 		name := "fake_aws_kms"
 		if multiRegion {
@@ -724,17 +766,17 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			opts:            &baseOpts,
 			backend:         fakeAWSKMSBackend,
 			expectedKeyType: types.PrivateKeyType_AWS_KMS,
-			unusedRawKey: awsKMSKeyID{
-				arn: arn.ARN{
+			unusedRawKey: internal.AWSKMSKeyID{
+				ARN: arn.ARN{
 					Partition: "aws",
 					Service:   "kms",
 					Region:    "us-west-2",
 					AccountID: "123456789012",
 					Resource:  "unused",
 				}.String(),
-				account: "123456789012",
-				region:  "us-west-2",
-			}.marshal(),
+				Account: "123456789012",
+				Region:  "us-west-2",
+			}.Marshal(),
 		})
 	}
 

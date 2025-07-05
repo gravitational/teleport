@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/keystoretest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -4019,8 +4019,8 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	keyStore := keystore.NewSoftwareKeystoreForTests(t,
-		keystore.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
+	keyStore := keystoretest.NewTestKeystore(
+		keystoretest.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
 		}),
 	)
