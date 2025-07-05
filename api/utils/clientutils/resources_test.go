@@ -29,13 +29,21 @@ import (
 )
 
 type mockPaginator struct {
-	accessDenied bool
+	accessDenied  bool
+	limitExceeded bool
+	pages         int
 }
 
 func (m *mockPaginator) List(_ context.Context, pageSize int, token string) ([]bool, string, error) {
+	m.pages++
 	if m.accessDenied {
 		return nil, "", trace.AccessDenied("access denied")
 	}
+
+	if m.limitExceeded {
+		return nil, "", trace.LimitExceeded("page size %d exceeded the limit", pageSize)
+	}
+
 	switch token {
 	case "":
 		return make([]bool, pageSize), "page1", nil
@@ -72,5 +80,40 @@ func TestIterateResources(t *testing.T) {
 			return trace.BadParameter("error")
 		})
 		require.Error(t, err)
+	})
+}
+
+func TestResources(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		paginator := mockPaginator{}
+		var count int
+		for _, err := range Resources(context.Background(), paginator.List) {
+			count++
+			require.NoError(t, err)
+		}
+
+		require.Equal(t, defaults.DefaultChunkSize*2+5, count)
+		require.Equal(t, 3, paginator.pages)
+	})
+	t.Run("paginator error", func(t *testing.T) {
+		paginator := mockPaginator{accessDenied: true}
+		var count int
+		for _, err := range Resources(context.Background(), paginator.List) {
+			count++
+			require.Error(t, err)
+		}
+		require.Equal(t, 1, count)
+		require.Equal(t, 1, paginator.pages)
+	})
+
+	t.Run("limit exceeded", func(t *testing.T) {
+		paginator := mockPaginator{limitExceeded: true}
+		var count int
+		for _, err := range Resources(context.Background(), paginator.List) {
+			count++
+			require.Error(t, err)
+		}
+		require.Equal(t, 1, count)
+		require.Equal(t, 10, paginator.pages)
 	})
 }

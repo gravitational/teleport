@@ -25,6 +25,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -188,22 +190,8 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
-			var startKey string
-			var allConts []*kubewaitingcontainerv1.KubernetesWaitingContainer
-			for {
-				conts, nextKey, err := upstream.ListKubernetesWaitingContainers(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				allConts = append(allConts, conts...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return allConts, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListKubernetesWaitingContainers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *kubewaitingcontainerv1.KubernetesWaitingContainer {
 			return &kubewaitingcontainerv1.KubernetesWaitingContainer{
