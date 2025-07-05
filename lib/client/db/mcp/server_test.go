@@ -80,8 +80,7 @@ func TestRegisterDatabase(t *testing.T) {
 		require.Len(t, res.Content, len(databases))
 
 		for _, c := range res.Content {
-			require.IsType(t, mcp.EmbeddedResource{}, c)
-			require.IsType(t, mcp.TextResourceContents{}, c.(mcp.EmbeddedResource).Resource)
+			require.IsType(t, mcp.TextContent{}, c)
 		}
 
 		// Although we're not sorting by the URI directly, the only field that
@@ -89,14 +88,16 @@ func TestRegisterDatabase(t *testing.T) {
 		// cause them to have the same order). So here we sort by the YAML
 		// contents to avoid having to decode.
 		slices.SortFunc(res.Content, func(a, b mcp.Content) int {
-			resourceA := a.(mcp.EmbeddedResource).Resource.(mcp.TextResourceContents)
-			resourceB := b.(mcp.EmbeddedResource).Resource.(mcp.TextResourceContents)
-			return strings.Compare(resourceA.Text, resourceB.Text)
+			resourceA := a.(mcp.TextContent).Text
+			resourceB := b.(mcp.TextContent).Text
+			return strings.Compare(resourceA, resourceB)
 		})
 
 		for i, c := range res.Content {
-			content := c.(mcp.EmbeddedResource)
-			assertDatabaseResource(t, databases[i], content.Resource)
+			var database DatabaseResource
+			content := c.(mcp.TextContent)
+			require.NoError(t, yaml.Unmarshal([]byte(content.Text), &database))
+			require.Empty(t, cmp.Diff(buildDatabaseResource(databases[i]), database, cmpopts.IgnoreFields(types.Metadata{}, "Namespace")))
 		}
 	})
 }
