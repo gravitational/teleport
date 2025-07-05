@@ -120,6 +120,7 @@ type Plugin interface {
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 	GetGeneration() string
+	CloneWithoutSecrets() Plugin
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -427,6 +428,13 @@ func (p *PluginV1) WithoutSecrets() Resource {
 	p2 := p.Clone().(*PluginV1)
 	p2.SetCredentials(nil)
 	return p2
+}
+
+// CloneWithoutSecrets returns a copy of the Plugin instance without secrets.
+func (p *PluginV1) CloneWithoutSecrets() Plugin {
+	out := p.Clone().(*PluginV1)
+	out.SetCredentials(nil)
+	return out
 }
 
 func (p *PluginV1) setStaticFields() {

@@ -150,6 +150,7 @@ type testPack struct {
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
+	plugin                  *local.PluginsService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -428,6 +429,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	p.plugin = local.NewPluginsService(p.backend)
 
 	return p, nil
 }
@@ -486,6 +488,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
 		RecordingEncryption:     p.recordingEncryption,
+		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -754,6 +757,7 @@ func TestCompletenessInit(t *testing.T) {
 			GitServers:              p.gitServers,
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
+			Plugin:                  p.plugin,
 		}))
 		require.NoError(t, err)
 
@@ -840,6 +844,7 @@ func TestCompletenessReset(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -999,6 +1004,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1097,6 +1103,7 @@ func initStrategy(t *testing.T) {
 		GitServers:              p.gitServers,
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
@@ -1291,6 +1298,15 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
+		// If cache get is specified get the fresh object state.
+		// This handles the case when the backend updated flow
+		// does the CAS operation. So before updating we need to
+		// have up-to-date object state with valid revision.
+		if funcs.cacheGet != nil {
+			var err error
+			r, err = funcs.cacheGet(ctx, r.GetName())
+			require.NoError(t, err)
+		}
 		// Update the resource and upsert it into the backend again.
 		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
@@ -1850,6 +1866,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
+		types.KindPlugin:                            &types.PluginV1{},
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
