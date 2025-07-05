@@ -80,6 +80,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
 			types.PluginTypeEmail:             emailInstanceFactory,
 			types.PluginTypeNetIQ:             netIQInstanceFactory,
+			types.PluginTypeSCIM:              newSCIMInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

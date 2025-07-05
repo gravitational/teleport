@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -118,6 +120,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeMSTeams:           pluginInstallerFn(installMSTeamsPlugin),
 	types.PluginTypeEmail:             pluginInstallerFn(installEmailPlugin),
 	types.PluginTypeNetIQ:             netIQPluginDescriptor{},
+	types.PluginTypeSCIM:              pluginInstallerFn(installSCIMPlugin),
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
@@ -1145,4 +1148,83 @@ func (sd slackDescriptor) setCookieAndCreateAuthnURL(ctx context.Context, sessCt
 	}
 
 	return url, nil
+}
+
+func installSCIMPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	// genericSCIMPluginName is the internal name used for the generic SCIM plugin.
+	// This name determines the SCIM endpoint path, which will be exposed as /scim/scim-generic.
+	// We use a specific name here to avoid confusion with paths like /scim/scim,
+	// and to make the plugin name more meaningful when listed via tctl or other tools.
+	const genericSCIMPluginName = "scim-generic"
+
+	samlConnectorName := r.FormValue("samlConnectorName")
+	if samlConnectorName == "" {
+		return nil, trace.BadParameter("missing parameter samlConnectorName")
+	}
+
+	clientID, clientSecret, err := generateOAuthCredentials()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: genericSCIMPluginName,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Scim{
+					Scim: &types.PluginSCIMSettings{
+						SamlConnectorName: samlConnectorName,
+					},
+				},
+			},
+		},
+		StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+			buildOauthCreds(clientID, clientSecret),
+		},
+	}
+	uiResp, err := installPlugin(ctx, sessCtx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiResp.Credentials = &ui.Credentials{
+		OAuthCreds: &ui.OAuthCredentials{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		},
+	}
+	return uiResp, nil
+}
+
+func buildOauthCreds(clientID, clientSecret string) *types.PluginStaticCredentialsV1 {
+	return &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: fmt.Sprintf("%s-%s", types.PluginTypeSCIM, uuid.NewString()),
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+			OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+				ClientId:     clientID,
+				ClientSecret: clientSecret,
+			},
+		}},
+	}
+}
+
+func generateOAuthCredentials() (string, string, error) {
+	clientID, err := utils.CryptoRandomHex(16)
+	if err != nil {
+		return "", "", err
+	}
+	clientSecret, err := utils.CryptoRandomHex(32)
+	if err != nil {
+		return "", "", err
+	}
+	return clientID, clientSecret, nil
 }

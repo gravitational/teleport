@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport/api/constants"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -72,6 +73,9 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	serviceConfig.Auth.HostedPlugins.Enabled = true
 	serviceConfig.Clock = options.clock
 	serviceConfig.Testing.HTTPTransport = options.HTTPTransport
+	serviceConfig.Auth.Preference.SetSecondFactor(constants.SecondFactorOptional)
+	serviceConfig.Auth.Preference.SetWebauthn(&types.Webauthn{RPID: "127.0.0.1"})
+
 	err := teleport.CreateEx(t, nil, serviceConfig)
 	require.NoError(t, err)
 

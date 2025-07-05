@@ -107,6 +107,10 @@ type Plugin struct {
 
 	// Status contains the last known status of the plugin
 	Status *PluginStatusV1 `json:"status,omitempty"`
+
+	// Credentials contains the credentials used by the plugin.
+	// Returned only plugin creation.
+	Credentials *Credentials `json:"credentials,omitempty"`
 }
 
 // OAuthPluginStartResponse contains field related to starting
@@ -400,4 +404,18 @@ type OktaPluginUpdate struct {
 	GroupFilters []string `json:"groupFilters,omitempty"`
 	// EnableSystemLogExport indicates whether the Teleport Identity Security SIEM integration for Okta should be enabled.
 	EnableSystemLogExport bool `json:"enableSystemLogExport,omitempty"`
+}
+
+// Credentials holds plugin credentials returned during creation only.
+type Credentials struct {
+	// OAuthCreds holds OAuth client credentials.
+	OAuthCreds *OAuthCredentials `json:"oauth_creds,omitempty"`
+}
+
+// OAuthCredentials holds OAuth client credentials.
+type OAuthCredentials struct {
+	// ClientID is the OAuth client ID.
+	ClientID string `json:"client_id,omitempty"`
+	// ClientSecret is the OAuth client secret.
+	ClientSecret string `json:"client_secret,omitempty"`
 }
