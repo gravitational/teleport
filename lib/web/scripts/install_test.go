@@ -168,6 +168,24 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, "packageSuffix='fips-bin.tar.gz'")
 			},
 		},
+		{
+			name: "Oneoff suffix install",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: UpdaterBinaryAutoupdate,
+				TeleportVersion: testVersion,
+				ProxyAddr:       testProxyAddr,
+				TeleportFlavor:  types.PackageNameEnt,
+				Suffix:          "system",
+			},
+			assertFn: func(t *testing.T, script string) {
+				require.Contains(t, script, "entrypoint='teleport-update'")
+				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
+				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameEnt))
+				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s --install-suffix system'", testProxyAddr))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
