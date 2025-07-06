@@ -225,11 +225,21 @@ func (c *WebsocketUpgradeConn) websocketCloseProtocol(closeCode ws.StatusCode, c
 
 	c.readMutex.Lock()
 	defer c.readMutex.Unlock()
-	var data [50]byte
+	var (
+		tmpData  [50]byte
+		fullData []byte
+	)
 	// Wait for the close frame from the other side.
 	// This will block until the close frame is received or the deadline expires.
-	for _, err := c.readLocked(data[:]); err == nil; {
+	for {
+		n, err := c.readLocked(tmpData[:])
+		if err != nil {
+			break
+		}
+		fullData = append(fullData, tmpData[:n]...)
 	}
+
+	c.readBuffer = fullData
 }
 
 // writeFrame writes a WebSocket frame to the connection.
