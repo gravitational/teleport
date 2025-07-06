@@ -195,7 +195,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		switch d := d.(type) {
 		case *destination.Directory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
-		case *DestinationKubernetesSecret:
+		case *k8s.SecretDestination:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
@@ -427,8 +427,8 @@ func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
-	case DestinationKubernetesSecretType:
-		v := &DestinationKubernetesSecret{}
+	case k8s.SecretDestinationType:
+		v := &k8s.SecretDestination{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -500,7 +500,7 @@ func DestinationFromURI(uriString string) (destination.Destination, error) {
 		// Path will be prefixed with '/' so we'll strip it off.
 		secretName := strings.TrimPrefix(uri.Path, "/")
 
-		return &DestinationKubernetesSecret{
+		return &k8s.SecretDestination{
 			Name: secretName,
 		}, nil
 	default:

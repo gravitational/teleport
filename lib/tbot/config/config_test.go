@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
@@ -162,13 +163,13 @@ func TestDestinationFromURI(t *testing.T) {
 		},
 		{
 			in: "kubernetes-secret:///my-secret",
-			want: &DestinationKubernetesSecret{
+			want: &k8s.SecretDestination{
 				Name: "my-secret",
 			},
 		},
 		{
 			in: "kubernetes-secret://my-secret",
-			want: &DestinationKubernetesSecret{
+			want: &k8s.SecretDestination{
 				Name: "my-secret",
 			},
 			wantErr: true,
@@ -232,7 +233,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &destination.Memory{},
 					},
 					&identity.OutputConfig{
-						Destination: &DestinationKubernetesSecret{
+						Destination: &k8s.SecretDestination{
 							Name: "my-secret",
 						},
 						CredentialLifetime: bot.CredentialLifetime{

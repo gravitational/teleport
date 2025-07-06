@@ -18,6 +18,14 @@
 
 package k8s
 
-import "go.opentelemetry.io/otel"
+import (
+	"go.opentelemetry.io/otel"
 
-var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/k8s")
+	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+var (
+	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/k8s")
+	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
+)

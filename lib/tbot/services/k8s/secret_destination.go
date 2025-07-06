@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"context"
@@ -36,10 +36,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const DestinationKubernetesSecretType = "kubernetes_secret"
+const SecretDestinationType = "kubernetes_secret"
 const kubernetesNamespaceEnv = "POD_NAMESPACE"
 
-type DestinationKubernetesSecret struct {
+type SecretDestination struct {
 	// Name is the name the Kubernetes Secret that should be created and written
 	// to.
 	Name string `yaml:"name"`
@@ -54,7 +54,7 @@ type DestinationKubernetesSecret struct {
 	initialized bool
 }
 
-func (dks *DestinationKubernetesSecret) getSecret(ctx context.Context) (*corev1.Secret, error) {
+func (dks *SecretDestination) getSecret(ctx context.Context) (*corev1.Secret, error) {
 	secret, err := dks.k8s.CoreV1().Secrets(dks.namespace).Get(ctx, dks.Name, v1.GetOptions{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,7 +68,7 @@ func (dks *DestinationKubernetesSecret) getSecret(ctx context.Context) (*corev1.
 	return secret, nil
 }
 
-func (dks *DestinationKubernetesSecret) secretTemplate() *corev1.Secret {
+func (dks *SecretDestination) secretTemplate() *corev1.Secret {
 	return &corev1.Secret{
 		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: v1.ObjectMeta{
@@ -80,7 +80,7 @@ func (dks *DestinationKubernetesSecret) secretTemplate() *corev1.Secret {
 	}
 }
 
-func (dks *DestinationKubernetesSecret) upsertSecret(ctx context.Context, secret *corev1.Secret, dryRun bool) error {
+func (dks *SecretDestination) upsertSecret(ctx context.Context, secret *corev1.Secret, dryRun bool) error {
 	apply := applyconfigv1.Secret(dks.Name, dks.namespace).
 		WithData(secret.Data).
 		WithResourceVersion(secret.ResourceVersion).
@@ -106,17 +106,17 @@ func (dks *DestinationKubernetesSecret) upsertSecret(ctx context.Context, secret
 	return nil
 }
 
-func (dks *DestinationKubernetesSecret) Verify(_ []string) error {
+func (dks *SecretDestination) Verify(_ []string) error {
 	return nil
 }
 
-func (dks *DestinationKubernetesSecret) TryLock() (func() error, error) {
+func (dks *SecretDestination) TryLock() (func() error, error) {
 	// No locking support currently implemented. Users will need to be cautious
 	// to not point two tbots to the same secret.
 	return func() error { return nil }, nil
 }
 
-func (dks *DestinationKubernetesSecret) CheckAndSetDefaults() error {
+func (dks *SecretDestination) CheckAndSetDefaults() error {
 	if dks.Name == "" {
 		return trace.BadParameter("name must not be empty")
 	}
@@ -124,7 +124,7 @@ func (dks *DestinationKubernetesSecret) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []string) error {
+func (dks *SecretDestination) Init(ctx context.Context, subdirs []string) error {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
 	if dks.initialized == true {
@@ -176,10 +176,10 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 	return nil
 }
 
-func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, data []byte) error {
+func (dks *SecretDestination) Write(ctx context.Context, name string, data []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"DestinationKubernetesSecret/Write",
+		"SecretDestination/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -215,10 +215,10 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 // WriteMany allows you to write multiple artifacts to a destination at once.
 // This should be atomic, meaning all artifacts are written or none are. Any
 // artifacts that are not specified will be removed from the destination.
-func (dks *DestinationKubernetesSecret) WriteMany(ctx context.Context, toWrite map[string][]byte) error {
+func (dks *SecretDestination) WriteMany(ctx context.Context, toWrite map[string][]byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"DestinationKubernetesSecret/WriteMany",
+		"SecretDestination/WriteMany",
 	)
 	defer span.End()
 
@@ -250,10 +250,10 @@ func (dks *DestinationKubernetesSecret) WriteMany(ctx context.Context, toWrite m
 	return trace.Wrap(err)
 }
 
-func (dks *DestinationKubernetesSecret) Read(ctx context.Context, name string) ([]byte, error) {
+func (dks *SecretDestination) Read(ctx context.Context, name string) ([]byte, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"DestinationKubernetesSecret/Read",
+		"SecretDestination/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -280,15 +280,15 @@ func (dks *DestinationKubernetesSecret) Read(ctx context.Context, name string) (
 	return data, nil
 }
 
-func (dks *DestinationKubernetesSecret) String() string {
-	return fmt.Sprintf("%s: %s", DestinationKubernetesSecretType, dks.Name)
+func (dks *SecretDestination) String() string {
+	return fmt.Sprintf("%s: %s", SecretDestinationType, dks.Name)
 }
 
-func (dks *DestinationKubernetesSecret) MarshalYAML() (any, error) {
-	type raw DestinationKubernetesSecret
-	return marshaling.WithTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
+func (dks *SecretDestination) MarshalYAML() (any, error) {
+	type raw SecretDestination
+	return marshaling.WithTypeHeader((*raw)(dks), SecretDestinationType)
 }
 
-func (dks *DestinationKubernetesSecret) IsPersistent() bool {
+func (dks *SecretDestination) IsPersistent() bool {
 	return true
 }
