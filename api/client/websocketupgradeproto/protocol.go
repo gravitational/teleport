@@ -221,12 +221,15 @@ func (c *WebsocketUpgradeConn) websocketCloseProtocol(closeCode ws.StatusCode, c
 			}
 			return
 		}
-
-		// Wait for the close frame from the other side.
-		// This will block until the close frame is received or the deadline expires.
-		for frame, err := ws.ReadFrame(c.conn); err == nil && frame.Header.OpCode != ws.OpClose; {
-		}
 	})
+
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
+	var data [50]byte
+	// Wait for the close frame from the other side.
+	// This will block until the close frame is received or the deadline expires.
+	for _, err := c.readLocked(data[:]); err == nil; {
+	}
 }
 
 // writeFrame writes a WebSocket frame to the connection.
