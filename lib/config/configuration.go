@@ -2161,7 +2161,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.Discovery = make([]servicecfg.LDAPDiscoveryConfig, 0, len(fc.WindowsDesktop.DiscoveryConfigs))
 	for _, dc := range fc.WindowsDesktop.DiscoveryConfigs {
 		if dc.BaseDN == "" {
-			return trace.BadParameter("WindowsDesktopService discovey_config is missing required base_dn")
+			return trace.BadParameter("WindowsDesktopService discovery_config is missing required base_dn")
 		}
 		cfg.WindowsDesktop.Discovery = append(cfg.WindowsDesktop.Discovery,
 			servicecfg.LDAPDiscoveryConfig{
