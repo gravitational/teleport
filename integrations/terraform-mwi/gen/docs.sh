@@ -4,7 +4,6 @@
 if [ -n "$RUNNER_DEBUG" ]; then
   set -x
 fi
-set -x
 set -euo pipefail
 
 info() {
@@ -45,10 +44,10 @@ terraform providers schema -json > schema.json
 info "Rendering markdown files"
 
 popd
-go tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate \
+go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate \
   --providers-schema "$TMPDIR/schema.json" \
   --provider-name "terraform.releases.teleport.dev/gravitational/teleport-mwi" \
-  --rendered-provider-name "teleport" \
+  --rendered-provider-name "teleportmwi" \
   --rendered-website-dir="$TMPDIR/docs" \
   --website-source-dir="$TFDIR/templates" \
   --provider-dir "$TFDIR" \
