@@ -29,7 +29,12 @@ import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-export function AppLauncher() {
+export function AppLauncher({
+  windowLocation = window.location,
+}: {
+  /** Allows overwriting `window.location` in tests. */
+  windowLocation?: Pick<Location, 'replace'>;
+}) {
   const { attempt, setAttempt } = useAttempt('processing');
 
   const pathParams = useParams<UrlLauncherParams>();
@@ -100,13 +105,14 @@ export function AppLauncher() {
       // Let the target app know of a new auth exchange.
       const stateToken = queryParams.get('state');
       if (!stateToken) {
-        initiateNewAuthExchange({
+        const url = getNewAuthExchangeUrl({
           fqdn,
           port,
           path,
           params,
           requiredApps,
         });
+        windowLocation.replace(url.toString());
         return;
       }
 
@@ -139,7 +145,7 @@ export function AppLauncher() {
 
       // This will load an empty HTML with the inline JS containing
       // logic to finish the auth exchange.
-      window.location.replace(url.toString());
+      windowLocation.replace(url.toString());
     } catch (err) {
       let statusText = 'Something went wrong';
 
@@ -217,8 +223,7 @@ function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
   }
 }
 
-// initiateNewAuthExchange is the first step to gaining access to an
-// application.
+// Returns the URL to gain access to an application.
 //
 // It can be initiated in two ways:
 //   1) user clicked our "launch" app button from the resource list
@@ -226,7 +231,7 @@ function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
 //   2) user hits the app endpoint directly (eg: cliking on a
 //      bookmarked URL), in which the server will redirect the user
 //      to this launcher.
-function initiateNewAuthExchange({
+function getNewAuthExchangeUrl({
   fqdn,
   port,
   params,
@@ -274,7 +279,7 @@ function initiateNewAuthExchange({
     url.searchParams.set('arn', params.arn);
   }
 
-  window.location.replace(url.toString());
+  return url;
 }
 
 function throwFailedToParseUrlError(err: TypeError) {
