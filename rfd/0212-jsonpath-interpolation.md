@@ -3,7 +3,7 @@ authors: Brian Joerger (bjoerger@goteleport.com)
 state: draft
 ---
 
-# RFD 211 - JSONPath Interpolation
+# RFD 212 - JSONPath Interpolation
 
 ## Required Approvers
 
@@ -23,31 +23,41 @@ as well as in `claims_to_roles` mapping in the OIDC connector with a new
 ## Why
 
 Currently, Teleport assumes that OIDC claims are either a string or list of
-strings. However, technically OIDC claims may be arbitrary json objects, and we
+strings. However, technically OIDC claims may be arbitrary JSON objects, and we
 have run into some custom OIDC solutions that rely on that capability. This
 feature is necessary for Teleport to integrate with these OIDC solutions.
 
 ## Details
 
-### `jsonpath` Function
+### JSONPath
+
+Before continuing to read this RFD, you should familiarize yourself with the
+basics of [JSONPath syntax](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
+
+When going through the JSONPath examples, you may find it useful to run the
+queries in a [sandbox](https://serdejsonpath.live/).
+
+#### `jsonpath` Expression Function
 
 The `jsonpath` function will be added as another standard trait expression
-function, making it usable in `login_rule` trait maps/expressions, role label
-expressions (e.g. `node_labels_expression`), etc.
-
-However, traits cannot have arbitrary JSON object values. The only exception
-will be during login when OIDC claims are mapped to traits and login rules are
-applied.
+function. It can be used in `login_rule` trait maps/expressions and the new
+sso connector `claim_expression` field to interpolate a string(s) from
+arbitrary JSON claims.
 
 Note: currently, login rules are applied after the claims to traits mapping.
 Instead, we will apply the login rules to the OIDC claims (`map[string]any`)
 before mapping them to traits (`map[string][]string`).
 
-Note: the `jsonpath` function can *technically* still be used for role label
-expressions, since strings and string lists can still be treated as json. It's
-unlikely for there to be a real use case for this, though some of the complex
-features, such as filtering with numerical comparisons, could be used to extend
-the label expression functionality currently available.
+Note: the `jsonpath` function can *technically* be used for any "expression"
+in teleport, such as the role field `node_labels_expression`. Since traits
+can only be a string(s), and not arbitrary JSON like OIDC claims, `jsonpath`
+could only be used for basic string/array expressions. In most of these cases a
+predicate function would be more appropriate. For exapmle, to get "2" from the
+list ["1","2","3"], you could do either `contains(list, "value1")` or
+`jsonpath(list, "$[?(@ == "value1")]")`, but clearly the former is simpler.
+Still, it's worth noting as some of the more advanced `jsonpath` features like
+dynamic filtering and numerical comparison could be useful to extend the
+expression functionality currently available.
 
 #### JSONPath Libraries
 
@@ -71,14 +81,6 @@ official JSONPath documentation, like those linked above, as well as the
 Note: We must be careful when updating the upstream library, as some of the
 syntax may be subject to change as it adjusts to the RFC and some of the
 unresolved syntax disagreements in the community.
-
-#### JSONPath Syntax
-
-Before continuing to read this RFD, you should familiarize yourself with the
-basics of [JSONPath syntax](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
-
-When going through the JSONPath examples, you may find it useful to run the
-queries in a [sandbox](https://serdejsonpath.live/).
 
 ### OIDC Claims
 
@@ -123,7 +125,7 @@ Note: Either `claim_expression` or `claim` can be set, not both.
 
 #### Login Rules - Claims to Traits
 
-You can use a login rule to save JSON claims as users traits.
+You can use a login rule to map JSON claims to users traits.
 
 In the example below, `$.logins` and `$.env` claims are mapped to user traits.
 
@@ -174,9 +176,9 @@ The user stories below will explore example custom OIDC solutions with
 potential Teleport configurations to consume the custom OIDC claims using the
 new `jsonpath` function.
 
-##### Example: IdP with arbitrary json claims
+##### Example: IdP with arbitrary JSON claims
 
-Let's say we have a custom IdP which directly supports arbitrary json claims to
+Let's say we have a custom IdP which directly supports arbitrary JSON claims to
 be set for users. Below is an example claim object for user `alice`.
 
 ```json
@@ -203,7 +205,7 @@ be set for users. Below is an example claim object for user `alice`.
 The administrator wants to take these claims and map them directly to role
 conditions using [role templating](https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/).
 
-First, the admin needs to create a `login_rule` to map this arbitrary json
+First, the admin needs to create a `login_rule` to map this arbitrary JSON
 object into a set of user traits.
 
 ```yaml
@@ -216,23 +218,29 @@ spec:
   traits_map:
     roles:
       # evaluates to ["template"]
-      - jsonpath(external.groups, "$.teleport.roles")
+      - jsonpath(external, "$.groups.teleport.roles")
     logins:
       # evaluates to ["alice"]
-      - jsonpath(external.groups, "$.teleport.node.logins")
+      - jsonpath(external, "$.groups.teleport.node.logins")
     node_labels_*:
       # evaluates to "*"
-      - jsonpath(external.groups, "$.groups.teleport.node.labels['*']")
+      - jsonpath(external, "$.groups.teleport.node.labels['*']")
     node_labels_env:
       # evaluates to []
-      - jsonpath(external.groups, "$.groups.teleport.node.labels.env")
+      - jsonpath(external, "$.groups.teleport.node.labels.env")
     app_labels_*:
       # evaluates to []
-      - jsonpath(external.groups, "$.groups.teleport.app.labels['*']")
+      - jsonpath(external, "$.groups.teleport.app.labels['*']")
     app_labels_env:
       # evaluates to "staging"
-      - jsonpath(external.groups, "$.groups.teleport.app.labels.env")
+      - jsonpath(external, "$.groups.teleport.app.labels.env")
 ```
+
+Note: without [JSONPath-Plus syntax](#jsonpath-plus), it's not possible to grab
+the property name value, so we can only map labels that we are aware of. In this
+example, we are only looking for the `*` and `env` labels, so if the provider
+added a claim like `"team": "devops"`, it would not be mapped without an
+additional `traits_map` rule.
 
 The mapped traits can now be used as if they are standard OIDC claims in the
 OIDC connector's `claims_to_roles` spec to assign the template role to the user.
@@ -311,7 +319,7 @@ set of resources in Teleport.
 ```
 
 For this example, we will start with the OIDC connector `claims_to_roles` spec,
-which also supports the jsonpath function.
+which also supports the `jsonpath` function.
 
 ```yaml
 kind: oidc 
@@ -363,9 +371,6 @@ spec:
       - jsonpath(external.aggregated_claims, "$.auth0.env")
     teams:
       # evaluates to ["okta", "auth0"]
-      #
-      # Note that JSONPath does not support querying property names, so we have
-      # to know the team names ahead of time to check for them and set them explicitly.
       - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.okta") ), set("okta"), set())'
       - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.auth0") ), set("auth0"), set())'
       - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.github") ), set("github"), set())'
@@ -421,6 +426,63 @@ in the [label expression RFD](https://github.com/gravitational/teleport/blob/mas
 
 ### Additional Considerations
 
+#### JSONPath-Plus
+
+As mentioned in the JSONPath library [section](#jsonpath-libraries), there have
+been many variations to the JSONPath syntax. One project that goes especially
+beyond the JSONPath spec is the [JSONPath-Plus library](https://github.com/JSONPath-Plus/JSONPath).
+
+One useful feature in particular is the ability to grab property names (`~`)
+rather than values only. This would be useful for mapping arbitrary traits using
+the property name and value in a JSON claim. Using JSONPath-Plus notation,
+[the first example](#example-idp-with-arbitrary-json-claims) login rule node label
+mapping could be simplified and made generic with an expression.
+
+```json
+{
+  "groups": {
+    "teleport": {
+      "node": {
+        "labels": {
+          "*": "*",
+          "env": ["staging", "dev"]
+        }
+      },
+    }
+  }
+}
+```
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: arbitrary-json-idp
+spec:
+  priority: 0
+  # put_many would be a new expression to map an array of keys to an array
+  # of values. e.g. ["*", "env"] and ["*", ["staging", "dev"]] would get
+  # inserted as {"*": "*", "env": ["staging", "dev"]}
+  traits_expression: |
+    external.put_many(jsonpath(external, "$.groups.teleport.node.labels~"), jsonpath(external, "$.groups.teleport.node.labels"))
+```
+
+If we just need to support property name grabbing, it should be possible to do
+so with a new function, `jsonpathprop`. This function would simply grab the
+property name at the end of the JSONPath evaluation, so the example above would
+be changed to:
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: arbitrary-json-idp
+spec:
+  priority: 0
+  traits_expression: |
+    external.put_many(jsonpathprop(external, "$.groups.teleport.node.labels"), jsonpath(external, "$.groups.teleport.node.labels"))
+```
+
 #### JSON traits
 
 The [initial design](https://github.com/gravitational/teleport/blob/6e15920b8140ff7834223f3814e1b9de364033a7/rfd/0212-jsonpath-interpolation.md)
@@ -453,7 +515,7 @@ spec:
     }
 ```
 
-The `jsonpath` function could then be used to interpolate these json values
+The `jsonpath` function could then be used to interpolate these JSON values
 in role templates, OIDC `claims_to_traits` mappings, and any other trait
 mapping logic.
 
@@ -464,8 +526,7 @@ TLDR; login rules provide better administrative UX, avoids the negative side
 effects of oversized user traits, and reduces the implementation complexity of
 the feature.
 
-1. User traits are represented with a protobuf message that expects string
-values:
+##### 1. User traits are represented with a protobuf message that expects string values
 
 ```proto
 // ### types.proto ###
@@ -517,9 +578,10 @@ and interpolate. In order to make the traits readable with commands like
 simple, this approach is a bit hacky and will lead to tech debt and potential
 inefficiencies.
 
-1. Storing entire JSON blob claims as traits will bloat user traits. Take the
-[distributed IDP example](#example-distributed-idp), where users could have a
-very long list of traits made up from all the different providers.
+##### 2. JSON blob traits will bloat user traits
+
+Take the [distributed IDP example](#example-distributed-idp), where users could
+have a very long list of traits made up from all the different providers.
 
 Let's make the example a bit simpler, with different providers providing access
 to the same resources with the shared env and login fields:
@@ -573,8 +635,9 @@ spec:
     env: ["staging", "dev", "prod"]
 ```
 
-1. In addition to bloating the user traits, JSON traits will be difficult to
-reason about. As a result, administrators may struggle to create valid `jsonpath`
+##### 3. JSON traits will be difficult to reason about
+
+As a result, administrators may struggle to create valid `jsonpath`
 queries in role templates and elsewhere. If the OIDC claims are ever changed
 on the provider side, an admin will need to update every `jsonpath` query rather
 than just the OIDC connector and associated login rule.
