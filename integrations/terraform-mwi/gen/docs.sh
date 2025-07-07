@@ -31,7 +31,7 @@ cat > main.tf << EOF
 terraform {
   required_providers {
     teleportmwi = {
-      source  = "terraform.releases.teleport.dev/gravitational/teleport-mwi"
+      source  = "terraform.releases.teleport.dev/gravitational/teleportmwi"
       version = "= $VERSION"
     }
   }
@@ -44,9 +44,9 @@ terraform providers schema -json > schema.json
 info "Rendering markdown files"
 
 popd
-go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate \
+go tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate \
   --providers-schema "$TMPDIR/schema.json" \
-  --provider-name "terraform.releases.teleport.dev/gravitational/teleport-mwi" \
+  --provider-name "terraform.releases.teleport.dev/gravitational/teleportmwi" \
   --rendered-provider-name "teleportmwi" \
   --rendered-website-dir="$TMPDIR/docs" \
   --website-source-dir="$TFDIR/templates" \
@@ -60,7 +60,7 @@ info "Converting .md files to .mdx"
 cd "$TMPDIR/docs"
 find . -iname '*.md' -type f -exec sh -c 'i="$1"; mv "$i" "${i%.md}.mdx"' shell {} \;
 # renaming the resources and data-sources indexes because the names were reserved by the generator
-mv "$TMPDIR/docs/resources-index.mdx" "$TMPDIR/docs/resources/resources.mdx"
+# mv "$TMPDIR/docs/resources-index.mdx" "$TMPDIR/docs/resources/resources.mdx"
 mv "$TMPDIR/docs/data-sources-index.mdx" "$TMPDIR/docs/data-sources/data-sources.mdx"
 
 info "Copying generated documentation into the teleport docs directory"
