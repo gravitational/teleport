@@ -2996,7 +2996,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			require.NoError(t, err)
 
 			_, _, err = p.a.GenerateUserTestCerts(certReq)
-			require.NoError(t, err)
+			tt.assertErr(t, err)
 		})
 	}
 }
