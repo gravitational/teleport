@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -512,4 +514,56 @@ func makeNameOrDiscoveredNamePredicate(name string) string {
 	return fmt.Sprintf("(%v) || (%v)",
 		matchName, matchDiscoveredName,
 	)
+}
+
+func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Listener, error) {
+	parsed, err := url.Parse(addr)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing %q", addr)
+	}
+
+	switch parsed.Scheme {
+	// If no scheme is provided, default to TCP.
+	case "tcp", "":
+		return net.Listen("tcp", parsed.Host)
+	case "unix":
+		absPath, err := filepath.Abs(parsed.Path)
+		if err != nil {
+			return nil, trace.Wrap(err, "resolving absolute path for %q", parsed.Path)
+		}
+
+		// Remove the file if it already exists. This is necessary to handle
+		// unclean exits.
+		if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
+			log.WarnContext(ctx, "Failed to remove existing socket file", "error", err)
+		}
+
+		l, err := net.ListenUnix("unix", &net.UnixAddr{
+			Net:  "unix",
+			Name: absPath,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating unix socket", absPath)
+		}
+
+		// On Unix systems, you must have read and write permissions for the
+		// socket to connect to it. The execute permission on the directories
+		// containing the socket must also be granted. This is different to when
+		// we write output artifacts which only require the consumer to have
+		// read access.
+		//
+		// We set the socket perm to 777. Instead of controlling access via
+		// the socket file directly, users will either:
+		// - Configure Unix Workload Attestation to restrict access to specific
+		//   PID/UID/GID combinations.
+		// - Configure the filesystem permissions of the directory containing
+		//   the socket.
+		if err := os.Chmod(absPath, os.ModePerm); err != nil {
+			return nil, trace.Wrap(err, "setting permissions on unix socket", absPath)
+		}
+
+		return l, nil
+	default:
+		return nil, trace.BadParameter("unsupported scheme %q", parsed.Scheme)
+	}
 }

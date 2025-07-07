@@ -361,44 +361,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
-		case *config.SPIFFEWorkloadAPIService:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
-			clientCredential := &config.UnstableClientCredentialOutput{}
-			svcIdentity := &ClientCredentialOutputService{
-				botAuthClient:      b.botIdentitySvc.GetClient(),
-				botIdentityReadyCh: b.botIdentitySvc.Ready(),
-				botCfg:             b.cfg,
-				cfg:                clientCredential,
-				getBotIdentity:     b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster:  reloadBroadcaster,
-			}
-			svcIdentity.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(
-					componentTBot, "svc", svcIdentity.String(),
-				),
-			)
-			services = append(services, svcIdentity)
-
-			tbCache, err := setupTrustBundleCache()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			svc := &SPIFFEWorkloadAPIService{
-				svcIdentity:      clientCredential,
-				botCfg:           b.cfg,
-				cfg:              svcCfg,
-				resolver:         resolver,
-				trustBundleCache: tbCache,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
 		case *config.DatabaseTunnelService:
 			svc := &DatabaseTunnelService{
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
@@ -468,30 +430,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			svc.statusReporter = statusRegistry.AddService(svc.String())
-			services = append(services, svc)
-		case *config.SPIFFESVIDOutput:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-svid' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
-			svc := &SPIFFESVIDOutputService{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			svc.statusReporter = statusRegistry.AddService(svc.String())
-			if !b.cfg.Oneshot {
-				tbCache, err := setupTrustBundleCache()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				svc.trustBundleCache = tbCache
-			}
 			services = append(services, svc)
 		case *config.SSHHostOutput:
 			svc := &SSHHostOutputService{

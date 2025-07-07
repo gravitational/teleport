@@ -27,39 +27,6 @@ outputs:
     credential_ttl: 30s
     renewal_interval: 15s
 services:
-  - type: spiffe-workload-api
-    listen: unix:///var/run/spiffe.sock
-    svids:
-      - path: /bar
-        hint: my hint
-        sans:
-          dns:
-            - foo.bar
-          ip:
-            - 10.0.0.1
-        rules:
-          - unix:
-              pid: 100
-              uid: 1000
-              gid: 1234
-            kubernetes: {}
-          - unix:
-              pid: 100
-            kubernetes: {}
-    attestors:
-      kubernetes:
-        enabled: false
-      podman:
-        enabled: false
-      docker:
-        enabled: false
-      systemd:
-        enabled: false
-      unix: {}
-      sigstore:
-        enabled: false
-    credential_ttl: 30s
-    renewal_interval: 15s
   - type: example
     message: llama
   - type: ssh-multiplexer

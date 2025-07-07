@@ -18,6 +18,9 @@ package config
 
 import (
 	"context"
+	"log/slog"
+	"net"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -31,6 +34,64 @@ var (
 	_ ServiceConfig = &WorkloadIdentityX509Service{}
 	_ Initable      = &WorkloadIdentityX509Service{}
 )
+
+// Based on the default paths listed in
+// https://github.com/spiffe/spiffe-helper/blob/main/README.md
+const (
+	SVIDPEMPath            = "svid.pem"
+	SVIDKeyPEMPath         = "svid_key.pem"
+	SVIDTrustBundlePEMPath = "svid_bundle.pem"
+	SVIDCRLPemPath         = "svid_crl.pem"
+)
+
+// SVIDRequestSANs is the configuration for the SANs of a single SVID request.
+type SVIDRequestSANs struct {
+	// DNS is the list of DNS names that are requested to be included in the SVID.
+	DNS []string `yaml:"dns,omitempty"`
+	// IP is the list of IP addresses that are requested to be included in the SVID.
+	// These can be IPv4 or IPv6 addresses.
+	IP []string `yaml:"ip,omitempty"`
+}
+
+// SVIDRequest is the configuration for a single SVID request.
+type SVIDRequest struct {
+	// Path is the SPIFFE ID path of the SVID. It should be prefixed with "/".
+	Path string `yaml:"path,omitempty"`
+	// Hint is the hint for the SVID that will be provided to consumers of the
+	// SVID to help them identify it.
+	Hint string `yaml:"hint,omitempty"`
+	// SANS is the Subject Alternative Names that are requested to be included
+	// in the SVID.
+	SANS SVIDRequestSANs `yaml:"sans,omitempty"`
+}
+
+func (o SVIDRequest) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("path", o.Path),
+		slog.String("hint", o.Hint),
+		slog.Any("dns_sans", o.SANS.DNS),
+		slog.Any("ip_sans", o.SANS.IP),
+	)
+}
+
+// CheckAndSetDefaults checks the SVIDRequest values and sets any defaults.
+func (o *SVIDRequest) CheckAndSetDefaults() error {
+	switch {
+	case o.Path == "":
+		return trace.BadParameter("svid.path: should not be empty")
+	case !strings.HasPrefix(o.Path, "/"):
+		return trace.BadParameter("svid.path: should be prefixed with /")
+	}
+	for i, stringIP := range o.SANS.IP {
+		ip := net.ParseIP(stringIP)
+		if ip == nil {
+			return trace.BadParameter(
+				"ip_sans[%d]: invalid IP address %q", i, stringIP,
+			)
+		}
+	}
+	return nil
+}
 
 // WorkloadIdentitySelector allows the user to select which WorkloadIdentity
 // resource should be used.
