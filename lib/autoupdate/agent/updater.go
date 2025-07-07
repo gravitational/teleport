@@ -186,16 +186,15 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				args = append(args, "--reload")
 			}
 			cmd := exec.CommandContext(ctx, name, args...)
-			cmd.Env = slices.Clone(os.Environ())
-			if enableSELinux {
-				cmd.Env = append(cmd.Env, SetupSELinuxSSHEnvVar+"=true")
-			}
 			cmd.Stderr = os.Stderr
 			cmd.Stdout = os.Stdout
 			cmd.Env = append(slices.Clone(os.Environ()),
 				SetupVersionEnvVar+"="+rev.Version,
 				SetupFlagsEnvVar+"="+strings.Join(rev.Flags.Strings(), "\n"),
 			)
+			if enableSELinux {
+				cmd.Env = append(cmd.Env, SetupSELinuxSSHEnvVar+"=true")
+			}
 			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
 			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
 			return trace.Wrap(cmd.Run())
