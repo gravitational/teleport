@@ -28,10 +28,10 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -42,7 +42,7 @@ import (
 )
 
 type SSHHostOutputService struct {
-	botAuthClient     *authclient.Client
+	botAuthClient     *apiclient.Client
 	botCfg            *config.BotConfig
 	cfg               *config.SSHHostOutput
 	getBotIdentity    getBotIdentityFn
