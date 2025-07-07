@@ -182,12 +182,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
 
+	recordingMode := types.RecordOff
 	if config.ServerStreamer != nil {
-		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
+		recordingMode = types.RecordAtNodeSync
 	}
+
+	_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: recordingMode},
+	})
+	require.NoError(t, err)
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
