@@ -653,6 +653,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			DeviceExtensions: auth.DeviceExtensions(id.Identity.DeviceExtensions),
 			Generation:       id.Identity.Generation,
 			Renewable:        id.Identity.Renewable,
+			Usage:            identity.AcceptedUsage,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
