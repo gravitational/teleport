@@ -28,7 +28,6 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -509,73 +508,69 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	authorities, err := clusterAPI.GetCertAuthorities(ctx, certType, false)
+	domainName, err := clusterAPI.GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authority, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       certType,
+		DomainName: domainName,
+	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	tlsKeys := authority.GetActiveKeys().TLS
+
 	if a.output == "" {
-		l := len(authorities)
-		switch {
-		case l == 0:
-			return trace.BadParameter("found no authorities")
-		case l > 1:
-			return trace.BadParameter("found %d authorities, use --out to export all CRLs", l)
-		case len(authorities[0].GetActiveKeys().TLS) > 1:
-			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
-		case len(authorities[0].GetActiveKeys().TLS) == 0:
+		if len(tlsKeys) == 0 {
 			return trace.BadParameter("CA has no active keys")
+		} else if len(tlsKeys) > 1 {
+			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
 		}
-	}
-
-	if a.output != "" {
-		// collect the CRLs ahead of time so we can print a message
-		// like we do with tctl auth export
-		type output struct{ cert, crl []byte }
-		var results []output
-		for _, authority := range authorities {
-			for i, keypair := range authority.GetActiveKeys().TLS {
-				crl := keypair.CRL
-				if len(crl) == 0 {
-					fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
-					crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-				}
-				results = append(results, output{keypair.Cert, crl})
-			}
-		}
-
-		fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
-		for _, out := range results {
-			block, _ := pem.Decode(out.cert)
-			cert, err := x509.ParseCertificate(block.Bytes)
+		crl := tlsKeys[0].CRL
+		if len(crl) == 0 {
+			fmt.Fprintf(os.Stderr, "keypair is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
+			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-
-			filename := fmt.Sprintf("%v-%v-%v.crl", cert.Subject.CommonName, certType, base32.HexEncoding.EncodeToString(cert.SubjectKeyId))
-			if err := os.WriteFile(filepath.Join(a.output, filename), out.crl, os.FileMode(0644)); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Fprintln(os.Stderr, filename)
 		}
+		fmt.Println(string(crl))
 		return nil
 	}
 
-	// Only a single CRL is exported if we got this far.
-	authority := authorities[0]
-	crl := authority.GetActiveKeys().TLS[0].CRL
-	if len(crl) == 0 {
-		fmt.Fprintf(os.Stderr, "keypair is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
-		crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+	// collect the CRLs ahead of time so we can print a message
+	// like we do with tctl auth export
+	type output struct{ cert, crl []byte }
+	var results []output
+	for i, keypair := range tlsKeys {
+		crl := keypair.CRL
+		if len(crl) == 0 {
+			fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
+			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		results = append(results, output{keypair.Cert, crl})
+	}
+
+	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
+	for _, out := range results {
+		block, _ := pem.Decode(out.cert)
+		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		filename := fmt.Sprintf("%s%v-%v-%v.crl", a.output, cert.Subject.CommonName, certType, base32.HexEncoding.EncodeToString(cert.SubjectKeyId))
+		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(os.Stderr, filename)
 	}
-	fmt.Println(string(crl))
+
 	return nil
 }
 
