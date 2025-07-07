@@ -530,7 +530,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upserted, err := srv.Auth().UpsertGithubConnector(context.Background(), conn)
+	upserted, err := auth.UpsertGithubConnector(context.Background(), srv.Auth(), conn)
 	require.NoError(t, err)
 	require.NotNil(t, upserted)
 
@@ -660,7 +660,7 @@ func TestGithubAuthCompat(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	_, err = srv.Auth().UpsertGithubConnector(context.Background(), connector)
+	_, err = auth.UpsertGithubConnector(context.Background(), srv.Auth(), connector)
 	require.NoError(t, err)
 
 	srv.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {

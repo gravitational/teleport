@@ -394,7 +394,7 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					sshCert, tlsCert, err := asrv.GenerateUserTestCertsWithContext(ctx,auth.GenerateUserTestCertsRequest{
+					sshCert, tlsCert, err := asrv.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
 						Username:       accessUser.GetName(),

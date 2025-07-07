@@ -1330,7 +1330,7 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	// test github create event
 	require.NoError(t, err)
-	github, err = s.a.CreateGithubConnector(ctx, github)
+	github, err = auth.CreateGithubConnector(ctx, s.a, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
@@ -1340,7 +1340,7 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test github update event
 	github.SetDisplay("llama")
-	github, err = s.a.UpdateGithubConnector(ctx, github)
+	github, err = auth.UpdateGithubConnector(ctx, s.a, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorUpdate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
@@ -1350,7 +1350,7 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test github upsert event
 	github.SetDisplay("alpaca")
-	upserted, err := s.a.UpsertGithubConnector(ctx, github)
+	upserted, err := auth.UpsertGithubConnector(ctx, s.a, github)
 	require.NoError(t, err)
 	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
@@ -1360,7 +1360,7 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	s.mockEmitter.Reset()
 
 	// test github delete event
-	err = s.a.DeleteGithubConnector(ctx, "test")
+	err = auth.DeleteGithubConnector(ctx, s.a, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
