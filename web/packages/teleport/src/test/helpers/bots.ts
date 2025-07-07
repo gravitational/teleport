@@ -52,7 +52,7 @@ export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
       subKind: '',
       version: 'v1',
       metadata: {
-        name: 'test-bot',
+        name: 'test-bot-name',
         description: '',
         labels: new Map(),
         namespace: '',

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { useHistory, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
@@ -48,7 +47,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
-import { createGetBotQueryKey, useGetBot } from '../hooks';
+import { useGetBot } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
 import { Panel } from './Panel';
 
@@ -56,7 +55,6 @@ const botNameLabel = 'Bot name';
 const maxSessionDurationLabel = 'Max session duration';
 
 export function BotDetails() {
-  const queryClient = useQueryClient();
   const ctx = useTeleport();
   const history = useHistory();
   const params = useParams<{
@@ -84,13 +82,8 @@ export function BotDetails() {
   const handleEditSuccess = useCallback(
     (bot: FlatBot, hasInconsistencies: boolean) => {
       setEditing(hasInconsistencies);
-
-      queryClient.setQueryData(
-        createGetBotQueryKey({ name: params.name }),
-        bot
-      );
     },
-    [params.name, queryClient]
+    []
   );
 
   return (

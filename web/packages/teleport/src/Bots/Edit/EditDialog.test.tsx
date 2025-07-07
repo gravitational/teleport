@@ -19,7 +19,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { deb } from 'web/packages/teleterm/electron-builder-config';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -127,7 +126,7 @@ describe('EditDialog', () => {
         max_session_ttl: {
           seconds: 43200,
         },
-        name: 'test-bot',
+        name: 'test-bot-name',
         namespace: '',
         revision: '',
         roles: ['admin', 'user', 'test-role'],
@@ -176,7 +175,7 @@ describe('EditDialog', () => {
         max_session_ttl: {
           seconds: 43200,
         },
-        name: 'test-bot',
+        name: 'test-bot-name',
         namespace: '',
         revision: '',
         roles: ['admin', 'user'],
@@ -224,7 +223,7 @@ describe('EditDialog', () => {
         max_session_ttl: {
           seconds: 43200 + 30 * 60,
         },
-        name: 'test-bot',
+        name: 'test-bot-name',
         namespace: '',
         revision: '',
         roles: ['admin', 'user'],
@@ -349,7 +348,7 @@ function withFetchBotSuccess() {
       subKind: '',
       version: 'v1',
       metadata: {
-        name: 'test-bot',
+        name: 'test-bot-name',
         description: '',
         labels: new Map(),
         namespace: '',
@@ -401,7 +400,11 @@ function renderComponent(options?: {
     customAcl,
   } = options ?? {};
   return render(
-    <EditDialog botName="test-bot" onCancel={onCancel} onSuccess={onSuccess} />,
+    <EditDialog
+      botName="test-bot-name"
+      onCancel={onCancel}
+      onSuccess={onSuccess}
+    />,
     { wrapper: makeWrapper({ customAcl }) }
   );
 }

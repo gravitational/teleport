@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { css } from 'styled-components';
 
@@ -42,7 +42,7 @@ import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
-import { useGetBot } from '../hooks';
+import { createGetBotQueryKey, useGetBot } from '../hooks';
 import { validateBotUpdate } from './validateBotUpdate';
 
 export function EditDialog(props: {
@@ -51,6 +51,7 @@ export function EditDialog(props: {
   onSuccess: (bot: FlatBot, hasInconsistencies: boolean) => void;
 }) {
   const { botName, onCancel, onSuccess } = props;
+  const queryClient = useQueryClient();
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasReadPermission = flags.readBots;
@@ -81,6 +82,21 @@ export function EditDialog(props: {
     mutationFn: (params: EditBotRequest) => {
       return editBot(ctx.getFeatureFlags(), botName, params);
     },
+    // eslint-disable-next-line unused-imports/no-unused-vars
+    onSuccess: (newData, variables, _context) => {
+      const key = createGetBotQueryKey({ name: botName });
+      queryClient.setQueryData(key, newData);
+
+      // Older APIs may not support updating some fields, check that applicable fields were updated and show a warning if not.
+      const fields = validateBotUpdate(data, variables, newData);
+
+      const hasInconsistencies = fields.length > 0;
+      if (hasInconsistencies) {
+        setInconsistentFields(fields.sort());
+      }
+
+      onSuccess(newData, hasInconsistencies);
+    },
   });
 
   const handleSubmit = () => {
@@ -99,20 +115,7 @@ export function EditDialog(props: {
       max_session_ttl,
     };
 
-    mutate(request, {
-      // eslint-disable-next-line unused-imports/no-unused-vars
-      onSuccess: (newData, _variables, _context) => {
-        // Older APIs may not support updating some fields, check that applicable fields were updated and show a warning if not.
-        const fields = validateBotUpdate(data, request, newData);
-
-        const hasInconsistencies = fields.length > 0;
-        if (hasInconsistencies) {
-          setInconsistentFields(fields.sort());
-        }
-
-        onSuccess(newData, hasInconsistencies);
-      },
-    });
+    mutate(request);
   };
 
   const isDirty =

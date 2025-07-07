@@ -106,7 +106,7 @@ describe('BotDetails', () => {
     const pageHeader = screen.getByTestId('page-header');
     expect(pageHeader).toBeInTheDocument();
 
-    expect(within(pageHeader).getByText('test-bot')).toBeInTheDocument();
+    expect(within(pageHeader).getByText('test-bot-name')).toBeInTheDocument();
   });
 
   it('should show bot metadata', async () => {
@@ -119,7 +119,7 @@ describe('BotDetails', () => {
       .closest('section');
     expect(panel).toBeInTheDocument();
 
-    expect(within(panel!).getByText('test-bot')).toBeInTheDocument();
+    expect(within(panel!).getByText('test-bot-name')).toBeInTheDocument();
     expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
@@ -186,17 +186,23 @@ describe('BotDetails', () => {
 
     it('should show edit form on edit action', async () => {
       withFetchSuccess();
-      withFetchRolesSuccess();
       renderComponent();
       await waitForLoading();
 
+      withFetchRolesSuccess();
       const editButton = screen.getByRole('button', { name: 'Edit Bot' });
       fireEvent.click(editButton);
-      await waitForLoading();
 
       expect(
         screen.getByText('Bot name cannot be changed')
       ).toBeInTheDocument();
+
+      const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+      fireEvent.click(cancelButton);
+
+      expect(
+        screen.queryByText('Bot name cannot be changed')
+      ).not.toBeInTheDocument();
     });
 
     it("should update the bot's details on edit success", async () => {
@@ -229,7 +235,9 @@ describe('BotDetails', () => {
       withFetchRolesSuccess();
       const editButton = screen.getByRole('button', { name: 'Edit Bot' });
       fireEvent.click(editButton);
-      await waitForLoading();
+
+      // Change something to enable the save button
+      await inputMaxSessionDuration('12h 30m');
 
       withSaveSuccess({
         roles: ['role-1'],
@@ -269,11 +277,16 @@ describe('BotDetails', () => {
   });
 });
 
-const renderComponent = async (options?: {
+async function inputMaxSessionDuration(duration: string) {
+  const ttlInput = screen.getByLabelText('Max session duration');
+  fireEvent.change(ttlInput, { target: { value: duration } });
+}
+
+const renderComponent = (options?: {
   history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
-  render(<BotDetails />, {
+  return render(<BotDetails />, {
     wrapper: makeWrapper(options),
   });
 };
@@ -294,7 +307,7 @@ const withFetchSuccess = () => {
       subKind: '',
       version: 'v1',
       metadata: {
-        name: 'test-bot',
+        name: 'test-bot-name',
         description: '',
         labels: new Map(),
         namespace: '',
