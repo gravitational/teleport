@@ -29,11 +29,6 @@
     "nop": "exit 0"
   },
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "jsdom@^20.0.3>nwsapi@^2": "2.2.9"
-    }
-  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@ianvs/prettier-plugin-sort-imports": "^4.4.1",
