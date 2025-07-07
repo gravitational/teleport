@@ -27,15 +27,24 @@ export const getBotSuccess = (mock: ApiBot) =>
     return HttpResponse.json(mock);
   });
 
+/**
+ * `editBotSuccess` returns a handler that captures the request and uses its values
+ * to construct a new bot object. `overrides` can be used to replace values in the request.
+ *
+ * @param overrides values to use instead of the values from the captured request
+ * @returns http handler to use in SetupServerApi.use()
+ */
 export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
   http.put(botPath, async ({ request }) => {
     const req = (await request.clone().json()) as EditBotRequest;
-    const { roles, traits, max_session_ttl } = overrides ?? {};
+    const {
+      roles = req.roles,
+      traits = req.traits,
+      max_session_ttl = req.max_session_ttl,
+    } = overrides ?? {};
 
     const maxSessionTtlSeconds =
-      (max_session_ttl ?? req.max_session_ttl) === '12h30m'
-        ? 43200 + 30 * 60
-        : 43200;
+      max_session_ttl === '12h30m' ? 43200 + 30 * 60 : 43200;
 
     return HttpResponse.json({
       status: 'active',
@@ -50,14 +59,13 @@ export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
         revision: '',
       },
       spec: {
-        roles: roles ?? req.roles ?? ['admin', 'user'],
-        traits: traits ??
-          req.traits ?? [
-            {
-              name: 'trait-1',
-              values: ['value-1', 'value-2', 'value-3'],
-            },
-          ],
+        roles: roles ?? ['admin', 'user'],
+        traits: traits ?? [
+          {
+            name: 'trait-1',
+            values: ['value-1', 'value-2', 'value-3'],
+          },
+        ],
         max_session_ttl: {
           seconds: maxSessionTtlSeconds,
         },
