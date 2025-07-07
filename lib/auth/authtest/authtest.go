@@ -652,7 +652,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			MFAVerified:      id.Identity.MFAVerified,
 			DeviceExtensions: auth.DeviceExtensions(id.Identity.DeviceExtensions),
 			Generation:       id.Identity.Generation,
-			Renewable:        id.Identity.Renewable,
+			Renewable:        identity.Renewable,
 			Usage:            identity.AcceptedUsage,
 		})
 		if err != nil {
