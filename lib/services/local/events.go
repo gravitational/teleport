@@ -256,6 +256,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGitServerParser()
 		case types.KindWorkloadIdentityX509Revocation:
 			parser = newWorkloadIdentityX509RevocationParser()
+		case types.KindRecordingEncryption:
+			parser = newRecordingEncryptionParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
