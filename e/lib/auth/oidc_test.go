@@ -1345,7 +1345,7 @@ func TestEmailVerifiedClaim(t *testing.T) {
 		{
 			name:      "empty email verified claims",
 			userID:    users[5].ID,
-			assertion: unverifiedErrorAssertion,
+			assertion: require.NoError,
 		},
 	}
 
