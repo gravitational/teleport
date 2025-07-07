@@ -782,8 +782,8 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	if b.cfg.JoiningURI != "" {
-		parsed, err := config.ParseJoinURI(b.cfg.JoiningURI)
+	if b.cfg.JoinURI != "" {
+		parsed, err := config.ParseJoinURI(b.cfg.JoinURI)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing joining URI")
 		}

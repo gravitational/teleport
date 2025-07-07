@@ -1265,7 +1265,7 @@ func TestBotJoiningURI(t *testing.T) {
 
 	botParams, _ := makeBot(t, rootClient, "test", "role")
 	cfg := &config.BotConfig{
-		JoiningURI: fmt.Sprintf(
+		JoinURI: fmt.Sprintf(
 			"tbot+proxy+%s://%s@%s",
 			botParams.JoinMethod,
 			botParams.TokenValue,
