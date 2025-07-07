@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/spanner"
+	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/testing"
 )
 
 func TestAccessSpanner(t *testing.T) {

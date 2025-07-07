@@ -73,13 +73,13 @@ across distributed infrastructures.
 |**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
 | Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
 | Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
-| [Machines](./enroll-resources/machine-id/machine-id.mdx) and [workloads](./enroll-resources/workload-identity/introduction.mdx#teleport-workload-identity-vs-machine-id) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
+| [Machines](machine-workload-identity/machine-id/machine-id.mdx) and [workloads](machine-workload-identity/workload-identity/introduction.mdx) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
 | Agentless Integration with [OpenSSH Servers](./enroll-resources/server-access/openssh/openssh-agentless.mdx) | ✔ | ✔ | ✔ |
 | [IP-Based Restrictions](./admin-guides/access-controls/guides/ip-pinning.mdx) | ✔ | ✔ | ✖ |
 | [Teleport VNet](./connect-your-client/vnet.mdx) | ✔ | ✔ | ✔ |
 |**Short-lived privileges.** Ephemeral authorization granted through short-lived certificates:||||
 | [Role-Based Access Control](./admin-guides/access-controls/guides/role-templates.mdx) | ✔ | ✔ | ✔ |
-| [Just-in-Time Access Requests & Reviews](./admin-guides/access-controls/access-requests/resource-requests.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
+| [Just-in-Time Access Requests & Reviews](identity-governance/access-requests/resource-requests.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
 |**Session recording and interactive controls.** Record, replay, join, and moderate interactive sessions:||||
 | [Session Recording with Playback](./reference/architecture/session-recording.mdx) | ✔ | ✔ | ✔ |
 | [Enhanced Session Recording](./enroll-resources/server-access/guides/bpf-session-recording.mdx) | ✔ | ✔ | ✔ |
@@ -105,7 +105,7 @@ certificates, access control, and auditability.
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | **Service Discovery:** Live inventory of machine and workload identities for CI/CD jobs, microservices, and others | ✔ | ✔ | ✔ |
-|**Issuance:** Provisions cryptographic identities for [machines](./enroll-resources/machine-id/getting-started.mdx) and [workloads](./enroll-resources/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
+|**Issuance:** Provisions cryptographic identities for [machines](machine-workload-identity/machine-id/getting-started.mdx) and [workloads](machine-workload-identity/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
 |**Secretless Authentication:** Eliminates the need for API keys and long-term secrets with short-lived certificates.| ✔ | ✔ | ✔ |
 |**Ephemeral Authorization:** With granular ABAC/RBAC for workload interactions | ✔ | ✔ | ✔ |
 |**Auditability:** Audit data, exportable to SIEMs, for compliance reporting & reviews | ✔ | ✔ | ✔ |
@@ -124,12 +124,12 @@ and non-human identities.
 |---|:---:|:---:|:---:|
 | [JIT Access Requests](./admin-guides/access-controls/guides/dual-authz.mdx): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
 | Automatic Access Requests & Approvals: Automate pre-defined workflows based on RBAC, ABAC, or context-based authorization. | ✔ | ✔ | ✖ |
-| [Access Lists & Access Reviews](./admin-guides/access-controls/access-lists/access-lists.mdx): Review access requests using Slack, PagerDuty, Microsoft Teams, Jira and ServiceNow. Assign managers, automate mandatory reviews, and implement custom review logic using our API and Go SDK. Integrates with AWS Identity Center. | ✔ | ✔ | ✖ |
-| [Session & Identity Locks](./admin-guides/access-controls/guides/locking.mdx): Lock suspicious or compromised identities and stop all their activity across all protocols and services. | ✔ | ✔ | ✖ |
-| [Device Trust](./admin-guides/access-controls/device-trust/guide.mdx): Require an up-to-date, registered device for each authentication. Teleport uses TPMs and secure enclaves to give every device a cryptographic identity. Restrict further by resource or MDM-authorization. | ✔ | ✔ | ✖ |
+| [Access Lists & Access Reviews](identity-governance/access-lists/access-lists.mdx): Review access requests using Slack, PagerDuty, Microsoft Teams, Jira and ServiceNow. Assign managers, automate mandatory reviews, and implement custom review logic using our API and Go SDK. Integrates with AWS Identity Center. | ✔ | ✔ | ✖ |
+| [Session & Identity Locks](identity-governance/locking.mdx): Lock suspicious or compromised identities and stop all their activity across all protocols and services. | ✔ | ✔ | ✖ |
+| [Device Trust](identity-governance/device-trust/guide.mdx): Require an up-to-date, registered device for each authentication. Teleport uses TPMs and secure enclaves to give every device a cryptographic identity. Restrict further by resource or MDM-authorization. | ✔ | ✔ | ✖ |
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | ✔ | ✔ | ✖ |
-| [Access Monitoring & Response](./admin-guides/access-controls/access-monitoring.mdx): Detect overly broad privileges and inspect sessions that are not using strong protection, such as multi-factor authentication or device trust. Alert on access violations and purge unused permissions with automated access rules. | ✔ | ✔ | ✖ |
-| [Okta integration](./admin-guides/access-controls/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
+| [Access Monitoring & Response](identity-governance/access-monitoring.mdx): Detect overly broad privileges and inspect sessions that are not using strong protection, such as multi-factor authentication or device trust. Alert on access violations and purge unused permissions with automated access rules. | ✔ | ✔ | ✖ |
+| [Okta integration](identity-governance/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
 | Microsoft Entra ID directory synchronization and SSO [integration](./admin-guides/access-controls/sso/azuread.mdx) | ✔ | ✔ | ✖ |
 
 ## Teleport Identity Security
@@ -143,7 +143,7 @@ and non-human identities.
 | Discover standing privileges  | ✔ | ✔ | ✖ |
 | Analyze  shadow access and drift of security posture | ✔ | ✔ | ✖ |
 | Investigate identity vulnerabilities and potential exposures | ✔ | ✔ | ✖ |
-| Monitor critical assets with [Crown Jewel](./admin-guides/teleport-policy/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
+| Monitor critical assets with [Crown Jewel](identity-security/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
 
 ## Platform integrations, management, licensing, and deployment
 

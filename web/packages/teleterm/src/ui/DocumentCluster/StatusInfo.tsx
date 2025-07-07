@@ -18,7 +18,7 @@
 
 import {
   DatabaseServer,
-  ResourceStatus,
+  ResourceHealthStatus,
   SharedResourceServer,
   UnifiedResourceDefinition,
   useResourceServersFetch,
@@ -62,8 +62,9 @@ export function StatusInfo({
           hostname: d.hostname,
           hostId: d.hostId,
           targetHealth: d.targetHealth && {
-            status: d.targetHealth.status as ResourceStatus,
+            status: d.targetHealth.status as ResourceHealthStatus,
             error: d.targetHealth.error,
+            message: d.targetHealth.message,
           },
         }));
         return {

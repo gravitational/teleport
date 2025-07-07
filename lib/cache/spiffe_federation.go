@@ -40,6 +40,7 @@ func newSPIFFEFederationCollection(upstream services.SPIFFEFederations, w types.
 
 	return &collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex]{
 		store: newStore(
+			types.KindSPIFFEFederation,
 			proto.CloneOf[*machineidv1.SPIFFEFederation],
 			map[spiffeFederationIndex]func(*machineidv1.SPIFFEFederation) string{
 				spiffeFederationNameIndex: func(r *machineidv1.SPIFFEFederation) string {

@@ -27,6 +27,7 @@ import {
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
+import { MfaChallengeResponse } from '../mfa';
 import {
   BotList,
   BotResponse,
@@ -36,8 +37,16 @@ import {
   FlatBot,
 } from './types';
 
-export function createBot(config: CreateBotRequest): Promise<void> {
-  return api.post(cfg.getBotsUrl(), config);
+export function createBot(
+  config: CreateBotRequest,
+  mfaResponse?: MfaChallengeResponse
+): Promise<void> {
+  return api.post(
+    cfg.getBotsUrl(),
+    config,
+    undefined /* abort signal */,
+    mfaResponse
+  );
 }
 
 export async function getBot(name: string): Promise<FlatBot | null> {
@@ -52,13 +61,21 @@ export async function getBot(name: string): Promise<FlatBot | null> {
   }
 }
 
-export function createBotToken(req: CreateBotJoinTokenRequest) {
-  return api.post(cfg.getBotTokenUrl(), {
-    integrationName: req.integrationName,
-    joinMethod: req.joinMethod,
-    webFlowLabel: req.webFlowLabel,
-    gitHub: toApiGitHubTokenSpec(req.gitHub),
-  });
+export function createBotToken(
+  req: CreateBotJoinTokenRequest,
+  mfaResponse?: MfaChallengeResponse
+) {
+  return api.post(
+    cfg.getBotTokenUrl(),
+    {
+      integrationName: req.integrationName,
+      joinMethod: req.joinMethod,
+      webFlowLabel: req.webFlowLabel,
+      gitHub: toApiGitHubTokenSpec(req.gitHub),
+    },
+    undefined /* abort signal */,
+    mfaResponse
+  );
 }
 
 export function fetchBots(

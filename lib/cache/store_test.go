@@ -27,6 +27,7 @@ import (
 
 func TestResourceStore(t *testing.T) {
 	store := newStore(
+		"int",
 		func(i int) int { return i },
 		map[string]func(i int) string{
 			"numbers":    strconv.Itoa,
@@ -43,7 +44,7 @@ func TestResourceStore(t *testing.T) {
 	require.Equal(t, 0, zero)
 
 	n, err := store.get("numbers", "1000")
-	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "1000" in index numbers`})
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: `"int" "1000" does not exist`})
 	require.Equal(t, 0, n)
 
 	v, err := store.get("characters", "1c")
@@ -58,12 +59,12 @@ func TestResourceStore(t *testing.T) {
 
 	require.NoError(t, store.delete(0))
 	_, err = store.get("numbers", "0")
-	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "0" in index numbers`})
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: `"int" "0" does not exist`})
 
 	require.NoError(t, store.clear())
 
 	_, err = store.get("numbers", "0")
-	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "0" in index numbers`})
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: `"int" "0" does not exist`})
 
 	require.Zero(t, store.len())
 }

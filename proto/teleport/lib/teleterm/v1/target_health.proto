@@ -30,4 +30,6 @@ message TargetHealth {
   // error is the health check error observed, when
   // "status" field != "healthy".
   string error = 2;
+  // message is additional information meant for a user.
+  string message = 3;
 }

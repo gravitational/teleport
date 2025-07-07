@@ -112,7 +112,7 @@ the ["Run the Terraform provider locally" guide](../../admin-guides/infrastructu
 
 #### Obtaining an identity file via `tbot`
 
-`tbot` relies on [MachineID](../../enroll-resources/machine-id/introduction.mdx) to obtain and automatically renew
+`tbot` relies on [Machine ID](../../machine-workload-identity/machine-id/introduction.mdx) to obtain and automatically renew
 short-lived credentials. Such credentials are harder to exfiltrate, and you can control more precisely who has access to
 which roles (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
 

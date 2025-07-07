@@ -10,7 +10,7 @@ discord:
   token: "XXXXXXXX"  # Discord Bot OAuth token
 
 # Mapping from role to recipients
-roleToRecipients: []
+roleToRecipients: {}
 #  "*":
 #    - "1234567890"  # security-team
 #  "dev":

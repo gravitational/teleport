@@ -42,6 +42,10 @@ rules:
       - teleportbotsv1/status
       - teleportworkloadidentitiesv1
       - teleportworkloadidentitiesv1/status
+      - teleportautoupdateconfigsv1
+      - teleportautoupdateconfigsv1/status
+      - teleportautoupdateversionsv1
+      - teleportautoupdateversionsv1/status
     verbs:
       - get
       - list

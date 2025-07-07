@@ -4,16 +4,19 @@ description: Describes how to set up Managed Updates for Teleport Agents (v1)
 ---
 
 <Admonition type="warning">
-This document describes Managed Updates for Agents (v1), which is
-currently supported but will be deprecated after [Managed Updates for
-Agents (v2)](./agent-managed-updates.mdx) is generally available.
+This document describes Managed Updates for Agents (v1), which
+is currently supported but may be removed in future versions of Teleport.
+
+For Managed Updates v2 instructions, see [Managed Updates for
+Agents (v2)](./agent-managed-updates.mdx).
 </Admonition>
 
 Managed Updates v1 uses a script called `teleport-upgrade` that is provided by
 the `teleport-ent-updater` package and configured by the `cluster_maintenance_config`
 Teleport resource. Managed Updates v2 uses a binary called `teleport-update` that is
 provided by the `teleport` package and configured by the `autoupdate_version` and
-`autoupdate_config`. The original updater and resource are described in this document.
+`autoupdate_config` resources. The original updater and resource are described in
+this document.
 
 Only Enterprise versions of Teleport can use Managed Updates v1.
 
@@ -67,13 +70,10 @@ regular maintenance window.
 
 ## Prerequisites
 
-- A Teleport Enterprise cluster. If you do not have one, [sign
-  up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](upgrading-reference.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport Agents that are not yet enrolled in Managed Updates.
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+- (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Enable Managed Agent Updates
@@ -224,7 +224,7 @@ Server ID                            Hostname      Services Version Upgrader
    <TabItem label="Self-Hosted Teleport Enterprise">
 
    1. Follow the instructions in the Teleport [installation
-      guide](../installation.mdx#package-repositories) to install the `teleport`
+      guide](../installation/linux.mdx#package-repositories) to install the `teleport`
       binary on your Linux server for your package manager.
 
    1. Using your package manager, install `teleport-ent-updater` on the
@@ -240,7 +240,7 @@ Server ID                            Hostname      Services Version Upgrader
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
-   guide](../installation.mdx#linux).
+   guide](../installation/linux.mdx).
 
 1. Confirm that the version of the `teleport` binary is the one you expect:
 
