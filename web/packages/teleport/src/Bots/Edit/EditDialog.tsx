@@ -158,6 +158,12 @@ export function EditDialog(props: {
 
               {hasReadPermission && isSuccess && data ? (
                 <>
+                  <Alert kind="info" width={'100%'}>
+                    Updates to a bot&apos;s identity take affect when tbot next
+                    renews its certificates. By default, this happens every 20
+                    minutes.
+                  </Alert>
+
                   <FieldInput
                     label="Name"
                     placeholder="Name"
@@ -233,11 +239,6 @@ export function EditDialog(props: {
                       'A duration string such as 12h, 2h 45m, 43200s. Maximum is 24h. Valid time units are ns, us (or µs), ms, s, m, h.'
                     }
                   />
-                  <Alert kind="info" width={'100%'}>
-                    Updates to a bot&apos;s identity take affect when tbot next
-                    renews its certificates. By default, this happens every 20
-                    minutes.
-                  </Alert>
                 </>
               ) : undefined}
 
