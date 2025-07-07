@@ -1107,25 +1107,6 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 		},
 		{
-			name: "Kube Backend is available but key is missing. Load from local storage and store in lube",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return cmp.Diff(&backend.Item{
-					Key:   []byte(hostUUIDKey),
-					Value: []byte(id),
-				}, i) == ""
-			},
-		},
-		{
 			name: "Kube Backend is available with key. Load from kube storage",
 			args: args{
 				kubeBackend: &fakeKubeBackend{

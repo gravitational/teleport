@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 

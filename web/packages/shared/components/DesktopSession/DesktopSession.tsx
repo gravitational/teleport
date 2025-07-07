@@ -43,8 +43,6 @@ import { KeyboardHandler } from './KeyboardHandler';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
-  defaultClipboardSharingState,
-  defaultDirectorySharingState,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
@@ -58,6 +56,8 @@ export interface DesktopSessionProps {
     clipboardSharingEnabled: boolean;
     directorySharingEnabled: boolean;
   }>;
+  /** Determines if the browser client support directory and clipboard sharing. */
+  browserSupportsSharing: boolean;
   /**
    * Injects a custom component that overrides other connection states.
    * Useful for per-session MFA, which differs between Web UI and Connect.
@@ -74,19 +74,19 @@ export function DesktopSession({
   desktop,
   hasAnotherSession,
   customConnectionState,
+  browserSupportsSharing,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
-    setDirectorySharingState,
     onClipboardData,
     sendLocalClipboardToRemote,
     clipboardSharingState,
-    setClipboardSharingState,
+    clearSharing,
     onShareDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
-  } = useDesktopSession(client, aclAttempt);
+  } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
 
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
@@ -127,16 +127,15 @@ export function DesktopSession({
 
   const handleFatalError = useCallback(
     (error: Error) => {
-      setDirectorySharingState(defaultDirectorySharingState);
-      setClipboardSharingState(defaultClipboardSharingState);
+      clearSharing();
       setTdpConnectionStatus({
         status: 'disconnected',
         fromTdpError: error instanceof TdpError,
-        message: error?.message || error?.toString(),
+        message: error.message,
       });
       initialTdpConnectionSucceeded.current = false;
     },
-    [setClipboardSharingState, setDirectorySharingState]
+    [clearSharing]
   );
   useListener(client.onError, handleFatalError);
 
@@ -171,7 +170,7 @@ export function DesktopSession({
       error => {
         setTdpConnectionStatus({
           status: 'disconnected',
-          message: error?.message || error?.toString(),
+          message: error?.message,
         });
         initialTdpConnectionSucceeded.current = false;
       },
@@ -325,14 +324,7 @@ export function DesktopSession({
     >
       <TopBar
         onDisconnect={() => {
-          setClipboardSharingState(prevState => ({
-            ...prevState,
-            isSharing: false,
-          }));
-          setDirectorySharingState(prevState => ({
-            ...prevState,
-            isSharing: false,
-          }));
+          clearSharing();
           client.shutdown();
         }}
         userHost={`${username} on ${desktop}`}

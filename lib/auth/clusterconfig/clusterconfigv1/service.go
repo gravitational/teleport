@@ -32,6 +32,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
@@ -53,7 +54,6 @@ type ReadOnlyCache interface {
 
 // Backend is used by the [Service] to mutate cluster config resources.
 type Backend interface {
-	CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 
@@ -157,41 +157,6 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 	return authPrefV2, nil
 }
 
-// CreateAuthPreference creates a new auth preference if one does not exist. This
-// is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer]. It
-// is only meant to be called directly from the first time an Auth instance is started.
-func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
-		return nil, trace.AccessDenied("this request can be only executed by an auth server")
-	}
-
-	// check that the given RequireMFAType is supported in this build.
-	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-	}
-
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	created, err := s.backend.CreateAuthPreference(ctx, p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authPrefV2, ok := created.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", created, authPrefV2))
-	}
-
-	return authPrefV2, nil
-}
-
 func eventStatus(err error) apievents.Status {
 	var msg string
 	if err != nil {
@@ -214,6 +179,10 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	if err := authzCtx.CheckAccessToKind(types.KindClusterAuthPreference, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -281,6 +250,10 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

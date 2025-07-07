@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.23.8
+go 1.23.10
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.9.0
@@ -58,6 +58,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.44.0
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.6
 	github.com/aws/aws-sdk-go-v2/service/sns v1.29.4
@@ -82,7 +83,6 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/dustin/go-humanize v1.0.1
-	github.com/elastic/go-elasticsearch/v8 v8.13.1
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fatih/color v1.17.0
@@ -95,6 +95,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.5.0 // replaced
 	github.com/go-piv/piv-go v1.11.0
+	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/go-resty/resty/v2 v2.12.0
 	github.com/go-webauthn/webauthn v0.10.2
 	github.com/gobwas/ws v1.4.0
@@ -317,7 +318,6 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect

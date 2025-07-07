@@ -208,6 +208,38 @@ exports[`render DocumentNodes 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c1 {
+  display: flex;
+}
+
+.c6 {
+  display: flex;
+  align-items: center;
+}
+
+.c13 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.c20 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c30 {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c37 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .c10 {
   display: inline-flex;
   align-items: center;
@@ -249,38 +281,6 @@ exports[`render DocumentNodes 1`] = `
   margin: 0px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c6 {
-  display: flex;
-  align-items: center;
-}
-
-.c13 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.c20 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.c30 {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.c37 {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .c38 {
@@ -374,6 +374,11 @@ exports[`render DocumentNodes 1`] = `
 
 .c22:disabled:checked + .c23 {
   background: rgba(0,191,166,0.25);
+}
+
+.c22:focus-visible + .c23 {
+  outline: 1px solid #9F85FF;
+  outline-offset: 1px;
 }
 
 .c28 {

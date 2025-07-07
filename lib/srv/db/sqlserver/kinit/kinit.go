@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -94,8 +95,6 @@ type CommandConfig struct {
 	KDCHost string
 	// AdminServer is the administration server hostname (usually AD server)
 	AdminServer string
-	// DataDir is the Teleport Data Directory
-	DataDir string
 	// LDAPCA is the Windows LDAP Certificate for client signing
 	LDAPCA *x509.Certificate
 	// LDAPCAPEM contains the same certificate as LDAPCA but in PEM format. It
@@ -114,13 +113,9 @@ func NewCommandLineInitializer(config CommandConfig) *CommandLineInitializer {
 	cmd := &CommandLineInitializer{
 		auth:               config.AuthClient,
 		userName:           config.User,
-		cacheName:          fmt.Sprintf("%s@%s", config.User, config.Realm),
 		RealmName:          config.Realm,
 		KDCHostName:        config.KDCHost,
 		AdminServerName:    config.AdminServer,
-		dataDir:            config.DataDir,
-		certPath:           fmt.Sprintf("%s.pem", config.User),
-		keyPath:            fmt.Sprintf("%s-key.pem", config.User),
 		binary:             kinitBinary,
 		command:            config.Command,
 		certGetter:         config.CertGetter,
@@ -160,12 +155,7 @@ type CommandLineInitializer struct {
 	// AdminServerName is the admin server Name (usually AD host)
 	AdminServerName string
 
-	dataDir   string
-	userName  string
-	cacheName string
-
-	certPath string
-	keyPath  string
+	userName string
 	binary   string
 
 	command    CommandGenerator
@@ -242,18 +232,10 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 		}
 	}()
 
-	certPath := filepath.Join(tmp, fmt.Sprintf("%s.pem", k.userName))
-	keyPath := filepath.Join(tmp, fmt.Sprintf("%s-key.pem", k.userName))
+	certPath := filepath.Join(tmp, "cert.pem")
+	keyPath := filepath.Join(tmp, "key.pem")
 	userCAPath := filepath.Join(tmp, "userca.pem")
-
-	cacheDir := filepath.Join(k.dataDir, "krb5_cache")
-
-	err = os.MkdirAll(cacheDir, os.ModePerm)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	cachePath := filepath.Join(cacheDir, k.cacheName)
+	cachePath := filepath.Join(tmp, "krb5.cache")
 
 	wca, err := k.certGetter.GetCertificateBytes(ctx)
 	if err != nil {
@@ -261,22 +243,22 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	}
 
 	// store files in temp dir
-	err = os.WriteFile(certPath, wca.certPEM, 0644)
+	err = os.WriteFile(certPath, wca.certPEM, 0600)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(keyPath, wca.keyPEM, 0644)
+	err = os.WriteFile(keyPath, wca.keyPEM, 0600)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(wca.caCert), 0644)
+	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(wca.caCert), 0600)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	krbConfPath := filepath.Join(tmp, fmt.Sprintf("krb_%s", k.userName))
+	krbConfPath := filepath.Join(tmp, "krb5.conf")
 	err = k.WriteKRB5Config(krbConfPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -290,14 +272,19 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	cmd := k.command.CommandContext(ctx,
 		k.binary,
 		"-X", fmt.Sprintf("X509_anchors=FILE:%s", userCAPath),
-		"-X", fmt.Sprintf("X509_user_identity=FILE:%s,%s", certPath, keyPath), k.userName,
-		"-c", cachePath)
+		"-X", fmt.Sprintf("X509_user_identity=FILE:%s,%s", certPath, keyPath),
+		"-c", cachePath,
+		"--", k.userName,
+	)
 
 	if cmd.Err != nil {
 		return nil, nil, trace.Wrap(cmd.Err)
 	}
 
 	cmd.Env = append(cmd.Env, []string{fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath)}...)
+
+	k.log.Debugf("Running command: %v %v %s", strings.Join(cmd.Env, " "), cmd.Path, strings.Join(cmd.Args, " "))
+
 	kinitOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		k.log.Errorf("Failed to authenticate with KDC: %s", kinitOutput)

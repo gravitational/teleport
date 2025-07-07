@@ -39,6 +39,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useTeleport } from 'teleport';
+import auth from 'teleport/services/auth';
 import {
   AWSRules,
   CreateJoinTokenRequest,
@@ -130,7 +131,13 @@ export const UpsertJoinTokenDialog = ({
 
   const [createTokenAttempt, runCreateTokenAttempt] = useAsync(
     async (req: CreateJoinTokenRequest) => {
-      const token = await ctx.joinTokenService.createJoinToken(req);
+      const mfaResponse = await auth.getWebauthnResponseForAdminAction(
+        true /* allow re-use */
+      );
+      const token = await ctx.joinTokenService.createJoinToken(
+        req,
+        mfaResponse
+      );
       updateTokenList(token);
       onClose();
     }

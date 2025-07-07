@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -41,7 +42,7 @@ import (
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/internal"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -221,7 +222,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if s.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(s.ctx, header); err != nil {
+		if header, err = internal.IdentityForwardingHeaders(s.ctx, header); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -288,11 +289,35 @@ func extractKubeAPIStatusFromReq(rsp *http.Response) error {
 	} else {
 		if obj, _, err := statusCodecs.UniversalDecoder().Decode(responseErrorBytes, nil, &metav1.Status{}); err == nil {
 			if status, ok := obj.(*metav1.Status); ok {
-				return &apierrors.StatusError{ErrStatus: *status}
+				return &upgradeFailureError{Cause: &apierrors.StatusError{ErrStatus: *status}}
 			}
 		}
 		responseError = string(responseErrorBytes)
 		responseError = strings.TrimSpace(responseError)
 	}
-	return fmt.Errorf("unable to upgrade connection: %s", responseError)
+	return &upgradeFailureError{Cause: fmt.Errorf("unable to upgrade connection: %s", responseError)}
+}
+
+func isTeleportUpgradeFailure(err error) bool {
+	var upgradeErr *upgradeFailureError
+	return errors.As(err, &upgradeErr)
+}
+
+// upgradeFailureError encapsulates the cause for why the streaming
+// upgrade request failed. Implements error interface.
+type upgradeFailureError struct {
+	Cause error
+}
+
+func (e *upgradeFailureError) Error() string {
+	if e.Cause == nil {
+		return "upgrade failed"
+	}
+	return fmt.Sprintf("upgrade failed: %v", e.Cause)
+}
+func (e *upgradeFailureError) Unwrap() error {
+	if e.Cause == nil {
+		return nil
+	}
+	return e.Cause
 }

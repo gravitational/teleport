@@ -457,7 +457,9 @@ func TestRootHostUsers(t *testing.T) {
 		namedShellUser := "named-shell"
 		absoluteShellUser := "absolute-shell"
 
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil) })
+		t.Cleanup(func() {
+			cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil)
+		})
 
 		// Create a user with a named shell expected to be available in the PATH
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
@@ -467,17 +469,16 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Create a user with the host default shell (default behavior)
+		_, err = users.UpsertUser(defaultShellUser, services.HostUsersInfo{
+			Mode: services.HostUserModeKeep,
+		})
+		require.NoError(t, err)
+
 		// Create a user with an absolute path to a shell
 		_, err = users.UpsertUser(absoluteShellUser, services.HostUsersInfo{
 			Mode:  services.HostUserModeKeep,
 			Shell: "/usr/bin/bash",
-		})
-		require.NoError(t, err)
-
-		// Create a user with the host default shell (default behavior)
-		_, err = users.UpsertUser(defaultShellUser, services.HostUsersInfo{
-			Mode:  services.HostUserModeKeep,
-			Shell: "zsh",
 		})
 		require.NoError(t, err)
 
@@ -502,10 +503,24 @@ func TestRootHostUsers(t *testing.T) {
 		assert.Equal(t, expectedShell, userShells[absoluteShellUser])
 		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
 
-		// User's shell should not be overwritten when updating, only when creating a new host user
+		// User's shell should be overwritten when a different shell
+		// is provided
+		expectedShell = "/usr/bin/sh"
 		_, err = users.UpsertUser(namedShellUser, services.HostUsersInfo{
 			Mode:  services.HostUserModeKeep,
 			Shell: "sh",
+		})
+		require.NoError(t, err)
+
+		userShells, err = getUserShells("/etc/passwd")
+		require.NoError(t, err)
+		assert.Equal(t, expectedShell, userShells[namedShellUser])
+
+		// Make sure we can change the user's shell back again.
+		expectedShell = "/usr/bin/bash"
+		_, err = users.UpsertUser(namedShellUser, services.HostUsersInfo{
+			Mode:  services.HostUserModeKeep,
+			Shell: "bash",
 		})
 		require.NoError(t, err)
 

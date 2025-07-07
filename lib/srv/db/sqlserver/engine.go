@@ -41,7 +41,6 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 		Connector: &connector{
 			DBAuth:     ec.Auth,
 			AuthClient: ec.AuthClient,
-			DataDir:    ec.DataDir,
 		},
 	}
 }

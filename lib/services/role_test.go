@@ -4195,6 +4195,18 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		},
 	}
 
+	roleSales := &types.RoleV6{
+		Metadata: types.Metadata{Name: "sales-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"sales"}},
+				DatabaseUsers:  []string{"sales"},
+				DatabaseNames:  []string{"sales"},
+			},
+		},
+	}
+
 	roleNoDBAccess := &types.RoleV6{
 		Metadata: types.Metadata{Name: "no_db_access", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4265,12 +4277,12 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbStage,
 			enumDBUserResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
 			enumDBNameResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
@@ -4317,6 +4329,21 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			enumDBNameResult: EnumerationResult{
 				allowedDeniedMap: map[string]bool{},
 				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "role sales does not match the resource and should be skipped",
+			roles:  RoleSet{roleSales, roleDevProd},
+			server: dbProd,
+			enumDBUserResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+			enumDBNameResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true},
+				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
 		},

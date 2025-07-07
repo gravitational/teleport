@@ -54,6 +54,15 @@ exports[`render ConsoleTabs 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c1 {
+  display: flex;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
 .c10 {
   display: inline-flex;
   align-items: center;
@@ -66,15 +75,6 @@ exports[`render ConsoleTabs 1`] = `
   margin: 0px;
   margin-left: auto;
   margin-right: auto;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
 }
 
 .c6 {

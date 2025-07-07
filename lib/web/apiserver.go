@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -3846,7 +3847,7 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 		return session.Session{}, trace.Wrap(err)
 	}
 	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
+	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
 		Kind:           types.SSHSessionKind,
@@ -3918,7 +3919,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
-	accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+	accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 
 	return session.Session{
 		Kind:      tracker.GetSessionKind(),
@@ -3964,7 +3965,7 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	accessContext := auth.SessionAccessContext{
+	accessContext := moderation.SessionAccessContext{
 		Username: sctx.GetUser(),
 		Roles:    userRoles,
 	}
@@ -3974,7 +3975,7 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			session := trackerToLegacySession(tracker, p.ByName("site"))
 			// Get the participant modes available to the user from their roles.
-			accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+			accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 			participantModes := accessEvaluator.CanJoin(accessContext)
 
 			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})

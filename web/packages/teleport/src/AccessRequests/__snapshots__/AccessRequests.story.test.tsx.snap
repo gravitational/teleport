@@ -92,6 +92,33 @@ exports[`locked 1`] = `
   cursor: auto;
 }
 
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c10 {
+  display: flex;
+  align-items: center;
+}
+
+.c14 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c20 {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
 .c11 {
   display: inline-flex;
   align-items: center;
@@ -145,33 +172,6 @@ exports[`locked 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-top: 4px;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c4 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c10 {
-  display: flex;
-  align-items: center;
-}
-
-.c14 {
-  display: flex;
-  flex-direction: column;
-}
-
-.c20 {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 24px;
 }
 
 .c24 {

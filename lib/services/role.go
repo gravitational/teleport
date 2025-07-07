@@ -497,6 +497,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
 			types.KindUserGroup,
+			types.KindWorkloadIdentity,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {

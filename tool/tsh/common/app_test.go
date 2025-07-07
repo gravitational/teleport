@@ -48,7 +48,7 @@ import (
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
-func testDummyAppConn(t require.TestingT, addr string, tlsCerts ...tls.Certificate) (resp *http.Response) {
+func testDummyAppConn(addr string, tlsCerts ...tls.Certificate) (*http.Response, error) {
 	clt := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -57,10 +57,8 @@ func testDummyAppConn(t require.TestingT, addr string, tlsCerts ...tls.Certifica
 			},
 		},
 	}
-
 	resp, err := clt.Get(addr)
-	assert.NoError(t, err)
-	return resp
+	return resp, trace.Wrap(err)
 }
 
 // TestAppCommands tests the following basic app command functionality for registered root and leaf apps.
@@ -226,10 +224,15 @@ func TestAppCommands(t *testing.T) {
 								clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
 								require.NoError(t, err)
 
-								resp := testDummyAppConn(t, fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
-								resp.Body.Close()
-								assert.Equal(t, http.StatusOK, resp.StatusCode)
-								assert.Equal(t, app.name, resp.Header.Get("Server"))
+								// Wrap with eventually in case the app has not made it into the
+								// proxy cache yet, this was a previous source of test flakes.
+								require.EventuallyWithT(t, func(t *assert.CollectT) {
+									resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
+									require.NoError(t, err)
+									resp.Body.Close()
+									assert.Equal(t, http.StatusOK, resp.StatusCode)
+									assert.Equal(t, app.name, resp.Header.Get("Server"))
+								}, 5*time.Second, 50*time.Millisecond)
 
 								// Verify that the app.session.start event was emitted.
 								if app.cluster == "root" {
@@ -279,7 +282,8 @@ func TestAppCommands(t *testing.T) {
 								}()
 
 								assert.EventuallyWithT(t, func(t *assert.CollectT) {
-									resp := testDummyAppConn(t, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
+									resp, err := testDummyAppConn(fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
+									require.NoError(t, err)
 									assert.Equal(t, http.StatusOK, resp.StatusCode)
 									assert.Equal(t, app.name, resp.Header.Get("Server"))
 									resp.Body.Close()

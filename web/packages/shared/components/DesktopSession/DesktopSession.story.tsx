@@ -70,6 +70,7 @@ const props: DesktopSessionProps = {
   client: fakeClient(),
   username: 'user',
   desktop: 'windows-11',
+  browserSupportsSharing: true,
   hasAnotherSession: () => Promise.resolve(false),
 };
 
@@ -108,7 +109,7 @@ export const Connected = () => {
 export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE);
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
   };
 
   return <DesktopSession {...props} client={client} />;

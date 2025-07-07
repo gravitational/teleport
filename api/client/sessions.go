@@ -80,6 +80,7 @@ func (r *webSessions) listStream(ctx context.Context) ([]types.WebSession, error
 }
 
 func (r *webSessions) listUnary(ctx context.Context) ([]types.WebSession, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
 	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)

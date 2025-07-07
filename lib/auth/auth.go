@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -3486,6 +3487,37 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
+// CreateAuthPreference creates a new auth preference if one does not exist. This
+// is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer] or
+// [proto.AuthServiceServer]. It is only meant to be called directly from within auth
+// initialization to seed the [types.AuthPreference] for brand new clusters.
+func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
+	if err := services.ValidateAuthPreference(p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// check that the given RequireMFAType is supported in this build.
+	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+	}
+
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.Services.CreateAuthPreference(ctx, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPrefV2, ok := created.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", created, authPrefV2))
+	}
+
+	return authPrefV2, nil
+}
+
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
@@ -5699,21 +5731,18 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	return nil
 }
 
-func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
+func (a *Server) streamWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) stream.Stream[types.WindowsDesktop] {
 	var done bool
 	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
 		if done {
 			return nil, io.EOF
 		}
-		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-			Limit:    50,
-			StartKey: startKey,
-		})
+		resp, err := a.ListWindowsDesktops(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		startKey = resp.NextKey
-		done = startKey == ""
+		req.StartKey = resp.NextKey
+		done = req.StartKey == ""
 		return resp.Desktops, nil
 	})
 }
@@ -5748,7 +5777,7 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 	}
 
 	desktops := stream.FilterMap(
-		a.streamWindowsDesktops(ctx, ""),
+		a.streamWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{Limit: 50}),
 		func(d types.WindowsDesktop) (struct{}, bool) {
 			return struct{}{}, d.NonAD()
 		},

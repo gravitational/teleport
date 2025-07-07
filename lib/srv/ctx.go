@@ -43,8 +43,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -801,7 +801,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 
 	// ensure moderated session policies allow starting an unattended session
 	policySets := c.Identity.AccessChecker.SessionPolicySets()
-	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
 		return trace.Wrap(err)

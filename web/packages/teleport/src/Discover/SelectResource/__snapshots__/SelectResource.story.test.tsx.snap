@@ -44,6 +44,16 @@ exports[`render with URL loc state set to "server" 1`] = `
   box-sizing: border-box;
 }
 
+.c7 {
+  display: flex;
+  align-items: center;
+}
+
+.c18 {
+  display: flex;
+  justify-content: center;
+}
+
 .c11 {
   display: inline-flex;
   align-items: center;
@@ -102,16 +112,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-}
-
-.c18 {
-  display: flex;
-  justify-content: center;
 }
 
 .c19 {
@@ -778,6 +778,16 @@ exports[`render with all access 1`] = `
   box-sizing: border-box;
 }
 
+.c10 {
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  display: flex;
+  justify-content: center;
+}
+
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -824,16 +834,6 @@ exports[`render with all access 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
-}
-
-.c10 {
-  display: flex;
-  align-items: center;
-}
-
-.c12 {
-  display: flex;
-  justify-content: center;
 }
 
 .c13 {
@@ -2821,6 +2821,16 @@ exports[`render with no access 1`] = `
   box-sizing: border-box;
 }
 
+.c12 {
+  display: flex;
+  align-items: center;
+}
+
+.c14 {
+  display: flex;
+  justify-content: center;
+}
+
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2867,16 +2877,6 @@ exports[`render with no access 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
-}
-
-.c12 {
-  display: flex;
-  align-items: center;
-}
-
-.c14 {
-  display: flex;
-  justify-content: center;
 }
 
 .c15 {
@@ -5012,6 +5012,16 @@ exports[`render with partial access 1`] = `
   border-bottom-left-radius: 4px;
 }
 
+.c10 {
+  display: flex;
+  align-items: center;
+}
+
+.c12 {
+  display: flex;
+  justify-content: center;
+}
+
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5058,16 +5068,6 @@ exports[`render with partial access 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
-}
-
-.c10 {
-  display: flex;
-  align-items: center;
-}
-
-.c12 {
-  display: flex;
-  justify-content: center;
 }
 
 .c13 {

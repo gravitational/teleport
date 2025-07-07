@@ -915,6 +915,8 @@ github.com/aws/aws-sdk-go-v2/service/rds v1.78.0 h1:EfurrcA19HaB9gZYd157DiozoPfk
 github.com/aws/aws-sdk-go-v2/service/rds v1.78.0/go.mod h1:Rw15qGaGWu3jO0dOz7JyvdOEjgae//YrJxVWLYGynvg=
 github.com/aws/aws-sdk-go-v2/service/redshift v1.44.0 h1:j18lTPPqe+qlapn1R8//+ujvXdplku8V41xzBNNLtn0=
 github.com/aws/aws-sdk-go-v2/service/redshift v1.44.0/go.mod h1:8ldsMsikORLj0GZUozSvbQdctrumAPYhizmj/3AAATI=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1 h1:9OfJnqMfvcu6uhdUQvY9YVVHBI3IzpCd9WbHD0MlkB4=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1/go.mod h1:RHFmC9Lds1jS1zBvnFq1GDh3yxFXH++n+2sI9TE53Cc=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1 h1:6cnno47Me9bRykw9AEv9zkXE+5or7jz8TsskTTccbgc=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1/go.mod h1:qmdkIIAC+GCLASF7R2whgNrJADz0QZPX+Seiw/i4S3o=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.6 h1:TIOEjw0i2yyhmhRry3Oeu9YtiiHWISZ6j/irS1W3gX4=
@@ -1142,10 +1144,6 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/dvsekhvalnov/jose2go v1.6.0 h1:Y9gnSnP4qEI0+/uQkHvFXeD2PLPJeXEL+ySMEA2EjTY=
 github.com/dvsekhvalnov/jose2go v1.6.0/go.mod h1:QsHjhyTlD/lAVqn/NSbVZmSCGeDehTB/mPZadG+mhXU=
-github.com/elastic/elastic-transport-go/v8 v8.5.0 h1:v5membAl7lvQgBTexPRDBO/RdnlQX+FM9fUVDyXxvH0=
-github.com/elastic/elastic-transport-go/v8 v8.5.0/go.mod h1:YLHer5cj0csTzNFXoNQ8qhtGY1GTvSqPnKWKaqQE3Hk=
-github.com/elastic/go-elasticsearch/v8 v8.13.1 h1:du5F8IzUUyCkzxyHdrO9AtopcG95I/qwi2WK8Kf1xlg=
-github.com/elastic/go-elasticsearch/v8 v8.13.1/go.mod h1:DIn7HopJs4oZC/w0WoJR13uMUxtHeq92eI5bqv5CRfI=
 github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8 h1:0+BTyxIYgiVAry/P5s8R4dYuLkhB9Nhso8ogFWNr4IQ=
 github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8/go.mod h1:JkjcmqbLW+khwt2fmBPJFBhx2zGZ8XobRZ+O0VhlwWo=
 github.com/emicklei/go-restful/v3 v3.11.3 h1:yagOQz/38xJmcNeZJtrUcKjkHRltIaIFXKWeG1SkWGE=
@@ -1291,6 +1289,8 @@ github.com/go-pdf/fpdf v0.5.0/go.mod h1:HzcnA+A23uwogo0tp9yU+l3V+KXhiESpt1PMayhO
 github.com/go-pdf/fpdf v0.6.0/go.mod h1:HzcnA+A23uwogo0tp9yU+l3V+KXhiESpt1PMayhOh5M=
 github.com/go-piv/piv-go v1.11.0 h1:5vAaCdRTFSIW4PeqMbnsDlUZ7odMYWnHBDGdmtU/Zhg=
 github.com/go-piv/piv-go v1.11.0/go.mod h1:NZ2zmjVkfFaL/CF8cVQ/pXdXtuj110zEKGdJM6fJZZM=
+github.com/go-piv/piv-go/v2 v2.3.0 h1:kKkrYlgLQTMPA6BiSL25A7/x4CEh2YCG7rtb/aTkx+g=
+github.com/go-piv/piv-go/v2 v2.3.0/go.mod h1:ShZi74nnrWNQEdWzRUd/3cSig3uNOcEZp+EWl0oewnI=
 github.com/go-resty/resty/v2 v2.12.0 h1:rsVL8P90LFvkUYq/V5BTVe203WfRIU4gvcf+yfzJzGA=
 github.com/go-resty/resty/v2 v2.12.0/go.mod h1:o0yGPrkS3lOe1+eFajk6kBW8ScXzwU3hD69/gt2yB/0=
 github.com/go-sql-driver/mysql v1.3.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=

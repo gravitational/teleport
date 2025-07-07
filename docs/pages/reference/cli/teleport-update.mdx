@@ -1,0 +1,341 @@
+---
+title: teleport-update CLI reference
+description: Comprehensive reference of subcommands, flags, and arguments for the teleport-update CLI tool.
+---
+
+`teleport-update` is a CLI tool that is used to update Teleport Agents installed on Linux servers.
+
+See [Teleport Agent Managed Updates](../../upgrading/agent-managed-updates.mdx) for more details.
+
+The primary commands for `teleport-update` are as follows:
+
+| Command                          | Description                                                                            |
+|----------------------------------|----------------------------------------------------------------------------------------|
+| `teleport-update help`           | Output guidance for using commands with `teleport-update`.                             |
+| `teleport-update version`        | Output the current version of the `teleport-update` binary.                            |
+| `teleport-update enable`         | Install the version of Teleport advertised by the cluster and enable Managed Updates.  |
+| `teleport-update disable`        | Disable auto-updates without removing Teleport. Disables all requests.                 |
+| `teleport-update pin`            | Install the version of Teleport advertised by the cluster and stay on that version.    |
+| `teleport-update unpin`          | Allow the installed version of Teleport to be updated, if Managed Updates are enabled. |
+| `teleport-update update`         | Update Teleport to the version advertised by the cluster.                              |
+| `teleport-update link-package`   | Restore the system-packaged (apt/yum) version of Teleport to /usr/local/bin.           |
+| `teleport-update unlink-package` | Remove the system-packaged (apt/yum) version of Teleport from /usr/local/bin.          |
+| `teleport-update status`         | Output the status of the installed version of Teleport.                                |
+| `teleport-update uninstall`      | Remove both Teleport and the updater.                                                  |
+
+## teleport-update enable
+
+Enables agent Managed Updates and performs an initial installation of the Teleport Agent.
+This command also creates a systemd timer that periodically runs the update subcommand.
+
+If Teleport is already installed, `enable` will update to the cluster-advertised version
+and ensure Managed Updates are enabled.
+
+Existing package-based installations will be converted to Managed Updates automatically.
+Existing tarball-based, static installations may require `--overwrite`.
+(A clear error will let you know if this is the case.)
+
+Files are installed to the following paths (with the default `install-suffix`):
+
+- `/usr/local/bin/{teleport,tsh,...}` - Symbolic links into `/opt/teleport/default/versions/X.Y.Z/bin/`
+- `/lib/systemd/system/teleport.service` - Teleport SystemD service
+- `/opt/teleport/default` - Storage for Teleport versions and updater configuration
+- `/etc/systemd/system/teleport-update.{service,timer}` - Updater SystemD timer and service
+- `/etc/systemd/system/teleport.service.d/teleport-update.conf` - Environment variables that configure Teleport
+- `/etc/needrestart/conf.d/teleport-update.conf` - needrestart defaults for Teleport
+
+Most flags passed to `enable` are persisted for `update`.
+To change these flags, run `enable` again with the new flags.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+| -p, --proxy          | Address of the Teleport Proxy.                                                                 |
+| -g, --group          | Update group for this agent installation.                                                      |
+| -b, --base-url       | Base URL used to override the Teleport download URL.                                           |
+| -o, --[no-]overwrite | Allow existing installed Teleport binaries to be overwritten.                                  |
+
+### Examples
+
+**Example for a new installation.**
+
+Install Teleport with Managed Updates enabled on a fresh system.
+
+```code
+# create /etc/teleport.yaml
+$ sudo teleport-update enable
+$ sudo systemctl enable teleport --now
+```
+
+**Example for an existing installation.**
+
+Install Teleport with Managed Updates enabled on a system with a running Teleport version.
+Package-based installations will be converted to Managed Updates automatically.
+
+```code
+$ teleport-update enable
+```
+
+**Example with a custom installation suffix.**
+
+Install Teleport with Managed Updates enabled to an isolated path.
+This will not interfere with package-based installations.
+Multiple installations with separate suffixes may operate individually and independently against separate clusters.
+
+```code
+# create /etc/teleport_mycluster.yaml
+$ sudo teleport-update --install-suffix mycluster enable
+$ sudo systemctl enable teleport_mycluster --now
+$ export PATH=/opt/teleport/mycluster/bin:$PATH
+```
+
+## teleport-update disable
+
+Disable Managed Updates for the installed agent.
+This command does not remove or change the active installation of Teleport.
+
+Unlike `pin`, this command will not touch the current installation, and version lookup requests will stop entirely.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+
+### Examples
+
+**Example for disabling Managed Updates.**
+
+Disable Managed Updates for the current agent.
+
+```code
+$ sudo teleport-update disable
+```
+
+## teleport-update pin
+
+Pin the installed agent to a specific version of Teleport.
+This command updates Teleport to latest version (or a version specified with `--force-version`), and ensures the local
+installation of Teleport remains at that version.
+New versions will continue to be reported in SystemD `teleport-update.service` logs, they but will not be installed.
+
+`pin` is similar to `enable`, but the resulting version will not change until `unpin` is run.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+| -p, --proxy          | Address of the Teleport Proxy.                                                                 |
+| -g, --group          | Update group for this agent installation.                                                      |
+| -b, --base-url       | Base URL used to override the Teleport download URL.                                           |
+| -o, --[no-]overwrite | Allow existing installed Teleport binaries to be overwritten.                                  |
+| -f, --force-version  | Force the provided version instead of using the version provided by the Teleport cluster.      |
+
+### Examples
+
+**Example for a new installation at the cluster-advertised version.**
+
+Install the cluster-advertised Teleport version on a fresh system, but lock the version in-place.
+
+```code
+# create /etc/teleport.yaml
+$ sudo teleport-update pin
+$ sudo systemctl enable teleport --now
+```
+
+**Example for a new installation at a custom version.**
+
+Install the specified Teleport version on a fresh system, but lock the version in-place.
+
+```code
+# create /etc/teleport.yaml
+$ sudo teleport-update pin --force-version v17.1.2
+$ sudo systemctl enable teleport --now
+```
+
+**Example for an existing installation.**
+
+Install the cluster-advertised Teleport version on a system with a running Teleport Agent, but lock the version
+in-place.
+Package-based installations will be converted to Managed Updates automatically.
+
+```code
+$ sudo teleport-update pin
+```
+
+## teleport-update unpin
+
+Unpin the version of Teleport, so that the cluster-advertised version will be installed on the next update.
+This command does not immediately remove or change the active installation of Teleport.
+
+### Flags
+
+| Flag                 | Description                                                                                     |
+|----------------------|-------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                      |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory.  |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                      |
+
+### Examples
+
+**Example for unpinning Managed Updates to allow the cluster-advertised version to be installed.**
+
+Unpin Managed Updates for the current agent.
+
+```code
+$ sudo teleport-update unpin
+$ sudo teleport-update update --now # force immediate update, if desired
+```
+
+## teleport-update update
+
+Update the version of Teleport to either the pinned version, or the version advertised by the cluster.
+
+If `--now` is not specified, `update` will only update if the current time is in the update window for the agent's group.
+
+This command is used by the `teleport-update` SystemD service/timer, and does not need to be manually executed.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+| -n, --[no-]now       | Force immediate update even if update window is not active.                                    |
+
+### Examples
+
+**Example for updating immediately.**
+
+Force update outside of update window with `--now`.
+
+```code
+$ sudo teleport-update update --now
+```
+
+## teleport-update link-package
+
+Link the system installation of Teleport from the Teleport package, if Managed Updates are disabled.
+
+This command is used to link the system package installation by:
+- Creating symbolic links from `/opt/teleport/system/bin/*` into `/usr/local/bin/`.
+- Copying the Teleport systemd service file from `/opt/teleport/system/lib/systemd/system/teleport.service` into `/ib/systemd/system/teleport.service`.
+
+This command is executed automatically when the Teleport package is installed, and does not need to be manually executed.
+
+Managed updates must be disabled, and the active version of Teleport must be removed, for this command to work.
+Note that `uninstall` will automatically remove the active version of Teleport and link the system package if the package is installed.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+
+### Examples
+
+**Example for restoring the system package installation of Teleport.**
+
+Re-link Teleport apt/yum package.
+
+```code
+$ sudo teleport-update link-package
+```
+
+## teleport-update unlink-package
+
+Unlink the system installation of Teleport from the Teleport package.
+
+This command is used to unlink the system package installation by:
+- Removing symbolic links from `/opt/teleport/system/bin/*` into `/usr/local/bin/`.
+- Removing the Teleport systemd service file from `/ib/systemd/system/teleport.service` (if symlinks are removed).
+
+This command is executed automatically when the Teleport package is removed, and should not be manually executed.
+
+**Note that this command will unlink a running version of Teleport, potentially causing loss of access to the system via Teleport.**
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+
+## teleport-update status
+
+Display status about an updater-managed installation of Teleport.
+Use `-i` to select the installation.
+
+### Flags
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                     |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                     |
+
+### Examples
+
+**Example showing the status.**
+
+```code
+$ teleport-update status
+proxy: example.teleport.sh
+path: /usr/local/bin
+enabled: true
+pinned: false
+active:
+    version: 17.2.1
+    flags: [Enterprise]
+backup:
+    version: 16.4.7
+    flags: [Enterprise]
+target:
+    version: 17.2.1
+    flags: [Enterprise]
+in_window: false
+jitter: 1m0s
+```
+
+## teleport-update uninstall
+
+Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.
+
+### Flags
+
+| Flag                 | Description                                                                                               |
+|----------------------|-----------------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                                |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                          |
+| -i, --install-suffix | Suffix for installing an agent outside of the default $PATH. Note: changes the data directory.            |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                                |
+| -f, --[no-]force     | Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to. |
+
+### Examples
+
+**Example for reverting back to system package.**
+
+```code
+$ sudo teleport-update uninstall
+```

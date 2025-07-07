@@ -27,6 +27,7 @@ import Button, {
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
+import { ButtonSelect } from './ButtonSelect';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
@@ -72,6 +73,7 @@ export {
   ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
+  ButtonSelect,
   ButtonWarning,
   ButtonWithMenu,
   ButtonText,
@@ -114,4 +116,5 @@ export {
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
+export { Stack } from './Flex';
 export { breakpointsPx } from './theme';

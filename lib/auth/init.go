@@ -25,9 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -810,16 +808,23 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
+		}
+
+		if err := modules.ValidateResource(newAuthPref); err != nil {
+			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			}
+
+			return trace.Wrap(err)
 		}
 
 		if storedAuthPref == nil {

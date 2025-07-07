@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.23.8
+go 1.23.10
 
 // Doc generation tooling
 require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
@@ -97,6 +97,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.78.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
@@ -164,6 +165,7 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-piv/piv-go v1.11.0 // indirect
+	github.com/go-piv/piv-go/v2 v2.3.0 // indirect
 	github.com/go-webauthn/webauthn v0.10.2 // indirect
 	github.com/go-webauthn/x v0.1.9 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect

@@ -162,4 +162,8 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })<SizeProps>`
   &:disabled:checked + ${StyledSlider} {
     background: ${props => props.theme.colors.interactive.tonal.success[2]};
   }
+
+  &:focus-visible + ${StyledSlider} {
+    outline: 1px solid ${props => props.theme.colors.interactive.solid.primary.default};
+    outline-offset: 1px;
 `;

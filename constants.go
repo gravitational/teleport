@@ -955,6 +955,13 @@ const (
 
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
+
+	// XTeleportUsernameHeader is the name of the X-Teleport-Username header
+	// used to pass the username to the Access Graph service.
+	// This header is used to identify the user that is making the request
+	// so that the Access Graph service can store information about the
+	// user's preferences.
+	XTeleportUsernameHeader = "X-Teleport-Username"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

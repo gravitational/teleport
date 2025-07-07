@@ -2045,7 +2045,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Provisioner:             cfg.Provisioner,
 			Identity:                cfg.Identity,
 			Access:                  cfg.Access,
-			UsageReporter:           cfg.UsageReporter,
 			StaticTokens:            cfg.Auth.StaticTokens,
 			Roles:                   cfg.Auth.Roles,
 			AuthPreference:          cfg.Auth.Preference,
@@ -4804,6 +4803,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.OnExit("tls.config.generator", func(a any) {
+		clientTLSConfigGenerator.Close()
+	})
 
 	tlscfg.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
@@ -5545,7 +5547,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload interface{}) {
+	process.OnExit("tls.config.generator", func(payload any) {
 		generator.Close()
 	})
 
@@ -6418,18 +6420,6 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
-		}
-	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
-		// This case is used when loading a Teleport pre-11 agent with storage attached.
-		// In this case, we have to copy the "host_uuid" from the agent to the secret
-		// in case storage is removed later.
-		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
-		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
-			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-			// This is only required if PV storage is removed later.
-			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 	return nil

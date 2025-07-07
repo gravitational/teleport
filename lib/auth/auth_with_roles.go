@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -322,8 +323,8 @@ func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker
 		return true
 	}
 
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	evaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
+	modes := evaluator.CanJoin(moderation.SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
 	return len(modes) != 0
 }
 
@@ -1400,7 +1401,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	for _, kind := range requested {
 		if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
-			return nil, trace.BadParameter("Unsupported kind %q requested", kind)
+			resourceAccess.kindAccessMap[kind] = trace.AccessDenied("Unsupported kind %q requested", kind)
+			continue
 		}
 
 		actionVerbs := []string{types.VerbList, types.VerbRead}
@@ -4800,6 +4802,10 @@ func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
 // SetAuthPreference sets cluster auth preference.
 // Deprecated: Use Update/UpsertAuthPreference where appropriate.
 func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
+	if err := modules.ValidateResource(newAuthPref); err != nil {
+		return trace.Wrap(err)
+	}
+
 	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6749,6 +6755,40 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 		return nil, trace.Wrap(err)
 	}
 	return filtered, nil
+}
+
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resp types.ListWindowsDesktopsResponse
+	desktopStream := stream.FilterMap(a.authServer.streamWindowsDesktops(ctx, req), func(d types.WindowsDesktop) (types.WindowsDesktop, bool) {
+		if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
+			return d, true
+		}
+
+		if err := a.checkAccessToWindowsDesktop(d); err == nil {
+			return d, true
+		}
+
+		return nil, false
+	})
+
+	limit := cmp.Or(req.Limit, apidefaults.DefaultChunkSize)
+	for desktopStream.Next() {
+		desktop := desktopStream.Item()
+		if len(resp.Desktops) == limit {
+			resp.NextKey = desktop.GetHostID() + "/" + desktop.GetName()
+			desktopStream.Done()
+			break
+		}
+
+		resp.Desktops = append(resp.Desktops, desktop)
+	}
+
+	return &resp, nil
 }
 
 // CreateWindowsDesktop creates a new windows desktop host.

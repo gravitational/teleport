@@ -84,7 +84,25 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
-	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
+	cacheHealth = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "health",
+			Help:      "Whether the cache for a particular Teleport service is healthy.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheLastReset = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "last_reset_seconds",
+			Help:      "The unix time in seconds that the last cache reset was performed.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -550,6 +568,12 @@ func (c *Cache) setInitError(err error) {
 		c.initErr = err
 		close(c.initC)
 	})
+
+	if err == nil {
+		cacheHealth.WithLabelValues(c.target).Set(1.0)
+	} else {
+		cacheHealth.WithLabelValues(c.target).Set(0.0)
+	}
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -850,7 +874,12 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		cacheEventsReceived,
+		cacheStaleEventsReceived,
+		cacheHealth,
+		cacheLastReset,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -1269,6 +1298,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
 	requestKinds := c.watchKinds()
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,

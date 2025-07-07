@@ -556,9 +556,9 @@ To export a CA certificate:
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
+1. Click Start, Control Panel, and Administrative Tools to select **Certification Authority**.
 1. Select your CA computer, right-click, then select **Properties**.
-1. One the General tab, click **View Certificate**.
+1. On the General tab, click **View Certificate**.
 1. Select **Details**, then click **Copy to File**.
 1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
    is selected.
@@ -686,7 +686,7 @@ To connect to a Windows desktop:
 In Active Directory environments, Teleport can be configured to discover hosts
 via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
 the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
-wildcard `'*` to search from the root of the domain, or you can specify an alternate
+wildcard `'*'` to search from the root of the domain, or you can specify an alternate
 base distinguished name to search from.
 
 ```yaml

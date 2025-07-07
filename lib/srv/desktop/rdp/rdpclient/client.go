@@ -447,7 +447,19 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			continue
 		}
 
-		c.UpdateClientActivity()
+		// If the message was due to user input, then we update client activity
+		// in order to refresh the client_idle_timeout checks.
+		//
+		// Note: we count some of the directory sharing messages as client activity
+		// because we don't want a session to be closed due to inactivity during a large
+		// file transfer.
+		switch msg.(type) {
+		case tdp.KeyboardButton, tdp.MouseMove, tdp.MouseButton, tdp.MouseWheel,
+			tdp.SharedDirectoryAnnounce, tdp.SharedDirectoryInfoResponse,
+			tdp.SharedDirectoryReadResponse, tdp.SharedDirectoryWriteResponse:
+
+			c.UpdateClientActivity()
+		}
 
 		if withheldResize != nil {
 			c.cfg.Logger.DebugContext(context.Background(), "Sending withheld screen size to client")

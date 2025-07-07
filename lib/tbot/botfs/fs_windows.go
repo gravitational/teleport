@@ -62,7 +62,7 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 		})
 	}
 
-	file, err := openStandard(path, ReadMode)
+	file, err := openStandard(path, ReadFlags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,7 +92,7 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 		})
 	}
 
-	file, err := openStandard(path, WriteMode)
+	file, err := openStandard(path, WriteFlags)
 	if err != nil {
 		return trace.Wrap(err)
 	}

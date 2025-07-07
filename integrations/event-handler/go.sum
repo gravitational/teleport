@@ -160,6 +160,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.5 h1:f9RyWNtS8oH7cZ
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.5/go.mod h1:h5CoMZV2VF297/VLhRhO1WF+XYWOzXo+4HsObA4HjBQ=
 github.com/aws/aws-sdk-go-v2/service/rds v1.78.0 h1:EfurrcA19HaB9gZYd157DiozoPfkX2CH5/QnDZqNFrY=
 github.com/aws/aws-sdk-go-v2/service/rds v1.78.0/go.mod h1:Rw15qGaGWu3jO0dOz7JyvdOEjgae//YrJxVWLYGynvg=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1 h1:9OfJnqMfvcu6uhdUQvY9YVVHBI3IzpCd9WbHD0MlkB4=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1/go.mod h1:RHFmC9Lds1jS1zBvnFq1GDh3yxFXH++n+2sI9TE53Cc=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1 h1:6cnno47Me9bRykw9AEv9zkXE+5or7jz8TsskTTccbgc=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1/go.mod h1:qmdkIIAC+GCLASF7R2whgNrJADz0QZPX+Seiw/i4S3o=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.50.0 h1:NGWDuvT6PAoWQuAYeqPU8UvKZjJ4CvxfgaCnT7E6sOI=
@@ -341,6 +343,8 @@ github.com/go-openapi/swag v0.23.0 h1:vsEVJDUo2hPJ2tu0/Xc+4noaxyEffXNIs3cOULZ+Gr
 github.com/go-openapi/swag v0.23.0/go.mod h1:esZ8ITTYEsH1V2trKHjAN8Ai7xHb8RV+YSZ577vPjgQ=
 github.com/go-piv/piv-go v1.11.0 h1:5vAaCdRTFSIW4PeqMbnsDlUZ7odMYWnHBDGdmtU/Zhg=
 github.com/go-piv/piv-go v1.11.0/go.mod h1:NZ2zmjVkfFaL/CF8cVQ/pXdXtuj110zEKGdJM6fJZZM=
+github.com/go-piv/piv-go/v2 v2.3.0 h1:kKkrYlgLQTMPA6BiSL25A7/x4CEh2YCG7rtb/aTkx+g=
+github.com/go-piv/piv-go/v2 v2.3.0/go.mod h1:ShZi74nnrWNQEdWzRUd/3cSig3uNOcEZp+EWl0oewnI=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
 github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=

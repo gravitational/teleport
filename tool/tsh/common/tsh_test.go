@@ -5079,10 +5079,10 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
 			wantUsers: &dbUsers{
-				Allowed: []string{"*", "dev"},
+				Allowed: []string{"*"},
 				Denied:  []string{"superuser"},
 			},
-			wantText: "[* dev], except: [superuser]",
+			wantText: "[*], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",

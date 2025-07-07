@@ -196,6 +196,27 @@ exports[`active sessions CTA 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c12 {
+  display: flex;
+  align-items: center;
+}
+
+.c22 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .c13 {
   display: inline-flex;
   align-items: center;
@@ -236,27 +257,6 @@ exports[`active sessions CTA 1`] = `
   margin: 0px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c4 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c12 {
-  display: flex;
-  align-items: center;
-}
-
-.c22 {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .c14 {
@@ -1349,6 +1349,22 @@ exports[`loaded 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c16 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .c22 {
   display: inline-flex;
   align-items: center;
@@ -1389,22 +1405,6 @@ exports[`loaded 1`] = `
   margin: 0px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c4 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c16 {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .c5 {
@@ -2452,6 +2452,22 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c16 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .c22 {
   display: inline-flex;
   align-items: center;
@@ -2492,22 +2508,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   margin: 0px;
   margin-right: 4px;
   font-weight: 500;
-}
-
-.c1 {
-  display: flex;
-}
-
-.c4 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c16 {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .c5 {

@@ -56,11 +56,13 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | windows_desktop | A registered Windows desktop. |
 | cluster | A trusted cluster. See [here](../admin-guides/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
 | [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../admin-guides/access-controls/login-rules/login-rules.mdx) for more info. |
-| [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../admin-guides/access-controls/device-trust/guide.mdx) for more info. |
+| [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../identity-governance/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service. |
 | [vnet_config](#vnet-config) | Configuration for the cluster's VNet options. |
 | [cluster_auth_preference](#cluster-auth-preferences) | Configuration for the cluster's auth preferences. |
 | [database_object_import_rule](#database-object-import-rule) | Database object import rules. |
+| [autoupdate_config](#auto-update-config) | Client tools auto-update configuration |
+| [autoupdate_version](#auto-update-version) | Client tools auto-update target version configuration |
 
 ## User
 
@@ -191,7 +193,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 ## Database object import rule
 
-Database object import rule define the labels to be applied to database objects imported into Teleport. 
+Database object import rule define the labels to be applied to database objects imported into Teleport.
 
 See [Database Access Controls](../enroll-resources/database-access/rbac.mdx) for more details.
 
@@ -235,7 +237,14 @@ spec:
 
 ## Cluster maintenance config
 
-Global configuration options for the agents enrolled into automatic updates.
+Global configuration options for the agents enrolled into automatic updates (v1).
+
+<Admonition type="warning">
+`cluster_maintenance_config` configures Managed Updates v1,
+which are currently supported but will be superseded by Managed Updates v2.
+The `autoupdate_config` and `autoupdate_version` resources further down
+configure Managed Updates v2.
+</Admonition>
 
 (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
 
@@ -336,3 +345,58 @@ Find out more on the
 
 (!docs/pages/includes/machine-id/bot-spec.mdx!)
 
+## Auto-update config
+
+Configuration options for Teleport Agent and client tools Managed Updates (v2).
+
+<Admonition type="warning">
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
+</Admonition>
+
+(!docs/pages/includes/reference/resources/autoupdate_config.mdx!)
+
+See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.mdx) and
+[Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
+
+## Auto-update version
+
+Allows cluster administrators to manage versions used for agent and client tools Managed Updates.
+
+<Admonition type="warning">
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
+</Admonition>
+
+This resource is not editable for cloud-managed Teleport Enterprise to ensure that all of
+your clients receive security patches and remain compatible with your cluster.
+
+(!docs/pages/includes/reference/resources/autoupdate_version.mdx!)
+
+See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.mdx) and
+[Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
+
+## Auto-update agent rollout
+
+Allows cluster administrators to view the current agent rollout for Teleport Agent Managed Updates (v2).
+
+This resource should not be edited by humans.
+
+(!docs/pages/includes/reference/resources/autoupdate_agent_rollout.mdx!)
+
+See [Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
+
+## Auto-update agent report
+
+This is an internal resource used by the Auth service to track which agent is running which version and decide if the
+update can progress.
+
+This resource should not be edited by humans.
+
+(!docs/pages/includes/reference/resources/autoupdate_agent_report.mdx!)

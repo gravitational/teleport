@@ -154,8 +154,29 @@ type staticCache struct {
 	pass bool
 }
 
+func getCachePath(t *testing.T, args ...string) string {
+	if len(args) != 8 {
+		t.Fatalf("Unexpected args (%v): %v", len(args), args)
+	}
+	// example arguments:
+	// [-X X509_anchors=FILE:/tmp/kinit3779395068/userca.pem -X X509_user_identity=FILE:/tmp/kinit3779395068/cert.pem,/tmp/kinit3779395068/key.pem -c /tmp/kinit3779395068/krb5.cache -- alice]
+	if args[0] != "-X" {
+		t.Fatalf("Unexpected args (%v): %v", args[0], args)
+	}
+	if args[2] != "-X" {
+		t.Fatalf("Unexpected args (%v): %v", args[2], args)
+	}
+	if args[4] != "-c" {
+		t.Fatalf("Unexpected args (%v): %v", args[4], args)
+	}
+	if args[6] != "--" {
+		t.Fatalf("Unexpected args (%v): %v", args[6], args)
+	}
+	return args[5]
+}
+
 func (s *staticCache) CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cachePath := args[len(args)-1]
+	cachePath := getCachePath(s.t, args...)
 	require.NotEmpty(s.t, cachePath)
 	err := os.WriteFile(cachePath, cacheData, 0664)
 	require.NoError(s.t, err)
@@ -315,7 +336,6 @@ func TestConnectorKInitClient(t *testing.T) {
 
 			databaseUser := "alice"
 			databaseName := database.GetName()
-			connector.DataDir = dir
 
 			connectorCtx, cancel := context.WithCancel(ctx)
 			// we want to pass the canceled context

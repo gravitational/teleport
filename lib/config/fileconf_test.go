@@ -681,7 +681,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode": "optional",
 					},
@@ -696,7 +696,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "yes",
@@ -750,7 +750,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "NOT A BOOLEAN", // invalid

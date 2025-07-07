@@ -69,7 +69,7 @@ func (c *connector) keytabClient(session *common.Session) (*client.Client, error
 }
 
 // kinitClient returns a kerberos client using a kinit ccache
-func (c *connector) kinitClient(ctx context.Context, session *common.Session, auth windows.AuthInterface, dataDir string) (*client.Client, error) {
+func (c *connector) kinitClient(ctx context.Context, session *common.Session, auth windows.AuthInterface) (*client.Client, error) {
 	ldapPem, _ := pem.Decode([]byte(session.Database.GetAD().LDAPCert))
 
 	if ldapPem == nil {
@@ -98,7 +98,6 @@ func (c *connector) kinitClient(ctx context.Context, session *common.Session, au
 			Realm:       realmName,
 			KDCHost:     session.Database.GetAD().KDCHostName,
 			AdminServer: session.Database.GetAD().Domain,
-			DataDir:     dataDir,
 			LDAPCA:      cert,
 			LDAPCAPEM:   session.Database.GetAD().LDAPCert,
 			Command:     c.kinitCommandGenerator,

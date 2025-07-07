@@ -57,3 +57,14 @@ export const Justified = () => (
     </Box>
   </Flex>
 );
+
+export const Inline = () => (
+  <Flex inline gap={5}>
+    <Box width={1 / 2} bg="pink" p={5}>
+      Box one
+    </Box>
+    <Box width={1 / 2} bg="orange" p={5}>
+      Box two
+    </Box>
+  </Flex>
+);

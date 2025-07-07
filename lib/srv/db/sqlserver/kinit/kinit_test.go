@@ -43,8 +43,29 @@ type badCache struct {
 	t *testing.T
 }
 
+func getCachePath(t *testing.T, args ...string) string {
+	if len(args) != 8 {
+		t.Fatalf("Unexpected args (%v): %v", len(args), args)
+	}
+	// example arguments:
+	// [-X X509_anchors=FILE:/tmp/kinit3779395068/userca.pem -X X509_user_identity=FILE:/tmp/kinit3779395068/cert.pem,/tmp/kinit3779395068/key.pem -c /tmp/kinit3779395068/krb5.cache -- alice]
+	if args[0] != "-X" {
+		t.Fatalf("Unexpected args (%v): %v", args[0], args)
+	}
+	if args[2] != "-X" {
+		t.Fatalf("Unexpected args (%v): %v", args[2], args)
+	}
+	if args[4] != "-c" {
+		t.Fatalf("Unexpected args (%v): %v", args[4], args)
+	}
+	if args[6] != "--" {
+		t.Fatalf("Unexpected args (%v): %v", args[6], args)
+	}
+	return args[5]
+}
+
 func (b *badCache) CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cachePath := args[len(args)-1]
+	cachePath := getCachePath(b.t, args...)
 	require.NotEmpty(b.t, cachePath)
 	err := os.WriteFile(cachePath, badCacheData, 0664)
 	require.NoError(b.t, err)
@@ -53,7 +74,7 @@ func (b *badCache) CommandContext(ctx context.Context, name string, args ...stri
 }
 
 func (s *staticCache) CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cachePath := args[len(args)-1]
+	cachePath := getCachePath(s.t, args...)
 	require.NotEmpty(s.t, cachePath)
 	err := os.WriteFile(cachePath, cacheData, 0664)
 	require.NoError(s.t, err)
@@ -90,11 +111,6 @@ type testCase struct {
 func step(t *testing.T, name string, cg CommandGenerator, c *testCertGetter, expectErr require.ErrorAssertionFunc, expectNil require.ValueAssertionFunc) *testCase {
 	t.Helper()
 
-	dir := t.TempDir()
-	var err error
-	dir, err = os.MkdirTemp(dir, "krb5_cache")
-	require.NoError(t, err)
-
 	return &testCase{
 		name: name,
 		initializer: New(NewCommandLineInitializer(
@@ -103,7 +119,6 @@ func step(t *testing.T, name string, cg CommandGenerator, c *testCertGetter, exp
 				Realm:       "example.com",
 				KDCHost:     "host.example.com",
 				AdminServer: "host.example.com",
-				DataDir:     dir,
 				Command:     cg,
 				CertGetter:  c,
 			})),
@@ -183,7 +198,6 @@ func TestKRBConfString(t *testing.T) {
 			AdminServer: "host.example.com",
 			Command:     &staticCache{t: t, pass: true},
 			CertGetter:  &testCertGetter{pass: true},
-			DataDir:     t.TempDir(),
 		})
 
 	tmp := t.TempDir()

@@ -10,7 +10,7 @@ The following features use an AWS OIDC integration to interact with AWS:
 - [External Audit Storage](../external-audit-storage.mdx)
 - [RDS Enrollment](./awsoidc-integration-rds.mdx)
 - EC2 Enrollment
-- [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx)
+- [Access Graph AWS Sync](../../../identity-security/integrations/aws-sync.mdx)
 
 It targets users who would prefer a more manual approach or to manage the integration with Infrastructure as Code tools.
 
@@ -85,7 +85,7 @@ teleport.dev/integration  <Var name="my-integration"/>
 ## Step 3/4. Create IAM role
 An IAM role must be created to assign the required policies to the integration <Var name="iam-role"/>.
 
-This IAM role is created without any policy, as those are added depending on the feature you would like to use, for example when setting up [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx).
+This IAM role is created without any policy, as those are added depending on the feature you would like to use, for example when setting up [Access Graph AWS Sync](../../../identity-security/integrations/aws-sync.mdx).
 However, it must be configured to allow the Identity Provider to assume it.
 To achieve this, add the following Trust Relationship:
 ```json
@@ -140,5 +140,5 @@ After the set up is complete, you can now use the "Enroll New Resource" flow in 
 ## Next steps
 
 Now that you have an integration, you can use the following features:
-- [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx)
+- [Access Graph AWS Sync](../../../identity-security/integrations/aws-sync.mdx)
 - [External Audit Storage](../external-audit-storage.mdx)
