@@ -397,11 +397,11 @@ The UI will look as follows:
 > App updates are disabled
 > 
 > Your clusters require incompatible client versions.
-> To enable app updates, select the cluster managing them manually.
+> To enable app updates, select which cluster should manage them.
 > 
 > [ ] (disabled checkbox) Use the most compatible version from your clusters
 > 
-> Or select cluster to manage updates:
+> Or select a cluster to manage updates:
 > 
 > 1. teleport-18.asteroid.earth
 >
@@ -459,11 +459,11 @@ message Version {
 The update logic will resolve the version to install using the following 
 precedence:
 1. `TELEPORT_TOOLS_VERSION` env var, if defined.
-2. Version for a cluster from the app state, if defined.
+2. `tools_version` from the cluster manually selected to manage updates, if selected.
 3. Most compatible version, if can be found.
-4. If there's no version at this point, stop auto updates. 
-They will start working again if the user picks a cluster managing updates or 
-logs out of incompatible clusters.
+4. If there's no version at this point, stop auto updates.
+They will resume working if the user either selects a cluster that manages updates, 
+logs out of incompatible clusters, or if the cluster versions become compatible again.
 
 ### Backward compatibility
 
