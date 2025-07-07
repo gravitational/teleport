@@ -79,7 +79,7 @@ func SelectSCIMTokenHash(staticCreds []types.PluginStaticCredentials) (string, b
 
 func selectCredsByPurposeLabel(staticCreds []types.PluginStaticCredentials, purpose string) (types.PluginStaticCredentials, bool) {
 	for _, cred := range staticCreds {
-		if v, ok := cred.GetLabel(oktacommon.CredPurposeLabel); ok && v == purpose {
+		if v, ok := cred.GetLabel(types.OktaCredPurposeLabel); ok && v == purpose {
 			return cred, true
 		}
 	}
@@ -88,7 +88,7 @@ func selectCredsByPurposeLabel(staticCreds []types.PluginStaticCredentials, purp
 
 func selectCredsWithoutPurposeLabel(staticCreds []types.PluginStaticCredentials) (types.PluginStaticCredentials, bool) {
 	for _, cred := range staticCreds {
-		if _, ok := cred.GetLabel(oktacommon.CredPurposeLabel); !ok {
+		if _, ok := cred.GetLabel(types.OktaCredPurposeLabel); !ok {
 			return cred, true
 		}
 	}
@@ -113,7 +113,7 @@ func selectOktaApiTokenForSCIM(staticCreds []types.PluginStaticCredentials) (str
 	// doesn't support stopping app group sync via the feature flag (AppGroupSyncDisabled), we
 	// will rely on the behavior of preventing starting the Okta Plugin due to the missing
 	// credential.
-	selectedCreds, ok := selectCredsByPurposeLabel(staticCreds, oktacommon.CredPurposeOktaAPITokenWithSCIMOnlyIntegration)
+	selectedCreds, ok := selectCredsByPurposeLabel(staticCreds, types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration)
 	if !ok {
 		return "", false, nil
 	}
@@ -125,7 +125,7 @@ func selectOktaApiTokenForSCIM(staticCreds []types.PluginStaticCredentials) (str
 }
 
 func selectOktaApiToken(staticCreds []types.PluginStaticCredentials) (string, bool, error) {
-	selectedCreds, ok := selectCredsByPurposeLabel(staticCreds, oktacommon.CredPurposeOktaAuth)
+	selectedCreds, ok := selectCredsByPurposeLabel(staticCreds, types.OktaCredPurposeAuth)
 	if !ok {
 		return "", false, nil
 	}
@@ -151,7 +151,7 @@ func selectOktaApiTokenLegacy(staticCreds []types.PluginStaticCredentials) (stri
 }
 
 func selectScimToken(staticCreds []types.PluginStaticCredentials) (string, bool, error) {
-	selectedCreds, ok := selectCredsByPurposeLabel(staticCreds, oktacommon.CredPurposeSCIMToken)
+	selectedCreds, ok := selectCredsByPurposeLabel(staticCreds, types.OktaCredPurposeSCIMToken)
 	if !ok {
 		return "", false, nil
 	}

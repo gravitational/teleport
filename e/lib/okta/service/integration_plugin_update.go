@@ -140,8 +140,8 @@ func (s *Service) buildBasicConnectorInfo(connector types.SAMLConnector) (*sso.S
 }
 
 func hasSCIMPurpose(resLabels types.ResourceWithLabels) bool {
-	v, ok := resLabels.GetLabel(common.CredPurposeLabel)
-	return ok && v == common.CredPurposeSCIMToken
+	v, ok := resLabels.GetLabel(types.OktaCredPurposeLabel)
+	return ok && v == types.OktaCredPurposeSCIMToken
 }
 
 func appendLabelsToResource(r types.ResourceWithLabels, labels map[string]string) {
@@ -197,8 +197,8 @@ func selectCredsByLabelsFilter(creds []types.PluginStaticCredentials, fn func(ty
 }
 
 func isSyncCredential(resLabels types.ResourceWithLabels) bool {
-	v, ok := resLabels.GetLabel(common.CredPurposeLabel)
-	return ok && v == common.CredPurposeOktaOauth || v == common.CredPurposeOktaAuth || v == ""
+	v, ok := resLabels.GetLabel(types.OktaCredPurposeLabel)
+	return ok && v == common.CredPurposeOktaOauth || v == types.OktaCredPurposeAuth || v == ""
 }
 
 func (s *Service) upsertOauthClientID(ctx context.Context, clientID string, creds []types.PluginStaticCredentials, labels map[string]string) error {
@@ -226,8 +226,8 @@ func (s *Service) upsertOauthClientID(ctx context.Context, clientID string, cred
 }
 
 func hasOktaSSWAuthPurpose(resLabels types.ResourceWithLabels) bool {
-	v, ok := resLabels.GetLabel(common.CredPurposeLabel)
-	return ok && v == common.CredPurposeOktaAuth
+	v, ok := resLabels.GetLabel(types.OktaCredPurposeLabel)
+	return ok && v == types.OktaCredPurposeAuth
 }
 
 func (s *Service) upsertSSWSToken(ctx context.Context, sswsToken string, creds []types.PluginStaticCredentials, labels map[string]string) error {

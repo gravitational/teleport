@@ -19,7 +19,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
-	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -832,7 +831,7 @@ func rigFixtureSetupForSCIMAuth(fix *testFixture) {
 					Metadata: types.Metadata{
 						Name: "test",
 						Labels: map[string]string{
-							oktacommon.CredPurposeLabel: oktacommon.CredPurposeSCIMToken,
+							types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
 						},
 					},
 				},

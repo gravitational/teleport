@@ -4,7 +4,7 @@ import "github.com/gravitational/teleport/api/types"
 
 const (
 	// OktaOrgURLLabel is the label for which Okta organization an object belongs to.
-	OktaOrgURLLabel = "okta/org"
+	OktaOrgURLLabel = types.OktaOrgURLLabel
 
 	// OktaGroupIDLabel is the label for the Okta group ID on user group objects.
 	OktaGroupIDLabel = types.TeleportInternalLabelPrefix + "okta-group-id"

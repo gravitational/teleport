@@ -40,16 +40,16 @@ func newOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) ([]*types.Pl
 func buildCredentialsInfo(creds []*types.PluginStaticCredentialsV1) *types.PluginOktaCredentialsInfo {
 	var out types.PluginOktaCredentialsInfo
 	for _, cred := range creds {
-		purpose, ok := cred.GetAllLabels()[common.CredPurposeLabel]
+		purpose, ok := cred.GetAllLabels()[types.OktaCredPurposeLabel]
 		if !ok {
 			continue
 		}
 		switch purpose {
 		case common.CredPurposeOktaOauth:
 			out.HasOauthCredentials = true
-		case common.CredPurposeSCIMToken:
+		case types.OktaCredPurposeSCIMToken:
 			out.HasScimToken = true
-		case common.CredPurposeOktaAuth, "":
+		case types.OktaCredPurposeAuth, "":
 			out.HasSsmToken = true
 		}
 	}
@@ -145,7 +145,7 @@ func buildAPITokenCredentials(SSWSToken string) *types.PluginStaticCredentialsV1
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
 				Name:   types.PluginTypeOkta,
-				Labels: map[string]string{common.CredPurposeLabel: common.CredPurposeOktaAuth},
+				Labels: map[string]string{types.OktaCredPurposeLabel: types.OktaCredPurposeAuth},
 			},
 		},
 		Spec: &types.PluginStaticCredentialsSpecV1{
@@ -161,7 +161,7 @@ func buildOAuthCredentials(clientID string) *types.PluginStaticCredentialsV1 {
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
 				Name:   types.PluginTypeOkta,
-				Labels: map[string]string{common.CredPurposeLabel: common.CredPurposeOktaOauth},
+				Labels: map[string]string{types.OktaCredPurposeLabel: common.CredPurposeOktaOauth},
 			},
 		},
 		Spec: &types.PluginStaticCredentialsSpecV1{
@@ -182,7 +182,7 @@ func buildSCIMCredentials(scimToken string) *types.PluginStaticCredentialsV1 {
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
 				Name:   common.OktaSCIMTokenName,
-				Labels: map[string]string{common.CredPurposeLabel: common.CredPurposeSCIMToken},
+				Labels: map[string]string{types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken},
 			},
 		},
 		Spec: &types.PluginStaticCredentialsSpecV1{Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{APIToken: scimToken}},

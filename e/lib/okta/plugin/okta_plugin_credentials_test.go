@@ -64,25 +64,25 @@ func Test_SelectOktaCredentials(t *testing.T) {
 		scimTokenHash[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			apiToken: fmt.Sprintf("test SCIM token hash (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeSCIMToken,
+				types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
 			},
 		})
 		oktaApiToken[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			apiToken: fmt.Sprintf("test Okta API token (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeOktaAuth,
+				types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
 			},
 		})
 		scimOnlyOktaApiToken[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			apiToken: fmt.Sprintf("test SCIM-only Okta API token (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeOktaAPITokenWithSCIMOnlyIntegration,
+				types.OktaCredPurposeLabel: types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration,
 			},
 		})
 		oktaClientId[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			clientId: fmt.Sprintf("test Okta OAuth Client ID (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeOktaOauth,
+				types.OktaCredPurposeLabel: common.CredPurposeOktaOauth,
 			},
 		})
 	}
@@ -176,25 +176,25 @@ func Test_SelectScimTokenHash(t *testing.T) {
 		scimTokenHash[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			apiToken: fmt.Sprintf("test SCIM token hash (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeSCIMToken,
+				types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
 			},
 		})
 		oktaApiToken[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			apiToken: fmt.Sprintf("test Okta API token (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeOktaAuth,
+				types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
 			},
 		})
 		scimOnlyOktaApiToken[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			apiToken: fmt.Sprintf("test SCIM-only Okta API token (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeOktaAPITokenWithSCIMOnlyIntegration,
+				types.OktaCredPurposeLabel: types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration,
 			},
 		})
 		oktaClientId[i] = newPluginStaticCredentials(pluginStaticCredentialsDesc{
 			clientId: fmt.Sprintf("test Okta OAuth Client ID (%d)", i),
 			labels: map[string]string{
-				common.CredPurposeLabel: common.CredPurposeOktaOauth,
+				types.OktaCredPurposeLabel: common.CredPurposeOktaOauth,
 			},
 		})
 	}
