@@ -56,7 +56,7 @@ func (req *AWSClientConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// newAWSConfig creates a new [aws.Config] using the [AWSClientRequest] fields.
+// newAWSConfig creates a new [aws.Config] using the [AWSClientConfig] fields.
 func newAWSConfig(ctx context.Context, req *AWSClientConfig) (aws.Config, error) {
 	if err := req.checkAndSetDefaults(); err != nil {
 		return aws.Config{}, trace.Wrap(err)

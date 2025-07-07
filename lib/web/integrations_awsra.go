@@ -145,7 +145,7 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	return nil, trace.Wrap(err)
 }
 
-// awsRolesAnywhereListProfiles lists profiles Roles Anywhere Profiles accessible by the integration.
+// awsRolesAnywhereListProfiles lists Roles Anywhere Profiles accessible by the integration.
 func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 

@@ -54,17 +54,12 @@ type RolesAnywhereProfilesLister interface {
 	ListTagsForResource(ctx context.Context, params *rolesanywhere.ListTagsForResourceInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.ListTagsForResourceOutput, error)
 }
 
-// ListRolesAnywhereProfilesClient describes the required methods to list AWS VPCs.
-type ListRolesAnywhereProfilesClient interface {
-	RolesAnywhereProfilesLister
-}
-
 type defaultListRolesAnywhereProfilesClient struct {
 	RolesAnywhereProfilesLister
 }
 
 // NewListRolesAnywhereProfilesClient creates a new ListRolesAnywhereProfilesClient using an AWSClientRequest.
-func NewListRolesAnywhereProfilesClient(ctx context.Context, req *AWSClientConfig) (ListRolesAnywhereProfilesClient, error) {
+func NewListRolesAnywhereProfilesClient(ctx context.Context, req *AWSClientConfig) (RolesAnywhereProfilesLister, error) {
 	awsConfig, err := newAWSConfig(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,7 +74,7 @@ func NewListRolesAnywhereProfilesClient(ctx context.Context, req *AWSClientConfi
 // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListProfiles.html
 // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListTagsForResource.html
 // It returns a list of Roles Anywhere Profiles and an optional NextToken that can be used to fetch the next page.
-func ListRolesAnywhereProfiles(ctx context.Context, clt ListRolesAnywhereProfilesClient, req ListRolesAnywhereProfilesRequest) (*ListRolesAnywhereProfilesResponse, error) {
+func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLister, req ListRolesAnywhereProfilesRequest) (*ListRolesAnywhereProfilesResponse, error) {
 	var nextToken *string
 	if req.NextToken != "" {
 		nextToken = aws.String(req.NextToken)

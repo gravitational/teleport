@@ -52,11 +52,12 @@ func (s *Service) GenerateAWSRACredentials(ctx context.Context, req *integration
 
 // generateAWSRACredentialsWithoutAuthZ generates a set of AWS credentials which uses the AWS Roles Anywhere integration.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
+// If trustAnchor is unset, it will use the trust anchor from the integration spec.
 func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest, trustAnchor string) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
 	if trustAnchor == "" {
 		spec, err := s.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.BadParameter("trust anchor not provided and could not be fetched from the integration: %v", err)
 		}
 
 		trustAnchor = spec.TrustAnchorARN

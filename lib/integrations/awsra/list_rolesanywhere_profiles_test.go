@@ -50,19 +50,17 @@ func TestListRolesAnywhereProfiles(t *testing.T) {
 		AcceptRoleSessionName: aws.Bool(true),
 	}
 
-	t.Run("listing returns 3 profiles", func(t *testing.T) {
-		client := &mockListRolesAnywhereProfiles{
-			profiles: []ratypes.ProfileDetail{
-				exampleProfile,
-				syncProfile,
-				disabledProfile,
-			},
-		}
-		resp, err := ListRolesAnywhereProfiles(t.Context(), client, ListRolesAnywhereProfilesRequest{})
-		require.NoError(t, err)
+	client := &mockListRolesAnywhereProfiles{
+		profiles: []ratypes.ProfileDetail{
+			exampleProfile,
+			syncProfile,
+			disabledProfile,
+		},
+	}
+	resp, err := ListRolesAnywhereProfiles(t.Context(), client, ListRolesAnywhereProfilesRequest{})
+	require.NoError(t, err)
 
-		require.Len(t, resp.Profiles, 3)
-	})
+	require.Len(t, resp.Profiles, 3)
 }
 
 type mockListRolesAnywhereProfiles struct {
