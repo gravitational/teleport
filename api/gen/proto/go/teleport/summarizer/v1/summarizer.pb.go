@@ -40,9 +40,13 @@ const (
 // inference model configuration. It tells Teleport how to use a specific
 // provider and model to summarize sessions.
 type SummarizationInferenceModel struct {
-	state         protoimpl.MessageState           `protogen:"open.v1"`
-	Kind          string                           `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	SubKind       string                           `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind is the resource kind. Should always be set to
+	// "summarization_inference_model".
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Version is the resource version. Should be set to "v1".
 	Version       string                           `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Metadata      *v1.Metadata                     `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Spec          *SummarizationInferenceModelSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
@@ -121,7 +125,7 @@ type SummarizationInferenceModelSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Provider:
 	//
-	//	*SummarizationInferenceModelSpec_OpenAi
+	//	*SummarizationInferenceModelSpec_Openai
 	Provider      isSummarizationInferenceModelSpec_Provider `protobuf_oneof:"provider"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -164,10 +168,10 @@ func (x *SummarizationInferenceModelSpec) GetProvider() isSummarizationInference
 	return nil
 }
 
-func (x *SummarizationInferenceModelSpec) GetOpenAi() *OpenAIProvider {
+func (x *SummarizationInferenceModelSpec) GetOpenai() *OpenAIProvider {
 	if x != nil {
-		if x, ok := x.Provider.(*SummarizationInferenceModelSpec_OpenAi); ok {
-			return x.OpenAi
+		if x, ok := x.Provider.(*SummarizationInferenceModelSpec_Openai); ok {
+			return x.Openai
 		}
 	}
 	return nil
@@ -177,19 +181,19 @@ type isSummarizationInferenceModelSpec_Provider interface {
 	isSummarizationInferenceModelSpec_Provider()
 }
 
-type SummarizationInferenceModelSpec_OpenAi struct {
-	// OpenAi indicates that this model uses OpenAI as the inference provider
+type SummarizationInferenceModelSpec_Openai struct {
+	// Openai indicates that this model uses OpenAI as the inference provider
 	// and specifies OpenAI-specific parameters.
-	OpenAi *OpenAIProvider `protobuf:"bytes,1,opt,name=open_ai,json=openAi,proto3,oneof"`
+	Openai *OpenAIProvider `protobuf:"bytes,1,opt,name=openai,proto3,oneof"`
 }
 
-func (*SummarizationInferenceModelSpec_OpenAi) isSummarizationInferenceModelSpec_Provider() {}
+func (*SummarizationInferenceModelSpec_Openai) isSummarizationInferenceModelSpec_Provider() {}
 
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
 // configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
 type OpenAIProvider struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// OpenaiModelId specifies the mode ID, as understood by the OpenAI API.
+	// OpenaiModelId specifies the model ID, as understood by the OpenAI API.
 	OpenaiModelId string `protobuf:"bytes,1,opt,name=openai_model_id,json=openaiModelId,proto3" json:"openai_model_id,omitempty"`
 	// Temperature controls the randomness of the model's output.
 	Temperature float64 `protobuf:"fixed64,2,opt,name=temperature,proto3" json:"temperature,omitempty"`
@@ -267,11 +271,15 @@ func (x *OpenAIProvider) GetBaseUrl() string {
 // provider secrets, such as API keys. They need to be referenced by
 // appropriate provider configuration inside `SummarizationInferenceModelSpec`.
 type SummarizationInferenceSecret struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Kind     string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	SubKind  string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	Version  string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Metadata *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind is the resource kind. Should always be set to
+	// "summarization_inference_secret".
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Version is the resource version. Should be set to "v1".
+	Version  string       `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Spec contains the secret value. Once set, it can only be read by Teleport
 	// itself; it will not be returned in API responses.
 	Spec          *SummarizationInferenceSecretSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
@@ -393,9 +401,13 @@ func (x *SummarizationInferenceSecretSpec) GetValue() string {
 
 // SummarizationInferencePolicy resource maps sessions to summarization models.
 type SummarizationInferencePolicy struct {
-	state         protoimpl.MessageState            `protogen:"open.v1"`
-	Kind          string                            `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	SubKind       string                            `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind is the resource kind. Should always be set to
+	// "summarization_inference_policy".
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Version is the resource version. Should be set to "v1".
 	Version       string                            `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Metadata      *v1.Metadata                      `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Spec          *SummarizationInferencePolicySpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
@@ -546,9 +558,9 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12K\n" +
-	"\x04spec\x18\x05 \x01(\v27.teleport.summarizer.v1.SummarizationInferenceModelSpecR\x04spec\"p\n" +
-	"\x1fSummarizationInferenceModelSpec\x12A\n" +
-	"\aopen_ai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openAiB\n" +
+	"\x04spec\x18\x05 \x01(\v27.teleport.summarizer.v1.SummarizationInferenceModelSpecR\x04spec\"o\n" +
+	"\x1fSummarizationInferenceModelSpec\x12@\n" +
+	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openaiB\n" +
 	"\n" +
 	"\bprovider\"\xa2\x01\n" +
 	"\x0eOpenAIProvider\x12&\n" +
@@ -601,7 +613,7 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
 	7, // 0: teleport.summarizer.v1.SummarizationInferenceModel.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.summarizer.v1.SummarizationInferenceModel.spec:type_name -> teleport.summarizer.v1.SummarizationInferenceModelSpec
-	2, // 2: teleport.summarizer.v1.SummarizationInferenceModelSpec.open_ai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	2, // 2: teleport.summarizer.v1.SummarizationInferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
 	7, // 3: teleport.summarizer.v1.SummarizationInferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
 	4, // 4: teleport.summarizer.v1.SummarizationInferenceSecret.spec:type_name -> teleport.summarizer.v1.SummarizationInferenceSecretSpec
 	7, // 5: teleport.summarizer.v1.SummarizationInferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
@@ -619,7 +631,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		return
 	}
 	file_teleport_summarizer_v1_summarizer_proto_msgTypes[1].OneofWrappers = []any{
-		(*SummarizationInferenceModelSpec_OpenAi)(nil),
+		(*SummarizationInferenceModelSpec_Openai)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
