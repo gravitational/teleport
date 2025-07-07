@@ -124,8 +124,6 @@ type sharedStartArgs struct {
 
 // newSharedStartArgs initializes shared arguments on the given parent command.
 func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
-	cmd.Interspersed(true)
-
 	args := &sharedStartArgs{}
 	args.AuthProxyArgs = newAuthProxyArgs(cmd)
 
