@@ -25,6 +25,7 @@ import { Tags, Warning } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';
@@ -35,7 +36,7 @@ import {
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
-import { isUnhealthy } from '../shared/StatusInfo';
+import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
@@ -71,7 +72,7 @@ export function ResourceListItem({
   }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
-  const hasUnhealthyStatus = isUnhealthy(status);
+  const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
   // Determines which column the resource type text should end at.
   // We do this because if there is no address, or the labels button
@@ -91,7 +92,7 @@ export function ResourceListItem({
     <RowContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      hasUnhealthyStatus={hasUnhealthyStatus}
+      shouldDisplayWarning={shouldDisplayStatusWarning}
       showingStatusInfo={showingStatusInfo}
     >
       <RowInnerContainer
@@ -99,7 +100,7 @@ export function ResourceListItem({
         alignItems="start"
         pinned={pinned}
         selected={selected}
-        hasUnhealthyStatus={hasUnhealthyStatus}
+        shouldDisplayWarning={shouldDisplayStatusWarning}
         showingStatusInfo={showingStatusInfo}
       >
         {/* checkbox */}
@@ -235,7 +236,7 @@ export function ResourceListItem({
         )}
 
         {/* warning icon if status is unhealthy */}
-        {hasUnhealthyStatus && (
+        {shouldDisplayStatusWarning && (
           <HoverTooltip
             tipContent={'Show Connection Issue'}
             css={`
@@ -305,14 +306,14 @@ const ResTypeIconBox = styled(Box)`
 `;
 
 const RowContainer = styled(Box)<{
-  hasUnhealthyStatus: boolean;
+  shouldDisplayWarning: boolean;
   showingStatusInfo: boolean;
 }>`
   transition: all 150ms;
   position: relative;
 
   ${p =>
-    p.hasUnhealthyStatus &&
+    p.shouldDisplayWarning &&
     css`
       background-color: ${getStatusBackgroundColor({
         showingStatusInfo: p.showingStatusInfo,
@@ -326,7 +327,7 @@ const RowContainer = styled(Box)<{
     background-color: ${props => props.theme.colors.levels.surface};
 
     ${p =>
-      p.hasUnhealthyStatus &&
+      p.shouldDisplayWarning &&
       css`
         background-color: ${getStatusBackgroundColor({
           showingStatusInfo: p.showingStatusInfo,

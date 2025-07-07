@@ -208,7 +208,7 @@ test.each<{
 
   expect(
     await screen.findByText(
-      'Do you want to reopen tabs from the previous session?'
+      /Do you want to reopen tabs from the previous session/
     )
   ).toBeInTheDocument();
 

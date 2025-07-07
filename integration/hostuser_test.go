@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 const testuser = "teleport-testuser"
@@ -78,7 +79,7 @@ func getUserShells(path string) (map[string]string, error) {
 }
 
 func TestRootHostUsersBackend(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	sudoersTestDir := t.TempDir()
 	usersbk := srv.HostUsersProvisioningBackend{}
 	sudoersbk := srv.HostSudoersProvisioningBackend{
@@ -238,7 +239,7 @@ func sudoersPath(username, uuid string) string {
 }
 
 func TestRootHostUsers(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	ctx := context.Background()
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
@@ -456,7 +457,9 @@ func TestRootHostUsers(t *testing.T) {
 		namedShellUser := "named-shell"
 		absoluteShellUser := "absolute-shell"
 
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil) })
+		t.Cleanup(func() {
+			cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil)
+		})
 
 		// Create a user with a named shell expected to be available in the PATH
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
@@ -466,17 +469,16 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Create a user with the host default shell (default behavior)
+		_, err = users.UpsertUser(defaultShellUser, &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+		})
+		require.NoError(t, err)
+
 		// Create a user with an absolute path to a shell
 		_, err = users.UpsertUser(absoluteShellUser, &decisionpb.HostUsersInfo{
 			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "/usr/bin/bash",
-		})
-		require.NoError(t, err)
-
-		// Create a user with the host default shell (default behavior)
-		_, err = users.UpsertUser(defaultShellUser, &decisionpb.HostUsersInfo{
-			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-			Shell: "zsh",
 		})
 		require.NoError(t, err)
 
@@ -501,10 +503,24 @@ func TestRootHostUsers(t *testing.T) {
 		assert.Equal(t, expectedShell, userShells[absoluteShellUser])
 		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
 
-		// User's shell should not be overwritten when updating, only when creating a new host user
+		// User's shell should be overwritten when a different shell
+		// is provided
+		expectedShell = "/usr/bin/sh"
 		_, err = users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
 			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "sh",
+		})
+		require.NoError(t, err)
+
+		userShells, err = getUserShells("/etc/passwd")
+		require.NoError(t, err)
+		assert.Equal(t, expectedShell, userShells[namedShellUser])
+
+		// Make sure we can change the user's shell back again.
+		expectedShell = "/usr/bin/bash"
+		_, err = users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
+			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			Shell: "bash",
 		})
 		require.NoError(t, err)
 
@@ -625,7 +641,7 @@ func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts 
 }
 
 func TestRootLoginAsHostUser(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -641,7 +657,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 
 	// Create a user that can create a host user.
 	username := "test-user"
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	groups := []string{"foo", "bar"}
 	role, err := types.NewRole("ssh-host-user", types.RoleSpecV6{
 		Options: types.RoleOptions{
@@ -725,7 +741,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 }
 
 func TestRootStaticHostUsers(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -755,7 +771,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}
-	goodLogin := utils.GenerateLocalUsername(t)
+	goodLogin := testutils.GenerateLocalUsername(t)
 	goodUser := userprovisioning.NewStaticHostUser(goodLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -770,7 +786,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	goodLoginWithShell := utils.GenerateLocalUsername(t)
+	goodLoginWithShell := testutils.GenerateLocalUsername(t)
 	goodUserWithShell := userprovisioning.NewStaticHostUser(goodLoginWithShell, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -785,7 +801,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	nonMatchingLogin := utils.GenerateLocalUsername(t)
+	nonMatchingLogin := testutils.GenerateLocalUsername(t)
 	nonMatchingUser := userprovisioning.NewStaticHostUser(nonMatchingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -799,7 +815,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	conflictingLogin := utils.GenerateLocalUsername(t)
+	conflictingLogin := testutils.GenerateLocalUsername(t)
 	conflictingUser := userprovisioning.NewStaticHostUser(conflictingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{

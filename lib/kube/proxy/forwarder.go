@@ -68,13 +68,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1324,7 +1325,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	headers := http.Header{}
 	if impersonationHeaders {
-		if headers, err = auth.IdentityForwardingHeaders(req.Context(), headers); err != nil {
+		if headers, err = internal.IdentityForwardingHeaders(req.Context(), headers); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1597,7 +1598,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 // is allowed to start a session without moderation.
 func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
 	policySets := authCtx.Checker.SessionPolicySets()
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
+	authorizer := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
 	canStart, _, err := authorizer.FulfilledFor(nil)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -2200,29 +2201,27 @@ func isRelevantWebsocketError(err error) bool {
 }
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	isWSSupported := false
-	if !sess.isLocalKubernetesCluster {
-		// We're forwarding it to another Teleport kube_service,
-		// which supports the websocket protocol.
-		isWSSupported = true
-	} else {
-		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
-		f.rwMutexDetails.RLock()
-		if details, ok := f.clusterDetails[sess.kubeClusterName]; ok {
-			details.rwMu.RLock()
-			isWSSupported = kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion)
-			details.rwMu.RUnlock()
-		}
-		f.rwMutexDetails.RUnlock()
+	wsExec, err := f.getWebsocketExecutor(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-
-	if isWSSupported {
-		wsExec, err := f.getWebsocketExecutor(sess, req)
-		return wsExec, trace.Wrap(err)
-	}
-
 	spdyExec, err := f.getSPDYExecutor(sess, req)
-	return spdyExec, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to create spdy executor")
+	}
+	return remotecommand.NewFallbackExecutor(
+		wsExec,
+		spdyExec,
+		func(err error) bool {
+			// If the error is a known upgrade failure, we can retry with the other protocol.
+			result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
+			if result {
+				// If the error is a known upgrade failure, we can retry with the other protocol.
+				// To do that, we need to reset the connection monitor context.
+				sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
+			}
+			return result
+		})
 }
 
 func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {

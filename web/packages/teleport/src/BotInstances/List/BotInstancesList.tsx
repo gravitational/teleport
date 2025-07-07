@@ -153,7 +153,7 @@ export function BotInstancesList({
       ]}
       emptyText="No active instances found"
       emptyButton={
-        <Info alignItems="flex-start" mt={5}>
+        <Info mt={5}>
           Bot instances are ephemeral, and disappear once all issued credentials
           have expired.
         </Info>

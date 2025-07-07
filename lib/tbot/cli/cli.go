@@ -195,6 +195,8 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 		return nil, trace.Wrap(err)
 	}
 
+	cfg.AuthServerAddressMode = config.WarnIfAuthServerIsProxy
+
 	return cfg, nil
 }
 

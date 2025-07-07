@@ -1417,6 +1417,15 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
+// KubernetesResourceSelfSubjectAccessReview is a Kubernetes resource that
+// represents a self-subject access review. This gets injected in the allow section in the roles.
+var KubernetesResourceSelfSubjectAccessReview = KubernetesResource{
+	Kind:     "selfsubjectaccessreviews",
+	Name:     Wildcard,
+	Verbs:    []string{"create"},
+	APIGroup: "authorization.k8s.io",
+}
+
 // KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
 // to their kubernetes group.
 // Used for validation in role >=v8 to check whether an older value has

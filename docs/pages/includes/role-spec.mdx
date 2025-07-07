@@ -282,8 +282,11 @@ spec:
 
     # workload_identity_labels: a user/bot with this role will be allowed to
     # issue Workload Identities with labels matching below.
+    #
+    # Supports role templating with traits.
     workload_identity_labels:
       'env': 'prod'
+      'team': '{{external.team}}'
 
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.

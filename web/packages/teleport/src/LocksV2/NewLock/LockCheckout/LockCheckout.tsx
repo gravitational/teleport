@@ -42,6 +42,7 @@ import { pluralize } from 'shared/utils/text';
 import shieldCheck from 'teleport/assets/shield-check.png';
 import cfg from 'teleport/config';
 import { TrashButton } from 'teleport/LocksV2/common';
+import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { lockService } from 'teleport/services/locks';
 
 import {
@@ -200,6 +201,7 @@ export const LockCheckout = forwardRef<HTMLDivElement, Props>(
           top: 0;
           left: 0;
           overflow: hidden;
+          z-index: ${zIndexMap.checkoutSidePanel};
         `}
       >
         <Dimmer className={transitionState} />

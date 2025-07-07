@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -706,9 +706,9 @@ func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
 // in order to start and join sessions.
 type SessionAccessEvaluator interface {
 	IsModerated() bool
-	FulfilledFor(participants []auth.SessionAccessContext) (bool, auth.PolicyOptions, error)
+	FulfilledFor(participants []moderation.SessionAccessContext) (bool, moderation.PolicyOptions, error)
 	PrettyRequirementsList() string
-	CanJoin(user auth.SessionAccessContext) []types.SessionParticipantMode
+	CanJoin(user moderation.SessionAccessContext) []types.SessionParticipantMode
 }
 
 // session struct describes an active (in progress) SSH session. These sessions
@@ -834,7 +834,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	}
 
 	policySets := scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
-	access := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
+	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, r.Srv.Component()),
@@ -1829,14 +1829,14 @@ type FileTransferRequest struct {
 }
 
 func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, error) {
-	var participants []auth.SessionAccessContext
+	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
 		if party.ctx.Identity.TeleportUser == s.initiator {
 			continue
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
 			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
 			Mode:     party.mode,
@@ -2012,15 +2012,15 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 // checkIfStartUnderLock determines if any moderation policies associated with
 // the session are satisfied.
 // Must be called under session Lock.
-func (s *session) checkIfStartUnderLock() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
+func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error) {
+	var participants []moderation.SessionAccessContext
 
 	for _, party := range s.parties {
 		if party.ctx.Identity.TeleportUser == s.initiator {
 			continue
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
 			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
 			Mode:     party.mode,
@@ -2029,7 +2029,7 @@ func (s *session) checkIfStartUnderLock() (bool, auth.PolicyOptions, error) {
 
 	shouldStart, policyOptions, err := s.access.FulfilledFor(participants)
 	if err != nil {
-		return false, auth.PolicyOptions{}, trace.Wrap(err)
+		return false, moderation.PolicyOptions{}, trace.Wrap(err)
 	}
 
 	return shouldStart, policyOptions, nil
@@ -2155,7 +2155,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
 	if scx.Identity.TeleportUser != s.initiator {
-		accessContext := auth.SessionAccessContext{
+		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
 			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
 		}
