@@ -29,7 +29,6 @@ import { FeatureFlags } from 'teleport/types';
 
 import { MfaChallengeResponse } from '../mfa';
 import {
-  BotList,
   BotResponse,
   CreateBotJoinTokenRequest,
   CreateBotRequest,
