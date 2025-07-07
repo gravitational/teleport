@@ -1289,20 +1289,18 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 
-		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid, windows.AttrDistinguishedName})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid, windows.AttrDistinguishedName})
 		}
+
 		if err != nil {
-			if os.Getenv("SKIP_LDAP_SID") != "true" {
-				return nil, nil, trace.Wrap(err)
-			} else {
-				s.cfg.Logger.DebugContext(ctx, "objectSid lookup failed", "username", username, "error", err)
-			}
+			return nil, nil, trace.Wrap(err)
+			
 		} else {
 			if len(entries) == 0 {
 				return nil, nil, trace.NotFound("could not find Windows account %q", username)
@@ -1312,6 +1310,11 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
+			}
+			if dn, err := windows.DistinguishedNameFromLDAPEntry(entries[0]); err == nil {
+				s.cfg.Logger.DebugContext(ctx, "found DN", "DN", dn)
+			} else {
+				s.cfg.Logger.DebugContext(ctx, "DN not found", "err", err)
 			}
 			s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
 		}

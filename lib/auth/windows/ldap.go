@@ -88,6 +88,8 @@ const (
 	AttrObjectSid = "objectSid"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
+	// AttrDistinguishedName is distinguished name of an LDAP object
+	AttrDistinguishedName = "distinguishedName"
 )
 
 // classContainer is the object class for containers in Active Directory
@@ -248,7 +250,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 				res, err := conn.SearchWithPaging(req, searchPageSize)
 				if err == nil {
 					return res.Entries, nil
-				} else if len(referrals) < 10 && errors.As(err, &ldapErr) {
+				} else if len(referrals) < 10 && errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
 					c.Logger.DebugContext(ctx, "LDAP search failed, extracting referrals", "referral", referrals[i], "error", err)
 					newReferrals := extractReferrals(ldapErr)
 					referrals = append(referrals, newReferrals...)
