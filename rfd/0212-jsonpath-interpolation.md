@@ -116,7 +116,7 @@ spec:
   ...
   claims_to_roles:
       # evaluates to ["viewer"]
-    - claim_expression: 'jsonpath(external.groups, "$.roles"'
+    - claim_expression: 'jsonpath(external.groups, "$.roles")'
       value: "viewer"
       roles: "viewer"
 ```
