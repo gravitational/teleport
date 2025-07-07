@@ -24,8 +24,12 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // inference model configuration. It tells Teleport how to use a specific
 // provider and model to summarize sessions.
 message SummarizationInferenceModel {
+  // Kind is the resource kind. Should always be set to
+  // "summarization_inference_model".
   string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
   string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
   SummarizationInferenceModelSpec spec = 5;
@@ -35,16 +39,16 @@ message SummarizationInferenceModel {
 // provider-specific parameters.
 message SummarizationInferenceModelSpec {
   oneof provider {
-    // OpenAi indicates that this model uses OpenAI as the inference provider
+    // Openai indicates that this model uses OpenAI as the inference provider
     // and specifies OpenAI-specific parameters.
-    OpenAIProvider open_ai = 1;
+    OpenAIProvider openai = 1;
   }
 }
 
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
 // configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
 message OpenAIProvider {
-  // OpenaiModelId specifies the mode ID, as understood by the OpenAI API.
+  // OpenaiModelId specifies the model ID, as understood by the OpenAI API.
   string openai_model_id = 1;
   // Temperature controls the randomness of the model's output.
   double temperature = 2;
@@ -62,8 +66,12 @@ message OpenAIProvider {
 // provider secrets, such as API keys. They need to be referenced by
 // appropriate provider configuration inside `SummarizationInferenceModelSpec`.
 message SummarizationInferenceSecret {
+  // Kind is the resource kind. Should always be set to
+  // "summarization_inference_secret".
   string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
   string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
   // Spec contains the secret value. Once set, it can only be read by Teleport
@@ -80,8 +88,12 @@ message SummarizationInferenceSecretSpec {
 
 // SummarizationInferencePolicy resource maps sessions to summarization models.
 message SummarizationInferencePolicy {
+  // Kind is the resource kind. Should always be set to
+  // "summarization_inference_policy".
   string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
   string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
   SummarizationInferencePolicySpec spec = 5;
