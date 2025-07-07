@@ -207,6 +207,15 @@ func NewTypeFromString(s string) (Type, error) {
 	}
 }
 
+// IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
+func (t Type) IsReviewable() bool {
+	switch t {
+	case ImplicitDynamic, Dynamic:
+		return true
+	}
+	return false
+}
+
 // Owner is an owner of an access list.
 type Owner struct {
 	// Name is the username of the owner.
@@ -564,11 +573,7 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (a *AccessList) IsReviewable() bool {
-	switch a.Spec.Type {
-	case ImplicitDynamic, Dynamic:
-		return true
-	}
-	return false
+	return a.Spec.Type.IsReviewable()
 }
 
 // SelectNextReviewDate will select the next review date for the access list.
