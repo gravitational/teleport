@@ -48,9 +48,9 @@ To prepare a Windows computer:
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-   If you are using Teleport's support for HSM-backed keys, then your Teleport cluster
-   has multiple user CAs (one for each Auth Service instance). You can download a bundle
-   containing all CAs by appending `&format=zip` to the URL.
+   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple 
+   user CAs (one for each Auth Service instance). You can download a bundle containing
+   all CAs by appending `&format=zip` to the URL.
 
 3. Download the Teleport Windows Auth setup program:
 
