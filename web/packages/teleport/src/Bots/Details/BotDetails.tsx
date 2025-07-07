@@ -180,40 +180,48 @@ export function BotDetails() {
             <PaddedDivider />
 
             <Panel title="Roles" isSubPanel>
-              <Flex>
-                {data.roles.toSorted().map(r => (
-                  <Outline mr="1" key={r}>
-                    {r}
-                  </Outline>
-                ))}
-              </Flex>
+              {data.roles.length ? (
+                <Flex>
+                  {data.roles.toSorted().map(r => (
+                    <Outline mr="1" key={r}>
+                      {r}
+                    </Outline>
+                  ))}
+                </Flex>
+              ) : (
+                'No roles assigned'
+              )}
             </Panel>
 
             <PaddedDivider />
 
             <Panel title="Traits" isSubPanel>
-              <TransposedTable>
-                <tbody>
-                  {data.traits
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map(r => (
-                      <tr key={r.name}>
-                        <th scope="row">
-                          <Trait traitName={r.name} />
-                        </th>
-                        <td>
-                          {r.values.length > 0
-                            ? r.values.toSorted().map(v => (
-                                <Outline mr="1" key={v}>
-                                  {v}
-                                </Outline>
-                              ))
-                            : 'no values'}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </TransposedTable>
+              {data.traits.length ? (
+                <TransposedTable>
+                  <tbody>
+                    {data.traits
+                      .toSorted((a, b) => a.name.localeCompare(b.name))
+                      .map(r => (
+                        <tr key={r.name}>
+                          <th scope="row">
+                            <Trait traitName={r.name} />
+                          </th>
+                          <td>
+                            {r.values.length > 0
+                              ? r.values.toSorted().map(v => (
+                                  <Outline mr="1" key={v}>
+                                    {v}
+                                  </Outline>
+                                ))
+                              : 'no values'}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </TransposedTable>
+              ) : (
+                'No traits set'
+              )}
             </Panel>
 
             <Divider />
