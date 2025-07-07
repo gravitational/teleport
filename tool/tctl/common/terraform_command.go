@@ -44,11 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -301,16 +303,16 @@ func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleCli
 // Note: the function also returns the SSH Host CA cert encoded in the known host format.
 // The identity.Identity uses a different format (authorized keys).
 func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
-	credential := &config.UnstableClientCredentialOutput{}
+	credential := &clientcredentials.UnstableConfig{}
 	cfg := &config.BotConfig{
 		Version: "",
 		Onboarding: onboarding.Config{
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		Storage:            &config.StorageConfig{Destination: &destination.Memory{}},
+		Storage:            &config.StorageConfig{Destination: destination.NewMemory()},
 		Services:           config.ServiceConfigs{credential},
-		CredentialLifetime: config.CredentialLifetime{TTL: c.botTTL},
+		CredentialLifetime: bot.CredentialLifetime{TTL: c.botTTL},
 		Oneshot:            true,
 		// If --insecure is passed, the bot will trust the certificate on first use.
 		// This does not truly disable TLS validation, only trusts the certificate on first connection.
