@@ -20,6 +20,19 @@ import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
 
 import { formatDuration } from '../formatDuration';
 
+/**
+ * Given a previous and next bot object, plus the update request, validateBotUpdate checks
+ * if the fields included in the request are present in the resultant bot object. Max session
+ * duration is sensitive to user input, while roles and traits are not. As such, the
+ * check may return a false positive in some situations. For example, if the user changed
+ * the previous value of max_session_ttl from "12h" to "43200s" (which are equivalent),
+ * the check will see that as a change that is not present in the updated bot object.
+ *
+ * @param prev the bot before the update
+ * @param request the update/edit request data
+ * @param next the bot after the update
+ * @returns boolean indicating whether the update was valid
+ */
 export function validateBotUpdate(
   prev: FlatBot | null | undefined,
   request: EditBotRequest,
