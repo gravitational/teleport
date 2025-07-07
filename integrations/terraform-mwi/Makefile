@@ -76,4 +76,4 @@ PROVIDER_PATH = ~/.terraform.d/plugins/terraform.releases.teleport.dev/gravitati
 .PHONY: install
 install: build
 	mkdir -p $(PROVIDER_PATH)
-	mv $(BUILDDIR)/terraform-provider-teleport-mwi $(PROVIDER_PATH)
+	mv $(BUILDDIR)/terraform-provider-teleportmwi $(PROVIDER_PATH)
