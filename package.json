@@ -32,8 +32,7 @@
   "private": true,
   "pnpm": {
     "overrides": {
-      "@bundled-es-modules/cookie>cookie": "0.7.1",
-      "jsdom@^20.0.3>nwsapi@^2": "2.2.9"
+      "@bundled-es-modules/cookie>cookie": "0.7.1"
     }
   },
   "devDependencies": {
