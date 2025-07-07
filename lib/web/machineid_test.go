@@ -346,7 +346,7 @@ func TestEditBotRoles(t *testing.T) {
 		Traits: []*machineidv1.Trait{
 			{
 				Name:   "test-trait-1",
-				Values: []string{"value-1", "value-2", "value-3"},
+				Values: []string{"value-1"},
 			},
 		},
 	})
@@ -365,7 +365,7 @@ func TestEditBotRoles(t *testing.T) {
 	assert.Equal(t, []*machineidv1.Trait{
 		{
 			Name:   "test-trait-1",
-			Values: []string{"value-1", "value-2", "value-3"},
+			Values: []string{"value-1"},
 		},
 	}, bot.GetSpec().Traits)
 	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
@@ -479,7 +479,7 @@ func TestEditBotMaxSessionTtl(t *testing.T) {
 	assert.Equal(t, []*machineidv1.Trait{
 		{
 			Name:   "test-trait-1",
-			Values: []string{"value-1", "value-2", "value-3"},
+			Values: []string{"value-1"},
 		},
 	}, updatedBot.GetSpec().Traits)
 	assert.Equal(t, int64((1*time.Hour+2*time.Minute+3*time.Second)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
