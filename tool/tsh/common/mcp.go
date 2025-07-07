@@ -155,6 +155,7 @@ func getLoggingOptsForMCPServer(cf *CLIConf) loggingOpts {
 // mcpConfigHint is the hint message displayed when the configuration is shown
 // to users.
 const mcpConfigHint = `Tip: You can use this command to update your MCP servers configuration file automatically.
-- For Claude Desktop, use --client-config=claude to update the default configuration, or specify the file path using --client-config=<path>.
-- For Cursor, use --client-config=cursor to update the global MCP servers configuration, or update a project using --client-config=<path-to-project>/.cursor/mcp.json
-In addition, --client-config=<path> can be used to update any config file compatible with the "mcpServers" mapping.`
+- For Claude Desktop, use --client-config=claude to update the default configuration.
+- For Cursor, use --client-config=cursor to update the global MCP servers configuration.
+In addition, you can use --client-config=<path> to specify a config file location that is compatible with the "mcpServers" mapping.
+For example, you can update a Cursor project using --client-config=<path-to-project>/.cursor/mcp.json`

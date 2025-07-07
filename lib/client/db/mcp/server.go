@@ -61,6 +61,10 @@ func NewRootServer(logger *slog.Logger) *RootServer {
 }
 
 // ListDatabases tool function used to list all available/served databases.
+//
+// Note: Given some MCP clients not fully support resources of any kind (including
+// embedded and references), we must return the databases as plain text result so
+// the tool keeps working on those clients.
 func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
