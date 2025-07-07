@@ -3418,11 +3418,14 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 type SearchAsRolesOption func(role types.Role) bool
 
 // GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string {
+// Result combines both statically defined role names and dynamically generated role
+// names based on user traits.
+func (set RoleSet) GetAllowedSearchAsRoles(traits map[string][]string, allowFilters ...SearchAsRolesOption) []string {
 	denied := make(map[string]struct{})
 	var allowed []string
 	for _, role := range set {
-		for _, d := range role.GetSearchAsRoles(types.Deny) {
+		outDeny := applyValueTraitsSlice(role.GetSearchAsRoles(types.Deny), traits, "search as roles")
+		for _, d := range outDeny {
 			denied[d] = struct{}{}
 		}
 	}
@@ -3433,7 +3436,8 @@ func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) 
 			// Don't consider this base role if it's filtered out.
 			continue
 		}
-		for _, a := range role.GetSearchAsRoles(types.Allow) {
+		outAllowed := applyValueTraitsSlice(role.GetSearchAsRoles(types.Allow), traits, "search as roles")
+		for _, a := range outAllowed {
 			if _, isDenied := denied[a]; isDenied {
 				continue
 			}
@@ -3445,7 +3449,9 @@ func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) 
 
 // GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
 // that allowed requesting to the requested Kubernetes resource kind.
-func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string {
+// Result combines both statically defined role names and dynamically generated role
+// names based on user traits.
+func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string, traits map[string][]string) []string {
 	// Return no results if encountering any denies since its globally matched.
 	for _, role := range set {
 		for _, kr := range role.GetAccessRequestConditions(types.Deny).KubernetesResources {
@@ -3454,7 +3460,7 @@ func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResou
 			}
 		}
 	}
-	return set.GetAllowedSearchAsRoles(WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
+	return set.GetAllowedSearchAsRoles(traits, WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
 }
 
 // WithAllowedKubernetesResourceKindFilter returns a SearchAsRolesOption func

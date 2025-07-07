@@ -197,10 +197,14 @@ type AccessChecker interface {
 	CertificateExtensions() []*types.CertExtension
 
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
+	// Result combines both statically defined role names and dynamically generated role
+	// names based on user traits.
 	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
 
 	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
 	// that allowed requesting to the requested Kubernetes resource kind.
+	// Result combines both statically defined role names and dynamically generated role
+	// names based on user traits.
 	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
@@ -1290,6 +1294,21 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 	}
 
 	return sudoers, nil
+}
+
+// GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
+// Result combines both statically defined role names and dynamically generated role
+// names based on user traits.
+func (a *accessChecker) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string {
+	return a.RoleSet.GetAllowedSearchAsRoles(a.AccessInfo().Traits, allowFilters...)
+}
+
+// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+// that allowed requesting to the requested Kubernetes resource kind.
+// Result combines both statically defined role names and dynamically generated role
+// names based on user traits.
+func (a *accessChecker) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string {
+	return a.RoleSet.GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind, a.AccessInfo().Traits)
 }
 
 // AccessInfoFromLocalSSHIdentity returns a new AccessInfo populated from the
