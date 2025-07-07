@@ -362,12 +362,12 @@ func TestEditBotRoles(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
 	assert.Equal(t, botName, bot.GetMetadata().GetName())
 	assert.Equal(t, []string{"new-new-role"}, bot.GetSpec().GetRoles())
-	assert.Equal(t, []*machineidv1.Trait{
+	require.Empty(t, cmp.Diff(bot.GetSpec().Traits, []*machineidv1.Trait{
 		{
 			Name:   "test-trait-1",
 			Values: []string{"value-1", "value-2", "value-3"},
 		},
-	}, bot.GetSpec().Traits)
+	}, protocmp.Transform()))
 	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
 }
 
@@ -418,7 +418,7 @@ func TestEditBotTraits(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
 	assert.Equal(t, botName, bot.GetMetadata().GetName())
 	assert.Equal(t, []string{"test-role"}, bot.GetSpec().GetRoles())
-	assert.Equal(t, []*machineidv1.Trait{
+	require.Empty(t, cmp.Diff(bot.GetSpec().Traits, []*machineidv1.Trait{
 		{
 			Name:   "test-trait-1",
 			Values: []string{"value-1", "value-2", "value-3"},
@@ -427,7 +427,7 @@ func TestEditBotTraits(t *testing.T) {
 			Name:   "test-trait-2",
 			Values: []string{"value-1"},
 		},
-	}, bot.GetSpec().Traits)
+	}, protocmp.Transform()))
 	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
 }
 
@@ -476,12 +476,12 @@ func TestEditBotMaxSessionTtl(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
 	assert.Equal(t, botName, updatedBot.GetMetadata().GetName())
 	assert.Equal(t, []string{"test-role"}, updatedBot.GetSpec().GetRoles())
-	assert.Equal(t, []*machineidv1.Trait{
+	require.Empty(t, cmp.Diff(updatedBot.GetSpec().Traits, []*machineidv1.Trait{
 		{
 			Name:   "test-trait-1",
 			Values: []string{"value-1"},
 		},
-	}, updatedBot.GetSpec().Traits)
+	}, protocmp.Transform()))
 	assert.Equal(t, int64((1*time.Hour+2*time.Minute+3*time.Second)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
 }
 
