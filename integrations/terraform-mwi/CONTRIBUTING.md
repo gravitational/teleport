@@ -8,7 +8,7 @@ Configure `dev_overrides` in `~/.terraformrc`, e.g:
 provider_installation {
 
   dev_overrides {
-      "terraform.releases.teleport.dev/gravitational/teleport-mwi" = "/Users/noah/code/teleport/integrations/terraform-mwi/build"
+      "terraform.releases.teleport.dev/gravitational/teleportmwi" = "/Users/noah/code/teleport/integrations/terraform-mwi/build"
   }
 
   # For all other providers, install them directly from their origin provider

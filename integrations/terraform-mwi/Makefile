@@ -2,7 +2,7 @@ VERSION ?= $(shell go run ../hack/get-version/get-version.go)
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
-RELEASE = terraform-provider-teleport-mwi-v$(VERSION)-$(OS)-$(ARCH)-bin
+RELEASE = terraform-provider-teleportmwi-v$(VERSION)-$(OS)-$(ARCH)-bin
 
 BUILDDIR ?= build
 
@@ -20,25 +20,25 @@ clean:
 .PHONY: build
 build: clean
 # Turning off GOWORK to prevent missing package errors.
-	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/terraform-provider-teleport-mwi $(BUILDFLAGS)
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/terraform-provider-teleportmwi $(BUILDFLAGS)
 
-build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport-mwi_,arm64 amd64)
-	lipo -create -output $(BUILDDIR)/terraform-provider-teleport-mwi $^
+build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleportmwi_,arm64 amd64)
+	lipo -create -output $(BUILDDIR)/terraform-provider-teleportmwi $^
 	rm -r $^ $(BUILDDIR)/$(OS)
 
 # Architecture-specific binaries for the universal binary are extracted from
 # the release tarball. make will not automatically build this; you will need
 # to run "make ARCH=amd64 release" and "make ARCH=arm64 release" first as is
 # done in the build workflow.
-$(BUILDDIR)/terraform-provider-teleport-mwi_%: terraform-provider-teleport-mwi-v$(VERSION)-$(OS)-%-bin.tar.gz
+$(BUILDDIR)/terraform-provider-teleportmwi_%: terraform-provider-teleportmwi-v$(VERSION)-$(OS)-%-bin.tar.gz
 	mkdir -p $(BUILDDIR)/$(OS)/$*
 	tar -xzf $< -C $(BUILDDIR)/$(OS)/$*
-	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport-mwi $@
+	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleportmwi $@
 
 # darwin-signed-build is a wrapper around the build target that ensures it is codesigned
 include ../../darwin-signing.mk
 .PHONY: darwin-signed-build
-darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport-mwi
+darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleportmwi
 ifeq ($(OS)-$(ARCH),darwin-universal)
 darwin-signed-build: build-darwin-universal
 else
