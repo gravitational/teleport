@@ -3071,7 +3071,7 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 			}
 
 			_, _, err = p.a.GenerateUserTestCerts(certReq)
-			require.NoError(t, err)
+			tt.assertErr(t, err)
 		})
 	}
 }
