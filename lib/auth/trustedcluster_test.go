@@ -124,9 +124,6 @@ func TestRemoteClusterStatus(t *testing.T) {
 func TestRefreshRemoteClusters(t *testing.T) {
 	ctx := context.Background()
 
-	auth.RemoteClusterRefreshLimit = 10
-	auth.RemoteClusterRefreshBuckets = 5
-
 	tests := []struct {
 		name               string
 		clustersTotal      int
@@ -164,6 +161,8 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			require.LessOrEqual(t, tt.clustersNeedUpdate, tt.clustersTotal)
 
 			a := newTestAuthServer(ctx, t)
+			a.SetRemoteClusterRefreshLimit(10)
+			a.RemoteClusterRefreshBuckets(5)
 
 			allClusters := make(map[string]types.RemoteCluster)
 			for i := range tt.clustersTotal {
