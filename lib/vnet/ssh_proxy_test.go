@@ -30,7 +30,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 // TestProxySSHConnection exercises [proxySSHConnection] to test that it
@@ -56,7 +56,7 @@ func TestProxySSHConnection(t *testing.T) {
 
 	proxyClientConfig := sshClientConfig(t)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "target server",
 		Task: func(ctx context.Context) error {
 			return runTestSSHServer(serverListener, targetServerConfig)
@@ -65,7 +65,7 @@ func TestProxySSHConnection(t *testing.T) {
 			return trace.Wrap(serverListener.Close())
 		},
 	})
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "proxy server",
 		Task: func(ctx context.Context) error {
 			return runTestSSHProxy(ctx,

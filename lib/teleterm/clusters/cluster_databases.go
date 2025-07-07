@@ -45,7 +45,7 @@ type Database struct {
 	URI uri.ResourceURI
 	types.Database
 	// TargetHealth describes the health status of network connectivity
-	// of the db_server that is serving this database.
+	// reported from an agent (db_service) that is proxying this database.
 	TargetHealth types.TargetHealth
 }
 

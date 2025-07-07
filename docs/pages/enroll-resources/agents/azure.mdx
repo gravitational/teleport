@@ -14,6 +14,13 @@ behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 For other methods of joining a Teleport process to a cluster, see [Joining
 Teleport Services to a Cluster](agents.mdx).
 
+## How it works
+
+Under the hood, Teleport processes prove that they are running in your Azure
+subscription by sending a signed attested data document and access token to the
+Teleport Auth Service. The VM's identity must match an allow rule configured in
+your Azure joining token.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -34,11 +41,6 @@ look up the virtual machine. No other permissions are required.
 (!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
 
 ## Step 2/5. Create the Azure joining token
-
-Under the hood, Teleport processes will prove that they are running in your
-Azure subscription by sending a signed attested data document and access token
-to the Teleport Auth Service. The VM's identity must match an allow rule
-configured in your Azure joining token.
 
 Create the following `token.yaml` with an `allow` rule specifying your Azure
 subscription and the resource group that your VM's identity must match.

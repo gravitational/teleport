@@ -661,6 +661,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 			}
 			if tt.wantDeny == nil {
 				got := r.GetKubeResources(Allow)
+				tt.wantAllow = append(tt.wantAllow, KubernetesResourceSelfSubjectAccessReview)
 				require.Equal(t, tt.wantAllow, got)
 			}
 			got := r.GetKubeResources(Deny)

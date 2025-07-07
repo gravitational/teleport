@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { BrowserFileSystem, TdpClient, TdpClientEvent } from 'shared/libs/tdp';
+import {
+  selectDirectoryInBrowser,
+  TdpClient,
+  TdpClientEvent,
+} from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
@@ -57,7 +61,7 @@ export class PlayerClient extends TdpClient {
     super(
       signal =>
         adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
-      new BrowserFileSystem()
+      selectDirectoryInBrowser
     );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
@@ -208,7 +212,7 @@ export class PlayerClient extends TdpClient {
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+  sendRdpResponsePdu(responseFrame: ArrayBuffer) {
     return;
   }
 

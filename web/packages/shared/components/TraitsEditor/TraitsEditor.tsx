@@ -25,6 +25,7 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { AllUserTraits } from 'teleport/services/user';
 
 /**

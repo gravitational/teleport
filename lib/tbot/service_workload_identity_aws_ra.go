@@ -32,8 +32,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"gopkg.in/ini.v1"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -44,7 +44,7 @@ import (
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient     *authclient.Client
+	botAuthClient     *apiclient.Client
 	botCfg            *config.BotConfig
 	cfg               *config.WorkloadIdentityAWSRAService
 	getBotIdentity    getBotIdentityFn

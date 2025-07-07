@@ -40,6 +40,7 @@ func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind
 
 	return &collection[types.Server, gitServerIndex]{
 		store: newStore(
+			types.KindGitServer,
 			types.Server.DeepCopy,
 			map[gitServerIndex]func(types.Server) string{
 				gitServerNameIndex: types.Server.GetName,

@@ -35,6 +35,7 @@ func newWebTokenCollection(upstream types.WebTokenInterface, w types.WatchKind) 
 
 	return &collection[types.WebToken, webTokenIndex]{
 		store: newStore(
+			types.KindWebToken,
 			types.WebToken.Clone,
 			map[webTokenIndex]func(types.WebToken) string{
 				webTokenNameIndex: types.WebToken.GetName,

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -203,7 +204,7 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	var watchersToDelete []*BufferWatcher
 	c.watchers.walkPath(r.Item.Key.String(), func(watcher *BufferWatcher) {
 		if watcher.MetricComponent != "" {
-			watcherQueues.WithLabelValues(watcher.MetricComponent).Set(float64(len(watcher.eventsC)))
+			backendmetrics.WatcherQueues.WithLabelValues(watcher.MetricComponent).Set(float64(len(watcher.eventsC)))
 		}
 		if !watcher.emit(r) {
 			watchersToDelete = append(watchersToDelete, watcher)
