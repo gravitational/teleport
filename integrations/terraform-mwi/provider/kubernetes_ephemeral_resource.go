@@ -19,7 +19,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,9 +28,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
@@ -185,25 +183,22 @@ func (r *KubernetesEphemeralResource) Open(
 		return
 	}
 
-	dest := &destination.Memory{}
-	if err := dest.CheckAndSetDefaults(); err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting up memory destination",
-			"Failed to set up memory destination: "+err.Error(),
-		)
-		return
-	}
+	dest := destination.NewMemory()
+
 	botCfg := r.pd.newBotConfig()
-	botCfg.Services = config.ServiceConfigs{
-		&k8s.OutputV2Config{
-			Destination: dest,
-			Selectors: []*k8s.KubernetesSelector{
-				{
-					Name: data.Selector.Name.ValueString(),
+	botCfg.Services = []bot.ServiceBuilder{
+		k8s.OutputV2ServiceBuilder(
+			&k8s.OutputV2Config{
+				Destination: dest,
+				Selectors: []*k8s.KubernetesSelector{
+					{
+						Name: data.Selector.Name.ValueString(),
+					},
 				},
+				DisableExecPlugin: true,
 			},
-			DisableExecPlugin: true,
-		},
+			bot.DefaultCredentialLifetime,
+		),
 	}
 	if err := botCfg.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.AddError(
@@ -212,8 +207,16 @@ func (r *KubernetesEphemeralResource) Open(
 		)
 		return
 	}
-	bot := tbot.New(botCfg, slog.Default())
-	if err := bot.Run(ctx); err != nil {
+
+	bot, err := bot.New(botCfg)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating tbot in ephemeral resource",
+			"Failed to create tbot\n"+trace.DebugReport(err),
+		)
+		return
+	}
+	if err := bot.OneShot(ctx); err != nil {
 		resp.Diagnostics.AddError(
 			"Error running tbot in ephemeral resource",
 			"Failed to run tbot\n"+trace.DebugReport(err),

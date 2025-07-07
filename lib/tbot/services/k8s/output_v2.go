@@ -52,7 +52,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-func OuputV2ServiceBuilder(cfg *OutputV2Config, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
+func OutputV2ServiceBuilder(cfg *OutputV2Config, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
 		svc := &KubernetesV2OutputService{
 			botAuthClient:             deps.Client,
