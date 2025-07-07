@@ -2585,7 +2585,7 @@ type GenerateUserTestCertsRequest struct {
 	Generation              uint64
 	ActiveRequests          []string
 	KubernetesCluster       string
-	Usage []string
+	Usage                   []string
 }
 
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
@@ -2629,7 +2629,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		renewable:                        req.Renewable,
 		activeRequests:                   req.ActiveRequests,
 		kubernetesCluster:                req.KubernetesCluster,
-		usage: req.Usage,
+		usage:                            req.Usage,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
