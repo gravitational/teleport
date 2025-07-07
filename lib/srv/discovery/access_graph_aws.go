@@ -1025,7 +1025,7 @@ func (s *Server) processSingleMessage(
 		// because the SQS message will be requeued after.
 		payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
 		if err != nil {
-			s.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(msg.MessageId))
+			s.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "message_id", aws.ToString(msg.MessageId))
 			return trace.Wrap(err)
 		}
 
