@@ -134,7 +134,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
-	sshCert, x509Cert, err := a.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, x509Cert, err := a.GenerateUserTestCertsWithContext(context.Background(), auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      sshPub,
 		TLSPubKey:      tlsPub,
 		Username:       req.Username,
