@@ -878,6 +878,10 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			return trace.Wrap(err)
 		}
 
+		if !accessList.IsReviewable() {
+			return trace.BadParameter("access_list %q is not reviewable", accessList.GetName())
+		}
+
 		if createdReview.Spec.Changes.MembershipRequirementsChanged != nil {
 			if accessListRequiresEqual(*createdReview.Spec.Changes.MembershipRequirementsChanged, accessList.Spec.MembershipRequires) {
 				createdReview.Spec.Changes.MembershipRequirementsChanged = nil
