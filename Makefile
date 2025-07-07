@@ -1900,3 +1900,9 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: gen-docs
+gen-docs:
+	$(MAKE) -C integrations/terraform docs
+	$(MAKE) -C integrations/operator crd-docs
+	$(MAKE) -C examples/chart render-chart-ref
