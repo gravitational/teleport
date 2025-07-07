@@ -21,6 +21,7 @@ package winpki
 import (
 	"context"
 	"encoding/base32"
+	"fmt"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -92,7 +93,8 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 					return trace.Wrap(err)
 				}
 				subjectId := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
-				if err := c.updateCRL(ctx, subjectId, keyPair.CRL, caType); err != nil {
+				issuer := fmt.Sprintf("%s_%s", subjectId, c.cfg.ClusterName)
+				if err := c.updateCRL(ctx, issuer, keyPair.CRL, caType); err != nil {
 					return trace.Wrap(err)
 				}
 			}
