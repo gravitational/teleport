@@ -1169,6 +1169,20 @@ func TestRolesForResourceRequest(t *testing.T) {
 		"splunk-super-admins": {
 			// ...
 		},
+		"db-admins-with-traits": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"{{external.roles}}"},
+				},
+			},
+		},
+		"db-admins-denied-with-traits": {
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"{{external.roles}}"},
+				},
+			},
+		},
 	}
 	roles := make(map[string]types.Role)
 	for name, spec := range roleDesc {
@@ -1248,6 +1262,18 @@ func TestRolesForResourceRequest(t *testing.T) {
 			requestResourceIDs: resourceIDs,
 			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
+		{
+			desc:                 "allowed with trait template",
+			currentRoles:         []string{"db-admins-with-traits"},
+			requestResourceIDs:   resourceIDs,
+			expectRequestedRoles: []string{"db-admins"},
+		},
+		{
+			desc:                 "denied with trait template",
+			currentRoles:         []string{"splunk-response-team", "db-admins-with-traits", "db-admins-denied-with-traits"},
+			requestResourceIDs:   resourceIDs,
+			expectRequestedRoles: []string{"splunk-admins", "splunk-super-admins"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -1255,6 +1281,9 @@ func TestRolesForResourceRequest(t *testing.T) {
 				Name: "test-user",
 			}, userloginstate.Spec{
 				Roles: tc.currentRoles,
+				Traits: map[string][]string{
+					"roles": {"db-admins"},
+				},
 			})
 			require.NoError(t, err)
 			userStates := map[string]*userloginstate.UserLoginState{
