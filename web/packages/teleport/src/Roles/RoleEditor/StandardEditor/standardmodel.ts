@@ -550,6 +550,7 @@ export const roleVersionOptions = Object.values(RoleVersion)
   .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
+// TODO(@creack): Bump to V9 when ready.
 export const defaultRoleVersion = RoleVersion.V8;
 
 /**
@@ -733,7 +734,7 @@ export function roleToRoleEditorModel(
   const versionOption = getOptionOrPushError(
     version,
     roleVersionOptionsMap,
-    RoleVersion.V8,
+    defaultRoleVersion,
     'version',
     conversionErrors
   );
