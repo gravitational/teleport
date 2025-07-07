@@ -17,9 +17,19 @@
  */
 
 export function formatDuration(
-  seconds: number,
-  nanoseconds: number = 0
+  duration:
+    | {
+        seconds: number;
+        nanoseconds?: number;
+      }
+    | undefined
+    | null,
+  options?: {
+    separator?: string;
+  }
 ): string {
+  const { seconds = 0, nanoseconds = 0 } = duration ?? {};
+  const { separator = '' } = options ?? {};
   // Convert everything to nanoseconds for easier calculation
   const totalNanoseconds = seconds * 1_000_000_000 + nanoseconds;
 
@@ -72,5 +82,5 @@ export function formatDuration(
   if (components.microseconds) parts.push(`${components.microseconds}µs`);
   if (components.nanoseconds) parts.push(`${components.nanoseconds}ns`);
 
-  return parts.join('');
+  return parts.join(separator);
 }

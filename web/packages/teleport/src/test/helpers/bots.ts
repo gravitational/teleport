@@ -18,16 +18,59 @@
 
 import { http, HttpResponse } from 'msw';
 
-import { ApiBot } from 'teleport/services/bot/types';
+import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
 
-const getBotPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name';
+const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name';
 
 export const getBotSuccess = (mock: ApiBot) =>
-  http.get(getBotPath, () => {
+  http.get(botPath, () => {
     return HttpResponse.json(mock);
   });
 
-export const getBotError = (status: number, error: string = null) =>
-  http.get(getBotPath, () => {
+export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
+  http.put(botPath, async ({ request }) => {
+    const req = (await request.clone().json()) as EditBotRequest;
+    const { roles, traits, max_session_ttl } = overrides ?? {};
+
+    const maxSessionTtlSeconds =
+      (max_session_ttl ?? req.max_session_ttl) === '12h30m'
+        ? 43200 + 30 * 60
+        : 43200;
+
+    return HttpResponse.json({
+      status: 'active',
+      kind: 'bot',
+      subKind: '',
+      version: 'v1',
+      metadata: {
+        name: 'test-bot',
+        description: '',
+        labels: new Map(),
+        namespace: '',
+        revision: '',
+      },
+      spec: {
+        roles: roles ?? req.roles ?? ['admin', 'user'],
+        traits: traits ??
+          req.traits ?? [
+            {
+              name: 'trait-1',
+              values: ['value-1', 'value-2', 'value-3'],
+            },
+          ],
+        max_session_ttl: {
+          seconds: maxSessionTtlSeconds,
+        },
+      },
+    });
+  });
+
+export const getBotError = (status: number, error: string | null = null) =>
+  http.get(botPath, () => {
+    return HttpResponse.json({ error: { message: error } }, { status });
+  });
+
+export const editBotError = (status: number, error: string | null = null) =>
+  http.put(botPath, () => {
     return HttpResponse.json({ error: { message: error } }, { status });
   });

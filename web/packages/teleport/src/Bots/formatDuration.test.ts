@@ -28,6 +28,15 @@ describe('formatDuration', () => {
     ${86400} | ${'24h'}
     ${12345} | ${'3h25m45s'}
   `('formats $seconds seconds as $expected', ({ seconds, expected }) => {
-    expect(formatDuration(seconds)).toBe(expected);
+    expect(formatDuration({ seconds })).toBe(expected);
+  });
+
+  it.each`
+    seconds  | expected
+    ${0}     | ${'0s'}
+    ${1}     | ${'1s'}
+    ${12345} | ${'3h|25m|45s'}
+  `('formats $seconds seconds as $expected', ({ seconds, expected }) => {
+    expect(formatDuration({ seconds }, { separator: '|' })).toBe(expected);
   });
 });

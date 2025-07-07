@@ -16,15 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import { useHistory, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
+import { ButtonPrimary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
+import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Outline } from 'design/Label/Label';
@@ -40,10 +43,12 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
+import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
-import { useGetBot } from '../hooks';
+import { createGetBotQueryKey, useGetBot } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
 import { Panel } from './Panel';
 
@@ -51,13 +56,17 @@ const botNameLabel = 'Bot name';
 const maxSessionDurationLabel = 'Max session duration';
 
 export function BotDetails() {
+  const queryClient = useQueryClient();
   const ctx = useTeleport();
   const history = useHistory();
   const params = useParams<{
     name: string;
   }>();
+  const [isEditing, setEditing] = useState(false);
+
   const flags = ctx.getFeatureFlags();
   const hasReadPermission = flags.readBots;
+  const hasEditPermission = flags.editBots;
 
   const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
     enabled: hasReadPermission,
@@ -67,6 +76,22 @@ export function BotDetails() {
   const handleBackPress = useCallback(() => {
     history.goBack();
   }, [history]);
+
+  const handleEdit = useCallback(() => {
+    setEditing(true);
+  }, []);
+
+  const handleEditSuccess = useCallback(
+    (bot: FlatBot, hasInconsistencies: boolean) => {
+      setEditing(hasInconsistencies);
+
+      queryClient.setQueryData(
+        createGetBotQueryKey({ name: params.name }),
+        bot
+      );
+    },
+    [params.name, queryClient]
+  );
 
   return (
     <FeatureBox>
@@ -78,7 +103,13 @@ export function BotDetails() {
         </HoverTooltip>
         <Flex flex={1} gap={2} justifyContent="space-between">
           {isSuccess && data ? (
-            <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+            <>
+              <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+
+              <EditButton onClick={handleEdit} disabled={!hasEditPermission}>
+                <Pencil size="medium" /> Edit Bot
+              </EditButton>
+            </>
           ) : (
             <FeatureHeaderTitle>Bot details</FeatureHeaderTitle>
           )}
@@ -109,7 +140,15 @@ export function BotDetails() {
       {hasReadPermission && isSuccess && data ? (
         <Container>
           <ColumnContainer>
-            <Panel title="Bot Details" />
+            <Panel
+              title="Bot Details"
+              action={{
+                label: 'Edit',
+                onClick: handleEdit,
+                icon: <Pencil size={'medium'} />,
+                disabled: !hasEditPermission,
+              }}
+            />
             <Divider />
 
             <Panel title="Metadata" isSubPanel>
@@ -127,8 +166,10 @@ export function BotDetails() {
                   <tr>
                     <th scope="row">{maxSessionDurationLabel}</th>
                     <td>
-                      {data.max_session_ttl?.seconds
-                        ? formatDuration(data.max_session_ttl.seconds)
+                      {data.max_session_ttl
+                        ? formatDuration(data.max_session_ttl, {
+                            separator: ' ',
+                          })
                         : '-'}
                     </td>
                   </tr>
@@ -182,6 +223,14 @@ export function BotDetails() {
           <ColumnContainer>
             <Panel title="Active Instances">Coming soon</Panel>
           </ColumnContainer>
+
+          {isEditing ? (
+            <EditDialog
+              botName={data.name}
+              onCancel={() => setEditing(false)}
+              onSuccess={handleEditSuccess}
+            />
+          ) : undefined}
         </Container>
       ) : undefined}
     </FeatureBox>
@@ -219,6 +268,13 @@ const TransposedTable = styled.table`
 
 const MonoText = styled(Text)`
   font-family: ${({ theme }) => theme.fonts.mono};
+`;
+
+const EditButton = styled(ButtonPrimary)`
+  padding: 0;
+  padding-left: ${props => props.theme.space[2]}px;
+  padding-right: ${props => props.theme.space[2]}px;
+  gap: ${props => props.theme.space[2]}px;
 `;
 
 const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {

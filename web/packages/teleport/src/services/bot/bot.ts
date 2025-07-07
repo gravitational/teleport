@@ -85,12 +85,9 @@ export function createBotToken(
   );
 }
 
-export function fetchBots(
-  signal: AbortSignal,
-  flags: FeatureFlags
-): Promise<BotList> {
+export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {
   if (!flags.listBots) {
-    return;
+    throw new Error('cannot fetch bots: bots:list permission required');
   }
 
   return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
@@ -100,24 +97,30 @@ export function fetchBots(
 }
 
 export async function fetchRoles(
-  search: string,
-  flags: FeatureFlags
+  variables: { search: string; flags: FeatureFlags },
+  signal?: AbortSignal
 ): Promise<{ startKey: string; items: RoleResource[] }> {
-  if (!flags.roles) {
+  if (!variables.flags.roles) {
     return { startKey: '', items: [] };
   }
 
   const resourceSvc = new ResourceService();
-  return resourceSvc.fetchRoles({ limit: 50, search });
+  return resourceSvc.fetchRoles(
+    { limit: 50, search: variables.search },
+    signal
+  );
 }
 
-export function editBot(
+export async function editBot(
   flags: FeatureFlags,
   name: string,
   req: EditBotRequest
-): Promise<FlatBot> {
-  if (!flags.editBots || !flags.roles) {
-    return;
+) {
+  if (!flags.editBots) {
+    throw new Error('cannot edit bot: bots:edit permission required');
+  }
+  if (!flags.roles) {
+    throw new Error('cannot edit bot: roles:list permission required');
   }
 
   return api.put(cfg.getBotUrlWithName(name), req).then(res => {
@@ -127,7 +130,7 @@ export function editBot(
 
 export function deleteBot(flags: FeatureFlags, name: string) {
   if (!flags.removeBots) {
-    return;
+    throw new Error('cannot delete bot: bots:remove permission required');
   }
 
   return api.delete(cfg.getBotUrlWithName(name));
