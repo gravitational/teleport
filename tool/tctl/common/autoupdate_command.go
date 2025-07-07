@@ -22,7 +22,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +58,7 @@ type AutoUpdateCommand struct {
 	toolsDisableCmd      *kingpin.CmdClause
 	toolsStatusCmd       *kingpin.CmdClause
 	agentsStatusCmd      *kingpin.CmdClause
+	agentsReportCmd      *kingpin.CmdClause
 	agentsStartUpdateCmd *kingpin.CmdClause
 	agentsMarkDoneCmd    *kingpin.CmdClause
 	agentsRollbackCmd    *kingpin.CmdClause
@@ -65,6 +69,9 @@ type AutoUpdateCommand struct {
 	groups             []string
 
 	clear bool
+
+	// used for testing purposes
+	now func() time.Time
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -91,6 +98,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 	agentsCmd := autoUpdateCmd.Command("agents", "Manage agents auto update configuration.")
 	c.agentsStatusCmd = agentsCmd.Command("status", "Prints agents auto update status.")
+	c.agentsReportCmd = agentsCmd.Command("report", "Aggregates the agent autoupdate reports and displays agent count per version and per update group.")
 	c.agentsStartUpdateCmd = agentsCmd.Command("start-update", "Starts updating one or many groups.")
 	c.agentsStartUpdateCmd.Arg("groups", "Groups to start updating.").StringsVar(&c.groups)
 	c.agentsMarkDoneCmd = agentsCmd.Command("mark-done", "Marks one or many groups as done updating.")
@@ -100,6 +108,10 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
+	}
+
+	if c.now == nil {
+		c.now = time.Now
 	}
 }
 
@@ -120,6 +132,8 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 		return true, trace.Wrap(err)
 	case cmd == c.agentsStatusCmd.FullCommand():
 		commandFunc = c.agentsStatusCommand
+	case cmd == c.agentsReportCmd.FullCommand():
+		commandFunc = c.agentsReportCommand
 	case cmd == c.agentsStartUpdateCmd.FullCommand():
 		commandFunc = c.agentsStartUpdateCommand
 	case cmd == c.agentsMarkDoneCmd.FullCommand():
@@ -201,6 +215,7 @@ type autoupdateClient interface {
 	TriggerAutoUpdateAgentGroup(ctx context.Context, groups []string, state autoupdatev1pb.AutoUpdateAgentGroupState) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
 	ForceAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
 	RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string, allStartedGroups bool) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1pb.AutoUpdateAgentReport, string, error)
 }
 
 func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client autoupdateClient) error {
@@ -242,18 +257,174 @@ func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client auto
 	return nil
 }
 
+func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client autoupdateClient) error {
+	now := c.now()
+	reports, err := getAllReports(ctx, client)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err, "listing reports")
+		}
+
+		fmt.Fprintln(c.stdout, "No autoupdate_agent_report found.")
+		if c.ccf != nil && len(c.ccf.AuthServerAddr) > 0 && !strings.HasSuffix(c.ccf.AuthServerAddr[0], ".teleport.sh") {
+			fmt.Fprintln(c.stdout, "Managed Updates agent reports require enabling Managed Updates v2 by creating the autoupdate_version resource.")
+			fmt.Fprintln(c.stdout, "See: https://goteleport.com/docs/upgrading/agent-managed-updates/#configuring-managed-agent-updates")
+		}
+		return trace.Wrap(err)
+	}
+
+	if len(reports) == 0 {
+		return trace.BadParameter("no reports returned, but the server did not return a NotFoundError, this ia a bug")
+	}
+
+	validReports := filterValidReports(reports, now)
+
+	if len(validReports) == 0 {
+		fmt.Fprintf(c.stdout, "Read %d reports, but they are expired. If you just (re)deployed the Auth service, you might want to retry after 60 seconds.\n", len(reports))
+		return trace.CompareFailed("reports expired")
+	}
+
+	fmt.Fprintf(c.stdout, "%d autoupdate agent reports aggregated\n\n", len(validReports))
+
+	groupSet := make(map[string]struct{})
+	versionsSet := make(map[string]struct{})
+	for _, report := range validReports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	if len(groupNames) == 0 || len(versionNames) == 0 {
+		fmt.Fprintln(c.stdout, "Reports contain no agents.")
+	} else {
+		t := asciitable.MakeTable(append([]string{"Agent Version"}, groupNames...))
+		for _, versionName := range versionNames {
+			row := make([]string, len(groupNames)+1)
+			row[0] = versionName
+			for j, groupName := range groupNames {
+				var count int
+				for _, report := range validReports {
+					count += int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount())
+				}
+				row[j+1] = strconv.Itoa(count)
+			}
+			t.AddRow(row)
+		}
+
+		_, err = t.AsBuffer().WriteTo(c.stdout)
+	}
+
+	fmt.Fprint(c.stdout, c.omittedSummary(validReports))
+
+	return trace.Wrap(err)
+}
+
+func filterValidReports(reports []*autoupdatev1pb.AutoUpdateAgentReport, now time.Time) []*autoupdatev1pb.AutoUpdateAgentReport {
+	var validReports []*autoupdatev1pb.AutoUpdateAgentReport
+	for _, report := range reports {
+		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= time.Minute {
+			validReports = append(validReports, report)
+		}
+	}
+	return validReports
+}
+
+func (c *AutoUpdateCommand) omittedSummary(reports []*autoupdatev1pb.AutoUpdateAgentReport) string {
+	aggregated := make(map[string]int)
+	var totalOmitted int
+	for _, report := range reports {
+		for _, omitted := range report.GetSpec().GetOmitted() {
+			totalOmitted += int(omitted.GetCount())
+			aggregated[omitted.GetReason()] += int(omitted.GetCount())
+		}
+	}
+
+	if totalOmitted == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteRune('\n')
+	sb.WriteString(fmt.Sprintf("%d agents were omitted from the reports:\n", totalOmitted))
+	// We sort reasons alphabetically as this ensures the output is consistent
+	// And makes snapshot testing easier.
+	for _, reason := range slices.Sorted(maps.Keys(aggregated)) {
+		sb.WriteString(fmt.Sprintf("- %d omitted because: %s\n", aggregated[reason], reason))
+	}
+	return sb.String()
+}
+
+func getAllReports(ctx context.Context, client autoupdateClient) ([]*autoupdatev1pb.AutoUpdateAgentReport, error) {
+	const pageSize = 50
+	var pageToken string
+	var reports []*autoupdatev1pb.AutoUpdateAgentReport
+	for {
+		page, nextToken, err := client.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, page...)
+		if nextToken == "" {
+			return reports, nil
+		}
+		pageToken = nextToken
+	}
+}
+
+func rolloutHasAgentCounters(rollout *autoupdatev1pb.AutoUpdateAgentRollout) bool {
+	for _, group := range rollout.GetStatus().GetGroups() {
+		if group.PresentCount != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io.Writer) {
-	if groups := rollout.GetStatus().GetGroups(); len(groups) > 0 {
+	groups := rollout.GetStatus().GetGroups()
+	switch {
+	case len(groups) != 0 && rolloutHasAgentCounters(rollout):
+		headers := []string{"Group Name", "State", "Start Time", "State Reason", "Agent Count", "Up-to-date"}
+		table := asciitable.MakeTable(headers)
+		for i, group := range groups {
+			groupName := group.GetName()
+			groupCount := group.PresentCount
+			groupUpToDate := group.UpToDateCount
+			if i == len(groups)-1 {
+				groupName = groupName + " (catch-all)"
+			}
+			table.AddRow([]string{
+				groupName,
+				userFriendlyState(group.GetState()),
+				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
+				group.GetLastUpdateReason(),
+				strconv.FormatUint(groupCount, 10),
+				strconv.FormatUint(groupUpToDate, 10),
+			})
+		}
+		writer.Write(table.AsBuffer().Bytes())
+
+	case len(groups) != 0:
 		headers := []string{"Group Name", "State", "Start Time", "State Reason"}
 		table := asciitable.MakeTable(headers)
 		for _, group := range groups {
+			groupName := group.GetName()
 			table.AddRow([]string{
-				group.GetName(),
+				groupName,
 				userFriendlyState(group.GetState()),
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason()})
 		}
 		writer.Write(table.AsBuffer().Bytes())
+	default:
 	}
 }
 
