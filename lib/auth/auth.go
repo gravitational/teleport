@@ -2585,6 +2585,7 @@ type GenerateUserTestCertsRequest struct {
 	Generation              uint64
 	ActiveRequests          []string
 	KubernetesCluster       string
+	Usage []string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2625,6 +2626,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		renewable:                        req.Renewable,
 		activeRequests:                   req.ActiveRequests,
 		kubernetesCluster:                req.KubernetesCluster,
+		usage: req.Usage,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
