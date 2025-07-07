@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package clickhouse
+package protocoltest
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"github.com/ClickHouse/ch-go"
 	chproto "github.com/ClickHouse/ch-go/proto"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/gravitational/trace"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // TestServerOption allows setting test server options.
@@ -115,17 +117,52 @@ func (s *TestServer) Serve() error {
 	}
 }
 
-func encodeVersion() ([]byte, error) {
+func encodeHello() ([]byte, error) {
 	var block proto.Block
-	if err := block.AddColumn("versions()", "String"); err != nil {
+
+	type columnWithValue struct {
+		name       string
+		columnType column.Type
+		value      any
+	}
+	columns := []columnWithValue{
+		{
+			name:       "displayName()",
+			columnType: "String",
+			value:      "ClickHouse",
+		},
+		{
+			name:       "version()",
+			columnType: "String",
+			// x509 HTTP auth is support from ClickHouse 22.4.x.x
+			// Report a random version to a ClickHouse HTTP client.
+			value: "23.4.2.11",
+		},
+		{
+			name:       "revision()",
+			columnType: "UInt32",
+			value:      uint32(12345),
+		},
+		{
+			name:       "timezone()",
+			columnType: "String",
+			value:      "UTC",
+		},
+	}
+
+	for _, c := range columns {
+		if err := block.AddColumn(c.name, c.columnType); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	values := sliceutils.Map(columns, func(c columnWithValue) any {
+		return c.value
+	})
+	if err := block.Append(values...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// x509 HTTP auth is support from ClickHouse 22.4.x.x
-	// Report random version to a ClickHouse HTTP client.
-	if err := block.Append("23.4.2.11"); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	var chb chproto.Buffer
 	if err := block.Encode(&chb, 0); err != nil {
 		return nil, trace.Wrap(err)
@@ -150,33 +187,19 @@ func encodePing() ([]byte, error) {
 
 }
 
-func encodeTimezone() ([]byte, error) {
-	block := proto.Block{}
-	if err := block.AddColumn("timezone()", "String"); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := block.Append("UTC"); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var chb chproto.Buffer
-	if err := block.Encode(&chb, 0); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return chb.Buf, nil
-
-}
+const (
+	// HelloQuery is the "hello" query sent by the HTTP client to select a few
+	// common metadata.
+	// https://github.com/ClickHouse/clickhouse-go/blob/10732d7bb20224020e7099e9675f4c47ae5f5e7f/conn_http.go#L321-L324
+	HelloQuery = "SELECT displayName(), version(), revision(), timezone()"
+	// PingQuery is the basic query to ping.
+	PingQuery = "SELECT 1"
+)
 
 func (s *TestServer) serveHTTP() error {
-	const (
-		timeZoneQuery = "SELECT timezone()"
-		versionQuery  = "SELECT version()"
-		pingQuery     = "SELECT 1"
-	)
-
 	encHandler := map[string]func() ([]byte, error){
-		timeZoneQuery: encodeTimezone,
-		versionQuery:  encodeVersion,
-		pingQuery:     encodePing,
+		HelloQuery: encodeHello,
+		PingQuery:  encodePing,
 	}
 
 	mux := http.NewServeMux()
