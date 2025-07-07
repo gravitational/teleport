@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -29,6 +30,48 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
+
+func TestValidateAccessListMemberRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	accessList := newAccessList(t, "test_access_list_1", clock)
+	getter := &mockAccessListAndMembersGetter{
+		accessLists: map[string]*accesslist.AccessList{
+			accessList.GetName(): accessList,
+		},
+	}
+
+	newAccessListMember := func() *accesslist.AccessListMember {
+		return newAccessListMember(t, accessList.GetName(), "test_member_1", accesslist.MembershipKindUser, clock)
+	}
+
+	t.Run("verify valid without modifications", func(t *testing.T) {
+		member := newAccessListMember()
+		err := ValidateAccessListMember(ctx, nil, member, getter)
+		require.NoError(t, err)
+	})
+
+	t.Run("error when no joined", func(t *testing.T) {
+		member := newAccessListMember()
+		member.Spec.Joined = time.Time{}
+		err := ValidateAccessListMember(ctx, nil, member, getter)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "joined field empty")
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("error when no added_by", func(t *testing.T) {
+		member := newAccessListMember()
+		member.Spec.AddedBy = ""
+		err := ValidateAccessListMember(ctx, nil, member, getter)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "added_by field empty")
+		require.True(t, trace.IsBadParameter(err))
+	})
+}
 
 func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	clock := clockwork.NewFakeClock()

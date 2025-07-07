@@ -56,6 +56,14 @@ func ValidateAccessListMember(
 	if err := member.Validate(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if member.Spec.Joined.IsZero() || member.Spec.Joined.Unix() == 0 {
+		return trace.BadParameter("member %s: joined field empty", member.Spec.Name)
+	}
+	if member.Spec.AddedBy == "" {
+		return trace.BadParameter("member %s: added_by field empty", member.Spec.Name)
+	}
+
 	err := validateAccessListMemberOrOwner(ctx, parentList, member.GetName(), member.Spec.MembershipKind, RelationshipKindMember, g)
 	return trace.Wrap(err)
 }
