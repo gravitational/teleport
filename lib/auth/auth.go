@@ -2610,9 +2610,12 @@ type GenerateUserTestCertsRequest struct {
 	Usage []string
 }
 
-// GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	ctx := context.Background()
+	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
+}
+
+// GenerateUserTestCerts is used to generate user certificate, used internally for tests
+func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -394,7 +394,7 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+					sshCert, tlsCert, err := asrv.GenerateUserTestCertsWithContext(ctx,auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
 						Username:       accessUser.GetName(),
@@ -1529,7 +1529,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	// make other auth API calls beyond just accessing the app.
 	tlsPub, err := privateKey.MarshalTLSPublicKey()
 	require.NoError(t, err)
-	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      privateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       userName,
