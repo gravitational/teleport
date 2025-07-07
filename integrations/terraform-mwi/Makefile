@@ -71,7 +71,7 @@ lint:
 docs: install
 	./gen/docs.sh $(VERSION)
 
-PROVIDER_PATH = ~/.terraform.d/plugins/terraform.releases.teleport.dev/gravitational/teleport-mwi/$(VERSION)/$(TERRAFORM_ARCH)/
+PROVIDER_PATH = ~/.terraform.d/plugins/terraform.releases.teleport.dev/gravitational/teleportmwi/$(VERSION)/$(TERRAFORM_ARCH)/
 
 .PHONY: install
 install: build
