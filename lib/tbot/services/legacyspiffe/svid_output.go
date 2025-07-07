@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
-func SPIFFESVIDOutputServiceBuilder(
+func SVIDOutputServiceBuilder(
 	cfg *SVIDOutputConfig,
 	trustBundleCache TrustBundleGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
