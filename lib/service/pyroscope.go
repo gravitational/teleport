@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -32,6 +33,12 @@ import (
 // TODO: Replace logger when pyroscope uses slog
 type pyroscopeLogger struct {
 	l *slog.Logger
+}
+
+type roundTripper struct {
+	base    http.RoundTripper
+	timeout time.Duration
+	logger  *slog.Logger
 }
 
 func (l pyroscopeLogger) Infof(format string, args ...any) {
@@ -60,6 +67,24 @@ func (l pyroscopeLogger) Errorf(format string, args ...any) {
 	l.l.Error(fmt.Sprintf(format, args...))
 }
 
+func (rt roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	resp, err := rt.base.RoundTrip(req)
+	duration := time.Since(start)
+
+	threshold := rt.timeout * 90 / 100
+	if duration > threshold {
+		rt.logger.WarnContext(req.Context(),
+			"Pyroscope upload took too long",
+			"duration", duration.String(),
+			"threshold", threshold.String(),
+			"url", req.URL.String(),
+		)
+	}
+
+	return resp, err
+}
+
 // createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
 func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address string) (pyroscope.Config, error) {
 	if address == "" {
@@ -71,6 +96,17 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 		hostname = "unknown"
 	}
 
+	httpTimeout := 60 * time.Second
+
+	httpClient := &http.Client{
+		Timeout: httpTimeout,
+		Transport: roundTripper{
+			base:    http.DefaultTransport,
+			timeout: httpTimeout,
+			logger:  logger,
+		},
+	}
+
 	config := pyroscope.Config{
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
@@ -80,6 +116,7 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 			"version": teleport.Version,
 			"git_ref": teleport.Gitref,
 		},
+		HTTPClient: httpClient,
 	}
 
 	// Evaluate if profile configuration is customized
@@ -99,7 +136,9 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 			uploadRate = &parsedRate
 		}
 	} else {
-		logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
+		defaultRate := 60 * time.Second
+		uploadRate = &defaultRate
+		logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using Teleport default")
 	}
 
 	// Set UploadRate or fall back to defaults
