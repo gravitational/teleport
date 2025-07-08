@@ -19,6 +19,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
+import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -303,19 +304,11 @@ describe('EditDialog', () => {
 });
 
 async function inputRole(role: string) {
-  const rolesSelect = screen.getByLabelText('Roles');
-  // Seems to be the only way to interact with react-select component
-  fireEvent.keyDown(rolesSelect, { key: 'ArrowDown' });
-  const item = await screen.findByText(role);
-  fireEvent.click(item);
+  await selectEvent.select(screen.getByLabelText('Roles'), [role]);
 }
 
 async function inputTrait(name: string, values: string[]) {
-  const traitSelect = screen.getAllByLabelText('Key');
-  // Seems to be the only way to interact with react-select component
-  fireEvent.keyDown(traitSelect.at(-1)!, { key: 'ArrowDown' });
-  const item = await screen.findByText(name);
-  fireEvent.click(item);
+  await selectEvent.select(screen.getAllByLabelText('Key').at(-1)!, [name]);
 
   const traitValue = screen.getAllByLabelText('Values');
 
