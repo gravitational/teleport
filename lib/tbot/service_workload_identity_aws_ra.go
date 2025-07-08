@@ -38,24 +38,30 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient     *apiclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.WorkloadIdentityAWSRAService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	resolver          reversetunnelclient.Resolver
-	reloadBroadcaster *channelBroadcaster
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.WorkloadIdentityAWSRAService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	reloadBroadcaster  *channelBroadcaster
+	statusReporter     readyz.Reporter
 }
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityAWSRAService) String() string {
-	return fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the
@@ -71,13 +77,15 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.cfg.SessionRenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		service:         s.String(),
+		name:            "output-renewal",
+		f:               s.generate,
+		interval:        s.cfg.SessionRenewalInterval,
+		retryLimit:      renewalRetryLimit,
+		log:             s.log,
+		reloadCh:        reloadCh,
+		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
