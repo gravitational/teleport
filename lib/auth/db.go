@@ -156,6 +156,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		Subject:   csr.Subject,
 		NotAfter:  a.clock.Now().UTC().Add(req.TTL.Get()),
 	}
+
 	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
 		// and SubjectAltName (which we need for otherName SAN, not supported
@@ -166,12 +167,10 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// The CDP is computed here by the auth server issuing the cert and not provided
 		// by the client because the CDP is based on the identity of the issuer, which is
 		// necessary in order to support clusters with multiple issuing certs (HSMs).
+		// If there's only 1 active key we don't include SKID in CDP for backward compatibility.
 		if req.CRLDomain != "" {
-			cdp := winpki.CRLDistributionPoint(
-				req.CRLDomain,
-				types.UserCA,
-				tlsCA,
-			)
+			includeSKID := len(ca.GetActiveKeys().TLS) > 1
+			cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.DatabaseClientCA, tlsCA, includeSKID)
 			certReq.CRLDistributionPoints = []string{cdp}
 		} else if req.CRLEndpoint != "" {
 			// legacy clients will specify CRL endpoint instead of CRL domain

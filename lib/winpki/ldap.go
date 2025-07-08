@@ -275,9 +275,13 @@ func CRLDN(issuerID string, activeDirectoryDomain string, caType types.CertAuthT
 }
 
 // CRLDistributionPoint computes the CRL distribution point for certs issued.
-func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority) string {
-	id := base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId)
-	crlDN := CRLDN(fmt.Sprintf("%s_%s", id, issuer.Cert.Subject.CommonName), activeDirectoryDomain, caType)
+func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority, includeSKID bool) string {
+	name := issuer.Cert.Subject.CommonName
+	if includeSKID {
+		id := base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId)
+		name = id + "_" + name
+	}
+	crlDN := CRLDN(name, activeDirectoryDomain, caType)
 	return fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
 }
 
