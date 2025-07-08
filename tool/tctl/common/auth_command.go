@@ -521,11 +521,12 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	}
 
 	tlsKeys := authority.GetActiveKeys().TLS
+	if len(tlsKeys) == 0 {
+		return trace.BadParameter("CA has no active keys")
+	} else
 
 	if a.output == "" {
-		if len(tlsKeys) == 0 {
-			return trace.BadParameter("CA has no active keys")
-		} else if len(tlsKeys) > 1 {
+		if len(tlsKeys) > 1 {
 			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
 		}
 		crl := tlsKeys[0].CRL
@@ -557,18 +558,28 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	}
 
 	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
-	for _, out := range results {
+	commands := make([]string, len(results))
+	for i, out := range results {
 		block, _ := pem.Decode(out.cert)
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		filename := fmt.Sprintf("%s-%v-%v_%v.crl", a.output, certType, base32.HexEncoding.EncodeToString(cert.SubjectKeyId), cert.Subject.CommonName)
+		cn := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + cert.Subject.CommonName
+		filename := fmt.Sprintf("%s-%v-%v.crl", a.output, certType, cn)
 		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Fprintln(os.Stderr, filename)
+		commands[i] = fmt.Sprintf("certutil -dspublish %s TeleportDB %s", filename, cn)
+	}
+
+	if certType == types.DatabaseClientCA && len(results) > 1 {
+		fmt.Fprintln(os.Stderr, "To publish CRLs use commands:")
+		for _, command := range commands {
+			fmt.Fprintln(os.Stderr, command)
+		}
 	}
 
 	return nil
