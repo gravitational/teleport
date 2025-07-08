@@ -62,9 +62,6 @@ export function TraitsEditor({
   setConfiguredTraits,
   tooltipContent,
   label = 'User Traits',
-  addActionLabel = 'Add user trait',
-  addActionSubsequentLabel = 'Add another user trait',
-  autoFocus = true,
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -107,10 +104,10 @@ export function TraitsEditor({
   }
 
   const addLabelText =
-    configuredTraits.length > 0 ? addActionSubsequentLabel : addActionLabel;
+    configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
 
   return (
-    <Box mb={3}>
+    <Box>
       <Flex gap={2} alignItems="center" mb={2}>
         <Text typography="body3">{label}</Text>
         {tooltipContent && <IconTooltip>{tooltipContent}</IconTooltip>}
@@ -129,7 +126,7 @@ export function TraitsEditor({
                       label: r,
                     }))}
                     placeholder="Type a trait name and press enter"
-                    autoFocus={autoFocus}
+                    autoFocus
                     isSearchable
                     value={traitKey}
                     label="Key"
@@ -268,9 +265,6 @@ export type TraitEditorProps = {
   isLoading: boolean;
   tooltipContent?: React.ReactNode;
   label?: string;
-  addActionLabel?: string;
-  addActionSubsequentLabel?: string;
-  autoFocus?: boolean;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
