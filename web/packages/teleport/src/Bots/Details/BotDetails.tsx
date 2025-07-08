@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useHistory, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
@@ -71,20 +71,17 @@ export function BotDetails() {
     staleTime: 30_000, // Keep data in the cache for 30 seconds
   });
 
-  const handleBackPress = useCallback(() => {
+  const handleBackPress = () => {
     history.goBack();
-  }, [history]);
+  };
 
-  const handleEdit = useCallback(() => {
+  const handleEdit = () => {
     setEditing(true);
-  }, []);
+  };
 
-  const handleEditSuccess = useCallback(
-    (bot: FlatBot, hasInconsistencies: boolean) => {
-      setEditing(hasInconsistencies);
-    },
-    []
-  );
+  const handleEditSuccess = (_: FlatBot, hasInconsistencies: boolean) => {
+    setEditing(hasInconsistencies);
+  };
 
   return (
     <FeatureBox>
