@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -297,14 +298,18 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
-		services = append(services, &diagnosticsService{
-			diagAddr:       b.cfg.DiagAddr,
-			pprofEnabled:   b.cfg.Debug,
-			statusRegistry: statusRegistry,
-			log: b.log.With(
+		diagSvc, err := diagnostics.NewService(diagnostics.Config{
+			Address:        b.cfg.DiagAddr,
+			PProfEnabled:   b.cfg.Debug,
+			StatusRegistry: statusRegistry,
+			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
 			),
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		services = append(services, diagSvc)
 	}
 
 	services = append(services, &heartbeatService{
