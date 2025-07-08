@@ -462,15 +462,19 @@ func TestIntegrationCRUD(t *testing.T) {
 				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
 				require.NoError(t, err)
 				// other existing plugin should not affect identity center plugin referenced integration.
+				_, err = localClient.CreateIntegration(ctx, sampleIntegrationFn(t, "another-plugin"))
+				require.NoError(t, err)
 				require.NoError(t, localClient.CreatePlugin(ctx, NewMattermostPlugin()))
 				require.NoError(t, localClient.CreatePlugin(ctx, NewIdentityCenterPlugin(igName, igName)))
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: "another-plugin"})
+				require.NoError(t, err)
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
+				_, err = resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
 				return err
 			},
 			Cleanup: func(t *testing.T, igName string) {
-				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
 				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
 			},
 			ErrAssertion: trace.IsBadParameter,

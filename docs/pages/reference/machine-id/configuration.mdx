@@ -20,8 +20,6 @@ artifacts include configuration files, certificates, and cryptographic key
 material. Usually, artifacts are files, but this term is explicitly avoided
 because a destination isn't required to be a filesystem.
 
-From Teleport 14, `tbot` supports the v2 configuration version.
-
 ```yaml
 # version specifies the version of the configuration file in use. `v2` is the
 # most recent and should be used for all new bots. The rest of this example
@@ -599,6 +597,9 @@ workload identity API, intended to serve workload identity credentials
 For more information about this, see the
 [Workload Identity API and Workload Attestation reference](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
 
+The `workload-identity-api` service will not start if `tbot` has been configured
+to run in one-shot mode.
+
 ### `spiffe-workload-api`
 
 <Admonition type="warning" >
@@ -946,6 +947,9 @@ database: postgres
 username: postgres
 ```
 
+The `database-tunnel` service will not start if `tbot` has been configured
+to run in one-shot mode.
+
 ### `application-tunnel`
 
 The `application-tunnel` service opens a listener that tunnels connections to
@@ -973,6 +977,9 @@ listen: tcp://127.0.0.1:8084
 # the service should open a tunnel to.
 app_name: my-application
 ```
+
+The `application-tunnel` service will not start if `tbot` has been configured
+to run in one-shot mode.
 
 ### `ssh-multiplexer`
 
@@ -1038,6 +1045,9 @@ destination:
    a server's identity.
 - `v1.sock`: the Unix socket that the multiplexer listens on.
 - `agent.sock`: the Unix socket that the SSH agent listens on.
+
+The `ssh-multiplexer` service will not start if `tbot` has been configured
+to run in one-shot mode.
 
 #### Using the SSH multiplexer programmatically
 

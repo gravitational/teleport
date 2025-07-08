@@ -28,6 +28,8 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,6 +44,7 @@ func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection
 
 	return &collection[types.Database, databaseIndex]{
 		store: newStore(
+			types.KindDatabase,
 			func(d types.Database) types.Database {
 				return d.Copy()
 			},
@@ -123,6 +126,7 @@ func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*colle
 
 	return &collection[types.DatabaseServer, databaseServerIndex]{
 		store: newStore(
+			types.KindDatabaseServer,
 			types.DatabaseServer.Copy,
 			map[databaseServerIndex]func(types.DatabaseServer) string{
 				databaseServerNameIndex: func(u types.DatabaseServer) string {
@@ -183,6 +187,7 @@ func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*coll
 
 	return &collection[types.DatabaseService, databaseServiceIndex]{
 		store: newStore(
+			types.KindDatabaseService,
 			types.DatabaseService.Clone,
 			map[databaseServiceIndex]func(types.DatabaseService) string{
 				databaseServiceNameIndex: types.DatabaseService.GetName,
@@ -230,6 +235,7 @@ func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.Watc
 
 	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
 		store: newStore(
+			types.KindDatabaseObject,
 			proto.CloneOf[*dbobjectv1.DatabaseObject],
 			map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{
 				databaseObjectNameIndex: func(r *dbobjectv1.DatabaseObject) string {
@@ -237,22 +243,8 @@ func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.Watc
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
-			var out []*dbobjectv1.DatabaseObject
-			var nextToken string
-			for {
-				var page []*dbobjectv1.DatabaseObject
-				var err error
-
-				page, nextToken, err = upstream.ListDatabaseObjects(ctx, 0, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListDatabaseObjects))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *dbobjectv1.DatabaseObject {
 			return &dbobjectv1.DatabaseObject{

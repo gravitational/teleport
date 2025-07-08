@@ -102,6 +102,9 @@ Replace:
 - `dumper` with the name of the application you registered in Teleport.
 - `listen` with the address and port you wish the service to bind to.
 
+Ensure that `tbot` is not configured to run in one-shot mode, as the application
+tunnel will not start in this mode.
+
 Restart `tbot` to apply the new configuration.
 </TabItem>
 <TabItem label="application output">

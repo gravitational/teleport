@@ -1,11 +1,209 @@
 # Changelog
 
-## 18.0.0 (06/xx/25)
+## 18.0.0 (07/03/25)
 
-** Not yet released **
-### Breaking changes
+Teleport 18 brings the following new features and improvements:
 
-#### TLS Cipher Suites
+* Identity Activity Center
+* Automatic access request reviews
+* Multi-session MFA for database access
+* RBAC and device trust for SAML applications
+* Database health checks
+* Kubernetes CRD
+
+### Description
+
+#### Identity Activity Center
+
+Teleport Identity Security, Identity Activity Center helps teams expose and
+eliminate hidden identity risk in your infrastructure.  By correlating user
+activity from multiple sources, it accelerates incident response to
+identity-based attacks. The first iteration will support integrations with AWS
+(CloudTrail), GitHub (Audit Log API), Okta (Audit API) and Teleport (Audit Log).
+
+#### Automatic access request reviews
+
+Teleport 18 includes built-in support for automatic access request reviews,
+eliminating the need to run separate access request plugins. Automatic reviews
+are enabled by setting up Access Monitoring Rules which define the conditions
+that must be satisfied in order for a request to be automatically approved or
+denied.
+
+For more information, refer to the [docs](docs/pages/identity-governance/access-requests/automatic-reviews.mdx).
+
+#### Multi-session MFA for database access
+
+Per-session MFA has been extended to support multi-session reuse, allowing a
+single MFA challenge to authorize multiple database connections using the new
+`tsh db exec` command. This command executes a query across multiple selected
+databases, making it user-friendly for ad-hoc user and script-friendly for
+automation.
+
+For more details, see the *database access examples* in the [per-session MFA
+guide](docs/pages/admin-guides/access-controls/guides/per-session-mfa.mdx).
+
+#### RBAC and device trust for SAML applications
+
+Access to SAML IdP service provider resources can now be controlled with
+resource labels. The resource labels are matched against `app_labels` defined in
+user roles. Additionally, SAML IdP sessions now enforce device trust.
+
+#### Database health checks
+
+In Teleport 18, the database service performs regular health checks for
+registered databases. Health status and any networking issues are reported in
+the Teleport web UI and reflected in `db_server` resources.
+
+In highly-available deployments with multiple database services, Teleport
+prioritizes healthy services when routing user connections. For more
+information, see the [database health checks
+guide](docs/pages/enroll-resources/database-access/guides/health-checks.mdx).
+
+#### Kubernetes CRD
+
+In Teleport 18, the `kubernetes_resources` control of [role version
+8](https://goteleport.com/docs/reference/resources/#role-versions) has been
+updated to support Kubernetes Custom Resource Definitions and the behavior of
+the `kind` and `namespace` fields has been updated to allow finer control. When
+the  `kind`: `namespace` is set, it  will now only refer to the Kubernetes
+namespace itself and not all resources within the namespace. The `kind` field
+now expects the plural version of the resource name (i.e. `pods` instead of
+`pod`) and a new field `api_group` has been added  which must match the apiGroup
+that the Kubernetes resource belongs to.
+
+##### Examples
+
+A role which allows access to the CronTab CRD.
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-v8
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - api_group: stable.example.com
+      kind: crontabs
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+version: v8
+```
+
+Converting a v7 Role to a v8 Role. Note the addition of the now required
+`api_group` field and the change from **deployment** to **deployments** and from
+**persistentvolume** to **persistentvolumes** for the `kind` field.
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-v7
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: deployment
+      name: '*'
+      namespace: default
+      verbs:
+      - '*'
+    - kind: persistentvolume
+      name: '*'
+      verbs:
+      - '*'
+  deny: {}
+version: v7
+```
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-v8
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - api_group: apps
+      kind: deployments
+      name: '*'
+      namespace: default
+      verbs:
+      - '*'
+    - api_group: ''
+      kind: persistentvolumes
+      name: '*'
+      verbs:
+      - '*'
+  deny: {}
+version: v8
+```
+
+Granting access to all items within a namespace. Note that in v8 there are two
+entries, the first is for the namespace itself and the second is for all entries
+within the namespace.
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-v7-ns
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: namespace
+      name: default
+      verbs:
+      - '*'
+  deny: {}
+version: v7
+```
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-v8-ns
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - api_group: ''
+      kind: namespaces
+      name: default
+      verbs:
+      - '*'
+    - api_group: '*'
+      kind: '*'
+      name: '*'
+      namespace: default
+      verbs:
+      - '*'
+  deny: {}
+version: v8
+```
+
+For more information, refer to the [docs](docs/pages/enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources).
+
+### Breaking changes and deprecations
+
+#### TLS cipher suites
 
 TLS cipher suites with known security issues can no longer be manually
 configured in the Teleport YAML configuration file. If you do not explicitly
@@ -13,13 +211,13 @@ configure any of the listed TLS cipher suites, you are not affected by this
 change.
 
 Teleport 18 removes support for:
-- `tls-rsa-with-aes-128-cbc-sha`
-- `tls-rsa-with-aes-256-cbc-sha`
-- `tls-rsa-with-aes-128-cbc-sha256`
-- `tls-rsa-with-aes-128-gcm-sha256`
-- `tls-rsa-with-aes-256-gcm-sha384`
-- `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
-- `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
+* `tls-rsa-with-aes-128-cbc-sha`
+* `tls-rsa-with-aes-256-cbc-sha`
+* `tls-rsa-with-aes-128-cbc-sha256`
+* `tls-rsa-with-aes-128-gcm-sha256`
+* `tls-rsa-with-aes-256-gcm-sha384`
+* `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
+* `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
 
 #### Terraform provider role defaults
 
@@ -31,7 +229,7 @@ the Kubernetes Operator.
 This might change the default options of role where not every option was
 explicitly set. For example:
 
-```
+```hcl
 resource "teleport_role" "one-option-set" {
   version = "v7"
   metadata = {
@@ -55,6 +253,7 @@ role option differences, please review it and check that the default changes are
 acceptable. If they are not, you must set the options to `false`.
 
 Here's a plan example for the code above:
+
 ```
 # teleport_role.one-option-set will be updated in-place
 ~ resource "teleport_role" "one-option-set" {
@@ -76,27 +275,50 @@ Here's a plan example for the code above:
 
 #### AWS endpoint URL mode removed
 
-The AWS endpoint URL mode (`--endpoint-url`) has been removed for `tsh proxy
-aws` and `tsh aws`. Users using this mode should use the default HTTPS Proxy
-mode from now on.
+The `tsh aws` and `tsh proxy aws` commands no longer support being used as
+custom service endpoints.  Instead, users should use them as `HTTPS_PROXY` proxy
+servers.
+
+For example, the following command will no longer work: `aws s3 ls
+--endpoint-url https://localhost:LOCAL_PROXY_PORT`.  To achieve a similar result
+with Teleport 18, run `HTTPS_PROXY=http://localhost:LOCAL_PROXY_PORT aws s3 ls`.
+
+#### TOTP for per-session MFA
+
+Starting with Teleport 18, `tsh` will no longer allow for using TOTP as a second
+factor for per-session MFA. TOTP continues to be accepted as a second factor for
+the initial login.
+
+#### Linux kernel 3.2 required
+
+On Linux, Teleport now requires Linux kernel version 3.2 or later.
 
 ### Other changes
 
-#### Configurable keyboard layouts for Windows desktop sessions
+#### PKCE support for OpenID Connect
 
-Teleport's Account Settings page now exposes an option to set your preferred
-keyboard layout for Windows desktop sessions.
+Teleport 18 includes support for Proof Key for Code Exchange (PKCE) in OpenID
+Connect flows. PKCE is a security enhancement that ensures that attackers who
+can intercept the authorization code will not be able to exchange it for an
+access token.
 
-Note: in order for this setting to take affect, agent's running Teleport's
-`windows_desktop_service` must be upgraded to v18.0.0 or later.
+To enable PKCE, set `pkce_mode: enabled` in your OIDC connector. Future versions
+of Teleport may enable PKCE by default.
+
+#### Cache improvements
+
+Teleport 18 ships with an improved cache implementation that stores resources
+directly instead of storing their JSON-encoded representation. In addition to
+performance gains, this new storage mechanism will also improve compatibility
+between older agents and newer versions of resources.
 
 #### Windows desktop discovery enhancements
 
 Teleport's LDAP-based discovery mechanism for Windows desktops now supports:
 
-- a configurable discovery interval
-- custom RDP ports
-- the ability to run multiple separate discovery configurations, allowing you to
+* a configurable discovery interval
+* custom RDP ports
+* the ability to run multiple separate discovery configurations, allowing you to
   configure finely-grained discovery policies without running multiple agents
 
 To update your configuration, move the `discovery` section to `discovery_configs`:
@@ -114,13 +336,22 @@ windows_desktop_service:
 +      rdp_port: 9989 # optional, defaults to 3389
 ```
 
+#### Faster user lookups on domain-joined Windows workstations
+
+Teleport 18 is built with Go 1.24, which includes an optimized user lookup
+implementation. As a result, the
+[workarounds](https://goteleport.com/docs/faq/#tsh-is-very-slow-on-windows-what-to-do)
+for avoiding slow lookups in tsh and Teleport Connect are no longer necessary.
+
 #### Legacy ALPN connection upgrade mode has been removed
 
-Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind
-layer 7 load balancers and reverse proxies. The legacy ALPN upgrade mode using
-`alpn` or `alpn-ping` as upgrade types was left as a fallback until v17.
-Teleport v18 removes the legacy upgrade mode entirely including the use of
-environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
+Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind layer
+7 load balancers and reverse proxies. The legacy ALPN upgrade mode using `alpn`
+or `alpn-ping` as upgrade types was left as a fallback until v17.
+
+Teleport v18 removes the legacy upgrade mode entirely including the use of the
+`TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
+
 
 ## 16.0.0 (xx/xx/xx)
 
@@ -287,7 +518,7 @@ published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 The legacy package repos will be shut off in mid 2025 after Teleport 14
 has been out of support for many months.
@@ -614,7 +845,7 @@ repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 #### `Cf-Access-Token` header no longer included with requests to Teleport-protected applications
 
@@ -1835,7 +2066,7 @@ redirect_url = [ "http://example.com" ]
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
 Customers should use the new AWS ECR registry to pull [Teleport Docker
-images](./docs/pages/installation.mdx#docker).
+images](./docs/pages/installation/docker.mdx).
 
 Quay.io registry support will be removed in a future release.
 
@@ -1844,7 +2075,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-[install Teleport](docs/pages/installation.mdx#linux).
+[install Teleport](docs/pages/installation/linux.mdx).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 

@@ -25,6 +25,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,6 +41,7 @@ func newStaticHostUserCollection(upstream services.StaticHostUser, w types.Watch
 
 	return &collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]{
 		store: newStore(
+			types.KindStaticHostUser,
 			proto.CloneOf[*userprovisioningv2.StaticHostUser],
 			map[staticHostUserIndex]func(*userprovisioningv2.StaticHostUser) string{
 				staticHostUserNameIndex: func(shu *userprovisioningv2.StaticHostUser) string {
@@ -46,23 +49,8 @@ func newStaticHostUserCollection(upstream services.StaticHostUser, w types.Watch
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*userprovisioningv2.StaticHostUser, error) {
-			var startKey string
-			var allUsers []*userprovisioningv2.StaticHostUser
-
-			for {
-				users, nextKey, err := upstream.ListStaticHostUsers(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				allUsers = append(allUsers, users...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return allUsers, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListStaticHostUsers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *userprovisioningv2.StaticHostUser {
 			return &userprovisioningv2.StaticHostUser{
