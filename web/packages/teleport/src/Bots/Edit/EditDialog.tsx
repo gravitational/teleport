@@ -82,8 +82,7 @@ export function EditDialog(props: {
     mutationFn: (params: EditBotRequest) => {
       return editBot(ctx.getFeatureFlags(), botName, params);
     },
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    onSuccess: (newData, variables, _context) => {
+    onSuccess: (newData, variables) => {
       const key = createGetBotQueryKey({ name: botName });
       queryClient.setQueryData(key, newData);
 
