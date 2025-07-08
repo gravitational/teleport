@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
@@ -145,7 +146,7 @@ func (s *SPIFFEWorkloadAPIService) Type() string {
 
 func (s *SPIFFEWorkloadAPIService) MarshalYAML() (any, error) {
 	type raw SPIFFEWorkloadAPIService
-	return withTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
+	return marshaling.WithTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
 }
 
 func (s *SPIFFEWorkloadAPIService) UnmarshalYAML(node *yaml.Node) error {

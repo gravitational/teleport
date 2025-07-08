@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const SSHHostOutputType = "ssh_host"
@@ -105,7 +106,7 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 
 func (o *SSHHostOutput) MarshalYAML() (any, error) {
 	type raw SSHHostOutput
-	return withTypeHeader((*raw)(o), SSHHostOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), SSHHostOutputType)
 }
 
 func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {

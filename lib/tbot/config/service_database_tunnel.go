@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const DatabaseTunnelServiceType = "database-tunnel"
@@ -68,7 +70,7 @@ func (s *DatabaseTunnelService) Type() string {
 
 func (s *DatabaseTunnelService) MarshalYAML() (any, error) {
 	type raw DatabaseTunnelService
-	return withTypeHeader((*raw)(s), DatabaseTunnelServiceType)
+	return marshaling.WithTypeHeader((*raw)(s), DatabaseTunnelServiceType)
 }
 
 func (s *DatabaseTunnelService) UnmarshalYAML(node *yaml.Node) error {

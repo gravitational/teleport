@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 var (
@@ -108,7 +109,7 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 
 func (o *KubernetesOutput) MarshalYAML() (any, error) {
 	type raw KubernetesOutput
-	return withTypeHeader((*raw)(o), KubernetesOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), KubernetesOutputType)
 }
 
 func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {

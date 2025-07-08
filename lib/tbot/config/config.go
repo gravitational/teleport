@@ -572,18 +572,6 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func withTypeHeader[T any](payload T, payloadType string) (any, error) {
-	header := struct {
-		Type    string `yaml:"type"`
-		Payload T      `yaml:",inline"`
-	}{
-		Type:    payloadType,
-		Payload: payload,
-	}
-
-	return header, nil
-}
-
 // unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
 // considering the `type` field.
 func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {

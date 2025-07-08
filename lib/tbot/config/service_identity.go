@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 )
 
@@ -182,7 +183,7 @@ func (o *IdentityOutput) Describe() []FileDescription {
 
 func (o *IdentityOutput) MarshalYAML() (any, error) {
 	type raw IdentityOutput
-	return withTypeHeader((*raw)(o), IdentityOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), IdentityOutputType)
 }
 
 func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
