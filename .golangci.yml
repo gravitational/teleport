@@ -96,6 +96,7 @@ linters:
             - '!**/lib/services/local/users.go'
             - '!**/lib/services/server.go'
             - '!**/lib/services/user.go'
+            - '!**/lib/tbot/internal/testutils/**'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
@@ -172,6 +173,7 @@ linters:
         test_packages:
           files:
             - '!$test'
+            - '!**/lib/tbot/internal/testutils/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -194,6 +196,8 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/tbot/internal/testutils
               desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
