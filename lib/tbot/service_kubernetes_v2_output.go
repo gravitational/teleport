@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -61,7 +62,7 @@ type KubernetesV2OutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
@@ -82,7 +83,7 @@ func (s *KubernetesV2OutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{

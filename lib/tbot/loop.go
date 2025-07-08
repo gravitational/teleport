@@ -70,7 +70,7 @@ type runOnIntervalConfig struct {
 	// CA rotations or a manual signal from a user.
 	// reloadCh can be nil, in which case, the task will only run on the
 	// interval.
-	reloadCh             chan struct{}
+	reloadCh             <-chan struct{}
 	log                  *slog.Logger
 	interval             time.Duration
 	retryLimit           int

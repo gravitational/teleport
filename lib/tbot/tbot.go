@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -228,9 +229,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	// ReloadBroadcaster allows multiple entities to trigger a reload of
 	// all services. This allows os signals and other events such as CA
 	// rotations to trigger appropriate renewals.
-	reloadBroadcaster := &channelBroadcaster{
-		chanSet: map[chan struct{}]struct{}{},
-	}
+	reloadBroadcaster := internal.NewChannelBroadcaster()
 	// Trigger reloads from an configured reload channel.
 	if b.cfg.ReloadCh != nil {
 		// We specifically do not use the error group here as we do not want
@@ -241,7 +240,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				case <-egCtx.Done():
 					return
 				case <-b.cfg.ReloadCh:
-					reloadBroadcaster.broadcast()
+					reloadBroadcaster.Broadcast()
 				}
 			}
 		}()
