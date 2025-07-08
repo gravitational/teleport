@@ -224,13 +224,13 @@ spec:
       - jsonpath(external, "$.groups.teleport.node.logins")
     node_labels_*:
       # evaluates to "*"
-      - jsonpath(external, "$.groups.teleport.node.labels['*']")
+      - jsonpath(external, "$.groups.teleport.node.labels[?(@ == '*')]")
     node_labels_env:
       # evaluates to []
       - jsonpath(external, "$.groups.teleport.node.labels.env")
     app_labels_*:
       # evaluates to []
-      - jsonpath(external, "$.groups.teleport.app.labels['*']")
+      - jsonpath(external, "$.groups.teleport.app.labels[?(@ == '*')]")
     app_labels_env:
       # evaluates to "staging"
       - jsonpath(external, "$.groups.teleport.app.labels.env")
@@ -411,11 +411,17 @@ spec:
 
 ### Proto
 
-```proto
+```diff
 message ClaimMapping {
   ...
 + // ClaimExpression is an interpolation expression that retrieves a value for claim matching.
 + string ClaimExpression = 4 [(gogoproto.jsontag) = "claim_expression"];
+}
+
+message TraitMapping {
+  ...
++ // TraitExpression is an interpolation expression that transforms the trait value(s).
++ string TraitExpression = 4 [(gogoproto.jsontag) = "trait_expression"];
 }
 ```
 
