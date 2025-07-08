@@ -9,7 +9,6 @@ on:
     - cron: "30 10 * * *" # At 1030 UTC every day
     - cron: "0 11 * * *"
     - cron: "30 11 * * *"
-    - cron: "0 12 * * *" # DELETE when v18 is released, and delete branch/v15 below
 jobs:
   release:
     permissions:
@@ -22,7 +21,6 @@ jobs:
           github.event.schedule == '0 10 * * *' && 'branch/v18' ||
           github.event.schedule == '30 10 * * *' && 'branch/v17' ||
           github.event.schedule == '0 11 * * *' && 'branch/v16' ||
-          github.event.schedule == '30 11 * * *' && 'branch/v15' ||
           'master'
         }}
     steps:
