@@ -229,7 +229,9 @@ export function EditDialog(props: {
                     value={
                       selectedMaxSessionDuration ??
                       formatDuration({
-                        seconds: data.max_session_ttl?.seconds ?? 43_200,
+                        seconds:
+                          data.max_session_ttl?.seconds ??
+                          TWELVE_HOURS_IN_SECONDS,
                       })
                     }
                     onChange={e =>
@@ -287,3 +289,5 @@ export function EditDialog(props: {
     </Dialog>
   );
 }
+
+const TWELVE_HOURS_IN_SECONDS = 43_200;
