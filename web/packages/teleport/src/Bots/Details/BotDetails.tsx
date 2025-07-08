@@ -128,7 +128,7 @@ export function BotDetails() {
                     <th scope="row">{maxSessionDurationLabel}</th>
                     <td>
                       {data.max_session_ttl?.seconds
-                        ? formatDuration(data.max_session_ttl.seconds)
+                        ? formatDuration(data.max_session_ttl)
                         : '-'}
                     </td>
                   </tr>
