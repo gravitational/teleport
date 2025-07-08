@@ -23,10 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestSSHHostOutput_YAML(t *testing.T) {
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[SSHHostOutput]{
 		{
 			name: "full",
@@ -57,7 +58,7 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *SSHHostOutput {
 				return &SSHHostOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					Principals:  []string{"host.example.com"},
 				}
@@ -77,7 +78,7 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing principals",
 			in: func() *SSHHostOutput {
 				return &SSHHostOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "at least one principal must be specified",

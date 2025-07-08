@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package destination
 
 import (
 	"context"
@@ -39,10 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const DestinationDirectoryType = "directory"
+const DirectoryType = "directory"
 
-// DestinationDirectory is a Destination that writes to the local filesystem
-type DestinationDirectory struct {
+// Directory is a Destination that writes to the local filesystem
+type Directory struct {
 	Path     string               `yaml:"path,omitempty"`
 	Symlinks botfs.SymlinksMode   `yaml:"symlinks,omitempty"`
 	ACLs     botfs.ACLMode        `yaml:"acls,omitempty"`
@@ -54,7 +54,7 @@ type DestinationDirectory struct {
 	aclsEnabled bool
 }
 
-func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
+func (dd *Directory) UnmarshalYAML(node *yaml.Node) error {
 	// Accept either a string path or a full struct (allowing for options in
 	// the future, e.g. configuring permissions, etc):
 	//   directory: /foo
@@ -72,11 +72,11 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 	// Shenanigans to prevent UnmarshalYAML from recursing back to this
 	// override (we want to use standard unmarshal behavior for the full
 	// struct)
-	type rawDirectory DestinationDirectory
+	type rawDirectory Directory
 	return trace.Wrap(node.Decode((*rawDirectory)(dd)))
 }
 
-func (dd *DestinationDirectory) CheckAndSetDefaults() error {
+func (dd *Directory) CheckAndSetDefaults() error {
 	if dd.Path == "" {
 		return trace.BadParameter("destination path must not be empty")
 	}
@@ -159,7 +159,7 @@ func mkdir(p string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Init(ctx context.Context, subdirs []string) error {
+func (dd *Directory) Init(ctx context.Context, subdirs []string) error {
 	// Create the directory if needed.
 	if err := mkdir(dd.Path); err != nil {
 		return trace.Wrap(err)
@@ -226,7 +226,7 @@ func (dd *DestinationDirectory) Init(ctx context.Context, subdirs []string) erro
 // where it is _not_ assumed that the destination is owned by the bot user.
 // This will not attempt to correct any issues, but will cause a hard failure if
 // `acls: required` is configured and issues are detected.
-func (dd *DestinationDirectory) verifyLegacyACLs(keys []string) error {
+func (dd *Directory) verifyLegacyACLs(keys []string) error {
 	currentUser, err := user.Current()
 	if err != nil {
 		// user.Current will fail if the user id does not exist in /etc/passwd
@@ -274,7 +274,7 @@ func (dd *DestinationDirectory) verifyLegacyACLs(keys []string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Verify(keys []string) error {
+func (dd *Directory) Verify(keys []string) error {
 	// Preflight: Warn on common misconfigurations where any kind of ACL
 	// management will be impossible.
 	if dd.ACLs == botfs.ACLOff {
@@ -363,7 +363,7 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 // ACLs when configured.
 //
 //nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-func (dd *DestinationDirectory) verifyAndCorrectACL(ctx context.Context, subpath string) error {
+func (dd *Directory) verifyAndCorrectACL(ctx context.Context, subpath string) error {
 	p := filepath.Join(dd.Path, subpath)
 
 	// As a sanity check, try to ensure the resulting path is (lexically) a
@@ -398,10 +398,10 @@ func (dd *DestinationDirectory) verifyAndCorrectACL(ctx context.Context, subpath
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
+func (dd *Directory) Write(ctx context.Context, name string, data []byte) error {
 	_, span := tracer.Start(
 		ctx,
-		"DestinationDirectory/Write",
+		"Directory/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -448,10 +448,10 @@ func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []b
 	return trace.Wrap(botfs.Write(path, data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {
+func (dd *Directory) Read(ctx context.Context, name string) ([]byte, error) {
 	_, span := tracer.Start(
 		ctx,
-		"DestinationDirectory/Read",
+		"Directory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -464,11 +464,11 @@ func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, 
 	return data, nil
 }
 
-func (dd *DestinationDirectory) String() string {
-	return fmt.Sprintf("%s: %s", DestinationDirectoryType, dd.Path)
+func (dd *Directory) String() string {
+	return fmt.Sprintf("%s: %s", DirectoryType, dd.Path)
 }
 
-func (dd *DestinationDirectory) TryLock() (func() error, error) {
+func (dd *Directory) TryLock() (func() error, error) {
 	// TryLock should only be used for bot data directory and not for
 	// destinations until an investigation on how locks will play with
 	// ACLs has been completed.
@@ -476,11 +476,11 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	return unlock, trace.Wrap(err)
 }
 
-func (dm *DestinationDirectory) MarshalYAML() (any, error) {
-	type raw DestinationDirectory
-	return marshaling.WithTypeHeader((*raw)(dm), DestinationDirectoryType)
+func (dm *Directory) MarshalYAML() (any, error) {
+	type raw Directory
+	return marshaling.WithTypeHeader((*raw)(dm), DirectoryType)
 }
 
-func (dd *DestinationDirectory) IsPersistent() bool {
+func (dd *Directory) IsPersistent() bool {
 	return true
 }

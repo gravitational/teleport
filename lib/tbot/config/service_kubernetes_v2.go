@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
@@ -41,7 +42,7 @@ type KubernetesV2Output struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 
 	// DisableExecPlugin disables the default behavior of using `tbot` as a
 	// `kubectl` credentials exec plugin. This is useful in environments where
@@ -82,7 +83,7 @@ func (o *KubernetesV2Output) CheckAndSetDefaults() error {
 	return trace.Wrap(o.Destination.CheckAndSetDefaults())
 }
 
-func (o *KubernetesV2Output) GetDestination() bot.Destination {
+func (o *KubernetesV2Output) GetDestination() destination.Destination {
 	return o.Destination
 }
 

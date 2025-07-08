@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[SPIFFESVIDOutput]{
 		{
 			name: "full",
@@ -78,7 +79,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *SPIFFESVIDOutput {
 				return &SPIFFESVIDOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
@@ -100,7 +101,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing jwt name",
 			in: func() *SPIFFESVIDOutput {
 				return &SPIFFESVIDOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
@@ -122,7 +123,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing jwt audience",
 			in: func() *SPIFFESVIDOutput {
 				return &SPIFFESVIDOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",
@@ -161,7 +162,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing path",
 			in: func() *SPIFFESVIDOutput {
 				return &SPIFFESVIDOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "",
 						Hint: "hint",
@@ -178,7 +179,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "path missing leading slash",
 			in: func() *SPIFFESVIDOutput {
 				return &SPIFFESVIDOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "foo",
 						Hint: "hint",
@@ -195,7 +196,7 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid ip",
 			in: func() *SPIFFESVIDOutput {
 				return &SPIFFESVIDOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
 						Hint: "hint",

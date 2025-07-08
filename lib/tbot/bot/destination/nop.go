@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package destination
 
 import (
 	"context"
@@ -25,50 +25,50 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const DestinationNopType = "nop"
+const NopType = "nop"
 
-// DestinationNop does nothing! Useful for odd scenarios where a destination
+// Nop does nothing! Useful for odd scenarios where a destination
 // has to be returned but there is none to return.
-type DestinationNop struct{}
+type Nop struct{}
 
 // CheckAndSetDefaults does nothing! It is necessary to implement the
 // Destination interface.
-func (dm *DestinationNop) CheckAndSetDefaults() error {
+func (dm *Nop) CheckAndSetDefaults() error {
 	return nil
 }
 
 // Init does nothing! It is necessary to implement the Destination interface.
-func (dm *DestinationNop) Init(_ context.Context, subdirs []string) error {
+func (dm *Nop) Init(_ context.Context, subdirs []string) error {
 	// Nothing to do.
 	return nil
 }
 
 // Verify does nothing! It is necessary to implement the Destination interface.
-func (dm *DestinationNop) Verify(keys []string) error {
+func (dm *Nop) Verify(keys []string) error {
 	// Nothing to do.
 	return nil
 }
 
 // Write does nothing! It is necessary to implement the Destination interface.
-func (dm *DestinationNop) Write(_ context.Context, name string, data []byte) error {
+func (dm *Nop) Write(_ context.Context, name string, data []byte) error {
 	// Nothing to do.
 	return nil
 }
 
 // Read does nothing, it behaves as if the requested artifact could not be
 // found! It is necessary to implement the Destination interface.
-func (dm *DestinationNop) Read(_ context.Context, name string) ([]byte, error) {
+func (dm *Nop) Read(_ context.Context, name string) ([]byte, error) {
 	// Nothing to do.
 	return nil, trace.NotFound("reading from a nop destination results in no data")
 }
 
 // String returns a human-readable string that describes this instance.
-func (dm *DestinationNop) String() string {
-	return DestinationNopType
+func (dm *Nop) String() string {
+	return NopType
 }
 
 // TryLock does nothing! It is necessary to implement the Destination interface.
-func (dm *DestinationNop) TryLock() (func() error, error) {
+func (dm *Nop) TryLock() (func() error, error) {
 	return func() error {
 		return nil
 	}, nil
@@ -76,11 +76,11 @@ func (dm *DestinationNop) TryLock() (func() error, error) {
 
 // MarshalYAML enables the yaml package to correctly marshal the Destination
 // as YAML including the type header.
-func (dm *DestinationNop) MarshalYAML() (any, error) {
-	type raw DestinationNop
-	return marshaling.WithTypeHeader((*raw)(dm), DestinationNopType)
+func (dm *Nop) MarshalYAML() (any, error) {
+	type raw Nop
+	return marshaling.WithTypeHeader((*raw)(dm), NopType)
 }
 
-func (dm *DestinationNop) IsPersistent() bool {
+func (dm *Nop) IsPersistent() bool {
 	return false
 }

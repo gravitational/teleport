@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
@@ -41,7 +42,7 @@ type KubernetesOutput struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -78,7 +79,7 @@ func (o *KubernetesOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *KubernetesOutput) GetDestination() bot.Destination {
+func (o *KubernetesOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 

@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
@@ -35,7 +36,7 @@ type SSHMultiplexerService struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.
@@ -96,7 +97,7 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}
-	_, ok := s.Destination.(*DestinationDirectory)
+	_, ok := s.Destination.(*destination.Directory)
 	if !ok {
 		return trace.BadParameter("destination: must be of type `directory`")
 	}
