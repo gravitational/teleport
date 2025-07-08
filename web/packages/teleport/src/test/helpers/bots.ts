@@ -20,7 +20,7 @@ import { http, HttpResponse } from 'msw';
 
 import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
 
-const getBotPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name?';
+const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name?';
 
 export const getBotSuccess = (mock: ApiBot) =>
   http.get(botPath, () => {

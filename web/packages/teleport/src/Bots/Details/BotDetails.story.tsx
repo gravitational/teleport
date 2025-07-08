@@ -19,7 +19,12 @@ import { Meta, StoryObj } from '@storybook/react';
 import { MemoryRouter } from 'react-router';
 
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { getBotError, getBotSuccess } from 'teleport/test/helpers/bots';
+import {
+  editBotSuccess,
+  getBotError,
+  getBotSuccess,
+} from 'teleport/test/helpers/bots';
+import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { BotDetails } from './BotDetails';
 
@@ -77,6 +82,16 @@ export const DetailsWithFetchSuccess: Story = {
             },
           },
         }),
+        successGetRoles({
+          startKey: '',
+          items: ['access', 'editor', 'terraform-provider'].map(r => ({
+            content: r,
+            id: r,
+            name: r,
+            kind: 'role',
+          })),
+        }),
+        editBotSuccess(),
       ],
     },
   },
