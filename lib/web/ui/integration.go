@@ -672,32 +672,7 @@ type AWSOIDCCreateAWSAppAccessRequest struct {
 
 // AWSRolesAnywhereListProfilesRequest contains the list of Roles Anywhere Profiles.
 type AWSRolesAnywhereListProfilesRequest struct {
-	// NextToken is the token to be used to fetch the next page.
+	// StartKey is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSRolesAnywhereListProfilesResponse contains the result of the ListProfiles request.
-type AWSRolesAnywhereListProfilesResponse struct {
-	// Profiles contains the list of Roles Anywhere Profiles.
-	Profiles []AWSRolesAnywhereListProfile `json:"profiles"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
-// AWSRolesAnywhereListProfile represents a single IAM Roles Anywhere Profile.
-type AWSRolesAnywhereListProfile struct {
-	// The AWS Roles Anywhere Profile ARN.
-	ARN string `json:"arn,omitempty"`
-	// Whether the AWS Roles Anywhere Profile is enabled.
-	Enabled bool `json:"enabled,omitempty"`
-	// The name of the AWS Roles Anywhere Profile.
-	Name string `json:"name,omitempty"`
-	// Whether the profile accepts role session names.
-	AcceptRoleSessionName bool `json:"acceptRoleSessionName,omitempty"`
-	// The tags associated with the AWS Roles Anywhere Profile.
-	Tags []ui.Label `json:"tags,omitempty"`
-	// The roles accessible from this AWS Roles Anywhere Profile.
-	Roles []string `json:"roles,omitempty"`
+	StartKey string `json:"startKey"`
 }

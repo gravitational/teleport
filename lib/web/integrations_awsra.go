@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -166,34 +165,11 @@ func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Re
 
 	listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
 		Integration:   integrationName,
-		NextPageToken: req.NextToken,
+		NextPageToken: req.StartKey,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ret := &ui.AWSRolesAnywhereListProfilesResponse{
-		Profiles:  make([]ui.AWSRolesAnywhereListProfile, 0, len(listResp.GetProfiles())),
-		NextToken: listResp.GetNextPageToken(),
-	}
-
-	for _, profile := range listResp.GetProfiles() {
-		uiTags := make([]libui.Label, 0, len(profile.GetTags()))
-		for tagKey, tagValue := range profile.GetTags() {
-			uiTags = append(uiTags, libui.Label{
-				Name:  tagKey,
-				Value: tagValue,
-			})
-		}
-		ret.Profiles = append(ret.Profiles, ui.AWSRolesAnywhereListProfile{
-			ARN:                   profile.GetArn(),
-			Name:                  profile.GetName(),
-			Enabled:               profile.GetEnabled(),
-			AcceptRoleSessionName: profile.GetAcceptRoleSessionName(),
-			Roles:                 profile.GetRoles(),
-			Tags:                  uiTags,
-		})
-	}
-
-	return ret, nil
+	return listResp, nil
 }
