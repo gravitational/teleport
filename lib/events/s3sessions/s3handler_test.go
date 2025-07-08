@@ -26,6 +26,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events/test"
@@ -78,4 +81,54 @@ func TestACL(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockS3Client struct {
+	mock.Mock
+	s3Client
+}
+
+func (m *mockS3Client) HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
+	args := m.Called(ctx, params, optFns)
+	return args.Get(0).(*s3.HeadBucketOutput), args.Error(1)
+}
+
+func (m *mockS3Client) CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error) {
+	args := m.Called(ctx, params, optFns)
+	return args.Get(0).(*s3.CreateBucketOutput), args.Error(1)
+}
+
+func (m *mockS3Client) PutBucketVersioning(ctx context.Context, params *s3.PutBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.PutBucketVersioningOutput, error) {
+	args := m.Called(ctx, params, optFns)
+	return args.Get(0).(*s3.PutBucketVersioningOutput), args.Error(1)
+}
+func (m *mockS3Client) PutBucketEncryption(ctx context.Context, params *s3.PutBucketEncryptionInput, optFns ...func(*s3.Options)) (*s3.PutBucketEncryptionOutput, error) {
+	args := m.Called(ctx, params, optFns)
+	return args.Get(0).(*s3.PutBucketEncryptionOutput), args.Error(1)
+}
+func TestEnsureBucket(t *testing.T) {
+	mockClient := &mockS3Client{}
+	var gotRegion s3types.BucketLocationConstraint
+	mockClient.On("HeadBucket", mock.Anything, mock.Anything, mock.Anything).
+		Return((*s3.HeadBucketOutput)(nil), (error)(&s3types.NoSuchBucket{}))
+	mockClient.On("CreateBucket", mock.Anything, mock.Anything, mock.Anything).
+		Return((*s3.CreateBucketOutput)(nil), (error)(nil)).Run(func(args mock.Arguments) {
+		createBucket := args.Get(1).(*s3.CreateBucketInput)
+		gotRegion = createBucket.CreateBucketConfiguration.LocationConstraint
+	})
+	mockClient.On("PutBucketVersioning", mock.Anything, mock.Anything, mock.Anything).
+		Return((*s3.PutBucketVersioningOutput)(nil), (error)(nil))
+	mockClient.On("PutBucketEncryption", mock.Anything, mock.Anything, mock.Anything).
+		Return((*s3.PutBucketEncryptionOutput)(nil), (error)(nil))
+
+	handler := &Handler{
+		Config: Config{
+			Region: "us-east-2",
+		},
+		client: mockClient,
+	}
+	err := handler.ensureBucket(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, s3types.BucketLocationConstraintUsEast2, gotRegion)
+
 }

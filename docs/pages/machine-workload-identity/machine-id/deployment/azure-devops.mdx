@@ -163,8 +163,14 @@ steps:
     wget https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
   displayName: 'Download and extract Teleport'
-- script: TELEPORT_ANONYMOUS_TELEMETRY=1 ./teleport/tbot start -c tbot.yaml
+- env:
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    TELEPORT_ANONYMOUS_TELEMETRY: 1
+  script: ./teleport/tbot start -c tbot.yaml
 ```
+
+Note the inclusion of the `SYSTEM_ACCESSTOKEN` environment variable. This
+variable must be populated in any step where `tbot` is run.
 
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
 telemetry. This helps us shape the future development of `tbot`. You can disable
