@@ -564,7 +564,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 			return trace.Wrap(err)
 		}
 
-		filename := fmt.Sprintf("%s%v-%v-%v.crl", a.output, cert.Subject.CommonName, certType, base32.HexEncoding.EncodeToString(cert.SubjectKeyId))
+		filename := fmt.Sprintf("%s-%v-%v_%v.crl", a.output, certType, base32.HexEncoding.EncodeToString(cert.SubjectKeyId), cert.Subject.CommonName)
 		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
 			return trace.Wrap(err)
 		}
