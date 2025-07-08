@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 var (
@@ -110,7 +110,7 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 
 func (o *KubernetesOutput) MarshalYAML() (any, error) {
 	type raw KubernetesOutput
-	return marshaling.WithTypeHeader((*raw)(o), KubernetesOutputType)
+	return encoding.WithTypeHeader((*raw)(o), KubernetesOutputType)
 }
 
 func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {

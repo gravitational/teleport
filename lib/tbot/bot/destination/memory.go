@@ -22,11 +22,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const MemoryType = "memory"
@@ -130,7 +131,7 @@ func (dm *Memory) TryLock() (func() error, error) {
 
 func (dm *Memory) MarshalYAML() (any, error) {
 	type raw Memory
-	return marshaling.WithTypeHeader((*raw)(dm), MemoryType)
+	return encoding.WithTypeHeader((*raw)(dm), MemoryType)
 }
 
 func (dm *Memory) IsPersistent() bool {
