@@ -22,7 +22,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { ButtonPrimary } from 'design/Button/Button';
+import { ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
@@ -271,10 +271,7 @@ const MonoText = styled(Text)`
   font-family: ${({ theme }) => theme.fonts.mono};
 `;
 
-const EditButton = styled(ButtonPrimary)`
-  padding: 0;
-  padding-left: ${props => props.theme.space[2]}px;
-  padding-right: ${props => props.theme.space[2]}px;
+const EditButton = styled(ButtonSecondary)`
   gap: ${props => props.theme.space[2]}px;
 `;
 
