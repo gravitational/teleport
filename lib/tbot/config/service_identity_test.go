@@ -23,10 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestIdentityOutput_YAML(t *testing.T) {
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[IdentityOutput]{
 		{
 			name: "full",
@@ -58,7 +59,7 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *IdentityOutput {
 				return &IdentityOutput{
-					Destination:   memoryDestForTest(),
+					Destination:   destination.NewMemory(),
 					Roles:         []string{"access"},
 					SSHConfigMode: SSHConfigModeOn,
 				}
@@ -68,11 +69,11 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "ssh config mode defaults",
 			in: func() *IdentityOutput {
 				return &IdentityOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			want: &IdentityOutput{
-				Destination:   memoryDestForTest(),
+				Destination:   destination.NewMemory(),
 				SSHConfigMode: SSHConfigModeOn,
 			},
 		},
@@ -89,7 +90,7 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "invalid ssh config mode",
 			in: func() *IdentityOutput {
 				return &IdentityOutput{
-					Destination:   memoryDestForTest(),
+					Destination:   destination.NewMemory(),
 					SSHConfigMode: "invalid",
 				}
 			},

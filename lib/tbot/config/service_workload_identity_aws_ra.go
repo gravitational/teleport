@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
@@ -50,7 +51,7 @@ type WorkloadIdentityAWSRAService struct {
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination destination.Destination `yaml:"destination"`
 
 	// RoleARN is the ARN of the role to assume.
 	// Example: `arn:aws:iam::123456789012:role/example-role`
@@ -193,7 +194,7 @@ func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // GetDestination returns the destination.
-func (o *WorkloadIdentityAWSRAService) GetDestination() bot.Destination {
+func (o *WorkloadIdentityAWSRAService) GetDestination() destination.Destination {
 	return o.Destination
 }
 

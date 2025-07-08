@@ -28,6 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
@@ -121,9 +122,9 @@ type SPIFFESVIDOutput struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
-	Destination                  bot.Destination `yaml:"destination"`
-	SVID                         SVIDRequest     `yaml:"svid"`
-	IncludeFederatedTrustBundles bool            `yaml:"include_federated_trust_bundles,omitempty"`
+	Destination                  destination.Destination `yaml:"destination"`
+	SVID                         SVIDRequest             `yaml:"svid"`
+	IncludeFederatedTrustBundles bool                    `yaml:"include_federated_trust_bundles,omitempty"`
 	// JWTs is an optional list of audiences and file names to write JWT SVIDs
 	// to.
 	JWTs []JWTSVID `yaml:"jwts,omitempty"`
@@ -144,7 +145,7 @@ func (o *SPIFFESVIDOutput) Init(ctx context.Context) error {
 }
 
 // GetDestination returns the destination.
-func (o *SPIFFESVIDOutput) GetDestination() bot.Destination {
+func (o *SPIFFESVIDOutput) GetDestination() destination.Destination {
 	return o.Destination
 }
 

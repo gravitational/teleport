@@ -23,10 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestApplicationOutput_YAML(t *testing.T) {
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[ApplicationOutput]{
 		{
 			name: "full",
@@ -57,7 +58,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *ApplicationOutput {
 				return &ApplicationOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Roles:       []string{"access"},
 					AppName:     "app",
 				}
@@ -77,7 +78,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "missing app_name",
 			in: func() *ApplicationOutput {
 				return &ApplicationOutput{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "app_name must not be empty",

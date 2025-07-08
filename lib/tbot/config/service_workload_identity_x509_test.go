@@ -21,13 +21,14 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
 func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 	t.Parallel()
 
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[WorkloadIdentityX509Service]{
 		{
 			name: "full",
@@ -67,7 +68,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -84,7 +85,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -97,7 +98,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			in: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
 					Selector: WorkloadIdentitySelector{},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
@@ -116,7 +117,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 							"key": {"value"},
 						},
 					},
-					Destination: &DestinationDirectory{
+					Destination: &destination.Directory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,

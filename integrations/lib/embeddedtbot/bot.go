@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -55,7 +56,7 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 	credential := &config.UnstableClientCredentialOutput{}
 
 	cfg := (*config.BotConfig)(botConfig)
-	cfg.Storage = &config.StorageConfig{Destination: &config.DestinationMemory{}}
+	cfg.Storage = &config.StorageConfig{Destination: destination.NewMemory()}
 	cfg.Services = config.ServiceConfigs{credential}
 
 	err := cfg.CheckAndSetDefaults()

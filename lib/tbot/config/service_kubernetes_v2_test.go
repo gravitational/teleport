@@ -23,10 +23,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
 
 func TestKubernetesV2Output_YAML(t *testing.T) {
-	dest := &DestinationMemory{}
+	dest := &destination.Memory{}
 	tests := []testYAMLCase[KubernetesV2Output]{
 		{
 			name: "full",
@@ -78,7 +79,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			name: "valid_name",
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{Name: "foo", Labels: map[string]string{}},
 					},
@@ -89,7 +90,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			name: "valid_label",
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{
 							"foo": "bar",
@@ -114,7 +115,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 				}
 			},
 			wantErr: "at least one selector must be provided",
@@ -123,7 +124,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			name: "empty selector",
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{},
 					},
@@ -135,7 +136,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			name: "both name and label in selector",
 			in: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
-					Destination: memoryDestForTest(),
+					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{
 							Name: "foo",

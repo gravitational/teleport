@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -359,16 +360,18 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	destinationPaths := map[string]int{}
-	addDestinationToKnownPaths := func(d bot.Destination) {
+	addDestinationToKnownPaths := func(d destination.Destination) {
 		switch d := d.(type) {
-		case *DestinationDirectory:
+		case *destination.Directory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
 		case *DestinationKubernetesSecret:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
 	for _, svc := range conf.Services {
-		v, ok := svc.(interface{ GetDestination() bot.Destination })
+		v, ok := svc.(interface {
+			GetDestination() destination.Destination
+		})
 		if ok {
 			addDestinationToKnownPaths(v.GetDestination())
 		}
@@ -572,9 +575,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
+// unmarshalDestination takes a *yaml.Node and produces a destination.Destination by
 // considering the `type` field.
-func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
+func unmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
@@ -583,14 +586,14 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 
 	switch header.Type {
-	case DestinationMemoryType:
-		v := &DestinationMemory{}
+	case destination.MemoryType:
+		v := &destination.Memory{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
-	case DestinationDirectoryType:
-		v := &DestinationDirectory{}
+	case destination.DirectoryType:
+		v := &destination.Directory{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -609,7 +612,7 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 // Initable represents any ServiceConfig which is compatible with
 // `tbot init`.
 type Initable interface {
-	GetDestination() bot.Destination
+	GetDestination() destination.Destination
 	Init(ctx context.Context) error
 	Describe() []FileDescription
 }
@@ -625,8 +628,8 @@ func (conf *BotConfig) GetInitables() []Initable {
 }
 
 // DestinationFromURI parses a URI from the input string and returns a matching
-// bot.Destination implementation, if possible.
-func DestinationFromURI(uriString string) (bot.Destination, error) {
+// destination.Destination implementation, if possible.
+func DestinationFromURI(uriString string) (destination.Destination, error) {
 	uri, err := url.Parse(uriString)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing --data-dir")
@@ -640,7 +643,7 @@ func DestinationFromURI(uriString string) (bot.Destination, error) {
 		}
 		// TODO(strideynet): eventually we can allow for URI query parameters
 		// to be used to configure symlinks/acl protection.
-		return &DestinationDirectory{
+		return &destination.Directory{
 			Path: uri.Path,
 		}, nil
 	case "memory":
@@ -649,7 +652,7 @@ func DestinationFromURI(uriString string) (bot.Destination, error) {
 				"memory-backed data storage should not have host or path specified",
 			)
 		}
-		return &DestinationMemory{}, nil
+		return &destination.Memory{}, nil
 	case "kubernetes-secret":
 		if uri.Host != "" {
 			return nil, trace.BadParameter(
