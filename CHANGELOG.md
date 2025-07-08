@@ -336,6 +336,14 @@ windows_desktop_service:
 +      rdp_port: 9989 # optional, defaults to 3389
 ```
 
+#### Customizable keyboard layouts for remote desktop sessions
+
+The web UI's account settings page now includes an option for
+setting your desired keyboard layout for remote desktop sessions.
+
+This keyboard layout will be respected by agents running Teleport 18
+or later.
+
 #### Faster user lookups on domain-joined Windows workstations
 
 Teleport 18 is built with Go 1.24, which includes an optimized user lookup
