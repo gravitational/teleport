@@ -13,12 +13,10 @@ state: draft
 ## What
 
 Add the ability to handle arbitrary JSON OIDC claims using a new interpolation
-function, `jsonpath`. This function can be used to query JSON values according
-to the [JSONPath query language](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
-
-The `jsonpath` function will be supported in `login_rule` trait maps/expressions,
-as well as in `claims_to_roles` mapping in the OIDC connector with a new
-`claim_expression` field.
+function, `jsonpath`. This function will be supported in login rules so that
+administrators can map JSON claims to standard user traits for use in
+`claims_to_roles` mapping, [role templating](https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/),
+etc.
 
 ## Why
 
@@ -31,6 +29,10 @@ feature is necessary for Teleport to integrate with these OIDC solutions.
 
 ### JSONPath
 
+[JSONPath](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html)
+is a query language used to query JSON values in a JSON object, which is
+perfect for this use case.
+
 Before continuing to read this RFD, you should familiarize yourself with the
 basics of [JSONPath syntax](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
 
@@ -40,24 +42,16 @@ queries in a [sandbox](https://serdejsonpath.live/).
 #### `jsonpath` Expression Function
 
 The `jsonpath` function will be added as another standard trait expression
-function. It can be used in `login_rule` trait maps/expressions and the new
-sso connector `claim_expression` field to interpolate a string(s) from
-arbitrary JSON claims.
-
-Note: currently, login rules are applied after the claims to traits mapping.
-Instead, we will apply the login rules to the OIDC claims (`map[string]any`)
-before mapping them to traits (`map[string][]string`).
+function. It can be used in `login_rule` trait maps/expressions to interpolate
+a string(s) from arbitrary JSON claims.
 
 Note: the `jsonpath` function can *technically* be used for any "expression"
-in teleport, such as the role field `node_labels_expression`. Since traits
-can only be a string(s), and not arbitrary JSON like OIDC claims, `jsonpath`
-could only be used for basic string/array expressions. In most of these cases a
-predicate function would be more appropriate. For exapmle, to get "2" from the
-list ["1","2","3"], you could do either `contains(list, "value1")` or
-`jsonpath(list, "$[?(@ == "value1")]")`, but clearly the former is simpler.
-Still, it's worth noting as some of the more advanced `jsonpath` features like
-dynamic filtering and numerical comparison could be useful to extend the
-expression functionality currently available.
+in teleport, such as the role field `node_labels_expression`, assuming the
+value in the `jsonpath` expression is a marshalled JSON object. Therefore, it
+is possible to set a user trait like `{"labels":{"1":"a","2":"b"]}` and use
+`jsonpath` expressions on that trait. This is just a side effect of the
+implementation and will not be documented for use in practice, though it could
+be made into an evergreen feature with documentation if the need arises.
 
 #### JSONPath Libraries
 
@@ -86,42 +80,16 @@ unresolved syntax disagreements in the community.
 
 During OIDC login, a user's OIDC claims serve two purposes:
 
-* Determining what Teleport roles to give the user, using the `claims_to_roles` mapping.
-* Setting claims as Teleport user traits.
-  * Login rules are applied to these traits before they are set for the user.
+* Setting claims as Teleport user traits, optionally using login rules for custom claims to traits mapping.
+* Determining what Teleport roles to give the user, using the OIDC connector's `claims_to_roles` field to map user traits to roles.
 
-Both of these steps will have support for the `jsonpath` function in order to
-handle JSON OIDC claims.
+The `jsonpath` function will be supported in login rule trait mapping. As a
+result, any JSON OIDC claims mapped to traits in the claims to traits mapping
+will be available in the traits to roles mapping.
 
-#### Claims to Roles - `claim_expression`
-
-To map a JSON claim to a role, admins can set the new `claim_expression`
-field in the OIDC `claims_to_roles` mapping, causing the mapping to match
-on the evaluated expression value.
-
-In the following example, these OIDC claims would map to the `viewer` role.
-
-```json
-{
-  "groups": {
-    "roles": ["viewer"]
-  }
-}
-```
-
-```yaml
-kind: oidc 
-...
-spec:
-  ...
-  claims_to_roles:
-      # evaluates to ["viewer"]
-    - claim_expression: 'jsonpath(external.groups, "$.roles")'
-      value: "viewer"
-      roles: "viewer"
-```
-
-Note: Either `claim_expression` or `claim` can be set, not both.
+Note: see [this section](#json-traits) for an explanation as to why we decided
+not to set arbitrary JSON values as user traits directly, and instead are
+requiring the use of login rules.
 
 #### Login Rules - Claims to Traits
 
@@ -131,10 +99,11 @@ In the example below, `$.logins` and `$.env` claims are mapped to user traits.
 
 ```json
 {
+  // groups is a JSON object rather than a string array.
   "groups": {
-    "roles": ["viewer"],
+    "roles": ["template"],
     "logins": ["alice"],
-    "env": ["staging", "dev"]
+    "env": ["staging", "dev"],
   }
 }
 ```
@@ -143,10 +112,13 @@ In the example below, `$.logins` and `$.env` claims are mapped to user traits.
 kind: login_rule
 version: v1
 metadata:
-  name: distributed-idp
+  name: my-loginrule
 spec:
   priority: 0
   traits_map:
+    roles:
+      # evaluates to ["template"]
+      - jsonpath(external.groups, "$.roles")
     logins:
       # evaluates to ["alice"]
       - jsonpath(external.groups, "$.logins")
@@ -155,7 +127,21 @@ spec:
       - jsonpath(external.groups, "$.env")
 ```
 
-These traits can then be used in role templates, label expressions, etc.
+These traits can then be used in claims to roles mappings, role templates,
+label expressions, etc.
+
+```yaml
+kind: oidc 
+version: v2
+metadata:
+  name: my-idp
+spec:
+  ...
+  claims_to_roles:
+    - claim: "roles"
+      value: "template"
+      roles: ["template"]
+```
 
 ```yaml
 kind: role
@@ -163,6 +149,7 @@ version: v7
 metadata:
   name: template
 spec:
+  ...
   allow:
     logins: '{{external.logins}}'
     node_labels_expression: 'contains(external.env, labels["env"])'
@@ -202,10 +189,10 @@ be set for users. Below is an example claim object for user `alice`.
 }
 ```
 
-The administrator wants to take these claims and map them directly to role
-conditions using [role templating](https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/).
+We want to map the `groups.teleport.roles` claim to teleport roles, and map the
+logins and labels to role conditions using role templating.
 
-First, the admin needs to create a `login_rule` to map this arbitrary JSON
+First, the we need to create a `login_rule` to map this arbitrary JSON
 object into a set of user traits.
 
 ```yaml
@@ -242,8 +229,8 @@ example, we are only looking for the `*` and `env` labels, so if the provider
 added a claim like `"team": "devops"`, it would not be mapped without an
 additional `traits_map` rule.
 
-The mapped traits can now be used as if they are standard OIDC claims in the
-OIDC connector's `claims_to_roles` spec to assign the template role to the user.
+The mapped traits can now be referenced in the OIDC connector's `claims_to_roles`
+mapping to assign the `template` role to the user.
 
 ```yaml
 kind: oidc 
@@ -258,7 +245,7 @@ spec:
       roles: ["template"]
 ```
 
-Lastly, the admin can create the template role and utilize the mapped traits.
+Lastly, we can create the template role and utilize the mapped traits.
 
 ```yaml
 kind: role
@@ -302,12 +289,10 @@ set of resources in Teleport.
 {
   "aggregated_claims": {
     "okta": {
-      "groups": ["teleport-access", "github-admin"],
       "logins": "alice",
       "env": ["staging", "dev"]
     },
     "auth0": {
-      "groups": "teleport-devops",
       "logins": "devops",
       "env": ["prod"]
     },
@@ -318,35 +303,10 @@ set of resources in Teleport.
 }
 ```
 
-For this example, we will start with the OIDC connector `claims_to_roles` spec,
-which also supports the `jsonpath` function.
-
-```yaml
-kind: oidc 
-version: v2
-metadata:
-  name: distributed-idp
-spec:
-  ...
-  claims_to_roles:
-    - claim_expression: "jsonpath(external.aggregated_claims, "$.okta.groups")"
-      value: "teleport-access"
-      roles: ["okta-access"]
-      # evaluates to "teleport-devops", match.
-    - claim_expression: "jsonpath(external.aggregated_claims, "$.auth0.groups")"
-      value: "teleport-devops"
-      roles: ["auth0-devops"]
-      # evaluates to [], no match.
-    - claim_expression: "jsonpath(external.aggregated_claims, "$.github.groups")"
-      value: "*-admin"
-      roles: ["github-admin"]
-```
-
-In order to save the other claims as user traits, the admin can create a
-`login_rule`.
-
-The admin can also set other custom traits based on the structure of the claims.
-For example, a `teams` trait that aggregates the root property names of the
+Once again, we'll start with a login rule to map the JSON claim to traits.
+Rather than mapping them directly to user traits, we map them in a way to
+maintain separate labels for each of the aggregated providers. We will also
+set a custom `teams` trait to aggregate the root property names of the
 aggregated claims (e.g. `okta`).
 
 ```yaml
@@ -358,17 +318,23 @@ spec:
   priority: 0
   traits_map:
     okta_logins:
-      # evaluates to "alice"
+      # evaluates to ["alice"]
       - jsonpath(external.aggregated_claims, "$.okta.logins")
     okta_env:
       # evaluates to ["staging", "dev"]
       - jsonpath(external.aggregated_claims, "$.okta.env")
     auth0_logins:
-      # evaluates to "devops"
+      # evaluates to ["devops"]
       - jsonpath(external.aggregated_claims, "$.auth0.logins")
     auth0_env:
       # evaluates to ["prod"]
       - jsonpath(external.aggregated_claims, "$.auth0.env")
+    github_logins:
+      # evaluates to []
+      - jsonpath(external.aggregated_claims, "$.github.logins")
+    github_env:
+      # evaluates to []
+      - jsonpath(external.aggregated_claims, "$.github.env")
     teams:
       # evaluates to ["okta", "auth0"]
       - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.okta") ), set("okta"), set())'
@@ -376,20 +342,36 @@ spec:
       - 'ifelse( !isempty( jsonpath(external.aggregated_claims, "$.github") ), set("github"), set())'
 ```
 
-Note that we exclude `groups` from the `traits_map` as we have already used
-the groups to assign the user's roles. Since user traits are included in signed
-SSH certificates and JWTs and oversized certs/JWTs can cause issues with some
-third-party applications, it can be important to use login rules to trim
-unnecessary or redundant traits coming from OIDC claims.
+The mapped traits can now be referenced in the OIDC connector's `claims_to_roles`
+mapping to assign the roles based on the user's teams.
 
-The admin can now create okta and auth0 role templates which rely only on
-claims for the corresponding provider:
+```yaml
+kind: oidc 
+version: v2
+metadata:
+  name: distributed-idp
+spec:
+  ...
+  claims_to_roles:
+    - claim: "teams"
+      value: "okta"
+      roles: ["okta"]
+    - claim: "teams"
+      value: "auth0"
+      roles: ["auth0"]
+    - claim: "teams"
+      value: "github"
+      roles: ["github"]
+```
+
+We can now create the `okta` and `auth0` roles with templating to
+reference the relevant claims mapped to user traits.
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: okta-access
+  name: okta
 spec:
   allow:
     logins: '{{external.okta_logins}}'
@@ -400,7 +382,7 @@ spec:
 kind: role
 version: v7
 metadata:
-  name: auth0-devops
+  name: auth0
 spec:
   allow:
     logins: '{{external.auth0_logins}}'
@@ -411,23 +393,21 @@ spec:
 
 ### Proto
 
-```diff
-message ClaimMapping {
-  ...
-+ // ClaimExpression is an interpolation expression that retrieves a value for claim matching.
-+ string ClaimExpression = 4 [(gogoproto.jsontag) = "claim_expression"];
-}
+N/A
 
-message TraitMapping {
-  ...
-+ // TraitExpression is an interpolation expression that transforms the trait value(s).
-+ string TraitExpression = 4 [(gogoproto.jsontag) = "trait_expression"];
-}
-```
+### Audit Events
+
+All unaltered OIDC claims are included in the `user.login` audit event,
+including claims which are not mapped to traits.
+
+There is currently no audit event for when login rules are applied. The
+easiest way to check login rule mapping and claim mapping logic is to use
+`tctl sso test`, which can output what login rules successfully applied with
+the `--debug` flag.
 
 ### Security
 
-This RFD should not raise any security concerns outside of those already covered
+This RFD does not raise any security concerns outside of those already covered
 in the [label expression RFD](https://github.com/gravitational/teleport/blob/master/rfd/0116-label-expressions.md#security).
 
 ### Additional Considerations
