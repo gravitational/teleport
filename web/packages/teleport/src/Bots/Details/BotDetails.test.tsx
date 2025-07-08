@@ -113,8 +113,8 @@ describe('BotDetails', () => {
       .closest('section');
     expect(panel).toBeInTheDocument();
 
-    expect(within(panel).getByText('test-bot')).toBeInTheDocument();
-    expect(within(panel).getByText('12h')).toBeInTheDocument();
+    expect(within(panel!).getByText('test-bot')).toBeInTheDocument();
+    expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
   it('should show bot roles', async () => {
@@ -127,8 +127,8 @@ describe('BotDetails', () => {
       .closest('section');
     expect(panel).toBeInTheDocument();
 
-    expect(within(panel).getByText('admin')).toBeInTheDocument();
-    expect(within(panel).getByText('user')).toBeInTheDocument();
+    expect(within(panel!).getByText('admin')).toBeInTheDocument();
+    expect(within(panel!).getByText('user')).toBeInTheDocument();
   });
 
   it('should show bot traits', async () => {
@@ -141,10 +141,10 @@ describe('BotDetails', () => {
       .closest('section');
     expect(panel).toBeInTheDocument();
 
-    expect(within(panel).getByText('trait-1')).toBeInTheDocument();
-    expect(within(panel).getByText('value-1')).toBeInTheDocument();
-    expect(within(panel).getByText('value-2')).toBeInTheDocument();
-    expect(within(panel).getByText('value-3')).toBeInTheDocument();
+    expect(within(panel!).getByText('trait-1')).toBeInTheDocument();
+    expect(within(panel!).getByText('value-1')).toBeInTheDocument();
+    expect(within(panel!).getByText('value-2')).toBeInTheDocument();
+    expect(within(panel!).getByText('value-3')).toBeInTheDocument();
   });
 
   it('should show an unauthorised error state', async () => {
