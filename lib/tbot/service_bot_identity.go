@@ -384,18 +384,18 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "bot-identity-renewal",
-		f: func(ctx context.Context) error {
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service: s.String(),
+		Name:    "bot-identity-renewal",
+		F: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:           s.cfg.CredentialLifetime.RenewalInterval,
-		retryLimit:         botIdentityRenewalRetryLimit,
-		log:                s.log,
-		reloadCh:           reloadCh,
-		waitBeforeFirstRun: true,
-		statusReporter:     s.statusReporter,
+		Interval:           s.cfg.CredentialLifetime.RenewalInterval,
+		RetryLimit:         botIdentityRenewalRetryLimit,
+		Log:                s.log,
+		ReloadCh:           reloadCh,
+		WaitBeforeFirstRun: true,
+		StatusReporter:     s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

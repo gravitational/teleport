@@ -78,16 +78,16 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:         s.String(),
-		name:            "output-renewal",
-		f:               s.generate,
-		interval:        s.cfg.SessionRenewalInterval,
-		retryLimit:      renewalRetryLimit,
-		log:             s.log,
-		reloadCh:        reloadCh,
-		identityReadyCh: s.botIdentityReadyCh,
-		statusReporter:  s.statusReporter,
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               s.generate,
+		Interval:        s.cfg.SessionRenewalInterval,
+		RetryLimit:      renewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

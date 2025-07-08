@@ -402,10 +402,10 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 ) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		service: s.String(),
-		name:    "identity-renewal",
-		f: func(ctx context.Context) error {
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service: s.String(),
+		Name:    "identity-renewal",
+		F: func(ctx context.Context) error {
 			id, err := s.generateIdentity(ctx)
 			if err != nil {
 				return trace.Wrap(err, "generating identity")
@@ -413,10 +413,10 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		Interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		RetryLimit: renewalRetryLimit,
+		Log:        s.log,
+		ReloadCh:   reloadCh,
 	})
 	return trace.Wrap(err)
 }
