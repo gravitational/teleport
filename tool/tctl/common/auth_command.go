@@ -523,7 +523,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	tlsKeys := authority.GetActiveKeys().TLS
 	if len(tlsKeys) == 0 {
 		return trace.BadParameter("CA has no active keys")
-	} else
+	}
 
 	if a.output == "" {
 		if len(tlsKeys) > 1 {
