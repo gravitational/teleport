@@ -60,7 +60,8 @@ info "Converting .md files to .mdx"
 cd "$TMPDIR/docs"
 find . -iname '*.md' -type f -exec sh -c 'i="$1"; mv "$i" "${i%.md}.mdx"' shell {} \;
 # renaming the resources and data-sources indexes because the names were reserved by the generator
-# mv "$TMPDIR/docs/resources-index.mdx" "$TMPDIR/docs/resources/resources.mdx"
+rm "$TMPDIR/docs/resources-index.mdx"
+mv "$TMPDIR/docs/ephemeral-resources-index.mdx" "$TMPDIR/docs/ephemeral-resources/ephemeral-resources.mdx"
 mv "$TMPDIR/docs/data-sources-index.mdx" "$TMPDIR/docs/data-sources/data-sources.mdx"
 
 info "Copying generated documentation into the teleport docs directory"
@@ -69,6 +70,6 @@ info "Copying generated documentation into the teleport docs directory"
 rm -rf "$DOCSDIR" "$DOCSDIR/terraform-provider.mdx"
 cp -r "$TMPDIR/docs" "$DOCSDIR"
 # unpacking the index to the apex terraform.mdx
-mv "$DOCSDIR/index.mdx" "$DOCSDIR/terraform-provider.mdx"
+mv "$DOCSDIR/index.mdx" "$DOCSDIR/terraform-provider-mwi.mdx"
 
 info "TF documentation successfully generated"
