@@ -123,25 +123,31 @@ $ kubectl -n teleport create secret generic license --from-file=license.pem
 3. Create a new ArgoCD application using the following as a template.
 
 ``` yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: teleport-kube-agent
-spec:
-  destination:
-    name: ''
-    namespace: teleport
-    server: 'https://kubernetes.default.svc'
-  source:
-    path: ''
-    repoURL: 'https://charts.releases.teleport.dev'
-    targetRevision: (=teleport.version=)
-    chart: teleport-kube-agent
-  sources: []
-  project: default
+project: default
+source:
+  repoURL: 'https://charts.releases.teleport.dev'
+  targetRevision: (=teleport.version=)
+  helm:
+    values: |-
+
+      roles: kube,app,discovery
+      authToken: $YOUR_AUTH_TOKEN
+      proxyAddr: $YOUR_PROXY_ADDR
+      kubeClusterName: $KUBE_CLUSTER_NAME
+      highAvailability:
+          replicaCount: 2
+          podDisruptionBudget:
+              enabled: true
+              minAvailable: 1
+  chart: teleport-kube-agent
+destination:
+  server: 'https://kubernetes.default.svc'
+  namespace: teleport
 ```
 
 3. Edit this example configuration to match your needs.
    More information on how to modify helm this the helm chart
    and values can be found in the [Helm deployments guide](./helm-deployments.mdx).
 4. Sync your changes to apply the configuration.
+5. To verify setup, navigate to the 'Resources' page in your Teleport
+   cluster to confirm the kubernetes cluster is registered.
