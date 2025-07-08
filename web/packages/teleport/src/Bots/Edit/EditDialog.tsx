@@ -132,7 +132,20 @@ export function EditDialog(props: {
       </DialogHeader>
       <Validation>
         {({ validator }) => (
-          <>
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              if (
+                hasEditPermission &&
+                isDirty &&
+                !isSubmitting &&
+                !hasInconsistencies &&
+                validator.validate()
+              ) {
+                handleSubmit();
+              }
+            }}
+          >
             <DialogContent maxWidth={680}>
               {isLoading ? (
                 <Box data-testid="loading" textAlign="center" m={10}>
@@ -260,6 +273,7 @@ export function EditDialog(props: {
             </DialogContent>
             <DialogFooter>
               <ButtonPrimary
+                type="submit"
                 mr="3"
                 disabled={
                   isLoading ||
@@ -268,11 +282,6 @@ export function EditDialog(props: {
                   hasInconsistencies ||
                   !isDirty
                 }
-                onClick={() => {
-                  if (validator.validate()) {
-                    handleSubmit();
-                  }
-                }}
               >
                 Save
               </ButtonPrimary>
@@ -283,7 +292,7 @@ export function EditDialog(props: {
                 Cancel
               </ButtonSecondary>
             </DialogFooter>
-          </>
+          </form>
         )}
       </Validation>
     </Dialog>
