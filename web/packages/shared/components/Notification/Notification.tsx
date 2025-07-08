@@ -320,3 +320,13 @@ const Container = styled(Box)`
 
   ${borderColor}
 `;
+
+export const BottomRightNotificationContainer = styled.div`
+  position: absolute;
+  bottom: ${p => p.theme.space[2]}px;
+  right: ${p => p.theme.space[5]}px;
+  display: flex;
+  flex-direction: column;
+  gap: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => p.theme.space[3]}px;
+`;
