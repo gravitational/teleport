@@ -47,10 +47,12 @@ export function RoleEditorAdapter({
   onSave,
   onCancel,
   roleDiffProps,
+  initProcessing = false,
 }: {
   resources: ResourcesState;
   onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
   onCancel: () => void;
+  initProcessing?: boolean;
 } & RolesProps) {
   const showRoleDiff = roleDiffProps && shouldShowRoleDiff(roleDiffProps);
   const theme = useTheme();
@@ -94,7 +96,7 @@ export function RoleEditorAdapter({
         minWidth="494px"
         maxWidth="672px"
       >
-        {convertAttempt.status === 'processing' && (
+        {(convertAttempt.status === 'processing' || initProcessing) && (
           <Flex
             flexDirection="column"
             alignItems="center"
@@ -108,7 +110,7 @@ export function RoleEditorAdapter({
           <Danger>{convertAttempt.statusText}</Danger>
         )}
 
-        {convertAttempt.status === 'success' && (
+        {convertAttempt.status === 'success' && !initProcessing && (
           <RoleEditor
             originalRole={convertAttempt.data}
             roleDiffAttempt={roleDiffProps?.roleDiffAttempt}

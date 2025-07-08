@@ -42,11 +42,21 @@ export function RoleEditorDialog({
   resources,
   onSave,
   roleDiffProps,
+  initProcessing = false,
 }: {
   open: boolean;
   onClose(): void;
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
+  /**
+   * Allows initial render of this dialog to remain in the processing
+   * state while whatever processing outside of this dialog finishes.
+   *
+   * eg: Clicking on a role label triggers rendering this dialog
+   * and fetching the role resource at the same time. The fetching
+   * can still be in progress.
+   */
+  initProcessing?: boolean;
 } & RolesProps) {
   const transitionRef = useRef<HTMLDivElement>(null);
   return (
@@ -63,6 +73,7 @@ export function RoleEditorDialog({
         resources={resources}
         onSave={onSave}
         roleDiffProps={roleDiffProps}
+        initProcessing={initProcessing}
       />
     </CSSTransition>
   );
@@ -74,26 +85,33 @@ const DialogInternal = forwardRef<
     onClose(): void;
     resources: ResourcesState;
     onSave(role: Partial<RoleWithYaml>): Promise<void>;
+    initProcessing?: boolean;
   } & RolesProps
->(({ onClose, resources, onSave, roleDiffProps }, ref) => {
-  return (
-    <Dialog
-      modalCss={() => modalCss}
-      disableEscapeKeyDown={false}
-      open={true}
-      modalRef={ref}
-      BackdropProps={{ className: 'backdrop' }}
-      className="dialog"
-    >
-      <RoleEditorAdapter
-        resources={resources}
-        onSave={onSave}
-        onCancel={onClose}
-        roleDiffProps={roleDiffProps}
-      />
-    </Dialog>
-  );
-});
+>(
+  (
+    { onClose, resources, onSave, roleDiffProps, initProcessing = false },
+    ref
+  ) => {
+    return (
+      <Dialog
+        modalCss={() => modalCss}
+        disableEscapeKeyDown={false}
+        open={true}
+        modalRef={ref}
+        BackdropProps={{ className: 'backdrop' }}
+        className="dialog"
+      >
+        <RoleEditorAdapter
+          resources={resources}
+          onSave={onSave}
+          onCancel={onClose}
+          roleDiffProps={roleDiffProps}
+          initProcessing={initProcessing}
+        />
+      </Dialog>
+    );
+  }
+);
 
 const modalCss = css`
   & .dialog {
