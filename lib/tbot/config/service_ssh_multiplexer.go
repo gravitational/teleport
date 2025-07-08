@@ -54,7 +54,7 @@ type SSHMultiplexerService struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -106,6 +106,6 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SSHMultiplexerService) GetCredentialLifetime() CredentialLifetime {
+func (o *SSHMultiplexerService) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

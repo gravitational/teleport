@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
@@ -307,7 +308,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 		},
 		Storage:            &config.StorageConfig{Destination: &config.DestinationMemory{}},
 		Services:           config.ServiceConfigs{credential},
-		CredentialLifetime: config.CredentialLifetime{TTL: c.botTTL},
+		CredentialLifetime: bot.CredentialLifetime{TTL: c.botTTL},
 		Oneshot:            true,
 		// If --insecure is passed, the bot will trust the certificate on first use.
 		// This does not truly disable TLS validation, only trusts the certificate on first connection.

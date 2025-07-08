@@ -60,7 +60,7 @@ type KubernetesOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -130,6 +130,6 @@ func (o *KubernetesOutput) Type() string {
 	return KubernetesOutputType
 }
 
-func (o *KubernetesOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *KubernetesOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

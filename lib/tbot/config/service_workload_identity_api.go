@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -46,7 +47,7 @@ type WorkloadIdentityAPIService struct {
 
 	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
@@ -89,8 +90,8 @@ func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *WorkloadIdentityAPIService) GetCredentialLifetime() CredentialLifetime {
+func (o *WorkloadIdentityAPIService) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.skipMaxTTLValidation = true
+	lt.SkipMaxTTLValidation = true
 	return lt
 }
