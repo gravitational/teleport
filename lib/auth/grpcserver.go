@@ -704,8 +704,10 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleNode: constants.KeepAliveNode,
-	types.RoleApp:  constants.KeepAliveApp,
+	types.RoleApp:      constants.KeepAliveApp,
+	types.RoleDatabase: constants.KeepAliveDatabase,
+	types.RoleKube:     constants.KeepAliveKube,
+	types.RoleNode:     constants.KeepAliveNode,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
