@@ -2980,6 +2980,18 @@ func (c *Client) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, p
 	return resp.GetAutoupdateAgentReports(), resp.GetNextKey(), nil
 }
 
+// UpsertAutoUpdateAgentReport upserts an AutoUpdateAgentReport resource.
+func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoupdatev1pb.AutoUpdateAgentReport) (*autoupdatev1pb.AutoUpdateAgentReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateAgentReport(ctx, &autoupdatev1pb.UpsertAutoUpdateAgentReportRequest{
+		AutoupdateAgentReport: report,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -2989,7 +3001,7 @@ func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfi
 	return rsp.AccessGraph, nil
 }
 
-// GetInstaller gets all installer script resources
+// GetInstallers gets all installer script resources
 func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	resp, err := c.grpc.GetInstallers(ctx, &emptypb.Empty{})
 	if err != nil {
