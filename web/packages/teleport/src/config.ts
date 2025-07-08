@@ -314,8 +314,6 @@ const cfg = {
     usersPath: '/v1/webapi/users',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
-    listRolesPath:
-      '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
 
     role: {
       create: '/v1/webapi/roles',
