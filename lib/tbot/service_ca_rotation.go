@@ -34,6 +34,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -75,41 +76,6 @@ func (rd *debouncer) attempt() {
 	})
 }
 
-type channelBroadcaster struct {
-	mu      sync.Mutex
-	chanSet map[chan struct{}]struct{}
-}
-
-func (cb *channelBroadcaster) subscribe() (ch chan struct{}, unsubscribe func()) {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	ch = make(chan struct{}, 1)
-	cb.chanSet[ch] = struct{}{}
-	// Returns a function that should be called to unsubscribe the channel
-	return ch, func() {
-		cb.mu.Lock()
-		defer cb.mu.Unlock()
-		_, ok := cb.chanSet[ch]
-		if ok {
-			delete(cb.chanSet, ch)
-			close(ch)
-		}
-	}
-}
-
-func (cb *channelBroadcaster) broadcast() {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	for ch := range cb.chanSet {
-		select {
-		case ch <- struct{}{}:
-			// Successfully sent notification
-		default:
-			// Channel already has valued queued
-		}
-	}
-}
-
 const caRotationRetryBackoff = time.Second * 2
 
 // caRotationService watches for CA rotations in the cluster, and
@@ -129,7 +95,7 @@ const caRotationRetryBackoff = time.Second * 2
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
 type caRotationService struct {
 	log                *slog.Logger
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	botClient          *apiclient.Client
 	getBotIdentity     getBotIdentityFn
 	botIdentityReadyCh <-chan struct{}
@@ -151,7 +117,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 	}
 
 	rd := debouncer{
-		f:              s.reloadBroadcaster.broadcast,
+		f:              s.reloadBroadcaster.Broadcast,
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.DefaultJitter

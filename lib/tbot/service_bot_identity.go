@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -58,7 +59,7 @@ const botIdentityRenewalRetryLimit = 7
 // reload signal.
 type identityService struct {
 	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
+	reloadBroadcaster *internal.ChannelBroadcaster
 	cfg               *config.BotConfig
 	statusReporter    readyz.Reporter
 	clientBuilder     *client.Builder
@@ -340,7 +341,7 @@ func (s *identityService) OneShot(ctx context.Context) error {
 func (s *identityService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Run")
 	defer span.End()
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 
 	// Determine where the bot should write its internal data (renewable cert

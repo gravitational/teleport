@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
@@ -104,7 +105,7 @@ type SSHMultiplexerService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
-	reloadBroadcaster  *channelBroadcaster
+	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 
 	identityGenerator *identity.Generator
@@ -399,7 +400,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 func (s *SSHMultiplexerService) identityRenewalLoop(
 	ctx context.Context, proxyHost string, authClient *apiclient.Client,
 ) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
 	defer unsubscribe()
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		service: s.String(),
