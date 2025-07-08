@@ -329,14 +329,16 @@ function MainContent({
         <Flex justifyContent="flex-start" alignItems="center" gap={2}>
           {showListTypes && (
             <MultiselectMenu
-              options={[
-                { value: 'teleport', label: 'Teleport' },
-                { value: 'okta', label: 'Okta' },
-                {
-                  value: 'aws-identity-center',
-                  label: 'AWS IAM Identity Center',
-                },
-              ]}
+              options={
+                [
+                  { value: 'teleport', label: 'Teleport' },
+                  { value: 'okta', label: 'Okta' },
+                  {
+                    value: 'aws-identity-center',
+                    label: 'AWS IAM Identity Center',
+                  },
+                ] as const
+              }
               onChange={sources => setFilterValue({ source: sources })}
               selected={filterValue.source || []}
               label="List Type"
