@@ -99,6 +99,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.78.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.9.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sns v1.29.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
