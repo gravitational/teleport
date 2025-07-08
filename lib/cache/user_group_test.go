@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestUserGroups tests that CRUD operations on user group resources are
@@ -48,13 +50,11 @@ func TestUserGroups(t *testing.T) {
 		},
 		create: p.userGroups.CreateUserGroup,
 		list: func(ctx context.Context) ([]types.UserGroup, error) {
-			results, _, err := p.userGroups.ListUserGroups(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.userGroups.ListUserGroups))
 		},
 		cacheGet: p.cache.GetUserGroup,
 		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
-			results, _, err := p.cache.ListUserGroups(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListUserGroups))
 		},
 		update:    p.userGroups.UpdateUserGroup,
 		deleteAll: p.userGroups.DeleteAllUserGroups,
