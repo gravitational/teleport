@@ -88,6 +88,7 @@ export function EditDialog(props: {
       queryClient.setQueryData(key, newData);
 
       // Older APIs may not support updating some fields, check that applicable fields were updated and show a warning if not.
+      // TODO(nicholasmarais1158) DELETE IN v20.0.0
       const fields = validateBotUpdate(data, variables, newData);
 
       const hasInconsistencies = fields.length > 0;
