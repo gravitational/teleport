@@ -28,6 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const SPIFFESVIDOutputType = "spiffe-svid"
@@ -189,7 +190,7 @@ func (o *SPIFFESVIDOutput) Type() string {
 // MarshalYAML marshals the SPIFFESVIDOutput into YAML.
 func (o *SPIFFESVIDOutput) MarshalYAML() (any, error) {
 	type raw SPIFFESVIDOutput
-	return withTypeHeader((*raw)(o), SPIFFESVIDOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), SPIFFESVIDOutputType)
 }
 
 // UnmarshalYAML unmarshals the SPIFFESVIDOutput from YAML.

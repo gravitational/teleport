@@ -33,6 +33,8 @@ import (
 	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const DestinationKubernetesSecretType = "kubernetes_secret"
@@ -285,7 +287,7 @@ func (dks *DestinationKubernetesSecret) String() string {
 
 func (dks *DestinationKubernetesSecret) MarshalYAML() (any, error) {
 	type raw DestinationKubernetesSecret
-	return withTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
+	return marshaling.WithTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
 }
 
 func (dks *DestinationKubernetesSecret) IsPersistent() bool {

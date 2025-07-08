@@ -35,6 +35,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -477,7 +478,7 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 
 func (dm *DestinationDirectory) MarshalYAML() (any, error) {
 	type raw DestinationDirectory
-	return withTypeHeader((*raw)(dm), DestinationDirectoryType)
+	return marshaling.WithTypeHeader((*raw)(dm), DestinationDirectoryType)
 }
 
 func (dd *DestinationDirectory) IsPersistent() bool {

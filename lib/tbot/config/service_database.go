@@ -26,6 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const DatabaseOutputType = "database"
@@ -187,7 +188,7 @@ func (o *DatabaseOutput) Describe() []FileDescription {
 
 func (o *DatabaseOutput) MarshalYAML() (any, error) {
 	type raw DatabaseOutput
-	return withTypeHeader((*raw)(o), DatabaseOutputType)
+	return marshaling.WithTypeHeader((*raw)(o), DatabaseOutputType)
 }
 
 func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {

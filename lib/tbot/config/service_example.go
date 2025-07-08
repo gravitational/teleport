@@ -21,6 +21,8 @@ package config
 import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 )
 
 const ExampleServiceType = "example"
@@ -46,7 +48,7 @@ func (s *ExampleService) GetName() string {
 
 func (s *ExampleService) MarshalYAML() (any, error) {
 	type raw ExampleService
-	return withTypeHeader((*raw)(s), ExampleServiceType)
+	return marshaling.WithTypeHeader((*raw)(s), ExampleServiceType)
 }
 
 func (s *ExampleService) UnmarshalYAML(node *yaml.Node) error {
