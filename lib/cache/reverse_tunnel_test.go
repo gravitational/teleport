@@ -20,10 +20,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestReverseTunnels tests reverse tunnels caching
@@ -43,8 +44,7 @@ func TestReverseTunnels(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			items, _, err := p.presenceS.ListReverseTunnels(ctx, 0, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.presenceS.ListReverseTunnels))
 		},
 		update: func(ctx context.Context, tunnel types.ReverseTunnel) error {
 			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
@@ -53,8 +53,7 @@ func TestReverseTunnels(t *testing.T) {
 		deleteAll: p.presenceS.DeleteAllReverseTunnels,
 
 		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			items, _, err := p.cache.ListReverseTunnels(ctx, 0, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListReverseTunnels))
 		},
 	})
 }

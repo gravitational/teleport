@@ -39,7 +39,7 @@ func TestUsers(t *testing.T) {
 	t.Run("GetUsers", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.User]{
 			newResource: func(name string) (types.User, error) {
-				return types.NewUser("bob")
+				return types.NewUser(name)
 			},
 			create: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpsertUser(ctx, user)
@@ -64,7 +64,7 @@ func TestUsers(t *testing.T) {
 	t.Run("ListUsers", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.User]{
 			newResource: func(name string) (types.User, error) {
-				return types.NewUser("bob")
+				return types.NewUser(name)
 			},
 			create: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpsertUser(ctx, user)

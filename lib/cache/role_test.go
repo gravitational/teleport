@@ -49,7 +49,7 @@ func TestRoles(t *testing.T) {
 	t.Run("GetRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
 			newResource: func(name string) (types.Role, error) {
-				return types.NewRole("role1", types.RoleSpecV6{
+				return types.NewRole(name, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
@@ -80,7 +80,7 @@ func TestRoles(t *testing.T) {
 	t.Run("ListRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
 			newResource: func(name string) (types.Role, error) {
-				return types.NewRole("role1", types.RoleSpecV6{
+				return types.NewRole(name, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},

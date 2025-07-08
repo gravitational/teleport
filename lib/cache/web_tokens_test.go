@@ -32,7 +32,7 @@ func TestWebTokens(t *testing.T) {
 	testResources(t, p, testFuncs[types.WebToken]{
 		newResource: func(name string) (types.WebToken, error) {
 			return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
-				Token: "test",
+				Token: name,
 				User:  "llama",
 			})
 		},
