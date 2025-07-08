@@ -1066,7 +1066,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// If PAM is enabled, make sure that Teleport was built with PAM support
 	// and the PAM library was found at runtime.
-	if cfg.SSH.PAM.Enabled {
+	if cfg.SSH.PAM != nil && cfg.SSH.PAM.Enabled {
 		if !pam.BuildHasPAM() {
 			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 				"Teleport binary was built without PAM support. To continue either download a \n" +
