@@ -218,22 +218,22 @@ spec:
   traits_map:
     roles:
       # evaluates to ["template"]
-      - jsonpath(external, "$.groups.teleport.roles")
+      - jsonpath(external.groups, "$.teleport.roles")
     logins:
       # evaluates to ["alice"]
-      - jsonpath(external, "$.groups.teleport.node.logins")
+      - jsonpath(external.groups, "$.teleport.node.logins")
     node_labels_*:
       # evaluates to "*"
-      - jsonpath(external, "$.groups.teleport.node.labels[?(@ == '*')]")
+      - jsonpath(external.groups, "$.teleport.node.labels[?(@ == '*')]")
     node_labels_env:
       # evaluates to []
-      - jsonpath(external, "$.groups.teleport.node.labels.env")
+      - jsonpath(external.groups, "$.teleport.node.labels.env")
     app_labels_*:
       # evaluates to []
-      - jsonpath(external, "$.groups.teleport.app.labels[?(@ == '*')]")
+      - jsonpath(external.groups, "$.teleport.app.labels[?(@ == '*')]")
     app_labels_env:
       # evaluates to "staging"
-      - jsonpath(external, "$.groups.teleport.app.labels.env")
+      - jsonpath(external.groups, "$.teleport.app.labels.env")
 ```
 
 Note: without [JSONPath-Plus syntax](#jsonpath-plus), it's not possible to grab
@@ -470,7 +470,7 @@ spec:
   # of values. e.g. ["*", "env"] and ["*", ["staging", "dev"]] would get
   # inserted as {"*": "*", "env": ["staging", "dev"]}
   traits_expression: |
-    external.put_many(jsonpath(external, "$.groups.teleport.node.labels~"), jsonpath(external, "$.groups.teleport.node.labels"))
+    external.put_many(jsonpath(external.groups, "$.teleport.node.labels~"), jsonpath(external.groups, "$.teleport.node.labels"))
 ```
 
 If we just need to support property name grabbing, it should be possible to do
@@ -486,7 +486,7 @@ metadata:
 spec:
   priority: 0
   traits_expression: |
-    external.put_many(jsonpathprop(external, "$.groups.teleport.node.labels"), jsonpath(external, "$.groups.teleport.node.labels"))
+    external.put_many(jsonpathprop(external.groups, "$.teleport.node.labels"), jsonpath(external.groups, "$.teleport.node.labels"))
 ```
 
 #### JSON traits
