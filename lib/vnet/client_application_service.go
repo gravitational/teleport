@@ -373,6 +373,10 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		return nil, trace.Errorf("user KeyRing host no trusted SSH CAs for cluster %s", targetCluster)
 	}
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
+
+	// Submit usage event.
+	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), targetCluster)
+
 	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
 		Cert:       sshCert.Marshal(),
