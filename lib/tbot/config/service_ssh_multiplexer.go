@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 // SSHMultiplexerServiceType is the type of the `ssh-proxy` service.
@@ -76,7 +76,7 @@ func (s *SSHMultiplexerService) Type() string {
 
 func (s *SSHMultiplexerService) MarshalYAML() (any, error) {
 	type raw SSHMultiplexerService
-	return marshaling.WithTypeHeader((*raw)(s), SSHMultiplexerServiceType)
+	return encoding.WithTypeHeader((*raw)(s), SSHMultiplexerServiceType)
 }
 
 func (s *SSHMultiplexerService) UnmarshalYAML(node *yaml.Node) error {

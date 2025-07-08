@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package marshaling
+package encoding
 
 // WithTypeHeader wraps the given T to add a type header for YAML serialization.
 func WithTypeHeader[T any](payload T, payloadType string) (any, error) {

@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
+	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const WorkloadIdentityJWTOutputType = "workload-identity-jwt"
@@ -95,7 +95,7 @@ func (o *WorkloadIdentityJWTService) Type() string {
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
 func (o *WorkloadIdentityJWTService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityJWTService
-	return marshaling.WithTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
+	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityJWTService from YAML.
