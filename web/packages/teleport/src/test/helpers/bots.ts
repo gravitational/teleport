@@ -20,14 +20,14 @@ import { http, HttpResponse } from 'msw';
 
 import { ApiBot } from 'teleport/services/bot/types';
 
-const getBotPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name';
+const getBotPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name?';
 
 export const getBotSuccess = (mock: ApiBot) =>
   http.get(getBotPath, () => {
     return HttpResponse.json(mock);
   });
 
-export const getBotError = (status: number, error: string = null) =>
+export const getBotError = (status: number, error: string | null = null) =>
   http.get(getBotPath, () => {
     return HttpResponse.json({ error: { message: error } }, { status });
   });
