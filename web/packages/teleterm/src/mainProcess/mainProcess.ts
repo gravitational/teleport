@@ -33,6 +33,8 @@ import {
   shell,
 } from 'electron';
 
+import { AbortError } from 'shared/utils/error';
+
 import Logger from 'teleterm/logger';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
@@ -576,7 +578,7 @@ export default class MainProcess {
           properties: ['openDirectory'],
         });
         if (value.canceled) {
-          throw new Error('Selecting directory canceled.');
+          throw new AbortError();
         }
         if (value.filePaths.length !== 1) {
           throw new Error('No directory selected.');

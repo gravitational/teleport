@@ -227,7 +227,7 @@ func TestTriggerGroups(t *testing.T) {
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout has no groups")
 			},
 		},
@@ -239,7 +239,7 @@ func TestTriggerGroups(t *testing.T) {
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported desired state")
 			},
 		},
@@ -257,7 +257,7 @@ func TestTriggerGroups(t *testing.T) {
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "not supported for rollout strategy")
 			},
 		},
@@ -274,7 +274,7 @@ func TestTriggerGroups(t *testing.T) {
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout schedule is immediate")
 			},
 		},
@@ -286,7 +286,7 @@ func TestTriggerGroups(t *testing.T) {
 			},
 			groupNames:   []string{"stage"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is already active")
 			},
 		},
@@ -298,7 +298,7 @@ func TestTriggerGroups(t *testing.T) {
 			},
 			groupNames:   []string{"dev"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is already done")
 			},
 		},
@@ -405,7 +405,7 @@ func TestForceGroupsDone(t *testing.T) {
 				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{},
 			},
 			groupNames: []string{"prod", "backup"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout has no groups")
 			},
 		},
@@ -422,7 +422,7 @@ func TestForceGroupsDone(t *testing.T) {
 				Status: status,
 			},
 			groupNames: []string{"prod", "backup"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "not supported for rollout strategy")
 			},
 		},
@@ -438,7 +438,7 @@ func TestForceGroupsDone(t *testing.T) {
 				Status: nil,
 			},
 			groupNames: []string{"prod", "backup"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout schedule is immediate")
 			},
 		},
@@ -449,7 +449,7 @@ func TestForceGroupsDone(t *testing.T) {
 				Status: status,
 			},
 			groupNames: []string{"dev"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is already done")
 			},
 		},
@@ -556,7 +556,7 @@ func TestRollbackGroups(t *testing.T) {
 				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{},
 			},
 			groupNames: []string{"prod", "backup"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout has no groups")
 			},
 		},
@@ -573,7 +573,7 @@ func TestRollbackGroups(t *testing.T) {
 				Status: status,
 			},
 			groupNames: []string{"prod", "backup"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "not supported for rollout strategy")
 			},
 		},
@@ -589,7 +589,7 @@ func TestRollbackGroups(t *testing.T) {
 				Status: nil,
 			},
 			groupNames: []string{"prod", "backup"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout schedule is immediate")
 			},
 		},
@@ -600,7 +600,7 @@ func TestRollbackGroups(t *testing.T) {
 				Status: status,
 			},
 			groupNames: []string{"blue"},
-			expectErr: func(t require.TestingT, err error, i ...interface{}) {
+			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is already in a rolled-back state")
 			},
 		},

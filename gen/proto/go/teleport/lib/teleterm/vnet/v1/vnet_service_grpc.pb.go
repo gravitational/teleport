@@ -40,6 +40,7 @@ const (
 	VnetService_GetServiceInfo_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo"
 	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
 	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
+	VnetService_AutoConfigureSSH_FullMethodName        = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -60,6 +61,9 @@ type VnetServiceClient interface {
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error)
+	// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+	// connections to Teleport SSH hosts.
+	AutoConfigureSSH(ctx context.Context, in *AutoConfigureSSHRequest, opts ...grpc.CallOption) (*AutoConfigureSSHResponse, error)
 }
 
 type vnetServiceClient struct {
@@ -120,6 +124,16 @@ func (c *vnetServiceClient) RunDiagnostics(ctx context.Context, in *RunDiagnosti
 	return out, nil
 }
 
+func (c *vnetServiceClient) AutoConfigureSSH(ctx context.Context, in *AutoConfigureSSHRequest, opts ...grpc.CallOption) (*AutoConfigureSSHResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoConfigureSSHResponse)
+	err := c.cc.Invoke(ctx, VnetService_AutoConfigureSSH_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility.
@@ -138,6 +152,9 @@ type VnetServiceServer interface {
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error)
+	// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+	// connections to Teleport SSH hosts.
+	AutoConfigureSSH(context.Context, *AutoConfigureSSHRequest) (*AutoConfigureSSHResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -162,6 +179,9 @@ func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *
 }
 func (UnimplementedVnetServiceServer) RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunDiagnostics not implemented")
+}
+func (UnimplementedVnetServiceServer) AutoConfigureSSH(context.Context, *AutoConfigureSSHRequest) (*AutoConfigureSSHResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AutoConfigureSSH not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 func (UnimplementedVnetServiceServer) testEmbeddedByValue()                     {}
@@ -274,6 +294,24 @@ func _VnetService_RunDiagnostics_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_AutoConfigureSSH_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AutoConfigureSSHRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetServiceServer).AutoConfigureSSH(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetService_AutoConfigureSSH_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetServiceServer).AutoConfigureSSH(ctx, req.(*AutoConfigureSSHRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -300,6 +338,10 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunDiagnostics",
 			Handler:    _VnetService_RunDiagnostics_Handler,
+		},
+		{
+			MethodName: "AutoConfigureSSH",
+			Handler:    _VnetService_AutoConfigureSSH_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

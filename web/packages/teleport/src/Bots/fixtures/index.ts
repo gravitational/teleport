@@ -28,6 +28,7 @@ const nonDisplayedFields = {
   status: '',
   subKind: '',
   version: '',
+  max_session_ttl: { seconds: 0 },
 };
 
 export const botsFixture: FlatBot[] = [
@@ -79,6 +80,7 @@ const getEmptyApiBot = (
   spec: {
     roles: roles,
     traits: [],
+    max_session_ttl: { seconds: 0 },
   },
   status: '',
   subKind: '',

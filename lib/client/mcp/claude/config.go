@@ -136,10 +136,20 @@ func (c *Config) GetMCPServers() map[string]MCPServer {
 	return maps.Clone(c.mcpServers)
 }
 
-// PutMCPServer adds a new MCP server or replace an existing one.
+// PutMCPServer adds a new MCP server or replaces an existing one.
 func (c *Config) PutMCPServer(serverName string, server MCPServer) (err error) {
 	c.mcpServers[serverName] = server
-	c.configData, err = sjson.SetBytes(c.configData, c.mcpServerJSONPath(serverName), server)
+
+	// We require a custom marshal to improve MCP Resources URI readability when
+	// it includes query params. By default the encoding/json escapes some
+	// characters like `&` causing the final URI to be harder to read.
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(server); err != nil {
+		return trace.Wrap(err)
+	}
+	c.configData, err = sjson.SetRawBytes(c.configData, c.mcpServerJSONPath(serverName), b.Bytes())
 	return trace.Wrap(err)
 }
 

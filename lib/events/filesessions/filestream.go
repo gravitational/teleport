@@ -78,7 +78,7 @@ const (
 )
 
 // NewStreamer creates a streamer sending uploads to disk
-func NewStreamer(dir string) (*events.ProtoStreamer, error) {
+func NewStreamer(dir string, encrypter events.EncryptionWrapper) (*events.ProtoStreamer, error) {
 	handler, err := NewHandler(Config{Directory: dir, OpenFile: GetOpenFileFunc()})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -86,6 +86,7 @@ func NewStreamer(dir string) (*events.ProtoStreamer, error) {
 	return events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       handler,
 		MinUploadBytes: minUploadBytes,
+		Encrypter:      encrypter,
 	})
 }
 
@@ -151,7 +152,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	unlock, err := utils.FSTryWriteLock(uploadPath)
 Loop:
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		switch {
 		case err == nil:
 			break Loop

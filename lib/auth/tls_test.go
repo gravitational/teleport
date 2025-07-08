@@ -81,8 +81,7 @@ import (
 )
 
 func TestRejectedClients(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS", "yes")
-
+	t.Parallel()
 	server, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "cluster",

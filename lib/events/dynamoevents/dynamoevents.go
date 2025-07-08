@@ -471,7 +471,7 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 
 			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 			// provisioned capacity DynamoDB will try and maintain.
-			for i := 0; i < 2; i++ {
+			for i := range 2 {
 				if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
 					PolicyName:        aws.String(p.readPolicy),
 					PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
@@ -807,7 +807,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 // The reason that this doesn't fill in the values as literals within the list is to prevent injection attacks.
 func eventFilterList(amount int) string {
 	var eventTypes []string
-	for i := 0; i < amount; i++ {
+	for i := range amount {
 		eventTypes = append(eventTypes, fmt.Sprintf(":eventType%d", i))
 	}
 	return "(" + strings.Join(eventTypes, ", ") + ")"
@@ -1059,7 +1059,7 @@ func getSubPageCheckpoint(e *event) (string, error) {
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
-		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
+		params := condFilterParams{attrValues: make(map[string]any), attrNames: make(map[string]string)}
 		expr, err := fromWhereExpr(req.Cond, &params)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -1085,7 +1085,7 @@ type searchEventsFilter struct {
 }
 
 type condFilterParams struct {
-	attrValues map[string]interface{}
+	attrValues map[string]any
 	attrNames  map[string]string
 }
 
@@ -1115,7 +1115,7 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		return fmt.Sprintf("NOT (%s)", inner), nil
 	}
 
-	addAttrValue := func(in interface{}) string {
+	addAttrValue := func(in any) string {
 		for k, v := range params.attrValues {
 			if in == v {
 				return k
@@ -1280,10 +1280,7 @@ func (l *Log) deleteAllItems(ctx context.Context) error {
 	}
 
 	for len(requests) > 0 {
-		top := 25
-		if top > len(requests) {
-			top = len(requests)
-		}
+		top := min(25, len(requests))
 		chunk := requests[:top]
 		requests = requests[top:]
 
@@ -1471,7 +1468,7 @@ dateLoop:
 	for i, date := range l.dates {
 		l.checkpoint.Date = date
 
-		attributes := map[string]interface{}{
+		attributes := map[string]any{
 			":date":  date,
 			":start": l.fromUTC.Unix(),
 			":end":   l.toUTC.Unix(),
@@ -1556,7 +1553,7 @@ dateLoop:
 func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID string, filterExpr *string) (values []event, err error) {
 	query := "SessionID = :id"
 
-	attributes := map[string]interface{}{
+	attributes := map[string]any{
 		":id": sessionID,
 	}
 	for i, eventType := range l.filter.eventTypes {

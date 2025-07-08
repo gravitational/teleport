@@ -40,6 +40,10 @@ service VnetService {
   // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
   // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
   rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
+
+  // AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+  // connections to Teleport SSH hosts.
+  rpc AutoConfigureSSH(AutoConfigureSSHRequest) returns (AutoConfigureSSHResponse);
 }
 
 // Request for Start.
@@ -67,6 +71,9 @@ message GetServiceInfoResponse {
   // ssh_configured is true if the user's SSH config file includes VNet's
   // generated SSH config necessary for SSH access.
   bool ssh_configured = 3;
+  // vnet_ssh_config_path is the path of VNet's generated OpenSSH-compatible
+  // config file.
+  string vnet_ssh_config_path = 4;
 }
 
 // Request for GetBackgroundItemStatus.
@@ -97,3 +104,9 @@ message RunDiagnosticsRequest {}
 message RunDiagnosticsResponse {
   teleport.lib.vnet.diag.v1.Report report = 1;
 }
+
+// Request for AutoConfigureSSH.
+message AutoConfigureSSHRequest {}
+
+// Response for AutoConfigureSSH.
+message AutoConfigureSSHResponse {}

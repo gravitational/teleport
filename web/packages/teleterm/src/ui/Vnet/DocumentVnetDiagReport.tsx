@@ -35,7 +35,6 @@ import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
@@ -380,6 +379,7 @@ function CheckReportSSHConfiguration({
 }: {
   checkReport: diag.CheckReport;
 }) {
+  const { openSSHConfigurationModal } = useVnetContext();
   if (!reportOneOfIsSSHConfigurationReport(report)) {
     return null;
   }
@@ -442,11 +442,18 @@ function CheckReportSSHConfiguration({
         <P2 m={0}>
           The user's default SSH configuration file does not include VNet's
           generated SSH configuration file. SSH clients will not be able to make
-          connections to VNet SSH addresses by default. Add the following line
-          to <code>{userOpensshConfigPath}</code> to configure
-          OpenSSH-compatible clients for VNet:
+          connections to VNet SSH addresses by default.{' '}
         </P2>
-        <TextSelectCopy text={`Include "${vnetSshConfigPath}"`} bash={false} />
+        <Button
+          intent="neutral"
+          onClick={() =>
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: vnetSshConfigPath,
+            })
+          }
+        >
+          Resolve
+        </Button>
       </Stack>
       {userOpensshConfigExists ? (
         <details>
