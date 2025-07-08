@@ -38,7 +38,7 @@ type pyroscopeLogger struct {
 type roundTripper struct {
 	base    http.RoundTripper
 	timeout time.Duration
-	logger  *slog.Logger
+	logger  pyroscope.Logger
 }
 
 func (l pyroscopeLogger) Infof(format string, args ...any) {
@@ -74,12 +74,8 @@ func (rt roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	threshold := rt.timeout * 90 / 100
 	if duration > threshold {
-		rt.logger.WarnContext(req.Context(),
-			"Pyroscope upload took too long",
-			"duration", duration.String(),
-			"threshold", threshold.String(),
-			"url", req.URL.String(),
-		)
+		rt.logger.Infof("Pyroscope upload took too long: %s (threshold: %s, url: %s)",
+			duration, threshold, req.URL.String())
 	}
 
 	return resp, err
@@ -103,7 +99,7 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 		Transport: roundTripper{
 			base:    http.DefaultTransport,
 			timeout: httpTimeout,
-			logger:  logger,
+			logger:  pyroscopeLogger{logger},
 		},
 	}
 
