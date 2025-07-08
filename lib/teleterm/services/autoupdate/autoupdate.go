@@ -47,7 +47,7 @@ func GetVersions(ctx context.Context, logger *slog.Logger, resolver ClusterResol
 		group.Go(func() error {
 			_, tc, err := resolver(cluster.URI)
 			if err != nil {
-				logger.ErrorContext(groupCtx, "Could not resolve cluster, skipping", "clusterUri", cluster.URI, "error", err)
+				logger.ErrorContext(groupCtx, "Could not resolve cluster, skipping", "cluster_uri", cluster.URI, "error", err)
 				return nil
 			}
 
@@ -58,7 +58,7 @@ func GetVersions(ctx context.Context, logger *slog.Logger, resolver ClusterResol
 				Timeout:   timeout,
 			})
 			if err != nil {
-				logger.ErrorContext(groupCtx, "Could not read client version for cluster, skipping", "clusterUri", cluster.URI, "error", err)
+				logger.ErrorContext(groupCtx, "Could not read client version for cluster, skipping", "cluster_uri", cluster.URI, "error", err)
 				return nil
 			}
 
