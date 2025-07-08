@@ -206,6 +206,25 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}
 
+	addr, kind := b.cfg.Address()
+	clientBuilder, err := client.NewBuilder(client.BuilderConfig{
+		Address: client.Address{
+			Addr: addr,
+			Kind: kind,
+		},
+		AuthServerAddressMode: b.cfg.AuthServerAddressMode,
+		Resolver:              resolver,
+		Logger: b.log.With(
+			teleport.ComponentKey,
+			teleport.Component(componentTBot, "client"),
+		),
+		Insecure: b.cfg.Insecure,
+		Metrics:  clientMetrics,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
 	var services []Service
@@ -238,7 +257,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	b.botIdentitySvc = &identityService{
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
-		resolver:          resolver,
+		clientBuilder:     clientBuilder,
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
@@ -261,6 +280,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}()
 	services = append(services, b.botIdentitySvc)
+
+	identityGenerator, err := b.botIdentitySvc.GetGenerator()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	authPingCache := &authPingCache{
 		client: b.botIdentitySvc.GetClient(),
@@ -375,6 +399,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                clientCredential,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
+				identityGenerator:  identityGenerator,
 			}
 			svcIdentity.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(
@@ -392,8 +417,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				svcIdentity:      clientCredential,
 				botCfg:           b.cfg,
 				cfg:              svcCfg,
-				resolver:         resolver,
 				trustBundleCache: tbCache,
+				clientBuilder:    clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -406,9 +431,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				botIdentityReadyCh: b.botIdentitySvc.Ready(),
 				proxyPingCache:     proxyPingCache,
 				botClient:          b.botIdentitySvc.GetClient(),
-				resolver:           resolver,
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -429,7 +455,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				proxyPingCache:     proxyPingCache,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -445,8 +472,9 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				proxyPingCache:     proxyPingCache,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
 				executablePath:     autoupdate.StableExecutable,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -462,8 +490,9 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				proxyPingCache:     proxyPingCache,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
 				executablePath:     autoupdate.StableExecutable,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -472,11 +501,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
 			svc := &SPIFFESVIDOutputService{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				identityGenerator: identityGenerator,
+				clientBuilder:     clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -498,7 +528,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -513,7 +544,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -528,7 +560,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -543,10 +576,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
-				resolver:           resolver,
 				executablePath:     autoupdate.StableExecutable,
 				alpnUpgradeCache:   alpnUpgradeCache,
 				proxyPingCache:     proxyPingCache,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -561,6 +595,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                svcCfg,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
+				identityGenerator:  identityGenerator,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -573,9 +608,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				botIdentityReadyCh: b.botIdentitySvc.Ready(),
 				proxyPingCache:     proxyPingCache,
 				botClient:          b.botIdentitySvc.GetClient(),
-				resolver:           resolver,
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -584,11 +620,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.WorkloadIdentityX509Service:
 			svc := &WorkloadIdentityX509Service{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				identityGenerator: identityGenerator,
+				clientBuilder:     clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -609,11 +646,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.WorkloadIdentityJWTService:
 			svc := &WorkloadIdentityJWTService{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				identityGenerator: identityGenerator,
+				clientBuilder:     clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -636,6 +674,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:                clientCredential,
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
+				identityGenerator:  identityGenerator,
 			}
 			svcIdentity.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(
@@ -657,9 +696,9 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				svcIdentity:      clientCredential,
 				botCfg:           b.cfg,
 				cfg:              svcCfg,
-				resolver:         resolver,
 				trustBundleCache: tbCache,
 				crlCache:         crlCache,
+				clientBuilder:    clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -670,11 +709,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svc := &WorkloadIdentityAWSRAService{
 				botCfg:             b.cfg,
 				cfg:                svcCfg,
-				resolver:           resolver,
 				botAuthClient:      b.botIdentitySvc.GetClient(),
 				botIdentityReadyCh: b.botIdentitySvc.Ready(),
 				getBotIdentity:     b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster:  reloadBroadcaster,
+				identityGenerator:  identityGenerator,
+				clientBuilder:      clientBuilder,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -819,34 +859,6 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
-}
-
-// clientForFacade creates a new auth client from the given
-// facade. Note that depending on the connection address given, this may
-// attempt to connect via the proxy and therefore requires both SSH and TLS
-// credentials.
-func clientForFacade(
-	ctx context.Context,
-	log *slog.Logger,
-	cfg *config.BotConfig,
-	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *apiclient.Client, err error) {
-	ctx, span := tracer.Start(ctx, "clientForFacade")
-	defer func() { apitracing.EndSpan(span, err) }()
-
-	addr, kind := cfg.Address()
-	return client.New(ctx, client.Config{
-		Address: client.Address{
-			Addr: addr,
-			Kind: kind,
-		},
-		AuthServerAddressMode: cfg.AuthServerAddressMode,
-		Identity:              facade,
-		Resolver:              resolver,
-		Logger:                log,
-		Insecure:              cfg.Insecure,
-		Metrics:               clientMetrics,
-	})
 }
 
 type authPingCache struct {

@@ -27,6 +27,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -44,6 +45,7 @@ type ClientCredentialOutputService struct {
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
 	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
 }
 
 func (s *ClientCredentialOutputService) String() string {
@@ -83,18 +85,9 @@ func (s *ClientCredentialOutputService) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return trace.Wrap(err, "fetching default roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		s.botCfg.CredentialLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.botCfg.CredentialLifetime.TTL, s.botCfg.CredentialLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
