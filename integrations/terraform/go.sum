@@ -815,6 +815,8 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/saml v0.4.15-teleport.2 h1:ruNtaIkDrCJ5eS+OBcKeER+P5ldDDys7SeCoyFJAX1o=
 github.com/gravitational/saml v0.4.15-teleport.2/go.mod h1:wGckhUH/I+hcDR2uo9WC4GyL+o4rid5JUe1Ze/joarI=
+github.com/gravitational/selinux v1.13.0-teleport h1:XZQpZK5tteK9ZV2wIC1avhagqoVghXYv+O21GOpG6wU=
+github.com/gravitational/selinux v1.13.0-teleport/go.mod h1:BTPX+bjVbWGXw7ZZWUbdENt8w0htPSrlgOOysQaU62U=
 github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf h1:bAsFak60gi442t2x3GuDp5Fww47zUs460NFIPiQJjzg=
 github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf/go.mod h1:8eiBaRanEugPy3lh7UZ5NW6yaISaXXS4R56pi1D962k=
 github.com/gravitational/trace v1.5.1 h1:CdSymAjkE1VOef+lsC5x29jX9WbgI0fBtnRqeT4Fh+c=
@@ -1206,8 +1208,6 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
-github.com/opencontainers/selinux v1.12.0 h1:6n5JV4Cf+4y0KNXW48TLj5DwfXpvWlxXplUkdTrmPb8=
-github.com/opencontainers/selinux v1.12.0/go.mod h1:BTPX+bjVbWGXw7ZZWUbdENt8w0htPSrlgOOysQaU62U=
 github.com/opensearch-project/opensearch-go/v2 v2.3.0 h1:nQIEMr+A92CkhHrZgUhcfsrZjibvB3APXf2a1VwCmMQ=
 github.com/opensearch-project/opensearch-go/v2 v2.3.0/go.mod h1:8LDr9FCgUTVoT+5ESjc2+iaZuldqE+23Iq0r1XeNue8=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
