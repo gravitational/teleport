@@ -201,6 +201,8 @@ const (
 	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
+	// KindKubernetesResource is a Kubernetes resource within a cluster.
+	KindKubernetesResource = "kube_resource"
 
 	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
@@ -1354,10 +1356,22 @@ const (
 var RequestableResourceKinds = []string{
 	KindNode,
 	KindKubernetesCluster,
+	KindKubernetesResource,
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
 	KindUserGroup,
+	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
+	KindGitServer,
+}
+
+// LegacyRequestableKubeResourceKinds lists all legacy Teleport resource kinds users can request access to.
+// Those are the requestable Kubernetes resource kinds that were supported before the introduction of
+// custom resource support. We need to keep them to maintain support with older Teleport versions.
+// TODO(@creack): DELETE IN v20.0.0.
+var LegacyRequestableKubeResourceKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
 	KindKubeConfigmap,
@@ -1379,11 +1393,17 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
-	KindSAMLIdPServiceProvider,
-	KindIdentityCenterAccount,
-	KindIdentityCenterAccountAssignment,
-	KindGitServer,
 }
+
+// Prefix constants to identify kubernetes resources in access requests.
+const (
+	// AccessRequestPrefixKindKube denotes that the resource is a kubernetes one. Used for access requests.
+	AccessRequestPrefixKindKube = "kube:"
+	// AccessRequestPrefixKindKubeClusterWide denotes that the kube resource is cluster-wide.
+	AccessRequestPrefixKindKubeClusterWide = AccessRequestPrefixKindKube + "cw:"
+	// AccessRequestPrefixKindKubeNamespaced denotes that the kube resource is namespaced.
+	AccessRequestPrefixKindKubeNamespaced = AccessRequestPrefixKindKube + "ns:"
+)
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
 // in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
@@ -1529,6 +1549,7 @@ var KubernetesVerbs = []string{
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
 // Needed to maintain backward compatibility.
+// TODO(@creack): Make this a map[string]struct{} to simplify lookups.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
