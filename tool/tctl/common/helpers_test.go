@@ -86,7 +86,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
-		stdout: &stdoutBuff,
+		Stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
