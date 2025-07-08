@@ -1314,7 +1314,7 @@ func TestSSH(t *testing.T) {
 				"VNet: access denied to denyuser connecting to node\n",
 			},
 			expectSSHHandshakeToFail: true,
-			// The session should be reported because VNet succesfully got a
+			// The session should be reported because VNet successfully got a
 			// Teleport user SSH cert for this session and made the SSH dial to
 			// the target, only then the target SSH server rejected the
 			// connection.
