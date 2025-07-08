@@ -38,8 +38,8 @@ func (s *Handler) GetAutoUpdateVersions(ctx context.Context, _ *api.GetAutoUpdat
 }
 
 // GetAutoUpdateBaseUrl returns base URL for downloading Teleport packages.
-func (s *Handler) GetAutoUpdateBaseUrl(_ context.Context, _ *api.GetAutoUpdateBaseUrlRequest) (*api.GetAutoUpdateBaseUrlResponse, error) {
-	baseUrl, err := tools.ResolveBaseURL()
+func (s *Handler) GetAutoUpdateBaseUrl(ctx context.Context, _ *api.GetAutoUpdateBaseUrlRequest) (*api.GetAutoUpdateBaseUrlResponse, error) {
+	baseUrl, err := tools.ResolveBaseURL(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

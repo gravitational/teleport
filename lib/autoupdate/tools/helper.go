@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -34,6 +35,8 @@ import (
 var (
 	// version is the current version of the Teleport.
 	version = teleport.Version
+	// baseURL is CDN URL for downloading official Teleport packages.
+	baseURL = autoupdate.DefaultBaseURL
 )
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable

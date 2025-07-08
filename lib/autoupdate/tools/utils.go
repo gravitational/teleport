@@ -134,7 +134,7 @@ func GetReExecFromVersion(ctx context.Context) string {
 }
 
 // ResolveBaseURL calculates base URL.
-func ResolveBaseURL() (string, error) {
+func ResolveBaseURL(ctx context.Context) (string, error) {
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	if envBaseURL != "" {
 		return envBaseURL, nil
@@ -142,11 +142,11 @@ func ResolveBaseURL() (string, error) {
 
 	m := modules.GetModules()
 	if m.BuildType() == modules.BuildOSS {
-		slog.Warn("Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
+		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
 		return "", errNoBaseURL
 	}
 
-	return autoupdate.DefaultBaseURL, nil
+	return baseURL, nil
 }
 
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks
@@ -159,9 +159,9 @@ type packageURL struct {
 }
 
 // teleportPackageURLs returns URLs for the Teleport archives to download.
-func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
+func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
 	if baseURL == "" {
-		url, err := ResolveBaseURL()
+		url, err := ResolveBaseURL(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
