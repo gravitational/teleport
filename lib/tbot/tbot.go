@@ -150,10 +150,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
 		clientMetrics,
-		loopIterationsCounter,
-		loopIterationsSuccessCounter,
-		loopIterationsFailureCounter,
-		loopIterationTime,
+		internal.LoopIterationsCounter,
+		internal.LoopIterationsSuccessCounter,
+		internal.LoopIterationsFailureCounter,
+		internal.LoopIterationTime,
 	); err != nil {
 		return trace.Wrap(err)
 	}
