@@ -54,7 +54,7 @@ type ClientApplication interface {
 
 	// OnNewSSHSession should be called whenever a new SSH session is about to be
 	// started, after getting the user SSH certificate for the session.
-	OnNewSSHSession(ctx context.Context, profileName, targetClusterName string)
+	OnNewSSHSession(ctx context.Context, profileName, rootClusterName string)
 
 	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
 	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the

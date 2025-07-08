@@ -79,7 +79,7 @@ func TestDaemonUsageReporter(t *testing.T) {
 	require.Equal(t, 1, eventConsumer.EventCount())
 
 	// Verify that reporting an SSH session works.
-	err = usageReporter.ReportSSHSession(context.Background(), validCluster.GetProfileName(), "foo")
+	err = usageReporter.ReportSSHSession(validCluster.GetProfileName(), "foo")
 	require.NoError(t, err)
 	require.Equal(t, 2, eventConsumer.EventCount())
 }

@@ -535,7 +535,10 @@ func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, ta
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
-		if err := p.usageReporter.ReportSSHSession(ctx, profileName, targetClusterName); err != nil {
+		// Not passing ctx to ReportSSHSession since ctx is tied to the
+		// lifetime of a short-lived API call, inheriting the context could
+		// interrupt reporting.
+		if err := p.usageReporter.ReportSSHSession(profileName, targetClusterName); err != nil {
 			log.ErrorContext(ctx, "Failed to submit SSH usage event")
 		}
 	}()
@@ -616,7 +619,7 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 
 type usageReporter interface {
 	ReportApp(uri.ResourceURI) error
-	ReportSSHSession(ctx context.Context, profileName, targetClusterName string) error
+	ReportSSHSession(profileName, rootClusterName string) error
 	Stop()
 }
 
@@ -687,12 +690,15 @@ func newDaemonUsageReporter(cfg daemonUsageReporterConfig) (*daemonUsageReporter
 }
 
 // ReportSSHSession adds an event for a new SSH session to the events queue.
-func (r *daemonUsageReporter) ReportSSHSession(ctx context.Context, profileName, targetClusterName string) error {
+// It reports a new event for each new SSH session, in contrast to ReportApp
+// which only reports each unique app once, to align with how Connect reports
+// usage events for SSH sessions.
+func (r *daemonUsageReporter) ReportSSHSession(profileName, rootClusterName string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.closed.Load() {
-		return trace.CompareFailed("usage reported has been stopped")
+		return trace.CompareFailed("usage reporter has been stopped")
 	}
 
 	rootClusterURI := uri.NewClusterURI(profileName)
@@ -706,7 +712,7 @@ func (r *daemonUsageReporter) ReportSSHSession(ctx context.Context, profileName,
 		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
 	}
 
-	log.DebugContext(ctx, "Reporting SSH usage event", "profile", profileName, "cluster", targetClusterName)
+	log.DebugContext(context.Background(), "Reporting SSH usage event", "profile", profileName, "root_cluster", rootClusterName)
 	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
 		AuthClusterId: clusterID,
 		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
@@ -714,7 +720,7 @@ func (r *daemonUsageReporter) ReportSSHSession(ctx context.Context, profileName,
 			Timestamp:  timestamppb.Now(),
 			Event: &prehogv1alpha.SubmitConnectEventRequest_ProtocolUse{
 				ProtocolUse: &prehogv1alpha.ConnectProtocolUseEvent{
-					ClusterName:   targetClusterName,
+					ClusterName:   rootClusterName,
 					UserName:      tc.Username,
 					Protocol:      "ssh",
 					Origin:        "vnet",
@@ -818,8 +824,8 @@ func (r *disabledTelemetryUsageReporter) ReportApp(appURI uri.ResourceURI) error
 	return nil
 }
 
-func (r *disabledTelemetryUsageReporter) ReportSSHSession(ctx context.Context, profileName, targetClusterName string) error {
-	log.DebugContext(ctx, "Skipping SSH usage event, usage reporting is turned off", "profile", profileName, "cluster", targetClusterName)
+func (r *disabledTelemetryUsageReporter) ReportSSHSession(profileName, rootClusterName string) error {
+	log.DebugContext(context.Background(), "Skipping SSH usage event, usage reporting is turned off", "profile", profileName, "root_cluster", rootClusterName)
 	return nil
 }
 

@@ -375,7 +375,7 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
 
 	// Submit usage event.
-	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), targetCluster)
+	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
 
 	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
