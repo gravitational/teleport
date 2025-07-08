@@ -21,6 +21,8 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 func TestKubernetesOutput_YAML(t *testing.T) {
@@ -32,7 +34,7 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 				Destination:       dest,
 				Roles:             []string{"access"},
 				KubernetesCluster: "k8s.example.com",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},

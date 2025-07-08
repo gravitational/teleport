@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal/marshaling"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -132,7 +133,7 @@ type SPIFFEWorkloadAPIService struct {
 
 	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -176,6 +177,6 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() CredentialLifetime {
+func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

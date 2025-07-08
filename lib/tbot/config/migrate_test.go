@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
@@ -110,7 +111,7 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					RenewalInterval: time.Minute * 10,
 					TTL:             time.Minute * 30,
 				},
@@ -576,7 +577,7 @@ oneshot: false
 						"sha256:1234abcd5678efgh910ijklmnop",
 					},
 				},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					RenewalInterval: DefaultRenewInterval,
 					TTL:             DefaultCertificateTTL,
 				},

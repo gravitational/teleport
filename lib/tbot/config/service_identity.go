@@ -107,7 +107,7 @@ type IdentityOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -204,6 +204,6 @@ func (o *IdentityOutput) Type() string {
 	return IdentityOutputType
 }
 
-func (o *IdentityOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *IdentityOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }

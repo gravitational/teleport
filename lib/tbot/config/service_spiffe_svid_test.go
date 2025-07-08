@@ -21,6 +21,8 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
@@ -51,7 +53,7 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 						FileName: "bar",
 					},
 				},
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},

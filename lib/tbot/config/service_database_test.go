@@ -21,6 +21,8 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 func TestDatabaseOutput_YAML(t *testing.T) {
@@ -35,7 +37,7 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 				Service:     "my-database-service",
 				Database:    "my-database",
 				Username:    "my-username",
-				CredentialLifetime: CredentialLifetime{
+				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},

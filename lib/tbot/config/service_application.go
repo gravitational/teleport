@@ -53,7 +53,7 @@ type ApplicationOutput struct {
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
 }
 
 func (o *ApplicationOutput) Init(ctx context.Context) error {
@@ -134,6 +134,6 @@ func (o *ApplicationOutput) Type() string {
 	return ApplicationOutputType
 }
 
-func (o *ApplicationOutput) GetCredentialLifetime() CredentialLifetime {
+func (o *ApplicationOutput) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
