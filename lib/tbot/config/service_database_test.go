@@ -21,14 +21,16 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestDatabaseOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[DatabaseOutput]{
+	tests := []testutils.TestYAMLCase[DatabaseOutput]{
 		{
-			name: "full",
-			in: DatabaseOutput{
+			Name: "full",
+			In: DatabaseOutput{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Format:      TLSDatabaseFormat,
@@ -42,21 +44,21 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: DatabaseOutput{
+			Name: "minimal",
+			In: DatabaseOutput{
 				Destination: dest,
 				Service:     "my-database-service",
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*DatabaseOutput]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*DatabaseOutput]{
 		{
-			name: "valid",
-			in: func() *DatabaseOutput {
+			Name: "valid",
+			In: func() *DatabaseOutput {
 				return &DatabaseOutput{
 					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
@@ -67,35 +69,35 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *DatabaseOutput {
+			Name: "missing destination",
+			In: func() *DatabaseOutput {
 				return &DatabaseOutput{
 					Destination: nil,
 					Service:     "service",
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing service",
-			in: func() *DatabaseOutput {
+			Name: "missing service",
+			In: func() *DatabaseOutput {
 				return &DatabaseOutput{
 					Destination: memoryDestForTest(),
 				}
 			},
-			wantErr: "service must not be empty",
+			WantErr: "service must not be empty",
 		},
 		{
-			name: "invalid format",
-			in: func() *DatabaseOutput {
+			Name: "invalid format",
+			In: func() *DatabaseOutput {
 				return &DatabaseOutput{
 					Destination: memoryDestForTest(),
 					Service:     "service",
 					Format:      "no-such-format",
 				}
 			},
-			wantErr: "unrecognized format (no-such-format)",
+			WantErr: "unrecognized format (no-such-format)",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

@@ -21,14 +21,16 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestKubernetesV2Output_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[KubernetesV2Output]{
+	tests := []testutils.TestYAMLCase[KubernetesV2Output]{
 		{
-			name: "full",
-			in: KubernetesV2Output{
+			Name: "full",
+			In: KubernetesV2Output{
 				Destination:       dest,
 				DisableExecPlugin: true,
 				Selectors: []*KubernetesSelector{
@@ -55,8 +57,8 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: KubernetesV2Output{
+			Name: "minimal",
+			In: KubernetesV2Output{
 				Destination: dest,
 				Selectors: []*KubernetesSelector{
 					{
@@ -67,14 +69,14 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*KubernetesV2Output]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*KubernetesV2Output]{
 		{
-			name: "valid_name",
-			in: func() *KubernetesV2Output {
+			Name: "valid_name",
+			In: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
 					Selectors: []*KubernetesSelector{
@@ -84,8 +86,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid_label",
-			in: func() *KubernetesV2Output {
+			Name: "valid_label",
+			In: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
 					Selectors: []*KubernetesSelector{
@@ -97,8 +99,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *KubernetesV2Output {
+			Name: "missing destination",
+			In: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: nil,
 					Selectors: []*KubernetesSelector{
@@ -106,20 +108,20 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing selectors",
-			in: func() *KubernetesV2Output {
+			Name: "missing selectors",
+			In: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
 				}
 			},
-			wantErr: "at least one selector must be provided",
+			WantErr: "at least one selector must be provided",
 		},
 		{
-			name: "empty selector",
-			in: func() *KubernetesV2Output {
+			Name: "empty selector",
+			In: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
 					Selectors: []*KubernetesSelector{
@@ -127,11 +129,11 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "selectors: one of 'name' and 'labels' must be specified",
+			WantErr: "selectors: one of 'name' and 'labels' must be specified",
 		},
 		{
-			name: "both name and label in selector",
-			in: func() *KubernetesV2Output {
+			Name: "both name and label in selector",
+			In: func() *KubernetesV2Output {
 				return &KubernetesV2Output{
 					Destination: memoryDestForTest(),
 					Selectors: []*KubernetesSelector{
@@ -144,8 +146,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "selectors: only one of 'name' and 'labels' may be specified",
+			WantErr: "selectors: only one of 'name' and 'labels' may be specified",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

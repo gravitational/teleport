@@ -21,15 +21,17 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[ApplicationTunnelService]{
+	tests := []testutils.TestYAMLCase[ApplicationTunnelService]{
 		{
-			name: "full",
-			in: ApplicationTunnelService{
+			Name: "full",
+			In: ApplicationTunnelService{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
 				CredentialLifetime: CredentialLifetime{
@@ -39,55 +41,55 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*ApplicationTunnelService]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*ApplicationTunnelService]{
 		{
-			name: "valid",
-			in: func() *ApplicationTunnelService {
+			Name: "valid",
+			In: func() *ApplicationTunnelService {
 				return &ApplicationTunnelService{
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
-			wantErr: "",
+			WantErr: "",
 		},
 		{
-			name: "missing listen",
-			in: func() *ApplicationTunnelService {
+			Name: "missing listen",
+			In: func() *ApplicationTunnelService {
 				return &ApplicationTunnelService{
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 		{
-			name: "listen not url",
-			in: func() *ApplicationTunnelService {
+			Name: "listen not url",
+			In: func() *ApplicationTunnelService {
 				return &ApplicationTunnelService{
 					Listen:  "\x00",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
-			wantErr: "parsing listen",
+			WantErr: "parsing listen",
 		},
 		{
-			name: "missing app name",
-			in: func() *ApplicationTunnelService {
+			Name: "missing app name",
+			In: func() *ApplicationTunnelService {
 				return &ApplicationTunnelService{
 					Listen: "tcp://0.0.0.0:3621",
 					Roles:  []string{"role1", "role2"},
 				}
 			},
-			wantErr: "app_name: should not be empty",
+			WantErr: "app_name: should not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

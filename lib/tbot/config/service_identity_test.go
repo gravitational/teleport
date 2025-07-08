@@ -21,14 +21,16 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestIdentityOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[IdentityOutput]{
+	tests := []testutils.TestYAMLCase[IdentityOutput]{
 		{
-			name: "full",
-			in: IdentityOutput{
+			Name: "full",
+			In: IdentityOutput{
 				Destination:   dest,
 				Roles:         []string{"access"},
 				Cluster:       "leaf.example.com",
@@ -41,20 +43,20 @@ func TestIdentityOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: IdentityOutput{
+			Name: "minimal",
+			In: IdentityOutput{
 				Destination: dest,
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*IdentityOutput]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*IdentityOutput]{
 		{
-			name: "valid",
-			in: func() *IdentityOutput {
+			Name: "valid",
+			In: func() *IdentityOutput {
 				return &IdentityOutput{
 					Destination:   memoryDestForTest(),
 					Roles:         []string{"access"},
@@ -63,36 +65,36 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "ssh config mode defaults",
-			in: func() *IdentityOutput {
+			Name: "ssh config mode defaults",
+			In: func() *IdentityOutput {
 				return &IdentityOutput{
 					Destination: memoryDestForTest(),
 				}
 			},
-			want: &IdentityOutput{
+			Want: &IdentityOutput{
 				Destination:   memoryDestForTest(),
 				SSHConfigMode: SSHConfigModeOn,
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *IdentityOutput {
+			Name: "missing destination",
+			In: func() *IdentityOutput {
 				return &IdentityOutput{
 					Destination: nil,
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "invalid ssh config mode",
-			in: func() *IdentityOutput {
+			Name: "invalid ssh config mode",
+			In: func() *IdentityOutput {
 				return &IdentityOutput{
 					Destination:   memoryDestForTest(),
 					SSHConfigMode: "invalid",
 				}
 			},
-			wantErr: "ssh_config: unrecognized value \"invalid\"",
+			WantErr: "ssh_config: unrecognized value \"invalid\"",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

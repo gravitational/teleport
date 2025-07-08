@@ -29,6 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestDestinationKubernetesSecret(t *testing.T) {
@@ -140,38 +142,38 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*DestinationKubernetesSecret]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*DestinationKubernetesSecret]{
 		{
-			name: "valid",
-			in: func() *DestinationKubernetesSecret {
+			Name: "valid",
+			In: func() *DestinationKubernetesSecret {
 				return &DestinationKubernetesSecret{
 					Name: "my-secret",
 				}
 			},
 		},
 		{
-			name: "missing name",
-			in: func() *DestinationKubernetesSecret {
+			Name: "missing name",
+			In: func() *DestinationKubernetesSecret {
 				return &DestinationKubernetesSecret{
 					Name: "",
 				}
 			},
-			wantErr: "name must not be empty",
+			WantErr: "name must not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }
 
 func TestDestinationKubernetesSecret_YAML(t *testing.T) {
-	tests := []testYAMLCase[*DestinationKubernetesSecret]{
+	tests := []testutils.TestYAMLCase[*DestinationKubernetesSecret]{
 		{
-			name: "full",
-			in: &DestinationKubernetesSecret{
+			Name: "full",
+			In: &DestinationKubernetesSecret{
 				Name: "my-secret",
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestDestinationKubernetesSecret_String(t *testing.T) {

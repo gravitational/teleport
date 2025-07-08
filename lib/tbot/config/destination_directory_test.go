@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -58,24 +59,24 @@ func TestDestinationDirectory_Lock(t *testing.T) {
 }
 
 func TestDestinationDirectory_YAML(t *testing.T) {
-	tests := []testYAMLCase[DestinationDirectory]{
+	tests := []testutils.TestYAMLCase[DestinationDirectory]{
 		{
-			name: "full",
-			in: DestinationDirectory{
+			Name: "full",
+			In: DestinationDirectory{
 				Path:     "/my/path",
 				ACLs:     botfs.ACLRequired,
 				Symlinks: botfs.SymlinksSecure,
 			},
 		},
 		{
-			name: "minimal",
-			in: DestinationDirectory{
+			Name: "minimal",
+			In: DestinationDirectory{
 				Path: "/my/path",
 			},
 		},
 		{
-			name: "acl readers",
-			in: DestinationDirectory{
+			Name: "acl readers",
+			In: DestinationDirectory{
 				Path: "/my/path",
 				ACLs: botfs.ACLRequired,
 				Readers: []*botfs.ACLSelector{
@@ -89,7 +90,7 @@ func TestDestinationDirectory_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestDestinationDirectory_ACLs(t *testing.T) {

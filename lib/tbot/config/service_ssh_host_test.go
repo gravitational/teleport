@@ -21,14 +21,16 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestSSHHostOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[SSHHostOutput]{
+	tests := []testutils.TestYAMLCase[SSHHostOutput]{
 		{
-			name: "full",
-			in: SSHHostOutput{
+			Name: "full",
+			In: SSHHostOutput{
 				Destination: dest,
 				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
@@ -39,21 +41,21 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: SSHHostOutput{
+			Name: "minimal",
+			In: SSHHostOutput{
 				Destination: dest,
 				Principals:  []string{"host.example.com"},
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*SSHHostOutput]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*SSHHostOutput]{
 		{
-			name: "valid",
-			in: func() *SSHHostOutput {
+			Name: "valid",
+			In: func() *SSHHostOutput {
 				return &SSHHostOutput{
 					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
@@ -62,24 +64,24 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *SSHHostOutput {
+			Name: "missing destination",
+			In: func() *SSHHostOutput {
 				return &SSHHostOutput{
 					Destination: nil,
 					Principals:  []string{"host.example.com"},
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing principals",
-			in: func() *SSHHostOutput {
+			Name: "missing principals",
+			In: func() *SSHHostOutput {
 				return &SSHHostOutput{
 					Destination: memoryDestForTest(),
 				}
 			},
-			wantErr: "at least one principal must be specified",
+			WantErr: "at least one principal must be specified",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

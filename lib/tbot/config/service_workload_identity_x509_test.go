@@ -21,16 +21,17 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[WorkloadIdentityX509Service]{
+	tests := []testutils.TestYAMLCase[WorkloadIdentityX509Service]{
 		{
-			name: "full",
-			in: WorkloadIdentityX509Service{
+			Name: "full",
+			In: WorkloadIdentityX509Service{
 				Destination: dest,
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -43,8 +44,8 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: WorkloadIdentityX509Service{
+			Name: "minimal",
+			In: WorkloadIdentityX509Service{
 				Destination: dest,
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -52,16 +53,16 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*WorkloadIdentityX509Service]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*WorkloadIdentityX509Service]{
 		{
-			name: "valid",
-			in: func() *WorkloadIdentityX509Service {
+			Name: "valid",
+			In: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -75,8 +76,8 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid with labels",
-			in: func() *WorkloadIdentityX509Service {
+			Name: "valid with labels",
+			In: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
 					Selector: WorkloadIdentitySelector{
 						Labels: map[string][]string{
@@ -92,8 +93,8 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing selectors",
-			in: func() *WorkloadIdentityX509Service {
+			Name: "missing selectors",
+			In: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
 					Selector: WorkloadIdentitySelector{},
 					Destination: &DestinationDirectory{
@@ -103,11 +104,11 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "one of ['name', 'labels'] must be set",
+			WantErr: "one of ['name', 'labels'] must be set",
 		},
 		{
-			name: "too many selectors",
-			in: func() *WorkloadIdentityX509Service {
+			Name: "too many selectors",
+			In: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -122,17 +123,17 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "at most one of ['name', 'labels'] can be set",
+			WantErr: "at most one of ['name', 'labels'] can be set",
 		},
 		{
-			name: "missing destination",
-			in: func() *WorkloadIdentityX509Service {
+			Name: "missing destination",
+			In: func() *WorkloadIdentityX509Service {
 				return &WorkloadIdentityX509Service{
 					Destination: nil,
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

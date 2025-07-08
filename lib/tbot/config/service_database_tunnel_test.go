@@ -21,15 +21,17 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestDatabaseTunnelService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[DatabaseTunnelService]{
+	tests := []testutils.TestYAMLCase[DatabaseTunnelService]{
 		{
-			name: "full",
-			in: DatabaseTunnelService{
+			Name: "full",
+			In: DatabaseTunnelService{
 				Listen:   "tcp://0.0.0.0:3621",
 				Roles:    []string{"role1", "role2"},
 				Service:  "service",
@@ -42,16 +44,16 @@ func TestDatabaseTunnelService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*DatabaseTunnelService]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*DatabaseTunnelService]{
 		{
-			name: "valid",
-			in: func() *DatabaseTunnelService {
+			Name: "valid",
+			In: func() *DatabaseTunnelService {
 				return &DatabaseTunnelService{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
@@ -60,11 +62,11 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Username: "username",
 				}
 			},
-			wantErr: "",
+			WantErr: "",
 		},
 		{
-			name: "missing listen",
-			in: func() *DatabaseTunnelService {
+			Name: "missing listen",
+			In: func() *DatabaseTunnelService {
 				return &DatabaseTunnelService{
 					Roles:    []string{"role1", "role2"},
 					Service:  "service",
@@ -72,11 +74,11 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Username: "username",
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 		{
-			name: "missing service",
-			in: func() *DatabaseTunnelService {
+			Name: "missing service",
+			In: func() *DatabaseTunnelService {
 				return &DatabaseTunnelService{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
@@ -84,11 +86,11 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Username: "username",
 				}
 			},
-			wantErr: "service: should not be empty",
+			WantErr: "service: should not be empty",
 		},
 		{
-			name: "missing database",
-			in: func() *DatabaseTunnelService {
+			Name: "missing database",
+			In: func() *DatabaseTunnelService {
 				return &DatabaseTunnelService{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
@@ -96,11 +98,11 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Username: "username",
 				}
 			},
-			wantErr: "database: should not be empty",
+			WantErr: "database: should not be empty",
 		},
 		{
-			name: "missing username",
-			in: func() *DatabaseTunnelService {
+			Name: "missing username",
+			In: func() *DatabaseTunnelService {
 				return &DatabaseTunnelService{
 					Listen:   "tcp://0.0.0.0:3621",
 					Roles:    []string{"role1", "role2"},
@@ -108,8 +110,8 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Database: "database",
 				}
 			},
-			wantErr: "username: should not be empty",
+			WantErr: "username: should not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

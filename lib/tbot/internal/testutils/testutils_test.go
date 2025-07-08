@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,12 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package testutils_test
 
 import (
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
-func memoryDestForTest() bot.Destination {
-	return &DestinationMemory{store: map[string][]byte{}}
+func TestNotTestifyCompatible(t *testing.T) {
+	var testingT testutils.TestingT = struct{ testutils.TestingT }{}
+	if _, ok := testingT.(require.TestingT); ok {
+		t.Fatal("testutils.TestingT must not be testify compatible")
+	}
+	if _, ok := testingT.(assert.TestingT); ok {
+		t.Fatal("testutils.TestingT must not be testify compatible")
+	}
 }

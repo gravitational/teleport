@@ -21,14 +21,16 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestApplicationOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[ApplicationOutput]{
+	tests := []testutils.TestYAMLCase[ApplicationOutput]{
 		{
-			name: "full",
-			in: ApplicationOutput{
+			Name: "full",
+			In: ApplicationOutput{
 				Destination: dest,
 				Roles:       []string{"access"},
 				AppName:     "my-app",
@@ -39,21 +41,21 @@ func TestApplicationOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: ApplicationOutput{
+			Name: "minimal",
+			In: ApplicationOutput{
 				Destination: dest,
 				AppName:     "my-app",
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*ApplicationOutput]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*ApplicationOutput]{
 		{
-			name: "valid",
-			in: func() *ApplicationOutput {
+			Name: "valid",
+			In: func() *ApplicationOutput {
 				return &ApplicationOutput{
 					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
@@ -62,24 +64,24 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *ApplicationOutput {
+			Name: "missing destination",
+			In: func() *ApplicationOutput {
 				return &ApplicationOutput{
 					Destination: nil,
 					AppName:     "app",
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing app_name",
-			in: func() *ApplicationOutput {
+			Name: "missing app_name",
+			In: func() *ApplicationOutput {
 				return &ApplicationOutput{
 					Destination: memoryDestForTest(),
 				}
 			},
-			wantErr: "app_name must not be empty",
+			WantErr: "app_name must not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

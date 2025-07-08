@@ -21,14 +21,16 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestKubernetesOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[KubernetesOutput]{
+	tests := []testutils.TestYAMLCase[KubernetesOutput]{
 		{
-			name: "full",
-			in: KubernetesOutput{
+			Name: "full",
+			In: KubernetesOutput{
 				Destination:       dest,
 				Roles:             []string{"access"},
 				KubernetesCluster: "k8s.example.com",
@@ -39,21 +41,21 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: KubernetesOutput{
+			Name: "minimal",
+			In: KubernetesOutput{
 				Destination:       dest,
 				KubernetesCluster: "k8s.example.com",
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*KubernetesOutput]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*KubernetesOutput]{
 		{
-			name: "valid",
-			in: func() *KubernetesOutput {
+			Name: "valid",
+			In: func() *KubernetesOutput {
 				return &KubernetesOutput{
 					Destination:       memoryDestForTest(),
 					Roles:             []string{"access"},
@@ -62,24 +64,24 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *KubernetesOutput {
+			Name: "missing destination",
+			In: func() *KubernetesOutput {
 				return &KubernetesOutput{
 					Destination:       nil,
 					KubernetesCluster: "my-cluster",
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing kubernetes_config",
-			in: func() *KubernetesOutput {
+			Name: "missing kubernetes_config",
+			In: func() *KubernetesOutput {
 				return &KubernetesOutput{
 					Destination: memoryDestForTest(),
 				}
 			},
-			wantErr: "kubernetes_cluster must not be empty",
+			WantErr: "kubernetes_cluster must not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

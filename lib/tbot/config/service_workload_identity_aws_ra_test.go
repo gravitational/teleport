@@ -21,16 +21,17 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &DestinationMemory{}
-	tests := []testYAMLCase[WorkloadIdentityAWSRAService]{
+	tests := []testutils.TestYAMLCase[WorkloadIdentityAWSRAService]{
 		{
-			name: "full",
-			in: WorkloadIdentityAWSRAService{
+			Name: "full",
+			In: WorkloadIdentityAWSRAService{
 				Destination: dest,
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -47,8 +48,8 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "simple",
-			in: WorkloadIdentityAWSRAService{
+			Name: "simple",
+			In: WorkloadIdentityAWSRAService{
 				Destination: dest,
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -62,16 +63,16 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*WorkloadIdentityAWSRAService]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*WorkloadIdentityAWSRAService]{
 		{
-			name: "valid",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "valid",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -87,7 +88,7 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			want: &WorkloadIdentityAWSRAService{
+			Want: &WorkloadIdentityAWSRAService{
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
@@ -105,8 +106,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid with labels",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "valid with labels",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Labels: map[string][]string{
@@ -128,8 +129,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing selectors",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "missing selectors",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{},
 					Destination: &DestinationDirectory{
@@ -143,11 +144,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "one of ['name', 'labels'] must be set",
+			WantErr: "one of ['name', 'labels'] must be set",
 		},
 		{
-			name: "too many selectors",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "too many selectors",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -166,11 +167,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "at most one of ['name', 'labels'] can be set",
+			WantErr: "at most one of ['name', 'labels'] can be set",
 		},
 		{
-			name: "missing destination",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "missing destination",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Destination: nil,
 					Selector: WorkloadIdentitySelector{
@@ -182,11 +183,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "no destination configured for output",
+			WantErr: "no destination configured for output",
 		},
 		{
-			name: "missing role_arn",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "missing role_arn",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -201,11 +202,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "role_arn: must be set",
+			WantErr: "role_arn: must be set",
 		},
 		{
-			name: "missing trust_anchor_arn",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "missing trust_anchor_arn",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -220,11 +221,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:     "us-east-1",
 				}
 			},
-			wantErr: "trust_anchor_arn: must be set",
+			WantErr: "trust_anchor_arn: must be set",
 		},
 		{
-			name: "missing profile_arn",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "missing profile_arn",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -239,11 +240,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "profile_arn: must be set",
+			WantErr: "profile_arn: must be set",
 		},
 		{
-			name: "invalid role arn",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "invalid role arn",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -259,11 +260,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "arn: invalid prefix",
+			WantErr: "arn: invalid prefix",
 		},
 		{
-			name: "invalid trust anchor arn",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "invalid trust anchor arn",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -279,11 +280,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "arn: invalid prefix",
+			WantErr: "arn: invalid prefix",
 		},
 		{
-			name: "invalid profile arn",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "invalid profile arn",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -299,11 +300,11 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
-			wantErr: "arn: invalid prefix",
+			WantErr: "arn: invalid prefix",
 		},
 		{
-			name: "invalid region",
-			in: func() *WorkloadIdentityAWSRAService {
+			Name: "invalid region",
+			In: func() *WorkloadIdentityAWSRAService {
 				return &WorkloadIdentityAWSRAService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -319,8 +320,8 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1!!!!",
 				}
 			},
-			wantErr: "validating region",
+			WantErr: "validating region",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

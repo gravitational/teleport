@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
@@ -32,10 +33,10 @@ func ptr[T any](v T) *T {
 func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[SPIFFEWorkloadAPIService]{
+	tests := []testutils.TestYAMLCase[SPIFFEWorkloadAPIService]{
 		{
-			name: "full",
-			in: SPIFFEWorkloadAPIService{
+			Name: "full",
+			In: SPIFFEWorkloadAPIService{
 				Listen:     "unix:///var/run/spiffe.sock",
 				JWTSVIDTTL: time.Minute * 5,
 				Attestors: workloadattest.Config{
@@ -63,14 +64,14 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 						Rules: []SVIDRequestRule{
 							{
 								Unix: SVIDRequestRuleUnix{
-									PID: ptr(100),
-									UID: ptr(1000),
-									GID: ptr(1234),
+									PID: testutils.Pointer(100),
+									UID: testutils.Pointer(1000),
+									GID: testutils.Pointer(1234),
 								},
 							},
 							{
 								Unix: SVIDRequestRuleUnix{
-									PID: ptr(100),
+									PID: testutils.Pointer(100),
 								},
 								Kubernetes: SVIDRequestRuleKubernetes{
 									Namespace:      "my-namespace",
@@ -88,8 +89,8 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: SPIFFEWorkloadAPIService{
+			Name: "minimal",
+			In: SPIFFEWorkloadAPIService{
 				Listen: "unix:///var/run/spiffe.sock",
 				SVIDs: []SVIDRequestWithRules{
 					{
@@ -101,16 +102,16 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*SPIFFEWorkloadAPIService]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*SPIFFEWorkloadAPIService]{
 		{
-			name: "valid",
-			in: func() *SPIFFEWorkloadAPIService {
+			Name: "valid",
+			In: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					JWTSVIDTTL: time.Minute,
 					Listen:     "unix:///var/run/spiffe.sock",
@@ -128,7 +129,7 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			want: &SPIFFEWorkloadAPIService{
+			Want: &SPIFFEWorkloadAPIService{
 				JWTSVIDTTL: time.Minute,
 				Listen:     "unix:///var/run/spiffe.sock",
 				SVIDs: []SVIDRequestWithRules{
@@ -151,8 +152,8 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing path",
-			in: func() *SPIFFEWorkloadAPIService {
+			Name: "missing path",
+			In: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
 					SVIDs: []SVIDRequestWithRules{
@@ -169,11 +170,11 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "svid.path: should not be empty",
+			WantErr: "svid.path: should not be empty",
 		},
 		{
-			name: "path missing leading slash",
-			in: func() *SPIFFEWorkloadAPIService {
+			Name: "path missing leading slash",
+			In: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
 					SVIDs: []SVIDRequestWithRules{
@@ -190,11 +191,11 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "svid.path: should be prefixed with /",
+			WantErr: "svid.path: should be prefixed with /",
 		},
 		{
-			name: "missing listen addr",
-			in: func() *SPIFFEWorkloadAPIService {
+			Name: "missing listen addr",
+			In: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "",
 					SVIDs: []SVIDRequestWithRules{
@@ -211,11 +212,11 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 		{
-			name: "invalid ip",
-			in: func() *SPIFFEWorkloadAPIService {
+			Name: "invalid ip",
+			In: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
 					Listen: "unix:///var/run/spiffe.sock",
 					SVIDs: []SVIDRequestWithRules{
@@ -232,8 +233,8 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "ip_sans[0]: invalid IP address",
+			WantErr: "ip_sans[0]: invalid IP address",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

@@ -23,15 +23,16 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 )
 
 func TestSSHMultiplexerService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[SSHMultiplexerService]{
+	tests := []testutils.TestYAMLCase[SSHMultiplexerService]{
 		{
-			name: "full",
-			in: SSHMultiplexerService{
+			Name: "full",
+			In: SSHMultiplexerService{
 				Destination: &DestinationDirectory{
 					Path: "/opt/machine-id",
 				},
@@ -45,16 +46,16 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*SSHMultiplexerService]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*SSHMultiplexerService]{
 		{
-			name: "valid",
-			in: func() *SSHMultiplexerService {
+			Name: "valid",
+			In: func() *SSHMultiplexerService {
 				return &SSHMultiplexerService{
 					Destination: &DestinationDirectory{
 						Path:     "/opt/machine-id",
@@ -65,23 +66,23 @@ func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing destination",
-			in: func() *SSHMultiplexerService {
+			Name: "missing destination",
+			In: func() *SSHMultiplexerService {
 				return &SSHMultiplexerService{
 					Destination: nil,
 				}
 			},
-			wantErr: "destination: must be specified",
+			WantErr: "destination: must be specified",
 		},
 		{
-			name: "wrong destination type",
-			in: func() *SSHMultiplexerService {
+			Name: "wrong destination type",
+			In: func() *SSHMultiplexerService {
 				return &SSHMultiplexerService{
 					Destination: &DestinationMemory{},
 				}
 			},
-			wantErr: "destination: must be of type `directory`",
+			WantErr: "destination: must be of type `directory`",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }

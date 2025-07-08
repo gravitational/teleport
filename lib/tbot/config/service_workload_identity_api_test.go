@@ -20,16 +20,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/tbot/internal/testutils"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[WorkloadIdentityAPIService]{
+	tests := []testutils.TestYAMLCase[WorkloadIdentityAPIService]{
 		{
-			name: "full",
-			in: WorkloadIdentityAPIService{
+			Name: "full",
+			In: WorkloadIdentityAPIService{
 				Listen: "tcp://0.0.0.0:4040",
 				Attestors: workloadattest.Config{
 					Kubernetes: workloadattest.KubernetesAttestorConfig{
@@ -53,8 +54,8 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 			},
 		},
 		{
-			name: "minimal",
-			in: WorkloadIdentityAPIService{
+			Name: "minimal",
+			In: WorkloadIdentityAPIService{
 				Listen: "tcp://0.0.0.0:4040",
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
@@ -62,16 +63,16 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 			},
 		},
 	}
-	testYAML(t, tests)
+	testutils.TestYAML(t, tests)
 }
 
 func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*WorkloadIdentityAPIService]{
+	tests := []testutils.TestCheckAndSetDefaultsCase[*WorkloadIdentityAPIService]{
 		{
-			name: "valid",
-			in: func() *WorkloadIdentityAPIService {
+			Name: "valid",
+			In: func() *WorkloadIdentityAPIService {
 				return &WorkloadIdentityAPIService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -79,7 +80,7 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &WorkloadIdentityAPIService{
+			Want: &WorkloadIdentityAPIService{
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
@@ -92,8 +93,8 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid with labels",
-			in: func() *WorkloadIdentityAPIService {
+			Name: "valid with labels",
+			In: func() *WorkloadIdentityAPIService {
 				return &WorkloadIdentityAPIService{
 					Selector: WorkloadIdentitySelector{
 						Labels: map[string][]string{
@@ -103,7 +104,7 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &WorkloadIdentityAPIService{
+			Want: &WorkloadIdentityAPIService{
 				Selector: WorkloadIdentitySelector{
 					Labels: map[string][]string{
 						"key": {"value"},
@@ -118,18 +119,18 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "missing selectors",
-			in: func() *WorkloadIdentityAPIService {
+			Name: "missing selectors",
+			In: func() *WorkloadIdentityAPIService {
 				return &WorkloadIdentityAPIService{
 					Selector: WorkloadIdentitySelector{},
 					Listen:   "tcp://0.0.0.0:4040",
 				}
 			},
-			wantErr: "one of ['name', 'labels'] must be set",
+			WantErr: "one of ['name', 'labels'] must be set",
 		},
 		{
-			name: "too many selectors",
-			in: func() *WorkloadIdentityAPIService {
+			Name: "too many selectors",
+			In: func() *WorkloadIdentityAPIService {
 				return &WorkloadIdentityAPIService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
@@ -140,19 +141,19 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			wantErr: "at most one of ['name', 'labels'] can be set",
+			WantErr: "at most one of ['name', 'labels'] can be set",
 		},
 		{
-			name: "missing listen",
-			in: func() *WorkloadIdentityAPIService {
+			Name: "missing listen",
+			In: func() *WorkloadIdentityAPIService {
 				return &WorkloadIdentityAPIService{
 					Selector: WorkloadIdentitySelector{
 						Name: "my-workload-identity",
 					},
 				}
 			},
-			wantErr: "listen: should not be empty",
+			WantErr: "listen: should not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	testutils.TestCheckAndSetDefaults(t, tests)
 }
