@@ -26,10 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_RunOnInterval(t *testing.T) {
@@ -39,7 +38,7 @@ func Test_RunOnInterval(t *testing.T) {
 	t.Cleanup(cancel)
 
 	taskCh := make(chan struct{}, 3)
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	clock := clockwork.NewFakeClock()
 	cfg := RunOnIntervalConfig{
 		Name:  "test",
@@ -79,7 +78,7 @@ func Test_RunOnInterval_failureExit(t *testing.T) {
 
 	callCount := atomic.Int64{}
 
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	testErr := fmt.Errorf("test error")
 	cfg := RunOnIntervalConfig{
 		Name:  "test",

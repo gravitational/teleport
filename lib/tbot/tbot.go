@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/carotation"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
+	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -312,21 +313,24 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		services = append(services, diagSvc)
 	}
 
-	services = append(services, &heartbeatService{
-		now:       time.Now,
-		botCfg:    b.cfg,
-		startedAt: startedAt,
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
-		),
-		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
+	heartbeatSvc, err := heartbeat.NewService(heartbeat.Config{
+		Interval:   time.Minute * 30,
+		RetryLimit: 5,
+		Client: machineidv1pb.NewBotInstanceServiceClient(
 			b.botIdentitySvc.GetClient().GetConnection(),
 		),
-		botIdentityReadyCh: b.botIdentitySvc.Ready(),
-		interval:           time.Minute * 30,
-		retryLimit:         5,
-		statusReporter:     statusRegistry.AddService("heartbeat"),
+		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		StartedAt:          startedAt,
+		BotIdentityReadyCh: b.botIdentitySvc.Ready(),
+		StatusReporter:     statusRegistry.AddService("heartbeat"),
+		Logger: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
+		),
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	services = append(services, heartbeatSvc)
 
 	caRotationSvc, err := carotation.NewService(carotation.Config{
 		BroadcastFn:        reloadBroadcaster.Broadcast,
