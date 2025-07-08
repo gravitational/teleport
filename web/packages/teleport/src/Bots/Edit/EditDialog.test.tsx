@@ -47,7 +47,7 @@ import { EditDialog } from './EditDialog';
 
 const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
   server.listen();
 });
 

@@ -50,7 +50,7 @@ import { BotDetails } from './BotDetails';
 
 const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
   server.listen();
 });
 
