@@ -679,7 +679,17 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer("pods", "", types.KubeVerbWatch, false, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
+			mr := metaResource{
+				requestedResource: apiResource{
+					resourceKind: "pods",
+					apiGroup:     "",
+				},
+				resourceDefinition: &metav1.APIResource{
+					Namespaced: true,
+				},
+				verb: types.KubeVerbWatch,
+			}
+			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
