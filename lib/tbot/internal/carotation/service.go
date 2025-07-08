@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package carotation
 
 import (
 	"context"
@@ -31,55 +31,67 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-// debouncer accepts a duration, and a function. When `attempt` is called on
-// debouncer, it waits the duration, ignoring further attempts during this
-// period, before calling the provided function.
-//
-// This allows us to handle multiple events arriving within a short period, and
-// attempts to reduce the risk of the server going away during a renewal by
-// deferring the renewal until after the server-side elements of the rotation
-// have occurred.
-type debouncer struct {
-	mu    sync.Mutex
-	timer *time.Timer
-
-	// debouncePeriod is the amount of time that debouncer should wait from an
-	// initial trigger before triggering `f`, and in that time ignore further
-	// attempts.
-	debouncePeriod time.Duration
-
-	// f is the function that should be called by the debouncer.
-	f func()
-}
-
-func (rd *debouncer) attempt() {
-	rd.mu.Lock()
-	defer rd.mu.Unlock()
-
-	if rd.timer != nil {
-		return
-	}
-
-	rd.timer = time.AfterFunc(rd.debouncePeriod, func() {
-		rd.mu.Lock()
-		defer rd.mu.Unlock()
-		rd.timer = nil
-
-		rd.f()
-	})
-}
-
 const caRotationRetryBackoff = time.Second * 2
 
-// caRotationService watches for CA rotations in the cluster, and
-// triggers a renewal when it detects a relevant CA rotation.
+// Config contains configuration options for the CA Rotation service.
+type Config struct {
+	// BroadcastFn is a function that will be called to broadcast that a
+	// rotation has taken place.
+	BroadcastFn func()
+
+	// Client that will be used to watch the rotations stream.
+	Client *client.Client
+
+	// GetBotIdentityFn will be called to get the bot's internal identity.
+	GetBotIdentityFn func() *identity.Identity
+
+	// BotIdentityReadyCh is a channel that will be received from to block until
+	// the bot's internal identity has been renewed.
+	BotIdentityReadyCh <-chan struct{}
+
+	// StatusReporter is used to report the service's health.
+	StatusReporter readyz.Reporter
+
+	// Logger to which errors and messages will be written.
+	Logger *slog.Logger
+}
+
+func (cfg *Config) CheckAndSetDefaults() error {
+	if cfg.BroadcastFn == nil {
+		return trace.BadParameter("BroadcastFn is required")
+	}
+	if cfg.Client == nil {
+		return trace.BadParameter("Client is required")
+	}
+	if cfg.GetBotIdentityFn == nil {
+		return trace.BadParameter("GetBotIdentityFn is required")
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	if cfg.StatusReporter == nil {
+		cfg.StatusReporter = readyz.NoopReporter()
+	}
+	return nil
+}
+
+// NewService creates a new CA Rotation service.
+func NewService(cfg Config) (*Service, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Service{cfg: cfg}, nil
+}
+
+// Service watches for CA rotations in the cluster, and triggers a renewal when
+// it detects a relevant CA rotation.
 //
 // See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
 // for server side details of how a CA rotation takes place.
@@ -93,42 +105,30 @@ const caRotationRetryBackoff = time.Second * 2
 //   - Update Clients, Update Servers -> Rollback: So we can receive a set of
 //     certificates issued by the old CA, and stop trusting the new CA.
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
-type caRotationService struct {
-	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
-	botClient          *apiclient.Client
-	getBotIdentity     getBotIdentityFn
-	botIdentityReadyCh <-chan struct{}
-	statusReporter     readyz.Reporter
+type Service struct {
+	cfg Config
 }
 
-func (s *caRotationService) String() string {
-	return "ca-rotation"
-}
+func (s *Service) String() string { return "ca-rotation" }
 
-// Run continually triggers `watchCARotations` until the context is
-// canceled. This allows the watcher to be re-established if an error occurs.
+// Run continually triggers `watchCARotations` until the context is canceled.
+// This allows the watcher to be re-established if an error occurs.
 //
-// Run also manages debouncing the renewals across multiple watch
-// attempts.
-func (s *caRotationService) Run(ctx context.Context) error {
-	if s.statusReporter == nil {
-		s.statusReporter = readyz.NoopReporter()
-	}
-
+// Run also manages debouncing the renewals across multiple watch attempts.
+func (s *Service) Run(ctx context.Context) error {
 	rd := debouncer{
-		f:              s.reloadBroadcaster.Broadcast,
+		f:              s.cfg.BroadcastFn,
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.DefaultJitter
 
-	if s.botIdentityReadyCh != nil {
+	if s.cfg.BotIdentityReadyCh != nil {
 		select {
-		case <-s.botIdentityReadyCh:
+		case <-s.cfg.BotIdentityReadyCh:
 		default:
-			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			s.cfg.Logger.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
 			select {
-			case <-s.botIdentityReadyCh:
+			case <-s.cfg.BotIdentityReadyCh:
 			case <-ctx.Done():
 				return nil
 			}
@@ -153,15 +153,15 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		}
 		isCancelledErr := errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled
 		if isCancelledErr {
-			s.log.DebugContext(ctx, "CA watcher detected client closing. Waiting to rewatch", "wait", backoffPeriod)
+			s.cfg.Logger.DebugContext(ctx, "CA watcher detected client closing. Waiting to rewatch", "wait", backoffPeriod)
 		} else if err != nil {
-			s.statusReporter.Report(readyz.Unhealthy)
-			s.log.ErrorContext(ctx, "Error occurred whilst watching CA rotations. Waiting to retry", "wait", backoffPeriod, "error", err)
+			s.cfg.StatusReporter.Report(readyz.Unhealthy)
+			s.cfg.Logger.ErrorContext(ctx, "Error occurred whilst watching CA rotations. Waiting to retry", "wait", backoffPeriod, "error", err)
 		}
 
 		select {
 		case <-ctx.Done():
-			s.log.WarnContext(ctx, "Context canceled during backoff for CA rotation watcher. Aborting")
+			s.cfg.Logger.WarnContext(ctx, "Context canceled during backoff for CA rotation watcher. Aborting")
 			return nil
 		case <-time.After(backoffPeriod):
 		}
@@ -171,12 +171,12 @@ func (s *caRotationService) Run(ctx context.Context) error {
 // watchCARotations establishes a watcher for CA rotations in the cluster, and
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
-func (s *caRotationService) watchCARotations(ctx context.Context, queueReload func()) error {
-	s.log.DebugContext(ctx, "Attempting to establish watch for CA events")
+func (s *Service) watchCARotations(ctx context.Context, queueReload func()) error {
+	s.cfg.Logger.DebugContext(ctx, "Attempting to establish watch for CA events")
 
-	ident := s.getBotIdentity()
+	ident := s.cfg.GetBotIdentityFn()
 	clusterName := ident.ClusterName
-	watcher, err := s.botClient.NewWatcher(ctx, types.Watch{
+	watcher, err := s.cfg.Client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{
@@ -197,20 +197,20 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 			// OpInit is a special case omitted by the Watcher when the
 			// connection succeeds.
 			if event.Type == types.OpInit {
-				s.statusReporter.Report(readyz.Healthy)
-				s.log.InfoContext(ctx, "Started watching for CA rotations")
+				s.cfg.StatusReporter.Report(readyz.Healthy)
+				s.cfg.Logger.InfoContext(ctx, "Started watching for CA rotations")
 				continue
 			}
 
-			ignoreReason := filterCAEvent(ctx, s.log, event, clusterName)
+			ignoreReason := filterCAEvent(ctx, s.cfg.Logger, event, clusterName)
 			if ignoreReason != "" {
-				s.log.DebugContext(ctx, "Ignoring CA event", "reason", ignoreReason)
+				s.cfg.Logger.DebugContext(ctx, "Ignoring CA event", "reason", ignoreReason)
 				continue
 			}
 
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
-			s.log.InfoContext(ctx, "CA Rotation step detected; queueing renewal")
+			s.cfg.Logger.InfoContext(ctx, "CA Rotation step detected; queueing renewal")
 			queueReload()
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
@@ -262,4 +262,42 @@ func filterCAEvent(ctx context.Context, log *slog.Logger, event types.Event, clu
 	}
 
 	return ""
+}
+
+// debouncer accepts a duration, and a function. When `attempt` is called on
+// debouncer, it waits the duration, ignoring further attempts during this
+// period, before calling the provided function.
+//
+// This allows us to handle multiple events arriving within a short period, and
+// attempts to reduce the risk of the server going away during a renewal by
+// deferring the renewal until after the server-side elements of the rotation
+// have occurred.
+type debouncer struct {
+	mu    sync.Mutex
+	timer *time.Timer
+
+	// debouncePeriod is the amount of time that debouncer should wait from an
+	// initial trigger before triggering `f`, and in that time ignore further
+	// attempts.
+	debouncePeriod time.Duration
+
+	// f is the function that should be called by the debouncer.
+	f func()
+}
+
+func (rd *debouncer) attempt() {
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+
+	if rd.timer != nil {
+		return
+	}
+
+	rd.timer = time.AfterFunc(rd.debouncePeriod, func() {
+		rd.mu.Lock()
+		defer rd.mu.Unlock()
+		rd.timer = nil
+
+		rd.f()
+	})
 }
