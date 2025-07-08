@@ -90,6 +90,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.CircleArrowRight} text="CircleArrowRight" />
     <IconBox IconCmpt={Icon.CircleCheck} text="CircleCheck" />
     <IconBox IconCmpt={Icon.CircleCross} text="CircleCross" />
+    <IconBox IconCmpt={Icon.CircleDashed} text="CircleDashed" />
     <IconBox IconCmpt={Icon.CirclePause} text="CirclePause" />
     <IconBox IconCmpt={Icon.CirclePlay} text="CirclePlay" />
     <IconBox IconCmpt={Icon.CircleStop} text="CircleStop" />
@@ -216,6 +217,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.UsbDrive} text="UsbDrive" />
     <IconBox IconCmpt={Icon.User} text="User" />
     <IconBox IconCmpt={Icon.UserAdd} text="UserAdd" />
+    <IconBox IconCmpt={Icon.UserCheck} text="UserCheck" />
     <IconBox IconCmpt={Icon.UserCircleGear} text="UserCircleGear" />
     <IconBox IconCmpt={Icon.UserFocus} text="UserFocus" />
     <IconBox IconCmpt={Icon.UserIdBadge} text="UserIdBadge" />
