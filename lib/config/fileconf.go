@@ -552,7 +552,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -732,6 +732,9 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
+	// SessionRecordingEncryption enables or disables encryption of session recordings.
+	SessionRecordingEncryption *types.BoolOption `yaml:"session_recording_encryption,omitempty"`
+
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
@@ -873,7 +876,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
+		a.SessionRecordingEncryption != empty.SessionRecordingEncryption
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1516,11 +1520,7 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
-
-		if cfg.DisplayOffset > x11.MaxDisplayNumber {
-			cfg.DisplayOffset = x11.MaxDisplayNumber
-		}
+		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays

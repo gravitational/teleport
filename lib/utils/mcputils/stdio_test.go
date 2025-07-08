@@ -19,7 +19,6 @@
 package mcputils
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"log"
@@ -29,15 +28,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
-// TestStdioHelpers tests StdioMessageReader and StdioMessageWriter by
+// TestStdioHelpers tests MessageReader and StdioMessageWriter by
 // implementing a passthrough reverse proxy.
 //
 // The flow looks something like this:
@@ -71,9 +69,9 @@ func TestStdioHelpers(t *testing.T) {
 	clientMessageWriter := NewStdioMessageWriter(writeToClient)
 	serverMessageWriter := NewStdioMessageWriter(writeToServer)
 
-	clientMessageReader, err := NewStdioMessageReader(StdioMessageReaderConfig{
-		ParentContext:    context.Background(),
-		SourceReadCloser: readFromClient,
+	clientMessageReader, err := NewMessageReader(MessageReaderConfig{
+		ParentContext: context.Background(),
+		Transport:     NewStdioReader(readFromClient),
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readClientNotifications, 1)
 			return trace.Wrap(serverMessageWriter.WriteMessage(ctx, notification))
@@ -91,9 +89,9 @@ func TestStdioHelpers(t *testing.T) {
 		close(clientMessageReaderClosed)
 	}()
 
-	serverMessageReader, err := NewStdioMessageReader(StdioMessageReaderConfig{
-		ParentContext:    context.Background(),
-		SourceReadCloser: readFromServer,
+	serverMessageReader, err := NewMessageReader(MessageReaderConfig{
+		ParentContext: context.Background(),
+		Transport:     NewStdioReader(readFromServer),
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readServerNotifications, 1)
 			return trace.Wrap(clientMessageWriter.WriteMessage(ctx, notification))
@@ -114,36 +112,20 @@ func TestStdioHelpers(t *testing.T) {
 
 	// Make "high-level" MCP client and server with stdio transport as the two
 	// ends.
-	stdioClientTransport := mcpclienttransport.NewIO(clientStdin, clientStdout, io.NopCloser(bytes.NewReader(nil)))
-	stdioClient := mcpclient.NewClient(stdioClientTransport)
-	defer stdioClient.Close()
-	require.NoError(t, stdioClient.Start(ctx))
+	stdioClient := mcptest.NewStdioClient(t, clientStdin, clientStdout)
 
-	stdioServer := mcpserver.NewStdioServer(makeTestMCPServer())
+	stdioServer := mcpserver.NewStdioServer(mcptest.NewServer())
 	stdioServer.SetErrorLogger(log.New(io.Discard, "", log.LstdFlags))
 	go stdioServer.Listen(ctx, serverStdin, serverStdout)
 
 	// Test things out.
 	t.Run("client initialize", func(t *testing.T) {
-		initReq := mcp.InitializeRequest{}
-		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-		initReq.Params.ClientInfo = mcp.Implementation{
-			Name:    "test-client",
-			Version: "1.0.0",
-		}
-		_, err = stdioClient.Initialize(ctx, initReq)
+		_, err := mcptest.InitializeClient(ctx, stdioClient)
 		require.NoError(t, err)
 	})
 
 	t.Run("client call tool", func(t *testing.T) {
-		callToolRequest := mcp.CallToolRequest{}
-		callToolRequest.Params.Name = "hello-server"
-		callToolResult, err := stdioClient.CallTool(ctx, callToolRequest)
-		require.NoError(t, err)
-		require.NotNil(t, callToolResult)
-		require.Equal(t, []mcp.Content{
-			mcp.NewTextContent("hello client"),
-		}, callToolResult.Content)
+		mcptest.MustCallServerTool(t, ctx, stdioClient)
 	})
 
 	t.Run("reader closed by closing stdin", func(t *testing.T) {
@@ -175,16 +157,4 @@ func TestStdioHelpers(t *testing.T) {
 		assert.Equal(t, int32(0), atomic.LoadInt32(&readServerNotifications))
 		assert.Equal(t, int32(2), atomic.LoadInt32(&readServerResponses))
 	})
-}
-
-func makeTestMCPServer() *mcpserver.MCPServer {
-	server := mcpserver.NewMCPServer("test-server", "1.0.0")
-	server.AddTool(mcp.Tool{
-		Name: "hello-server",
-	}, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.NewTextContent("hello client")},
-		}, nil
-	})
-	return server
 }

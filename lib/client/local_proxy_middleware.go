@@ -52,9 +52,6 @@ type CertChecker struct {
 
 	cert   tls.Certificate
 	certMu sync.Mutex
-
-	err   error
-	errMu sync.Mutex
 }
 
 var _ alpnproxy.LocalProxyMiddleware = (*CertChecker)(nil)
@@ -149,10 +146,6 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate,
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
-	defer func() {
-		c.setError(err)
-	}()
-
 	if err := c.checkCert(); err == nil {
 		return c.cert, nil
 	}
@@ -177,13 +170,6 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate,
 	return c.cert, nil
 }
 
-// RetrieveError retrieves the happened on while retrieving certificates.
-func (c *CertChecker) RetrieveError() error {
-	c.errMu.Lock()
-	defer c.errMu.Unlock()
-	return c.err
-}
-
 func (c *CertChecker) checkCert() error {
 	leaf, err := utils.TLSCertLeaf(c.cert)
 	if err != nil {
@@ -196,12 +182,6 @@ func (c *CertChecker) checkCert() error {
 	}
 
 	return trace.Wrap(c.certIssuer.CheckCert(leaf))
-}
-
-func (c *CertChecker) setError(err error) {
-	c.errMu.Lock()
-	defer c.errMu.Unlock()
-	c.err = err
 }
 
 // CertIssuer checks and issues certs.

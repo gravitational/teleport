@@ -57,8 +57,16 @@ func TestDatabaseResourceURI(t *testing.T) {
 			expectedDatabaseUser: "",
 			expectedClusterName:  "default",
 		},
-		"generated uri": {
-			uri:                  NewDatabaseResourceURI("default", "db").String(),
+		"generated uri with params": {
+			uri:                  NewDatabaseResourceURI("default", "db", WithDatabaseUser("user"), WithDatabaseName("name")).String(),
+			expectedDatabase:     true,
+			expectedServiceName:  "db",
+			expectedDatabaseName: "name",
+			expectedDatabaseUser: "user",
+			expectedClusterName:  "default",
+		},
+		"generated uri without params": {
+			uri:                  NewDatabaseResourceURI("default", "db", WithDatabaseUser("user"), WithDatabaseName("name")).WithoutParams().String(),
 			expectedDatabase:     true,
 			expectedServiceName:  "db",
 			expectedDatabaseName: "",
@@ -89,6 +97,48 @@ func TestDatabaseResourceURI(t *testing.T) {
 			require.Equal(t, tc.expectedDatabaseName, uri.GetDatabaseName())
 			require.Equal(t, tc.expectedDatabaseUser, uri.GetDatabaseUser())
 			require.Equal(t, tc.expectedClusterName, uri.GetClusterName())
+		})
+	}
+}
+
+func TestEqualResourceURI(t *testing.T) {
+	randomType, err := ParseResourceURI("teleport://random/name")
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		a              ResourceURI
+		b              ResourceURI
+		expectedResult bool
+	}{
+		"same resources": {
+			a:              NewDatabaseResourceURI("cluster", "pg"),
+			b:              NewDatabaseResourceURI("cluster", "pg"),
+			expectedResult: true,
+		},
+		"same resources, different params": {
+			a:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("readonly"), WithDatabaseName("postgres")).WithoutParams(),
+			b:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("rw"), WithDatabaseName("random")).WithoutParams(),
+			expectedResult: true,
+		},
+		"same resource type, different resources": {
+			a:              NewDatabaseResourceURI("cluster", "pg"),
+			b:              NewDatabaseResourceURI("cluster", "random"),
+			expectedResult: false,
+		},
+		"different resource type, same name": {
+			a:              *randomType,
+			b:              NewDatabaseResourceURI("cluster", "pg"),
+			expectedResult: false,
+		},
+		"same resources compare params": {
+			a:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("rw"), WithDatabaseName("postgres")),
+			b:              NewDatabaseResourceURI("cluster", "pg", WithDatabaseUser("rw"), WithDatabaseName("postgres")),
+			expectedResult: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.expectedResult, tc.a.Equal(tc.b))
+			require.Equal(t, tc.expectedResult, tc.b.Equal(tc.a))
 		})
 	}
 }

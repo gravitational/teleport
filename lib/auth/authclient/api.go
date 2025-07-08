@@ -1237,6 +1237,12 @@ type Cache interface {
 	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
 	// ListRelayServers returns a paginated list of relay server heartbeats.
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+
+	// GetBotInstance returns the specified BotInstance resource.
+	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+
+	// ListBotInstances returns a page of BotInstance resources.
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
 }
 
 type NodeWrapper struct {

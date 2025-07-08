@@ -28,6 +28,7 @@ import {
   useState,
 } from 'react';
 
+import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
@@ -59,8 +60,18 @@ export type VnetContext = {
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
-  getServiceInfo: () => Promise<[GetServiceInfoResponse, Error]>;
+  /**
+   * Always returns the current VNet service info by making a gRPC call to the service.
+   */
+  currentServiceInfo: () => Promise<GetServiceInfoResponse>;
+  /**
+   * The current attempt to get the VNet service info.
+   */
   serviceInfoAttempt: Attempt<GetServiceInfoResponse>;
+  /**
+   * Refreshes serviceInfoAttempt by making a new gRPC call to the service.
+   */
+  refreshServiceInfoAttempt: () => Promise<[GetServiceInfoResponse, Error]>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   /**
@@ -105,6 +116,18 @@ export type VnetContext = {
    * Whether VNet has started successfully at least once.
    */
   hasEverStarted: boolean;
+  /**
+   * Opens a modal that handles SSH client configuration.
+   */
+  openSSHConfigurationModal: (params: {
+    /** The path to the user's generated VNet SSH config, available in the
+     * service info and diagnostic report. */
+    vnetSSHConfigPath: string;
+    /** Optional host address that will be used for example text. */
+    host?: string;
+    /** Optional callback that will be invoked after SSH clients are configured. */
+    onSuccess?: () => void;
+  }) => void;
 };
 
 export type VnetStatus =
@@ -232,12 +255,12 @@ export const VnetContextProvider: FC<
     ])
   );
 
-  const [serviceInfoAttempt, getServiceInfo] = useAsync(
-    useCallback(
-      () => vnet.getServiceInfo({}).then(({ response }) => response),
-      [vnet]
-    )
+  const currentServiceInfo = useCallback(
+    () => vnet.getServiceInfo({}).then(({ response }) => response),
+    [vnet]
   );
+  const [serviceInfoAttempt, refreshServiceInfoAttempt] =
+    useAsync(currentServiceInfo);
 
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
@@ -256,13 +279,14 @@ export const VnetContextProvider: FC<
     [status.value]
   );
 
-  const rootClusterUri = useStoreSelector(
+  const isWorkspaceSelected = useStoreSelector(
     'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
+    useCallback(state => !!state.rootClusterUri, [])
   );
 
   const openReport = useCallback(
     (report: Report) => {
+      const rootClusterUri = workspacesService.getRootClusterUri();
       if (!rootClusterUri) {
         return;
       }
@@ -294,7 +318,7 @@ export const VnetContextProvider: FC<
       // upon on the next run of runDiagnosticsAndShowNotification.
       notificationsService.removeNotification(diagNotificationIdRef.current);
     },
-    [rootClusterUri, workspacesService, notificationsService]
+    [workspacesService, notificationsService]
   );
 
   const showDiagWarningIndicator: boolean = useMemo(
@@ -396,10 +420,10 @@ export const VnetContextProvider: FC<
         return;
       }
 
-      diagNotificationIdRef.current = notificationsService.notifyWarning({
-        isAutoRemovable: false,
-        title: 'Other software on your device might interfere with VNet.',
-        action: {
+      let action: Action;
+      let description: string;
+      if (workspacesService.getRootClusterUri()) {
+        action = {
           content: 'Open Diag Report',
           onClick: () => {
             openReport(report);
@@ -409,7 +433,17 @@ export const VnetContextProvider: FC<
               diagNotificationIdRef.current
             );
           },
-        },
+        };
+      } else {
+        description =
+          'Log in to a cluster to open the diag report from the VNet panel.';
+      }
+
+      diagNotificationIdRef.current = notificationsService.notifyWarning({
+        isAutoRemovable: false,
+        title: 'Other software on your device might interfere with VNet.',
+        description,
+        action,
       });
     },
     [
@@ -419,6 +453,7 @@ export const VnetContextProvider: FC<
       hasDismissedDiagnosticsAlertRef,
       resetHasActedOnPreviousNotification,
       isConnectionsPanelOpenRef,
+      workspacesService,
     ]
   );
 
@@ -452,6 +487,30 @@ export const VnetContextProvider: FC<
     ]
   );
 
+  const autoConfigureSSH = useCallback(async (): Promise<void> => {
+    await vnet.autoConfigureSSH({});
+    // Refresh the service info and diagnostic attempts because SSH is now configured.
+    refreshServiceInfoAttempt();
+    runDiagnostics();
+  }, [vnet, refreshServiceInfoAttempt]);
+  const openSSHConfigurationModal: VnetContext['openSSHConfigurationModal'] =
+    useCallback(
+      ({ vnetSSHConfigPath, host, onSuccess }) => {
+        appCtx.modalsService.openRegularDialog({
+          kind: 'configure-ssh-clients',
+          onConfirm: async () => {
+            await autoConfigureSSH();
+            if (onSuccess) {
+              onSuccess();
+            }
+          },
+          vnetSSHConfigPath,
+          host,
+        });
+      },
+      [appCtx.modalsService, autoConfigureSSH]
+    );
+
   return (
     <VnetContext.Provider
       value={{
@@ -461,17 +520,19 @@ export const VnetContextProvider: FC<
         startAttempt,
         stop,
         stopAttempt,
-        getServiceInfo,
+        currentServiceInfo,
         serviceInfoAttempt,
+        refreshServiceInfoAttempt,
         runDiagnostics,
         diagnosticsAttempt,
         getDisabledDiagnosticsReason,
         dismissDiagnosticsAlert,
         hasDismissedDiagnosticsAlert,
         reinstateDiagnosticsAlert,
-        openReport: rootClusterUri ? openReport : undefined,
+        openReport: isWorkspaceSelected ? openReport : undefined,
         showDiagWarningIndicator,
         hasEverStarted,
+        openSSHConfigurationModal,
       }}
     >
       {children}

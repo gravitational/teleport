@@ -250,9 +250,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.IntegrationSubKindAWSOIDC:
-		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
-		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
+		// AWS OIDC and Roles Anywhere Integrations can be used as source of credentials to access AWS Web/CLI.
+		// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+		// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
 			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
@@ -460,12 +461,17 @@ func (s *Service) ensureNoAssociatedResources(ctx context.Context, ig types.Inte
 
 func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig types.Integration) error {
 	s.logger.DebugContext(ctx, "Checking GitHub integration associated resources", "integration", ig.GetName())
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
+	for server, err := range clientutils.Resources(ctx, s.backend.ListGitServers) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
 			return trace.BadParameter("git servers associated with integration %s must be deleted first", ig.GetName())
 		}
-		return nil
-	}))
+	}
+
+	return nil
 }
 
 func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
@@ -488,10 +494,15 @@ func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
-		if server.GetGitHub() == nil || server.GetGitHub().Integration != ig.GetName() {
-			return nil
+	for server, err := range clientutils.Resources(ctx, s.backend.ListGitServers) {
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
-	}))
+
+		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
+			return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
+		}
+	}
+
+	return nil
 }

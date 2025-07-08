@@ -315,7 +315,7 @@ func TestCacheConcurrency(t *testing.T) {
 	// we can't really guarantee that the background writer is waiting, but we can
 	// be reasonably sure by stepping through multiple qery cycles and asserting that
 	// the writer hasn't completed at each iteration.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// perform initial check to verify that write hasn't succeeded (racy)
 		select {
 		case <-putDone:

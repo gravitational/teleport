@@ -19,6 +19,7 @@
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
@@ -141,8 +142,11 @@ const ErrorText = (props: PropsWithChildren) => (
  * optimistically displays previously fetched results while fetching new list.
  */
 const VnetStatus = () => {
-  const { getServiceInfo, serviceInfoAttempt: eagerServiceInfoAttempt } =
-    useVnetContext();
+  const {
+    refreshServiceInfoAttempt,
+    serviceInfoAttempt: eagerServiceInfoAttempt,
+    openSSHConfigurationModal,
+  } = useVnetContext();
   const serviceInfoAttempt = useDelayedRepeatedAttempt(eagerServiceInfoAttempt);
   const serviceInfoRefreshRequestedRef = useRef(false);
 
@@ -150,10 +154,10 @@ const VnetStatus = () => {
     function refreshListOnOpen() {
       if (!serviceInfoRefreshRequestedRef.current) {
         serviceInfoRefreshRequestedRef.current = true;
-        getServiceInfo();
+        refreshServiceInfoAttempt();
       }
     },
-    [getServiceInfo]
+    [refreshServiceInfoAttempt]
   );
 
   if (serviceInfoAttempt.status === 'error') {
@@ -166,7 +170,7 @@ const VnetStatus = () => {
           ml={2}
           size="small"
           type="button"
-          onClick={getServiceInfo}
+          onClick={refreshServiceInfoAttempt}
         >
           Retry
         </ButtonSecondary>
@@ -205,7 +209,21 @@ const VnetStatus = () => {
   const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
     <Flex>
       <ConnectionStatusIndicator status={'warning'} inline mr={2} />
-      SSH clients are not configured to use VNet (see diag report).
+      <Text>SSH clients are not configured to use VNet</Text>
+      <Box alignSelf={'center'}>
+        <ActionButton
+          fill="minimal"
+          intent="neutral"
+          inputAlignment
+          action={{
+            onClick: () =>
+              openSSHConfigurationModal({
+                vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+              }),
+            content: 'Resolve',
+          }}
+        />
+      </Box>
     </Flex>
   );
 

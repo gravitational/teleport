@@ -178,8 +178,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 }
 
 func TestCredentialsCache(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
@@ -335,8 +334,7 @@ func TestCredentialsCache(t *testing.T) {
 // configurator to synchronously get credentials for the current draft
 // ExternalAuditStorageSpec.
 func TestDraftConfigurator(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{

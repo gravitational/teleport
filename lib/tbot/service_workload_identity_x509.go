@@ -33,9 +33,10 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
@@ -47,16 +48,21 @@ type WorkloadIdentityX509Service struct {
 	cfg            *config.WorkloadIdentityX509Service
 	getBotIdentity getBotIdentityFn
 	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache *workloadidentity.TrustBundleCache
-	crlCache         *workloadidentity.CRLCache
+	trustBundleCache  *workloadidentity.TrustBundleCache
+	crlCache          *workloadidentity.CRLCache
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 }
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityX509Service) String() string {
-	return fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-x509 (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the
@@ -100,6 +106,10 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting CRL set from cache")
 	}
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+
 	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential
 	var privateKey crypto.Signer
@@ -109,6 +119,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
+			s.statusReporter.Report(readyz.Unhealthy)
 			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
@@ -167,6 +178,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			failures++
 			continue
 		}
+		s.statusReporter.Report(readyz.Healthy)
 		failures = 0
 	}
 }
@@ -184,30 +196,18 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching roles")
-	}
-
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		effectiveLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
-
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -19,20 +19,15 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"log/slog"
-	"net"
 	"os"
 	"path"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
@@ -64,8 +60,8 @@ func Test_handleAuthErrStdio(t *testing.T) {
 		require.ErrorIs(t, handlerErr, originalAuthErr)
 	}()
 
-	stdioClient := makeStdioClient(t, clientSourceConn)
-	_, err = initializeStdioClient(ctx, stdioClient)
+	stdioClient := mcptest.NewStdioClientFromConn(t, clientSourceConn)
+	_, err = mcptest.InitializeClient(ctx, stdioClient)
 	require.EqualError(t, err, originalAuthErr.Error())
 
 	select {
@@ -97,24 +93,17 @@ func Test_handleStdio(t *testing.T) {
 	}()
 
 	// Use a real client. Verify session start and end events.
-	stdioClient := makeStdioClient(t, testCtx.clientSourceConn)
+	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		event := emitter.LastEvent()
 		_, ok := event.(*apievents.MCPSessionStart)
 		assert.True(collect, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
-	resp, err := initializeStdioClient(ctx, stdioClient)
+	resp, err := mcptest.InitializeClient(ctx, stdioClient)
 	require.NoError(t, err)
 	require.Equal(t, "test-server", resp.ServerInfo.Name)
 
-	callToolRequest := mcp.CallToolRequest{}
-	callToolRequest.Params.Name = "hello-server"
-	callToolResult, err := stdioClient.CallTool(ctx, callToolRequest)
-	require.NoError(t, err)
-	require.NotNil(t, callToolResult)
-	require.Equal(t, []mcp.Content{
-		mcp.NewTextContent("hello client"),
-	}, callToolResult.Content)
+	mcptest.MustCallServerTool(t, ctx, stdioClient)
 
 	// Now close the client.
 	stdioClient.Close()
@@ -161,15 +150,7 @@ func (s *mockStdioServerRunner) getStdoutPipe() (io.ReadCloser, error) {
 
 func (s *mockStdioServerRunner) run(ctx context.Context) error {
 	slog.DebugContext(ctx, "running mock stdio server")
-	server := mcpserver.NewMCPServer("test-server", "1.0.0")
-	server.AddTool(mcp.Tool{
-		Name: "hello-server",
-	}, func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.NewTextContent("hello client")},
-		}, nil
-	})
-	err := mcpserver.NewStdioServer(server).Listen(ctx, s.serverStdin, s.serverStdout)
+	err := mcpserver.NewStdioServer(mcptest.NewServer()).Listen(ctx, s.serverStdin, s.serverStdout)
 	if err != nil && !mcputils.IsOKCloseError(err) {
 		return trace.Wrap(err)
 	}
@@ -180,28 +161,6 @@ func (s *mockStdioServerRunner) close() {
 	for _, pipeCloser := range s.pipeClosers {
 		pipeCloser.Close()
 	}
-}
-
-func makeStdioClient(t *testing.T, clientSourceConn net.Conn) *mcpclient.Client {
-	t.Helper()
-	stdioClientTransport := mcpclienttransport.NewIO(clientSourceConn, clientSourceConn, io.NopCloser(bytes.NewReader(nil)))
-	stdioClient := mcpclient.NewClient(stdioClientTransport)
-	t.Cleanup(func() {
-		stdioClient.Close()
-	})
-	require.NoError(t, stdioClient.Start(t.Context()))
-	return stdioClient
-}
-
-func initializeStdioClient(ctx context.Context, client *mcpclient.Client) (*mcp.InitializeResult, error) {
-	initReq := mcp.InitializeRequest{}
-	initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
-	initReq.Params.ClientInfo = mcp.Implementation{
-		Name:    "test-client",
-		Version: "1.0.0",
-	}
-	resp, err := client.Initialize(ctx, initReq)
-	return resp, trace.Wrap(err)
 }
 
 // TestHandleSession_execMCPServer tests real server handler for stdio-based MCP
@@ -235,12 +194,12 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 	connectAfterHandlerStart := func(t *testing.T, testCtx *testContext, containerName string) {
 		t.Helper()
 
-		stdioClient := makeStdioClient(t, testCtx.clientSourceConn)
+		stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
 		defer stdioClient.Close()
 
 		reqCtx, reqCancel := context.WithTimeout(t.Context(), time.Second*5)
 		defer reqCancel()
-		resp, err := initializeStdioClient(reqCtx, stdioClient)
+		resp, err := mcptest.InitializeClient(reqCtx, stdioClient)
 		require.NoError(t, err)
 		require.Equal(t, "example-servers/everything", resp.ServerInfo.Name)
 

@@ -296,7 +296,7 @@ func TestUpload(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
 			},
 		},
@@ -312,7 +312,7 @@ func TestUpload(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
 			},
 		},
@@ -325,7 +325,7 @@ func TestUpload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 				require.ErrorAs(t, err, new(*NonRecursiveDirectoryTransferError))
 			},
@@ -335,7 +335,7 @@ func TestUpload(t *testing.T) {
 			srcPaths: []string{
 				"idontexist",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -508,14 +508,14 @@ func TestDownload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 			},
 		},
 		{
 			name:    "non-existent src file",
 			srcPath: "idontexist",
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -590,7 +590,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		{
 			name: "~user path",
 			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},

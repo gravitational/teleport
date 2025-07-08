@@ -93,6 +93,8 @@ test.each(tests)(
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
         clusters: [rootCluster.name],
         sshConfigured: true,
+        vnetSshConfigPath:
+          '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
       })
     );
 
@@ -189,6 +191,8 @@ test.each(tests)(
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
         clusters: [rootCluster.name],
         sshConfigured: true,
+        vnetSshConfigPath:
+          '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
       })
     );
 
@@ -250,6 +254,8 @@ test('launching VNet for the first time from the connections panel does not open
       appDnsZones: [proxyHostname(rootCluster.proxyHost)],
       clusters: [rootCluster.name],
       sshConfigured: true,
+      vnetSshConfigPath:
+        '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
     })
   );
 
