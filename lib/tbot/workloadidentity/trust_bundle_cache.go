@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -201,6 +203,56 @@ type TrustBundleCacheConfig struct {
 	Logger             *slog.Logger
 	BotIdentityReadyCh <-chan struct{}
 	StatusReporter     readyz.Reporter
+}
+
+type TrustBundleCacheFacade struct {
+	mu          sync.Mutex
+	ready       chan struct{}
+	bundleCache *TrustBundleCache
+}
+
+func NewTrustBundleCacheFacade() *TrustBundleCacheFacade {
+	return &TrustBundleCacheFacade{ready: make(chan struct{})}
+}
+
+func (f *TrustBundleCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.bundleCache == nil {
+		var err error
+		f.bundleCache, err = NewTrustBundleCache(TrustBundleCacheConfig{
+			FederationClient:   deps.Client.SPIFFEFederationServiceClient(),
+			TrustClient:        deps.Client.TrustClient(),
+			EventsClient:       deps.Client,
+			ClusterName:        deps.BotIdentity().ClusterName,
+			BotIdentityReadyCh: deps.BotIdentityReadyCh,
+			Logger: deps.Logger.With(
+				teleport.ComponentKey,
+				teleport.Component(teleport.ComponentTBot, "spiffe-trust-bundle-cache"),
+			),
+			StatusReporter: deps.StatusRegistry.AddService("spiffe-trust-bundle-cache"),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		close(f.ready)
+	}
+
+	return f.bundleCache, nil
+}
+
+func (f *TrustBundleCacheFacade) GetBundleSet(ctx context.Context) (*BundleSet, error) {
+	select {
+	case <-f.ready:
+		f.mu.Lock()
+		cache := f.bundleCache
+		f.mu.Unlock()
+
+		return cache.GetBundleSet(ctx)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // NewTrustBundleCache creates a new TrustBundleCache.
