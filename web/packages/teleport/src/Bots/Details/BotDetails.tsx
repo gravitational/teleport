@@ -117,7 +117,7 @@ export function BotDetails() {
         <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
-      {data === null && (
+      {isSuccess && data === null && (
         <Alert kind="warning">Bot {params.name} does not exist</Alert>
       )}
 
