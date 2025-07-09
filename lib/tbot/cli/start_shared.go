@@ -243,7 +243,7 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	}
 
 	if s.RegistrationSecret != "" {
-		cfg.Onboarding.BoundKeypair.InitialJoinSecret = s.RegistrationSecret
+		cfg.Onboarding.BoundKeypair.RegistrationSecret = s.RegistrationSecret
 	}
 
 	return nil
