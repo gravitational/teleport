@@ -651,17 +651,14 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
-	// KindSummarizationInferenceModel is the kind of
-	// teleport.summarizer.v1.SummarizationInferenceModel.
-	KindSummarizationInferenceModel = "summarization_inference_model"
+	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
+	KindInferenceModel = "inference_model"
 
-	// KindSummarizationInferenceSecret is the kind of
-	// teleport.summarizer.v1.SummarizationInferenceSecret.
-	KindSummarizationInferenceSecret = "summarization_inference_secret"
+	// KindInferenceSecret is the kind of teleport.summarizer.v1.InferenceSecret.
+	KindInferenceSecret = "inference_secret"
 
-	// KindSummarizationInferencePolicy is the kind of
-	// teleport.summarizer.v1.SummarizationInferencePolicy.
-	KindSummarizationInferencePolicy = "summarization_inference_policy"
+	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
+	KindInferencePolicy = "inference_policy"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.

@@ -38,115 +38,115 @@ type SummarizerService struct {
 
 // CRUD operations for models
 
-func (s *SummarizerService) CreateSummarizationInferenceModel(
-	ctx context.Context, req *pb.CreateSummarizationInferenceModelRequest,
-) (*pb.SummarizationInferenceModel, error) {
+func (s *SummarizerService) CreateInferenceModel(
+	ctx context.Context, req *pb.CreateInferenceModelRequest,
+) (*pb.InferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) GetSummarizationInferenceModel(
-	ctx context.Context, req *pb.GetSummarizationInferenceModelRequest,
-) (*pb.SummarizationInferenceModel, error) {
+func (s *SummarizerService) GetInferenceModel(
+	ctx context.Context, req *pb.GetInferenceModelRequest,
+) (*pb.InferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) UpdateSummarizationInferenceModel(
-	ctx context.Context, req *pb.UpdateSummarizationInferenceModelRequest,
-) (*pb.SummarizationInferenceModel, error) {
+func (s *SummarizerService) UpdateInferenceModel(
+	ctx context.Context, req *pb.UpdateInferenceModelRequest,
+) (*pb.InferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) UpsertSummarizationInferenceModel(
-	ctx context.Context, req *pb.UpsertSummarizationInferenceModelRequest,
-) (*pb.SummarizationInferenceModel, error) {
+func (s *SummarizerService) UpsertInferenceModel(
+	ctx context.Context, req *pb.UpsertInferenceModelRequest,
+) (*pb.InferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) DeleteSummarizationInferenceModel(
-	ctx context.Context, req *pb.DeleteSummarizationInferenceModelRequest,
+func (s *SummarizerService) DeleteInferenceModel(
+	ctx context.Context, req *pb.DeleteInferenceModelRequest,
 ) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) ListSummarizationInferenceModels(
-	ctx context.Context, req *pb.ListSummarizationInferenceModelsRequest,
-) (*pb.ListSummarizationInferenceModelsResponse, error) {
+func (s *SummarizerService) ListInferenceModels(
+	ctx context.Context, req *pb.ListInferenceModelsRequest,
+) (*pb.ListInferenceModelsResponse, error) {
 	return nil, s.requireEnterprise()
 }
 
 // CRUD operations for secrets
 
-func (s *SummarizerService) CreateSummarizationInferenceSecret(
-	ctx context.Context, req *pb.CreateSummarizationInferenceSecretRequest,
-) (*pb.SummarizationInferenceSecret, error) {
+func (s *SummarizerService) CreateInferenceSecret(
+	ctx context.Context, req *pb.CreateInferenceSecretRequest,
+) (*pb.InferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) GetSummarizationInferenceSecret(
-	ctx context.Context, req *pb.GetSummarizationInferenceSecretRequest,
-) (*pb.SummarizationInferenceSecret, error) {
+func (s *SummarizerService) GetInferenceSecret(
+	ctx context.Context, req *pb.GetInferenceSecretRequest,
+) (*pb.InferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) UpdateSummarizationInferenceSecret(
-	ctx context.Context, req *pb.UpdateSummarizationInferenceSecretRequest,
-) (*pb.SummarizationInferenceSecret, error) {
+func (s *SummarizerService) UpdateInferenceSecret(
+	ctx context.Context, req *pb.UpdateInferenceSecretRequest,
+) (*pb.InferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) UpsertSummarizationInferenceSecret(
-	ctx context.Context, req *pb.UpsertSummarizationInferenceSecretRequest,
-) (*pb.SummarizationInferenceSecret, error) {
+func (s *SummarizerService) UpsertInferenceSecret(
+	ctx context.Context, req *pb.UpsertInferenceSecretRequest,
+) (*pb.InferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) DeleteSummarizationInferenceSecret(
-	ctx context.Context, req *pb.DeleteSummarizationInferenceSecretRequest,
+func (s *SummarizerService) DeleteInferenceSecret(
+	ctx context.Context, req *pb.DeleteInferenceSecretRequest,
 ) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) ListSummarizationInferenceSecrets(
-	ctx context.Context, req *pb.ListSummarizationInferenceSecretsRequest,
-) (*pb.ListSummarizationInferenceSecretsResponse, error) {
+func (s *SummarizerService) ListInferenceSecrets(
+	ctx context.Context, req *pb.ListInferenceSecretsRequest,
+) (*pb.ListInferenceSecretsResponse, error) {
 	return nil, s.requireEnterprise()
 }
 
 // CRUD operations for policies
 
-func (s *SummarizerService) CreateSummarizationInferencePolicy(
-	ctx context.Context, req *pb.CreateSummarizationInferencePolicyRequest,
-) (*pb.SummarizationInferencePolicy, error) {
+func (s *SummarizerService) CreateInferencePolicy(
+	ctx context.Context, req *pb.CreateInferencePolicyRequest,
+) (*pb.InferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) GetSummarizationInferencePolicy(
-	ctx context.Context, req *pb.GetSummarizationInferencePolicyRequest,
-) (*pb.SummarizationInferencePolicy, error) {
+func (s *SummarizerService) GetInferencePolicy(
+	ctx context.Context, req *pb.GetInferencePolicyRequest,
+) (*pb.InferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) UpdateSummarizationInferencePolicy(
-	ctx context.Context, req *pb.UpdateSummarizationInferencePolicyRequest,
-) (*pb.SummarizationInferencePolicy, error) {
+func (s *SummarizerService) UpdateInferencePolicy(
+	ctx context.Context, req *pb.UpdateInferencePolicyRequest,
+) (*pb.InferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) UpsertSummarizationInferencePolicy(
-	ctx context.Context, req *pb.UpsertSummarizationInferencePolicyRequest,
-) (*pb.SummarizationInferencePolicy, error) {
+func (s *SummarizerService) UpsertInferencePolicy(
+	ctx context.Context, req *pb.UpsertInferencePolicyRequest,
+) (*pb.InferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) DeleteSummarizationInferencePolicy(
-	ctx context.Context, req *pb.DeleteSummarizationInferencePolicyRequest,
+func (s *SummarizerService) DeleteInferencePolicy(
+	ctx context.Context, req *pb.DeleteInferencePolicyRequest,
 ) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *SummarizerService) ListSummarizationInferencePolicies(
-	ctx context.Context, req *pb.ListSummarizationInferencePoliciesRequest,
-) (*pb.ListSummarizationInferencePoliciesResponse, error) {
+func (s *SummarizerService) ListInferencePolicies(
+	ctx context.Context, req *pb.ListInferencePoliciesRequest,
+) (*pb.ListInferencePoliciesResponse, error) {
 	return nil, s.requireEnterprise()
 }
 
