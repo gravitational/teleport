@@ -622,9 +622,8 @@ func TestValidateClientRedirect(t *testing.T) {
 			"http://localhost/callback",
 			"http://localhost:1234/callback",
 		} {
-			const ssoTestFlowFalse = false
 			var defaultSettings *types.SSOClientRedirectSettings
-			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, defaultSettings))
+			require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", sso.CeremonyTypeLogin, defaultSettings))
 		}
 	})
 
@@ -650,9 +649,8 @@ func TestValidateClientRedirect(t *testing.T) {
 			"ftp://127.0.0.1/callback",
 			"ftp://[::1]/callback",
 		} {
-			const ssoTestFlowFalse = false
 			var defaultSettings *types.SSOClientRedirectSettings
-			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, defaultSettings))
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", sso.CeremonyTypeLogin, defaultSettings))
 		}
 	})
 
@@ -662,9 +660,8 @@ func TestValidateClientRedirect(t *testing.T) {
 			"http://127.0.0.1:12345/callback?secret=a",
 			"http://127.0.0.1:12345/callback?secret_key=a&foo=b",
 		} {
-			const ssoTestFlowFalse = false
 			var defaultSettings *types.SSOClientRedirectSettings
-			require.Error(t, ValidateClientRedirect(badURL, ssoTestFlowFalse, defaultSettings))
+			require.Error(t, sso.ValidateClientRedirect(badURL, sso.CeremonyTypeLogin, defaultSettings))
 		}
 	})
 
@@ -674,7 +671,6 @@ func TestValidateClientRedirect(t *testing.T) {
 			"https://foo.allowed.with.subdomain.invalid/callback",
 			"https://but.no.subsubdomain.invalid/callback",
 		} {
-			const ssoTestFlowFalse = false
 			settings := &types.SSOClientRedirectSettings{
 				AllowedHttpsHostnames: []string{
 					"allowed.domain.invalid",
@@ -682,7 +678,7 @@ func TestValidateClientRedirect(t *testing.T) {
 					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid$",
 				},
 			}
-			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, settings))
+			require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", sso.CeremonyTypeLogin, settings))
 		}
 
 		for _, badURL := range []string{
@@ -693,7 +689,6 @@ func TestValidateClientRedirect(t *testing.T) {
 			"https://allowed.with.subdomain.invalid/callback",
 			"https://i.said.no.subsubdomain.invalid/callback",
 		} {
-			const ssoTestFlowFalse = false
 			settings := &types.SSOClientRedirectSettings{
 				AllowedHttpsHostnames: []string{
 					"allowed.domain.invalid",
@@ -701,7 +696,7 @@ func TestValidateClientRedirect(t *testing.T) {
 					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid",
 				},
 			}
-			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, settings))
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", sso.CeremonyTypeLogin, settings))
 		}
 	})
 
@@ -720,14 +715,13 @@ func TestValidateClientRedirect(t *testing.T) {
 			"http://[2001:db8::1]:1337/callback",
 			"https://[2001:db8::1]:1337/callback",
 		} {
-			const ssoTestFlowFalse = false
 			settings := &types.SSOClientRedirectSettings{
 				InsecureAllowedCidrRanges: []string{
 					"192.168.0.0/24",
 					"2001:db8::/96",
 				},
 			}
-			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, settings))
+			require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", sso.CeremonyTypeLogin, settings))
 		}
 
 		for _, badURL := range []string{
@@ -748,14 +742,13 @@ func TestValidateClientRedirect(t *testing.T) {
 			"http://[2001:db8::1]/notacallback",
 			"https://[2001:db8::1]/notacallback",
 		} {
-			const ssoTestFlowFalse = false
 			settings := &types.SSOClientRedirectSettings{
 				InsecureAllowedCidrRanges: []string{
 					"192.168.0.0/24",
 					"2001:db8::/96",
 				},
 			}
-			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, settings))
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", sso.CeremonyTypeLogin, settings))
 		}
 	})
 
@@ -763,31 +756,28 @@ func TestValidateClientRedirect(t *testing.T) {
 		for _, goodURL := range []string{
 			"http://127.0.0.1:12345/callback",
 		} {
-			const ssoTestFlowTrue = true
 			settings := &types.SSOClientRedirectSettings{
 				AllowedHttpsHostnames: []string{
 					"allowed.domain.invalid",
 				},
 			}
-			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowTrue, settings))
+			require.NoError(t, sso.ValidateClientRedirect(goodURL+"?secret_key=", sso.CeremonyTypeLogin, settings))
 		}
 
 		for _, badURL := range []string{
 			"https://allowed.domain.invalid/callback",
 			"http://allowed.domain.invalid/callback",
 		} {
-			const ssoTestFlowTrue = true
 			settings := &types.SSOClientRedirectSettings{
 				AllowedHttpsHostnames: []string{
 					"allowed.domain.invalid",
 				},
 			}
-			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowTrue, settings))
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?secret_key=", sso.CeremonyTypeLogin, settings))
 		}
 	})
 
 	t.Run("SSOMFAWeb", func(t *testing.T) {
-		const ssoTestFlowFalse = false
 		settings := &types.SSOClientRedirectSettings{
 			AllowedHttpsHostnames: []string{
 				"allowed.domain.invalid",
@@ -795,7 +785,7 @@ func TestValidateClientRedirect(t *testing.T) {
 		}
 
 		// Only allow web mfa redirect as a relative path.
-		require.NoError(t, ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", ssoTestFlowFalse, settings))
+		require.NoError(t, sso.ValidateClientRedirect(sso.WebMFARedirect+"?channel_id=", sso.CeremonyTypeLogin, settings))
 
 		for _, badURL := range []string{
 			"localhost:12345" + sso.WebMFARedirect,
@@ -811,7 +801,7 @@ func TestValidateClientRedirect(t *testing.T) {
 			"http://not.allowed.domain.invalid" + sso.WebMFARedirect,
 			"https://not.allowed.domain.invalid" + sso.WebMFARedirect,
 		} {
-			require.Error(t, ValidateClientRedirect(badURL+"?channel_id=", ssoTestFlowFalse, settings))
+			require.Error(t, sso.ValidateClientRedirect(badURL+"?channel_id=", sso.CeremonyTypeLogin, settings))
 		}
 	})
 }
