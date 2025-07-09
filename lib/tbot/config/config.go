@@ -130,7 +130,7 @@ type BoundKeypairOnboardingConfig struct {
 	// InitialJoinSecret is the name of the initial joining secret, if any. If
 	// not specified, a keypair must be created using `tbot keypair create` and
 	// registered with Teleport in advance.
-	InitialJoinSecret string
+	InitialJoinSecret string `yaml:"initial_join_secret,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
