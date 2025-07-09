@@ -264,6 +264,19 @@ When a MachineID bot uses an ephemeral join token, the token is deleted.
 - [Deploying Machine ID on Linux](../machine-workload-identity/machine-id/deployment/linux.mdx)
 </Admonition>
 
+### Bound Keypair: `bound_keypair`
+
+Bound Keypair tokens are an improved alternative to
+[ephemeral tokens](#ephemeral-tokens) that aims to improve reliability for
+on-prem deployments
+
+(!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Bare-metal Nodes with Bound Keypair joining](../machine-workload-identity/machine-id/deployment/bound-keypair.mdx)
+- [Bound Keypair Reference and Admin Guide](./machine-id/bound-keypair.mdx)
+</Admonition>
+
 ### AWS IAM role: `iam`
 
 The IAM join method is available to any Teleport process running anywhere with access to IAM credentials,
