@@ -7,9 +7,9 @@ import (
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // GroupLister provides SCIM-compatible listing of Teleport Access Lists (SCIM Groups).
@@ -42,33 +42,35 @@ func (l *GroupLister) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 	)
 
 	// Iterate over all access lists in Teleport and filter SCIM-compatible ones
-	err = utils.ForEachResource(ctx, l.AccessListsService.ListAccessLists, func(acl *accesslist.AccessList) error {
-		if !l.Predicate(acl) {
-			return nil
+	for acl, err := range clientutils.Resources(ctx, l.AccessListsService.ListAccessLists) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+
+		if !l.Predicate(acl) {
+			continue
+		}
+
 		filterAttrs := map[string]string{
 			common.GroupNameAttribute:        acl.GetName(),
 			common.GroupDisplayNameAttribute: acl.Spec.Title,
 		}
 		if err := scimfilter.EvaluateFilter(filter, filterAttrs); err != nil {
-			return nil
+			continue
 		}
+
 		currentIndex++
 		if currentIndex < startIndex {
-			return nil
+			continue
 		}
 		if len(scimGroupResults) < count {
 			resource, err := l.AccessListToResource(acl)
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			scimGroupResults = append(scimGroupResults, resource)
 		}
 		totalMatched++
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return &scimpb.ResourceList{
 		TotalResults: int32(totalMatched),

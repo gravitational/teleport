@@ -7,14 +7,14 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -128,84 +128,56 @@ func checkIdentityCenterResourceDeleteAccess(authCtx *authz.Context) error {
 func listAllIdentityCenterResources(ctx context.Context, icService services.IdentityCenter, provisioningService services.ProvisioningStates) ([]*types.ResourceID, error) {
 	var allResources []*types.ResourceID
 
-	if err := utils.ForEachResource(
-		ctx,
-		utils.AdaptPageTokenLister(icService.ListIdentityCenterAccounts),
-		func(a services.IdentityCenterAccount) error {
-			allResources = append(allResources, &types.ResourceID{Kind: types.KindIdentityCenterAccount, Name: a.GetMetadata().GetName()})
-			return nil
-		},
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accounts := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListIdentityCenterAccounts)),
+		func(a services.IdentityCenterAccount) (*types.ResourceID, bool) {
+			return &types.ResourceID{Kind: types.KindIdentityCenterAccount, Name: a.GetMetadata().GetName()}, true
+		})
 
-	if err := utils.ForEachResource(
-		ctx,
-		utils.AdaptPageTokenLister(icService.ListAccountAssignments),
-		func(aa services.IdentityCenterAccountAssignment) error {
-			allResources = append(allResources, &types.ResourceID{Kind: types.KindIdentityCenterAccountAssignment, Name: aa.GetMetadata().GetName()})
-			return nil
-		},
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	assignments := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListAccountAssignments)),
+		func(a services.IdentityCenterAccountAssignment) (*types.ResourceID, bool) {
+			return &types.ResourceID{Kind: types.KindIdentityCenterAccountAssignment, Name: a.GetMetadata().GetName()}, true
+		})
 
-	if err := utils.ForEachResource(
-		ctx,
-		utils.AdaptPageTokenLister(icService.ListPrincipalAssignments),
-		func(pa *identitycenterv1.PrincipalAssignment) error {
-			allResources = append(allResources, &types.ResourceID{Kind: types.KindIdentityCenterPrincipalAssignment, Name: pa.GetMetadata().GetName()})
-			return nil
-		},
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	principalAssignments := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListPrincipalAssignments)),
+		func(a *identitycenterv1.PrincipalAssignment) (*types.ResourceID, bool) {
+			return &types.ResourceID{Kind: types.KindIdentityCenterPrincipalAssignment, Name: a.GetMetadata().GetName()}, true
+		})
 
-	if err := utils.ForEachResource(
-		ctx,
-		utils.AdaptPageTokenLister(icService.ListPermissionSets),
-		func(ps *identitycenterv1.PermissionSet) error {
-			allResources = append(allResources, &types.ResourceID{Kind: types.KindIdentityCenterPermissionSet, Name: ps.GetMetadata().GetName()})
-			return nil
-		},
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	permissionSets := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(icService.ListPermissionSets)),
+		func(ps *identitycenterv1.PermissionSet) (*types.ResourceID, bool) {
+			return &types.ResourceID{Kind: types.KindIdentityCenterPermissionSet, Name: ps.GetMetadata().GetName()}, true
+		})
 
-	provisioningStates, err := getAllProvisioningStates(ctx, provisioningService)
+	provisioningStates := stream.FilterMap(clientutils.Resources(ctx, adaptPageTokenLister(func(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+		return provisioningService.ListProvisioningStates(ctx, identitycenter.IdentityCenterDownstreamID, pageSize, page)
+	})), func(ps *provisioningv1.PrincipalState) (*types.ResourceID, bool) {
+		return &types.ResourceID{Kind: types.KindProvisioningPrincipalState, Name: ps.GetMetadata().GetName()}, true
+	})
+
+	allResources, err := stream.Collect(stream.Chain(accounts, assignments, principalAssignments, permissionSets, provisioningStates))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	allResources = append(allResources, provisioningStates...)
 
 	return allResources, nil
 }
 
-func getAllProvisioningStates(ctx context.Context, provisioningService services.ProvisioningStates) ([]*types.ResourceID, error) {
-	var page pagination.PageRequestToken
-	var pStates []*provisioningv1.PrincipalState
-	for {
-		var resourcesPage []*provisioningv1.PrincipalState
-		var err error
+type tokenLister[T any] func(context.Context, int, string) ([]T, string, error)
 
-		resourcesPage, nextPage, err := provisioningService.ListProvisioningStates(ctx, identitycenter.IdentityCenterDownstreamID, apidefaults.DefaultChunkSize, &page)
+// ListerWithPageToken is a function that lists resources with a page token.
+type listerWithPageToken[T any] func(context.Context, int, *pagination.PageRequestToken) ([]T, pagination.NextPageToken, error)
+
+// AdaptPageTokenLister adapts a listener with page token to a lister.
+func adaptPageTokenLister[T any](listFn listerWithPageToken[T]) tokenLister[T] {
+	return func(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
+		var pageRequestToken pagination.PageRequestToken
+		pageRequestToken.Update(pagination.NextPageToken(pageToken))
+		resources, nextPageToken, err := listFn(ctx, pageSize, &pageRequestToken)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
-
-		pStates = append(pStates, resourcesPage...)
-
-		if nextPage == pagination.EndOfList {
-			break
-		}
-		page.Update(nextPage)
+		return resources, string(nextPageToken), nil
 	}
-
-	out := make([]*types.ResourceID, 0, len(pStates))
-	for _, ps := range pStates {
-		out = append(out, &types.ResourceID{Kind: types.KindProvisioningPrincipalState, Name: ps.GetMetadata().GetName()})
-	}
-	return out, nil
 }
 
 func deleteIdentityCenterResources(ctx context.Context, icService services.IdentityCenter, provisioningService services.ProvisioningStates) error {

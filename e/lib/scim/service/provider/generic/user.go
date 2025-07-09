@@ -2,19 +2,18 @@ package generic
 
 import (
 	"context"
-	"sort"
+	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	typescommon "github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/lister"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type userHandler struct {
@@ -169,22 +168,24 @@ func (h *userHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIM
 func (h *userHandler) getAccessListsForUser(ctx context.Context, userID string) ([]string, error) {
 	var groups []string
 
-	err := utils.ForEachResource(ctx, h.AccessListsService.ListAccessLists, func(acl *accesslist.AccessList) error {
+	for acl, err := range clientutils.Resources(ctx, h.AccessListsService.ListAccessLists) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		_, err := h.AccessListsService.GetAccessListMember(ctx, acl.GetName(), userID)
 		if trace.IsNotFound(err) {
-			return nil
+			continue
 		}
+
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+
 		groups = append(groups, acl.GetName())
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
-	sort.Strings(groups)
+	slices.Sort(groups)
 	return groups, nil
 }
 

@@ -8,11 +8,11 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/lister"
 	libaccesslist "github.com/gravitational/teleport/lib/accesslists"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type groupHandler struct {
@@ -45,30 +45,25 @@ func (g groupHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 }
 
 func (g groupHandler) findAccessListByTitle(ctx context.Context, title string) (*accesslist.AccessList, error) {
-	var matchedList *accesslist.AccessList
+	for list, err := range clientutils.Resources(ctx, g.AccessListsService.ListAccessLists) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	err := utils.ForEachResource(ctx, g.AccessListsService.ListAccessLists, func(list *accesslist.AccessList) error {
 		if !accessListPredicate(list) {
-			return nil
+			continue
 		}
+
 		if list.Spec.Title == title {
-			matchedList = list
-			return utils.ErrStopIteration
+			return list, nil
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
-	if matchedList == nil {
-		return nil, trace.NotFound(
-			"Access List with tile %q does not exist. "+
-				"To represent this as a SCIM group, a corresponding Access List with the same Title name must be created in Teleport.",
-			title,
-		)
-	}
-	return matchedList, nil
+	return nil, trace.NotFound(
+		"Access List with tile %q does not exist. "+
+			"To represent this as a SCIM group, a corresponding Access List with the same Title name must be created in Teleport.",
+		title,
+	)
 }
 
 // ListResources lists all SCIM group resources.

@@ -11,8 +11,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type MembersMapType map[string]*accesslist.AccessListMember
@@ -109,15 +109,16 @@ type assignmentFilterStage interface {
 }
 
 func (a *OngoingAssignmentsMembershipFilter) collectAssignments(ctx context.Context, collectors []assignmentFilterStage) error {
-	err := utils.ForEachResource(ctx, a.AssignmentsService.ListOktaAssignments, func(assignment types.OktaAssignment) error {
+	for assignment, err := range clientutils.Resources(ctx, a.AssignmentsService.ListOktaAssignments) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		for _, collector := range collectors {
 			collector.collect(assignment)
 		}
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
+
 	return nil
 }
 

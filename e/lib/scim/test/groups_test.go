@@ -614,7 +614,7 @@ func TestGroupUpdate(t *testing.T) {
 				Maybe()
 
 			fix.assignments.
-				On("ListOktaAssignments", anyContext, 0, "").
+				On("ListOktaAssignments", anyContext, mock.Anything, "").
 				Return([]types.OktaAssignment{}, "", nil).Maybe()
 
 			// Configure the AccessList service to return what we want it to
