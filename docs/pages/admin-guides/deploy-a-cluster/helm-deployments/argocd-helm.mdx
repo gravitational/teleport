@@ -60,23 +60,9 @@ Edit the values file to add the `kubeClusterName` field:
 kubeClusterName: mycluster
 ```
 
-### Update the join token
+## Step 2/X. Write Helm values.yaml
 
-Make sure the agent's configuration file refers to the new join token.
-
-1. Find the name of the join token you created:
-
-```code
-$ tctl tokens ls
-# Token                            Type        Labels Expiry Time (UTC)
-# -------------------------------- ----------- ------ -------------------------------
-# (=presets.tokens.first=) Node,Db,App        10 Aug 23 19:49 UTC (4m11s)
-```
-
-In this case, the name of the token is `(=presets.tokens.first=)`.
-
-Set the value of either the `authToken` field or the `joinParams.tokenName`
-field to the value of your token.
+Write the following values.yaml file and replace `joinParams.tokenName` and `proxyAddr`the value you collected previously ...
 
 ## Install the `teleport-kube-agent` Helm chart via ArgoCD
 
