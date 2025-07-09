@@ -29,6 +29,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -36,6 +37,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -50,6 +52,29 @@ const (
 	pemCertificate = "CERTIFICATE"
 )
 
+func SPIFFESVIDOutputServiceBuilder(
+	botCfg *config.BotConfig,
+	cfg *config.SPIFFESVIDOutput,
+	trustBundleCache TrustBundleGetter,
+) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &SPIFFESVIDOutputService{
+			botAuthClient:     deps.Client,
+			botCfg:            botCfg,
+			cfg:               cfg,
+			getBotIdentity:    deps.BotIdentity,
+			identityGenerator: deps.IdentityGenerator,
+			clientBuilder:     deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
+
 // SPIFFESVIDOutputService is a service that generates and writes X509 SPIFFE
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
@@ -62,7 +87,7 @@ type SPIFFESVIDOutputService struct {
 	statusReporter readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache  *workloadidentity.TrustBundleCache
+	trustBundleCache  TrustBundleGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
 }
