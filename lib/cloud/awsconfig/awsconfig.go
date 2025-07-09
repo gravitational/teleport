@@ -108,6 +108,10 @@ type options struct {
 	stsClientProvider STSClientProviderFunc
 	// baseCredentials is the base config used to assume the roles.
 	baseCredentials aws.CredentialsProvider
+	// withFallbackRegionResolver is a fallback region resolver func that is
+	// called if a config does not resolve a region. If the resolver returns an
+	// error, then the default region (us-east-1) will be used.
+	withFallbackRegionResolver func(ctx context.Context) (string, error)
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -247,6 +251,15 @@ func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider
 	}
 }
 
+// WithFallbackRegionResolver sets a fallback region resolver func that is
+// called if a config does not resolve a region. If the resolver returns an
+// error, then the default region (us-east-1) will be used.
+func WithFallbackRegionResolver(fn func(ctx context.Context) (string, error)) OptionsFn {
+	return func(o *options) {
+		o.withFallbackRegionResolver = fn
+	}
+}
+
 // GetConfig returns an AWS config for the specified region, optionally
 // assuming AWS IAM Roles.
 func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
@@ -266,12 +279,26 @@ func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Con
 func loadDefaultConfig(ctx context.Context, region string, cred aws.CredentialsProvider, opts *options) (aws.Config, error) {
 	configOpts := buildConfigOptions(region, cred, opts)
 	cfg, err := config.LoadDefaultConfig(ctx, configOpts...)
-	return cfg, trace.Wrap(err)
+	if err != nil {
+		return aws.Config{}, trace.Wrap(err)
+	}
+	if len(cfg.Region) == 0 && opts.withFallbackRegionResolver != nil {
+		region, err := opts.withFallbackRegionResolver(ctx)
+		if err == nil {
+			cfg.Region = region
+		} else {
+			slog.DebugContext(ctx, "fallback region resolver failed, using the default region",
+				"default_region", defaultRegion,
+				"error", err,
+			)
+			cfg.Region = defaultRegion
+		}
+	}
+	return cfg, nil
 }
 
 func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *options) []func(*config.LoadOptions) error {
 	configOpts := []func(*config.LoadOptions) error{
-		config.WithDefaultRegion(defaultRegion),
 		config.WithRegion(region),
 		config.WithCredentialsProvider(cred),
 		config.WithCredentialsCacheOptions(awsCredentialsCacheOptions),
@@ -285,6 +312,12 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 	if opts.maxRetries != nil {
 		configOpts = append(configOpts, config.WithRetryMaxAttempts(*opts.maxRetries))
 	}
+	if opts.withFallbackRegionResolver == nil {
+		// if we pass WithDefaultRegion, then we will never get back an empty
+		// region, so we have to skip passing it here if we want to make use of
+		// a custom fallback resolver.
+		configOpts = append(configOpts, config.WithDefaultRegion(defaultRegion))
+	}
 	return configOpts
 }
 
@@ -294,13 +327,14 @@ func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Confi
 		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
 	}
 
-	slog.DebugContext(ctx, "Initializing AWS config from default credential chain",
-		"region", region,
-	)
+	slog.DebugContext(ctx, "Initializing AWS config from default credential chain")
 	cfg, err := loadDefaultConfig(ctx, region, nil, opts)
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}
+	slog.DebugContext(ctx, "Loaded AWS config from default credential chain",
+		"region", cfg.Region,
+	)
 
 	if opts.credentialsSource == credentialsSourceIntegration {
 		slog.DebugContext(ctx, "Initializing AWS config with OIDC integration credentials",

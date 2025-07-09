@@ -50,7 +50,7 @@ guide you through configuring the Okta integration.
 
 Okta indicates a user's group membership as a SAML assertion in the data it
 provides to Teleport. We will configure Teleport to assign the "dev" role to
-members of the `okta-dev` Okta group, and the prest "editor" role to members of
+members of the `okta-dev` Okta group, and the preset "editor" role to members of
 the `okta-admin` group.
 
 If you already have Okta groups you want to assign to "dev" and "editor" roles in
@@ -92,8 +92,8 @@ Provide the following values to their respective fields:
 Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service or Enterprise
 Cloud account domain and port (`443` by default).
 
-- Single sign on URL: 
-   
+- Single sign on URL:
+
   ```
   https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
   ```
