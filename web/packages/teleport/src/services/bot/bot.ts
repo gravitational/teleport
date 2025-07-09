@@ -86,7 +86,7 @@ export function createBotToken(
 
 export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {
   if (!flags.listBots) {
-    throw new Error('cannot fetch bots: bots:list permission required');
+    throw new Error('cannot fetch bots: bots.list permission required');
   }
 
   return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
@@ -116,20 +116,20 @@ export async function editBot(
   req: EditBotRequest
 ) {
   if (!flags.editBots) {
-    throw new Error('cannot edit bot: bots:edit permission required');
+    throw new Error('cannot edit bot: bots.edit permission required');
   }
   if (!flags.roles) {
-    throw new Error('cannot edit bot: roles:list permission required');
+    throw new Error('cannot edit bot: roles.list permission required');
   }
 
-  return api.put(cfg.getBotUrlWithName(name), req).then(res => {
+  return api.put(cfg.getBotUpdateUrl(name), req).then(res => {
     return makeBot(res);
   });
 }
 
 export function deleteBot(flags: FeatureFlags, name: string) {
   if (!flags.removeBots) {
-    throw new Error('cannot delete bot: bots:remove permission required');
+    throw new Error('cannot delete bot: bots.remove permission required');
   }
 
   return api.delete(cfg.getBotUrlWithName(name));

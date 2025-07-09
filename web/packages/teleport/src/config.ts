@@ -456,6 +456,9 @@ const cfg = {
     botInstancePath:
       '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
     botInstancesPath: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    bot: {
+      update: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+    },
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -1415,6 +1418,11 @@ const cfg = {
   getBotUrlWithName(name: string) {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.botsPath, { clusterId, name });
+  },
+
+  getBotUpdateUrl(botName: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.bot.update, { clusterId, botName });
   },
 
   listBotInstancesUrl() {
