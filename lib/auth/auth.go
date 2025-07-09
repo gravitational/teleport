@@ -2567,6 +2567,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
+// TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
 	SSHPubKey               []byte
 	TLSPubKey               []byte
@@ -2589,11 +2590,13 @@ type GenerateUserTestCertsRequest struct {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
 }
 
 // GenerateUserTestCertsWithContext is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
 func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
