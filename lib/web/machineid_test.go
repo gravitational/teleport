@@ -26,7 +26,6 @@ import (
 	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -78,7 +77,7 @@ func TestListBots(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
 
 	assert.Len(t, bots.Items, created)
-	assert.Equal(t, []string{"test-role"}, bots.Items[0].GetSpec().GetRoles())
+	assert.Equal(t, []string{"test-role"}, bots.Items[0].Spec.Roles)
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
@@ -162,11 +161,11 @@ func TestCreateBot(t *testing.T) {
 
 	i = slices.IndexFunc(bots.Items, func(bot *machineidv1.Bot) bool {
 		// bot name is not prefixed in BotList
-		return bot.GetMetadata().GetName() == "test-bot"
+		return bot.Metadata.Name == "test-bot"
 	})
 	require.NotEqual(t, -1, i)
 	// the bot resource returned from ListBots should only contain the roles attached to the bot via the create/edit request (not created roles)
-	require.Equal(t, []string{"bot-role-0", "bot-role-1"}, bots.Items[i].GetSpec().GetRoles())
+	require.Equal(t, []string{"bot-role-0", "bot-role-1"}, bots.Items[i].Spec.GetRoles())
 
 	// Make sure an unauthenticated client can't create bots
 	publicClt := s.client(t)
@@ -317,14 +316,14 @@ func TestGetBotByName(t *testing.T) {
 	var bot machineidv1.Bot
 	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
-	assert.Equal(t, botName, bot.GetMetadata().GetName())
+	assert.Equal(t, botName, bot.Metadata.Name)
 
 	// query an unexisting bot
 	_, err = pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, "invalid-bot"), nil)
 	require.Error(t, err)
 }
 
-func TestEditBotRoles(t *testing.T) {
+func TestEditBot(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -343,12 +342,6 @@ func TestEditBotRoles(t *testing.T) {
 	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 		BotName: botName,
 		Roles:   []string{"test-role"},
-		Traits: []*machineidv1.Trait{
-			{
-				Name:   "test-trait-1",
-				Values: []string{"value-1"},
-			},
-		},
 	})
 	require.NoError(t, err)
 
@@ -359,130 +352,9 @@ func TestEditBotRoles(t *testing.T) {
 
 	var bot machineidv1.Bot
 	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
-	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
-	assert.Equal(t, botName, bot.GetMetadata().GetName())
-	assert.Equal(t, []string{"new-new-role"}, bot.GetSpec().GetRoles())
-	assert.Equal(t, []*machineidv1.Trait{
-		{
-			Name:   "test-trait-1",
-			Values: []string{"value-1"},
-		},
-	}, bot.GetSpec().Traits)
-	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
-}
-
-func TestEditBotTraits(t *testing.T) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint(
-		"webapi",
-		"sites",
-		clusterName,
-		"machine-id",
-		"bot",
-	)
-
-	// create a bot named `test-bot-edit`
-	botName := "test-bot-edit"
-	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
-		BotName: botName,
-		Roles:   []string{"test-role"},
-		Traits: []*machineidv1.Trait{
-			{
-				Name:   "test-trait-1",
-				Values: []string{"value-1", "value-2"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequest{
-		Traits: []updateBotRequestTrait{
-			{
-				Name:   "test-trait-1",
-				Values: []string{"value-1", "value-2", "value-3"},
-			},
-			{
-				Name:   "test-trait-2",
-				Values: []string{"value-1"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	var bot machineidv1.Bot
-	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
-	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
-	assert.Equal(t, botName, bot.GetMetadata().GetName())
-	assert.Equal(t, []string{"test-role"}, bot.GetSpec().GetRoles())
-	assert.Len(t, bot.GetSpec().Traits, 2)
-	for _, trait := range bot.GetSpec().Traits {
-		// Avoid ordering race - traits are stored in a map
-		switch trait.GetName() {
-		case "test-trait-1":
-			assert.Equal(t, []string{"value-1", "value-2", "value-3"}, trait.GetValues())
-		case "test-trait-2":
-			assert.Equal(t, []string{"value-1"}, trait.GetValues())
-		}
-	}
-	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
-}
-
-func TestEditBotMaxSessionTtl(t *testing.T) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint(
-		"webapi",
-		"sites",
-		clusterName,
-		"machine-id",
-		"bot",
-	)
-
-	// create a bot named `test-bot-edit`
-	botName := "test-bot-edit"
-	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
-		BotName: botName,
-		Roles:   []string{"test-role"},
-		Traits: []*machineidv1.Trait{
-			{
-				Name:   "test-trait-1",
-				Values: []string{"value-1"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	response, err := pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, botName), nil)
-	require.NoError(t, err)
-
-	var createdBot machineidv1.Bot
-	require.NoError(t, json.Unmarshal(response.Bytes(), &createdBot), "invalid response received")
-	assert.Equal(t, int64(43200), createdBot.GetSpec().GetMaxSessionTtl().GetSeconds())
-
-	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequest{
-		MaxSessionTtl: "1h2m3s",
-	})
-	require.NoError(t, err)
-
-	var updatedBot machineidv1.Bot
-	require.NoError(t, json.Unmarshal(response.Bytes(), &updatedBot), "invalid response received")
-	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
-	assert.Equal(t, botName, updatedBot.GetMetadata().GetName())
-	assert.Equal(t, []string{"test-role"}, updatedBot.GetSpec().GetRoles())
-	assert.Equal(t, []*machineidv1.Trait{
-		{
-			Name:   "test-trait-1",
-			Values: []string{"value-1"},
-		},
-	}, updatedBot.GetSpec().Traits)
-	assert.Equal(t, int64((1*time.Hour+2*time.Minute+3*time.Second)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
+	assert.Equal(t, botName, bot.Metadata.Name)
+	assert.Equal(t, []string{"new-new-role"}, bot.Spec.Roles)
 }
 
 func TestListBotInstances(t *testing.T) {

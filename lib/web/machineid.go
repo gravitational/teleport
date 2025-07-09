@@ -24,7 +24,6 @@ import (
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -235,42 +234,9 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.Wrap(err)
 	}
 
-	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
+	mask, err := fieldmaskpb.New(&machineidv1.Bot{}, "spec.roles")
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	spec := machineidv1.BotSpec{}
-
-	if request.Roles != nil {
-		mask.Append(&machineidv1.Bot{}, "spec.roles")
-
-		spec.Roles = request.Roles
-	}
-
-	if request.Traits != nil {
-		mask.Append(&machineidv1.Bot{}, "spec.traits")
-
-		traits := make([]*machineidv1.Trait, len(request.Traits))
-		for i, trait := range request.Traits {
-			traits[i] = &machineidv1.Trait{
-				Name:   trait.Name,
-				Values: trait.Values,
-			}
-		}
-
-		spec.Traits = traits
-	}
-
-	if request.MaxSessionTtl != "" {
-		mask.Append(&machineidv1.Bot{}, "spec.max_session_ttl")
-
-		ttl, err := time.ParseDuration(request.MaxSessionTtl)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		spec.MaxSessionTtl = durationpb.New(ttl)
 	}
 
 	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
@@ -281,7 +247,9 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 			Metadata: &headerv1.Metadata{
 				Name: botName,
 			},
-			Spec: &spec,
+			Spec: &machineidv1.BotSpec{
+				Roles: request.Roles,
+			},
 		},
 	})
 	if err != nil {
@@ -291,15 +259,8 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 	return updated, nil
 }
 
-type updateBotRequestTrait struct {
-	Name   string   `json:"name"`
-	Values []string `json:"values"`
-}
-
 type updateBotRequest struct {
-	Roles         []string                `json:"roles"`
-	Traits        []updateBotRequestTrait `json:"traits"`
-	MaxSessionTtl string                  `json:"max_session_ttl"`
+	Roles []string `json:"roles"`
 }
 
 // getBotInstance retrieves a bot instance by id
