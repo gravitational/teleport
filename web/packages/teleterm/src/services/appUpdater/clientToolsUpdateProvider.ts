@@ -72,8 +72,6 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
       sha512: '',
       files: [
         {
-          // Applicable only on Windows, the app is installed per-machine.
-          isAdminRightsRequired: true,
           url: fileUrl,
           // @ts-expect-error sha2 field doesn't exist in the types but is supported.
           sha2: sha256,
