@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -218,7 +220,7 @@ type BotConfig struct {
 	// the tbot binary as of v19, but we maintain support for cases where tbot
 	// is embedded in a binary which does not differentiate between address types
 	// such as tctl or the Kubernetes operator.
-	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
+	AuthServerAddressMode connection.AuthServerAddressMode `yaml:"-"`
 
 	// JoinURI is a joining URI, used to supply connection and authentication
 	// parameters in a single bundle. If set, the value is parsed and merged on
@@ -247,54 +249,47 @@ type BotConfig struct {
 	Insecure bool `yaml:"insecure,omitempty"`
 }
 
-type AddressKind string
-
-const (
-	AddressKindUnspecified AddressKind = ""
-	AddressKindProxy       AddressKind = "proxy"
-	AddressKindAuth        AddressKind = "auth"
-)
-
-// Address returns the address to the auth server, either directly or via
-// a proxy, and the kind of address it is.
-func (conf *BotConfig) Address() (string, AddressKind) {
-	switch {
-	case conf.AuthServer != "" && conf.ProxyServer != "":
-		// This is an error case that should be prevented by the validation.
-		return "", AddressKindUnspecified
-	case conf.ProxyServer != "":
-		return conf.ProxyServer, AddressKindProxy
-	case conf.AuthServer != "":
-		return conf.AuthServer, AddressKindAuth
-	default:
-		return "", AddressKindUnspecified
+// ConnectionConfig creates a connection.Config from the user's configuration.
+func (conf *BotConfig) ConnectionConfig() connection.Config {
+	cc := connection.Config{
+		Insecure:              conf.Insecure,
+		AuthServerAddressMode: conf.AuthServerAddressMode,
+		StaticProxyAddress:    shouldUseProxyAddr(),
 	}
+
+	switch {
+	case conf.ProxyServer != "":
+		cc.Address = conf.ProxyServer
+		cc.AddressKind = connection.AddressKindProxy
+	case conf.AuthServer != "":
+		cc.Address = conf.AuthServer
+		cc.AddressKind = connection.AddressKindAuth
+	}
+
+	return cc
 }
-
-// AuthServerAddressMode controls the behavior when a proxy address is given
-// as an auth server address.
-type AuthServerAddressMode int
-
-const (
-	// AuthServerMustBeAuthServer means that only an actual auth server address
-	// may be given.
-	AuthServerMustBeAuthServer AuthServerAddressMode = iota
-
-	// WarnIfAuthServerIsProxy means that a proxy address will be accepted as an
-	// auth server address, but we will log a warning that this is going away in
-	// v19.
-	WarnIfAuthServerIsProxy
-
-	// AllowProxyAsAuthServer means that a proxy address will be accepted as an
-	// auth server address.
-	AllowProxyAsAuthServer
-)
 
 func (conf *BotConfig) CipherSuites() []uint16 {
 	if conf.FIPS {
 		return defaults.FIPSCipherSuites
 	}
 	return utils.DefaultCipherSuites()
+}
+
+// useProxyAddrEnv is an environment variable which can be set to
+// force `tbot` to prefer using the proxy address explicitly provided by the
+// user over the one fetched from the proxy ping. This is only intended to work
+// in cases where TLS routing is enabled, and is intended to support cases where
+// the Proxy is accessible from multiple addresses, and the one included in the
+// ProxyPing is incorrect.
+const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
+
+// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
+// variable is set to "yes". More generally, this indicates that the user wishes
+// for tbot to prefer using the proxy address that has been explicitly provided
+// by the user rather than the one fetched via a discovery process (e.g ping).
+func shouldUseProxyAddr() bool {
+	return os.Getenv(useProxyAddrEnv) == "yes"
 }
 
 func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
