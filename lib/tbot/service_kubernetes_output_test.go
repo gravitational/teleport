@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -280,7 +281,7 @@ func Test_selectKubeConnectionMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, sni, err := selectKubeConnectionMethod(&proxyPingResponse{
+			addr, sni, err := selectKubeConnectionMethod(&connection.ProxyPong{
 				PingResponse: tt.proxyPing,
 			})
 			require.NoError(t, err)

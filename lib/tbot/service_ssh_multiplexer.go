@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -104,7 +105,7 @@ type SSHMultiplexerService struct {
 	cfg                *config.SSHMultiplexerService
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	proxyPingCache     *proxyPingCache
+	proxyPinger        connection.ProxyPinger
 	reloadBroadcaster  *internal.ChannelBroadcaster
 	statusReporter     readyz.Reporter
 
@@ -292,11 +293,11 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	}
 
 	// Ping the proxy and determine if we need to upgrade the connection.
-	proxyPing, err := s.proxyPingCache.ping(ctx)
+	proxyPing, err := s.proxyPinger.Ping(ctx)
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr, err := proxyPing.proxySSHAddr()
+	proxyAddr, err := proxyPing.ProxySSHAddr()
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err, "determining proxy ssh addr")
 	}
