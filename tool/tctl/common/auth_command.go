@@ -508,13 +508,13 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	domainName, err := clusterAPI.GetDomainName(ctx)
+	clusterName, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authority, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       certType,
-		DomainName: domainName,
+		DomainName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)
