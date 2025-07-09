@@ -520,7 +520,7 @@ func TestListUsers(t *testing.T) {
 		next = resp.NextPageToken
 	}
 
-	assert.Equal(t, len(createdUsers), len(listedUsers), "expected to eventually retrieve all users from listing")
+	assert.Len(t, createdUsers, len(listedUsers), "expected to eventually retrieve all users from listing")
 	assert.Empty(t, cmp.Diff(createdUsers, listedUsers,
 		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth"),
@@ -538,7 +538,7 @@ func TestListUsers(t *testing.T) {
 		next = resp.NextPageToken
 	}
 
-	assert.Equal(t, len(createdUsers), len(listedUsersWithSecrets), "expected to eventually retrieve all users from listing")
+	assert.Len(t, createdUsers, len(listedUsersWithSecrets), "expected to eventually retrieve all users from listing")
 	assert.Empty(t, cmp.Diff(createdUsers, listedUsersWithSecrets,
 		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
 	))

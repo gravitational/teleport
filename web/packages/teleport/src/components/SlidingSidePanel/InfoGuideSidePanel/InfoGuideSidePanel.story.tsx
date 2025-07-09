@@ -17,28 +17,38 @@
  */
 
 import { Box } from 'design';
+import { Info } from 'design/Alert';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { LongGuideContent } from 'shared/components/SlidingSidePanel/InfoGuide/storyHelper';
 
-import { DevInfo, LongContent, TopBar } from '../storyHelpers';
-import {
-  InfoGuideSidePanel as Component,
-  InfoGuideButton,
-} from './InfoGuideSidePanel';
+import { InfoGuideSidePanel as MainComponent } from './InfoGuideSidePanel';
+import { TopBar } from './storyHelpers';
 
 export default {
-  title: 'Teleport/SlidingSidePanel',
+  title: 'Teleport/InfoGuideSidePanel',
 };
 
-export const InfoGuideSidePanel = () => {
+export function InfoGuideSidePanel() {
   return (
     <TopBar>
-      {/* this Box wrapper is just for demo purposes */}
-      <Box mt={10} ml={3}>
-        <DevInfo />
-        <InfoGuideButton config={{ guide: <LongContent /> }}>
-          Click on the info icon
-        </InfoGuideButton>
-      </Box>
-      <Component />
+      <Example />
     </TopBar>
   );
-};
+}
+
+function Example() {
+  return (
+    <>
+      <Box mt={10}>
+        <Info>
+          The top bar nav is only rendered for demo purposes (side panel should
+          render below the nav)
+        </Info>
+        <InfoGuideButton config={{ guide: <LongGuideContent /> }}>
+          <Box ml={3}>Click the info button</Box>
+        </InfoGuideButton>
+      </Box>
+      <MainComponent />
+    </>
+  );
+}

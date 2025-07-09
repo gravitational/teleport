@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -51,6 +52,7 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
 
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
+	string(types.JoinMethodAzureDevops),
 	string(types.JoinMethodBitbucket),
 	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodGCP),
@@ -62,6 +64,38 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
 	string(types.JoinMethodTerraformCloud),
+}
+
+// ReservedServiceNames are the service names reserved for internal use.
+var ReservedServiceNames = []string{
+	"ca-rotation",
+	"crl-cache",
+	"heartbeat",
+	"identity",
+	"spiffe-trust-bundle-cache",
+}
+
+var reservedServiceNamesMap = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(ReservedServiceNames))
+	for _, k := range ReservedServiceNames {
+		m[k] = struct{}{}
+	}
+	return m
+}()
+
+var serviceNameRegex = regexp.MustCompile(`\A[a-z\d_\-+]+\z`)
+
+func validateServiceName(name string) error {
+	if name == "" {
+		return nil
+	}
+	if _, ok := reservedServiceNamesMap[name]; ok {
+		return trace.BadParameter("service name %q is reserved for internal use", name)
+	}
+	if !serviceNameRegex.MatchString(name) {
+		return trace.BadParameter("invalid service name: %q, may only contain lowercase letters, numbers, hyphens, underscores, or plus symbols", name)
+	}
+	return nil
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -79,6 +113,14 @@ type TerraformOnboardingConfig struct {
 	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
 	// variant is used.
 	AudienceTag string `yaml:"audience_tag,omitempty"`
+}
+
+// GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
+type GitlabOnboardingConfig struct {
+	// TokenEnvVarName is the name of the environment variable that contains the
+	// GitLab ID token. This can be useful to override in cases where a single
+	// gitlab job needs to authenticate to multiple Teleport clusters.
+	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
@@ -107,6 +149,9 @@ type OnboardingConfig struct {
 
 	// Terraform holds configuration relevant to the `terraform` join method.
 	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
+
+	// Gitlab holds configuration relevant to the `gitlab` join method.
+	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -150,12 +195,17 @@ type BotConfig struct {
 	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
 	Services ServiceConfigs `yaml:"services,omitempty"`
 
-	Debug      bool   `yaml:"debug"`
-	AuthServer string `yaml:"auth_server,omitempty"`
-	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
-	// explicitly point to a Teleport proxy.
-	// Example: "example.teleport.sh:443"
-	ProxyServer        string             `yaml:"proxy_server,omitempty"`
+	Debug       bool   `yaml:"debug"`
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
+	// AuthServerAddressMode controls whether it's permissible to provide a
+	// proxy server address as an auth server address. This is unsupported in
+	// the tbot binary as of v19, but we maintain support for cases where tbot
+	// is embedded in a binary which does not differentiate between address types
+	// such as tctl or the Kubernetes operator.
+	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
+
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 	Oneshot            bool               `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
@@ -201,6 +251,25 @@ func (conf *BotConfig) Address() (string, AddressKind) {
 		return "", AddressKindUnspecified
 	}
 }
+
+// AuthServerAddressMode controls the behavior when a proxy address is given
+// as an auth server address.
+type AuthServerAddressMode int
+
+const (
+	// AuthServerMustBeAuthServer means that only an actual auth server address
+	// may be given.
+	AuthServerMustBeAuthServer AuthServerAddressMode = iota
+
+	// WarnIfAuthServerIsProxy means that a proxy address will be accepted as an
+	// auth server address, but we will log a warning that this is going away in
+	// v19.
+	WarnIfAuthServerIsProxy
+
+	// AllowProxyAsAuthServer means that a proxy address will be accepted as an
+	// auth server address.
+	AllowProxyAsAuthServer
+)
 
 func (conf *BotConfig) CipherSuites() []uint16 {
 	if conf.FIPS {
@@ -252,12 +321,22 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	// We've migrated Outputs to Services, so copy all Outputs to Services.
 	conf.Services = append(conf.Services, conf.Outputs...)
+	uniqueNames := make(map[string]struct{}, len(conf.Services))
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
+		}
+		if name := service.GetName(); name != "" {
+			if err := validateServiceName(name); err != nil {
+				return trace.Wrap(err, "validating service[%d]", i)
+			}
+			if _, seen := uniqueNames[name]; seen {
+				return trace.BadParameter("validating service[%d]: duplicate name: %q", i, name)
+			}
+			uniqueNames[name] = struct{}{}
 		}
 	}
 
@@ -350,6 +429,10 @@ type ServiceConfig interface {
 	// RenewalInterval. It's used for validation purposes; services that do not
 	// support these options should return the zero value.
 	GetCredentialLifetime() CredentialLifetime
+
+	// GetName returns the user-given name of the service, used for validation
+	// purposes.
+	GetName() string
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
@@ -624,7 +707,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&version); err != nil {
-		return nil, trace.BadParameter("failed parsing config file version: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing config file version: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 
 	// Reset reader and decoder
@@ -641,7 +724,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 		}
 		latestConfig, err := config.migrate()
 		if err != nil {
@@ -658,7 +741,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		decoder.KnownFields(true)
 		config := &BotConfig{}
 		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 		}
 		return config, nil
 	default:
@@ -675,10 +758,17 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 type CredentialLifetime struct {
 	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
+	// skipMaxTTLValidation is used by services that do not abide by standard
+	// teleport credential lifetime limits to override the check that the
+	// user specified TTL is less than the max TTL. For example, X509 SVIDs can
+	// be issued with a lifetime of up to 2 weeks.
+	skipMaxTTLValidation bool
 }
 
 // IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
 func (l CredentialLifetime) IsEmpty() bool {
+	// We don't care about this field being set when checking empty state.
+	l.skipMaxTTLValidation = false
 	return l == CredentialLifetime{}
 }
 
@@ -710,7 +800,7 @@ func (l CredentialLifetime) Validate(oneShot bool) error {
 		}
 	}
 
-	if l.TTL > defaults.MaxRenewableCertTTL {
+	if !l.skipMaxTTLValidation && l.TTL > defaults.MaxRenewableCertTTL {
 		return SuboptimalCredentialTTLError{
 			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
 			details: map[string]any{

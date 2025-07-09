@@ -295,13 +295,28 @@ Removes database resource called `database-resource-name`.
 
 ## tsh db ls
 
-Lists available databases and their connection information.
+Lists the databases available to the user based on
+[RBAC](../../../enroll-resources/database-access/rbac.mdx) and their connection
+information.
 
 ```code
+# List all databases.
 $ tsh db ls
+# Search databases with keywords.
+$ tsh db ls --search foo,bar
+# Filter databases with labels.
+$ tsh db ls key1=value1,key2=value2
+# List databases from all clusters with extra fields.
+$ tsh db ls --all -v
+# Get database names using "jq".
+$ tsh db ls --format json  | jq -r '.[].metadata.name'
 ```
 
-Displays only the databases a user has access to (see [RBAC](../../../enroll-resources/database-access/rbac.mdx)).
+| Flag | Description |
+| - | - |
+| `--search` | List of comma separated search keywords or phrases enclosed in quotations (e.g. `--search=foo,bar,"some phrase"`). |
+| `--query`  | Query by predicate language enclosed in single quotes. (e.g. `--query='labels["key1"] == "value1" && labels["key2"] != "value2"')`. |
+| `--format` | Format output (`text`, `json`, `yaml`). |
 
 ## tsh db login
 
@@ -356,6 +371,36 @@ $ tsh db connect --db-user=alice --db-name=db --db-roles reader example
 | `--db-roles` | Comma-separated list of database roles to use for auto-provisioned user. If not provided, all database roles will be assigned. |
 
 (!docs/pages/includes/db-user-name-flags.mdx!)
+
+## tsh db exec
+
+Execute database commands on target database services.
+```code
+# Search databases with labels.
+$ tsh db exec "source my_script.sql" --db-user mysql --labels key1=value1,key2=value2
+# Search databases with keywords.
+$ tsh db exec "select 1" --db-user mysql --db-name mysql --search foo,bar
+# Execute a command on specified target databases without confirmation.
+$ tsh db exec "select @@hostname" --db-user mysql --dbs mydb1,mydb2,mydb3 --no-confirm
+# Run commands in parallel, and save outputs to files.
+$ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-dir=exec-outputs
+```
+
+<Admonition type="note" title="Note">
+  Currently only PostgreSQL and MySQL databases are supported. Respective
+  database CLI clients (`psql`, `mysql`) should be available in PATH.
+</Admonition>
+
+| Flag | Description |
+| - | - |
+| `--db-user` | The database user to log in as. |
+| `--db-name` | The database name to log in to. |
+| `--db-roles` | List of comma separate database roles to use for auto-provisioned user. |
+| `--dbs` |  List of comma separated target database services. Mutually exclusive with `--search` or `--labels`. |
+| `--search` | List of comma separated search keywords or phrases enclosed in quotations (e.g. `--search=foo,bar,"some phrase"`). |
+| `--labels` | List of comma separated labels to filter by labels (e.g. `key1=value1,key2=value2`). |
+| `--output-dir` | Directory to store command output per target database service. A summary is saved as "summary.json". |
+| `--[no-]confirm` | Confirm selected database services before executing command. |
 
 ## tsh db env
 

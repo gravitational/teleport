@@ -754,7 +754,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode": "optional",
 					},
@@ -769,7 +769,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "yes",
@@ -823,7 +823,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "NOT A BOOLEAN", // invalid
@@ -977,6 +977,119 @@ func TestSSHSection(t *testing.T) {
 			if testCase.expectFileCopying != nil {
 				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
 			}
+		})
+	}
+}
+
+func TestHardwareKeyConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name                    string
+		mutate                  func(cfgMap)
+		expectReadError         require.ErrorAssertionFunc
+		expectParseError        require.ErrorAssertionFunc
+		expectHardwareKeyConfig *types.HardwareKey
+	}{
+		{
+			name: "OK empty",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{},
+		},
+		{
+			name: "OK piv_slot",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"piv_slot": "9a",
+					},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{
+				PIVSlot: "9a",
+			},
+		},
+		{
+			name: "NOK piv_slot unsupported slot",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"piv_slot": "8f",
+					},
+				}
+			},
+			expectParseError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
+			},
+		},
+		{
+			name: "OK serial_number_validation",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"serial_number_validation": cfgMap{
+							"enabled":                  true,
+							"serial_number_trait_name": "custom_trait_name",
+						},
+					},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{
+				SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+					Enabled:               true,
+					SerialNumberTraitName: "custom_trait_name",
+				},
+			},
+		},
+		{
+			name: "OK pin_cache_ttl",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"pin_cache_ttl": "1m",
+					},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{
+				PinCacheTTL: types.Duration(time.Minute),
+			},
+		},
+		{
+			name: "NOK pin_cache_ttl not a duration",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"pin_cache_ttl": "1minute",
+					},
+				}
+			},
+			expectReadError: require.Error,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			if tc.expectReadError != nil {
+				tc.expectReadError(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			cap, err := cfg.Auth.Authentication.Parse()
+			if tc.expectParseError != nil {
+				tc.expectParseError(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			hardwareKeyConfig, err := cap.GetHardwareKey()
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectHardwareKeyConfig, hardwareKeyConfig)
 		})
 	}
 }

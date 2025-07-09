@@ -47,7 +47,7 @@ export function HeadlessRequest() {
     };
 
     auth
-      .headlessSSOGet(requestId)
+      .headlessSsoGet(requestId)
       .then(setIpAddress)
       .catch(e => {
         setState({
@@ -106,7 +106,7 @@ export function HeadlessRequest() {
         setState({ ...state, status: 'in-progress' });
 
         auth
-          .headlessSSOAccept(requestId)
+          .headlessSsoAccept(requestId)
           .then(setSuccess)
           .catch(e => {
             setState({

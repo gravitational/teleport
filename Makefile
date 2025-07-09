@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.4.3
+VERSION=17.5.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -36,6 +36,9 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
+KUBECTL_VERSION := $(shell go list -m -f '{{.Version}}' k8s.io/kubectl | sed 's/v0/v1/')
+KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
+
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
@@ -269,7 +272,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-VERSRC = version.go gitref.go api/version.go
+VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -362,7 +365,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # TELEPORT_LDFLAGS and TOOLS_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -387,8 +390,6 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
-$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
@@ -1024,6 +1025,12 @@ test-operator:
 test-terraform-provider:
 	make -C integrations test-terraform-provider
 #
+# Runs Teleport MWI Terraform provider tests.
+#
+.PHONY: test-terraform-provider-mwi
+test-terraform-provider-mwi:
+	make -C integrations test-terraform-provider-mwi
+#
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
@@ -1312,7 +1319,6 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
-		-ignore 'version.go' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
@@ -1349,7 +1355,7 @@ update-version: version test-helm-update-snapshots
 version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
-$(VERSRC): Makefile
+$(VERSRC) &: Makefile version.mk
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # Pushes GITTAG and api/GITTAG to GitHub.
@@ -1780,12 +1786,55 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
+.PHONY: ensure-wasm-deps
+ifeq ($(WEBASSETS_SKIP_BUILD),1)
+ensure-wasm-deps:
+else
+ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+
+# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
+# going to do when it checks for the right version. The buildboxes do not
+# have jq installed (yet), so have a hacky awk version on standby.
+CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
+CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+
+BIN_JQ = $(shell which jq 2>/dev/null)
+CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+
+ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
+ensure-wasm-pack: INSTALLED_VERSION = $(word 2,$(shell wasm-pack --version 2>/dev/null))
+ensure-wasm-pack:
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-pack --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
+	)
+
+# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
+#       On 386 Arch, calling the variable produces a malformed command that fails the build.
+#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
+ensure-wasm-bindgen: NEED_VERSION = 0.2.95
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen:
+ifneq ($(CI)$(FORCE),)
+	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
+	)
+else
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		@echo "Wrong wasm-bindgen version. Want $(NEED_VERSION) have $(INSTALLED_VERSION)"; \
+		echo "Run 'make $@ FORCE=true' to force installation." \
+	)
+endif
+endif
+
 .PHONY: build-ui
-build-ui: ensure-js-deps
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
-build-ui-e: ensure-js-deps
+build-ui-e: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui

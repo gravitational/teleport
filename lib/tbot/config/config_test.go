@@ -198,6 +198,13 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
+				Onboarding: OnboardingConfig{
+					JoinMethod: "gitlab",
+					TokenValue: "my-gitlab-token",
+					Gitlab: GitlabOnboardingConfig{
+						TokenEnvVarName: "MY_CUSTOM_ENV_VAR",
+					},
+				},
 				FIPS:       true,
 				Debug:      true,
 				Oneshot:    true,
@@ -568,6 +575,62 @@ func TestBotConfig_Base64(t *testing.T) {
 			cfg, err := ReadConfigFromBase64String(tt.configBase64, false)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, *cfg)
+		})
+	}
+}
+
+func TestBotConfig_NameValidation(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		cfg *BotConfig
+		err string
+	}{
+		"duplicate names": {
+			cfg: &BotConfig{
+				Version: V2,
+				Services: ServiceConfigs{
+					&IdentityOutput{
+						Name:        "foo",
+						Destination: &DestinationMemory{},
+					},
+					&IdentityOutput{
+						Name:        "foo",
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+			err: `duplicate name: "foo`,
+		},
+		"reserved name": {
+			cfg: &BotConfig{
+				Version: V2,
+				Services: ServiceConfigs{
+					&IdentityOutput{
+						Name:        "identity",
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+			err: `service name "identity" is reserved for internal use`,
+		},
+		"invalid name": {
+			cfg: &BotConfig{
+				Version: V2,
+				Services: ServiceConfigs{
+					&IdentityOutput{
+						Name:        "hello, world!",
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+			err: `may only contain lowercase letters`,
+		},
+	}
+	for desc, tc := range testCases {
+		t.Run(desc, func(t *testing.T) {
+			t.Parallel()
+			require.ErrorContains(t, tc.cfg.CheckAndSetDefaults(), tc.err)
 		})
 	}
 }

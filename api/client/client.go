@@ -80,7 +80,6 @@ import (
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -90,7 +89,6 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -902,6 +900,18 @@ func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadI
 	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
 }
 
+// WorkloadIdentityX509OverridesClient returns an unadorned client for the
+// teleport.workloadidentity.v1.X509OverridesService service.
+func (c *Client) WorkloadIdentityX509OverridesClient() workloadidentityv1pb.X509OverridesServiceClient {
+	return workloadidentityv1pb.NewX509OverridesServiceClient(c.conn)
+}
+
+// SigstorePolicyResourceServiceClient returns an unadorned client for the
+// Sigstore policy resource service.
+func (c *Client) SigstorePolicyResourceServiceClient() workloadidentityv1pb.SigstorePolicyResourceServiceClient {
+	return workloadidentityv1pb.NewSigstorePolicyResourceServiceClient(c.conn)
+}
+
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
@@ -1539,6 +1549,7 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.ListSAMLIdPSessions(
 		ctx,
 		&proto.ListSAMLIdPSessionsRequest{
@@ -1586,6 +1597,7 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   req.SessionID,
 		Username:    req.Username,
@@ -1614,6 +1626,7 @@ func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflake
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1645,6 +1658,7 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 // SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
 // will be removed in v17.
 func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1667,6 +1681,7 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
 }
@@ -1684,6 +1699,7 @@ func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string)
 	req := &proto.DeleteUserSAMLIdPSessionsRequest{
 		Username: username,
 	}
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req)
 	return trace.Wrap(err)
 }
@@ -2030,10 +2046,24 @@ func (c *Client) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*ty
 
 // GetSAMLConnector returns a SAML connector by name.
 func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	return c.GetSAMLConnectorWithValidationOptions(ctx, name, withSecrets)
+}
+
+// GetSAMLConnectorWithValidationOptions returns a SAML connector by name.
+func (c *Client) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if name == "" {
 		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
 	}
-	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	req := &types.ResourceWithSecretsRequest{
+		Name:                       name,
+		WithSecrets:                withSecrets,
+		SAMLValidationNoFollowURLs: options.NoFollowURLs,
+	}
 	resp, err := c.grpc.GetSAMLConnector(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2043,7 +2073,20 @@ func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets 
 
 // GetSAMLConnectors returns a list of SAML connectors.
 func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	return c.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets)
+}
+
+// GetSAMLConnectorsWithoutURLValidation returns a list of SAML connectors.
+func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	req := &types.ResourcesWithSecretsRequest{
+		WithSecrets:                withSecrets,
+		SAMLValidationNoFollowURLs: options.NoFollowURLs,
+	}
 	resp, err := c.grpc.GetSAMLConnectors(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2730,6 +2773,7 @@ func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClien
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetClusterNetworkingConfig(ctx, &clusterconfigpb.GetClusterNetworkingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		resp, err = c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 	}
 	return resp, trace.Wrap(err)
@@ -2738,17 +2782,20 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterN
 // SetClusterNetworkingConfig sets cluster networking configuration.
 // Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
 func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
 	return trace.Wrap(err)
 }
 
 // setClusterNetworkingConfig sets cluster networking configuration.
 func (c *Client) setClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (types.ClusterNetworkingConfig, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
 	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	cfg, err := c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 	return cfg, trace.Wrap(err)
 }
@@ -2791,6 +2838,7 @@ func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetClusterNetworkingConfig(ctx, &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
 	}
@@ -2802,6 +2850,7 @@ func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetSessionRecordingConfig(ctx, &clusterconfigpb.GetSessionRecordingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		resp, err = c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
 	}
 
@@ -2816,6 +2865,7 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 		return trace.BadParameter("invalid type %T", recConfig)
 	}
 
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2)
 	return trace.Wrap(err)
 }
@@ -2827,10 +2877,12 @@ func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.
 		return nil, trace.BadParameter("invalid type %T", recConfig)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	if _, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	cfg, err := c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
 	return cfg, trace.Wrap(err)
 }
@@ -2839,6 +2891,7 @@ func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetSessionRecordingConfig(ctx, &clusterconfigpb.ResetSessionRecordingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		_, err := c.grpc.ResetSessionRecordingConfig(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
 	}
@@ -2883,6 +2936,7 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	pref, err := c.ClusterConfigClient().GetAuthPreference(ctx, &clusterconfigpb.GetAuthPreferenceRequest{})
 	// TODO(tross) DELETE IN v18.0.0
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		pref, err = c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2901,6 +2955,7 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 		return trace.BadParameter("invalid type %T", authPref)
 	}
 
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
 	return trace.Wrap(err)
 }
@@ -2908,11 +2963,13 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 // setAuthPreference sets cluster auth preference via the legacy mechanism.
 // TODO(tross) DELETE IN v18.0.0
 func (c *Client) setAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (types.AuthPreference, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
 	_, err := c.grpc.SetAuthPreference(ctx, authPref)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
 	return pref, trace.Wrap(err)
 }
@@ -2922,6 +2979,7 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
 	// TODO(tross) DELETE IN v18.0.0
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		_, err := c.grpc.ResetAuthPreference(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
 	}
@@ -3613,6 +3671,57 @@ func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.Database
 			break
 		}
 		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	resp, err := c.grpc.ListWindowsDesktops(ctx, &proto.ListWindowsDesktopsRequest{
+		Limit:                int32(req.Limit),
+		StartKey:             req.StartKey,
+		Labels:               req.Labels,
+		PredicateExpression:  req.PredicateExpression,
+		SearchKeywords:       req.SearchKeywords,
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &types.ListWindowsDesktopsResponse{
+		Desktops: make([]types.WindowsDesktop, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		out.Desktops = append(out.Desktops, d)
+	}
+
+	return out, nil
+}
+
+// ListWindowsDesktopServices returns a page of Windows desktop services.
+func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	resp, err := c.grpc.ListResources(ctx, &proto.ListResourcesRequest{
+		Limit:               int32(req.Limit),
+		StartKey:            req.StartKey,
+		Labels:              req.Labels,
+		PredicateExpression: req.PredicateExpression,
+		SearchKeywords:      req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &types.ListWindowsDesktopServicesResponse{
+		DesktopServices: make([]types.WindowsDesktopService, 0, len(resp.Resources)),
+		NextKey:         resp.NextKey,
+	}
+
+	for _, r := range resp.Resources {
+		out.DesktopServices = append(out.DesktopServices, r.GetWindowsDesktopService())
 	}
 
 	return out, nil
@@ -5331,18 +5440,6 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 		}
 		pageToken = nextToken
 	}
-}
-
-// IdentityCenterClient returns Identity Center service client using an underlying
-// gRPC connection.
-func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient {
-	return identitycenterv1.NewIdentityCenterServiceClient(c.conn)
-}
-
-// ProvisioningServiceClient returns provisioning service client using
-// an underlying gRPC connection.
-func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
-	return provisioningv1.NewProvisioningServiceClient(c.conn)
 }
 
 // IntegrationsClient returns integrations client.

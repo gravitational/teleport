@@ -24,20 +24,21 @@ import (
 	"github.com/gravitational/teleport/api"
 )
 
+// Version is the version of Teleport in use.
 const Version = api.Version
 
-var (
-	// SemVersion is the Version represented as a [semver.Version].
-	SemVersion = api.SemVersion
-	// MinClientVersion is the minimum client version required by the server.
-	// Per https://github.com/gravitational/teleport/blob/master/rfd/0012-teleport-versioning.md,
-	// only one major version backwards is supported for clients.
-	MinClientVersion = MinClientSemVersion.String()
-	// MinClientSemVersion is the MinClientVersion represented as a [semver.Version]. The
-	// [semver.Version.PreRelease] is set to "aa" so that the minimum client version comes before
-	// <version>-alpha so that alpha, beta, rc, and dev builds are permitted.
-	MinClientSemVersion = semver.Version{Major: SemVersion.Major - 1, PreRelease: "aa"}
-)
+// SemVer returns the version of Teleport in use as a [semver.Version].
+func SemVer() *semver.Version {
+	return api.SemVer()
+}
+
+// MinClientSemVer returns the minimum client version required by the server.
+// The [semver.Version.PreRelease] is set to "aa" so that the minimum client
+// version comes before <version>-alpha so that alpha, beta, rc, and dev builds
+// are permitted.
+func MinClientSemVer() *semver.Version {
+	return &semver.Version{Major: api.VersionMajor - 1, PreRelease: "aa"}
+}
 
 // Gitref is set to the output of "git describe" during the build process.
 var Gitref string

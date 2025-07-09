@@ -44,13 +44,11 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
@@ -63,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -410,16 +409,6 @@ func (c *Client) DeleteAllNamespaces() error {
 // DeleteAllRoles not implemented: can only be called locally.
 func (c *Client) DeleteAllRoles(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAllUsers not implemented: can only be called locally.
@@ -1071,8 +1060,12 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnectorWithValidationOptions returns SAML connector information
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets valid SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
@@ -1426,7 +1419,7 @@ func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []by
 // sshAttIn and tlsAttIn will be returned.
 // [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
 // set by any post-17.0.0 client.
-func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *keys.AttestationStatement) (sshAttOut, tlsAttOut *keys.AttestationStatement) {
+func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *hardwarekey.AttestationStatement) (sshAttOut, tlsAttOut *hardwarekey.AttestationStatement) {
 	if attIn == nil {
 		return sshAttIn, tlsAttIn
 	}
@@ -1469,14 +1462,14 @@ type AuthenticateSSHRequest struct {
 	// AttestationStatement is an attestation statement associated with the given public key.
 	//
 	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
-	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
-	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1922,12 +1915,6 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-
-	// IdentityCenterClient returns Identity Center service client.
-	IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient
-
-	// ProvisioningServiceClient returns provisioning service client.
-	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
 	// IntegrationsClient returns integrations client.
 	IntegrationsClient() integrationv1.IntegrationServiceClient

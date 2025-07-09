@@ -230,7 +230,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 		return
 	}
 
-	_, err = r.p.Client.DynamicDesktopClient().UpdateDynamicWindowsDesktop(ctx, desktopResource)
+	_, err = r.p.Client.DynamicDesktopClient().UpsertDynamicWindowsDesktop(ctx, desktopResource)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 		return

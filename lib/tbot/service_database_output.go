@@ -26,30 +26,36 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // DatabaseOutputService generates the artifacts necessary to connect to a
 // database using Teleport.
 type DatabaseOutputService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.DatabaseOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.DatabaseOutput
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	reloadBroadcaster  *channelBroadcaster
+	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 }
 
 func (s *DatabaseOutputService) String() string {
-	return fmt.Sprintf("database-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("database-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *DatabaseOutputService) OneShot(ctx context.Context) error {
@@ -61,13 +67,15 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		service:         s.String(),
+		name:            "output-renewal",
+		f:               s.generate,
+		interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		retryLimit:      renewalRetryLimit,
+		log:             s.log,
+		reloadCh:        reloadCh,
+		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

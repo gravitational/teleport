@@ -19,6 +19,7 @@ package resource153
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -63,6 +64,7 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	}
 
 	value.Value = (*o).AsTime()
+	value.Format = time.RFC3339
 
 	return value
 }

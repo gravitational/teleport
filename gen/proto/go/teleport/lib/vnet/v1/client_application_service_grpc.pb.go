@@ -36,8 +36,9 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ClientApplicationService_AuthenticateProcess_FullMethodName      = "/teleport.lib.vnet.v1.ClientApplicationService/AuthenticateProcess"
+	ClientApplicationService_ReportNetworkStackInfo_FullMethodName   = "/teleport.lib.vnet.v1.ClientApplicationService/ReportNetworkStackInfo"
 	ClientApplicationService_Ping_FullMethodName                     = "/teleport.lib.vnet.v1.ClientApplicationService/Ping"
-	ClientApplicationService_ResolveAppInfo_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveAppInfo"
+	ClientApplicationService_ResolveFQDN_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveFQDN"
 	ClientApplicationService_ReissueAppCert_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
 	ClientApplicationService_SignForApp_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
 	ClientApplicationService_OnNewConnection_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewConnection"
@@ -53,15 +54,19 @@ const (
 // the VNet admin process to facilate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 type ClientApplicationServiceClient interface {
-	// AuthenticateProcess mutually authenticates client applicates to the admin
-	// service.
+	// AuthenticateProcess is used to authenticate the client application (running
+	// this gRPC service) to the Windows service.
 	AuthenticateProcess(ctx context.Context, in *AuthenticateProcessRequest, opts ...grpc.CallOption) (*AuthenticateProcessResponse, error)
+	// ReportNetworkStackInfo should be called exactly once when the admin process
+	// connects to the ClientApplicationService, it's used to report information
+	// about the VNet networking stack to the client application.
+	ReportNetworkStackInfo(ctx context.Context, in *ReportNetworkStackInfoRequest, opts ...grpc.CallOption) (*ReportNetworkStackInfoResponse, error)
 	// Ping is used by the admin process to regularly poll that the client
 	// application is still running.
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
-	// ResolveAppInfo returns info for the given app fqdn, or an error if the app
-	// is not present in any logged-in cluster.
-	ResolveAppInfo(ctx context.Context, in *ResolveAppInfoRequest, opts ...grpc.CallOption) (*ResolveAppInfoResponse, error)
+	// ResolveFQDN is called during DNS resolution to resolve a fully-qualified
+	// domain name to a target.
+	ResolveFQDN(ctx context.Context, in *ResolveFQDNRequest, opts ...grpc.CallOption) (*ResolveFQDNResponse, error)
 	// ReissueAppCert issues a new app cert.
 	ReissueAppCert(ctx context.Context, in *ReissueAppCertRequest, opts ...grpc.CallOption) (*ReissueAppCertResponse, error)
 	// SignForApp issues a signature with the private key associated with an x509
@@ -96,6 +101,16 @@ func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) ReportNetworkStackInfo(ctx context.Context, in *ReportNetworkStackInfoRequest, opts ...grpc.CallOption) (*ReportNetworkStackInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportNetworkStackInfoResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ReportNetworkStackInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clientApplicationServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PingResponse)
@@ -106,10 +121,10 @@ func (c *clientApplicationServiceClient) Ping(ctx context.Context, in *PingReque
 	return out, nil
 }
 
-func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, in *ResolveAppInfoRequest, opts ...grpc.CallOption) (*ResolveAppInfoResponse, error) {
+func (c *clientApplicationServiceClient) ResolveFQDN(ctx context.Context, in *ResolveFQDNRequest, opts ...grpc.CallOption) (*ResolveFQDNResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ResolveAppInfoResponse)
-	err := c.cc.Invoke(ctx, ClientApplicationService_ResolveAppInfo_FullMethodName, in, out, cOpts...)
+	out := new(ResolveFQDNResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ResolveFQDN_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -174,15 +189,19 @@ func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Co
 // the VNet admin process to facilate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 type ClientApplicationServiceServer interface {
-	// AuthenticateProcess mutually authenticates client applicates to the admin
-	// service.
+	// AuthenticateProcess is used to authenticate the client application (running
+	// this gRPC service) to the Windows service.
 	AuthenticateProcess(context.Context, *AuthenticateProcessRequest) (*AuthenticateProcessResponse, error)
+	// ReportNetworkStackInfo should be called exactly once when the admin process
+	// connects to the ClientApplicationService, it's used to report information
+	// about the VNet networking stack to the client application.
+	ReportNetworkStackInfo(context.Context, *ReportNetworkStackInfoRequest) (*ReportNetworkStackInfoResponse, error)
 	// Ping is used by the admin process to regularly poll that the client
 	// application is still running.
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
-	// ResolveAppInfo returns info for the given app fqdn, or an error if the app
-	// is not present in any logged-in cluster.
-	ResolveAppInfo(context.Context, *ResolveAppInfoRequest) (*ResolveAppInfoResponse, error)
+	// ResolveFQDN is called during DNS resolution to resolve a fully-qualified
+	// domain name to a target.
+	ResolveFQDN(context.Context, *ResolveFQDNRequest) (*ResolveFQDNResponse, error)
 	// ReissueAppCert issues a new app cert.
 	ReissueAppCert(context.Context, *ReissueAppCertRequest) (*ReissueAppCertResponse, error)
 	// SignForApp issues a signature with the private key associated with an x509
@@ -210,11 +229,14 @@ type UnimplementedClientApplicationServiceServer struct{}
 func (UnimplementedClientApplicationServiceServer) AuthenticateProcess(context.Context, *AuthenticateProcessRequest) (*AuthenticateProcessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateProcess not implemented")
 }
+func (UnimplementedClientApplicationServiceServer) ReportNetworkStackInfo(context.Context, *ReportNetworkStackInfoRequest) (*ReportNetworkStackInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportNetworkStackInfo not implemented")
+}
 func (UnimplementedClientApplicationServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
-func (UnimplementedClientApplicationServiceServer) ResolveAppInfo(context.Context, *ResolveAppInfoRequest) (*ResolveAppInfoResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResolveAppInfo not implemented")
+func (UnimplementedClientApplicationServiceServer) ResolveFQDN(context.Context, *ResolveFQDNRequest) (*ResolveFQDNResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveFQDN not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) ReissueAppCert(context.Context, *ReissueAppCertRequest) (*ReissueAppCertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReissueAppCert not implemented")
@@ -271,6 +293,24 @@ func _ClientApplicationService_AuthenticateProcess_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_ReportNetworkStackInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportNetworkStackInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ReportNetworkStackInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ReportNetworkStackInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ReportNetworkStackInfo(ctx, req.(*ReportNetworkStackInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClientApplicationService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PingRequest)
 	if err := dec(in); err != nil {
@@ -289,20 +329,20 @@ func _ClientApplicationService_Ping_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClientApplicationService_ResolveAppInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResolveAppInfoRequest)
+func _ClientApplicationService_ResolveFQDN_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveFQDNRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClientApplicationServiceServer).ResolveAppInfo(ctx, in)
+		return srv.(ClientApplicationServiceServer).ResolveFQDN(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClientApplicationService_ResolveAppInfo_FullMethodName,
+		FullMethod: ClientApplicationService_ResolveFQDN_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClientApplicationServiceServer).ResolveAppInfo(ctx, req.(*ResolveAppInfoRequest))
+		return srv.(ClientApplicationServiceServer).ResolveFQDN(ctx, req.(*ResolveFQDNRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -409,12 +449,16 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClientApplicationService_AuthenticateProcess_Handler,
 		},
 		{
+			MethodName: "ReportNetworkStackInfo",
+			Handler:    _ClientApplicationService_ReportNetworkStackInfo_Handler,
+		},
+		{
 			MethodName: "Ping",
 			Handler:    _ClientApplicationService_Ping_Handler,
 		},
 		{
-			MethodName: "ResolveAppInfo",
-			Handler:    _ClientApplicationService_ResolveAppInfo_Handler,
+			MethodName: "ResolveFQDN",
+			Handler:    _ClientApplicationService_ResolveFQDN_Handler,
 		},
 		{
 			MethodName: "ReissueAppCert",

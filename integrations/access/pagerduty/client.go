@@ -370,7 +370,7 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 		anyData = anyData || len(result.OnCalls) > 0
 
 		for _, onCall := range result.OnCalls {
-			if !(onCall.User.Type == "user_reference" && onCall.User.ID == userID) {
+			if onCall.User.Type != "user_reference" || onCall.User.ID != userID {
 				continue
 			}
 

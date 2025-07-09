@@ -132,6 +132,16 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"ldap_service_account_name": {
+							Description: "LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_service_account_sid": {
+							Description: "LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"spn": {
 							Description: "SPN is the service principal name for the database.",
 							Optional:    true,
@@ -1019,6 +1029,11 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"use_any_proxy_public_addr": {
+					Description: "UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
 				"user_groups": {
 					Description: "UserGroups are a list of user group IDs that this app is associated with.",
 					Optional:    true,
@@ -1393,6 +1408,11 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				}),
 				"hardware_key": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"pin_cache_ttl": {
+							Description: "PinCacheTTL is the amount of time in nanoseconds that Teleport clients will cache the user's PIV PIN when hardware key PIN policy is enabled.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
 						"piv_slot": {
 							Description: "PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, \"9a\" or \"9e\".",
 							Optional:    true,
@@ -1458,13 +1478,13 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"second_factor": {
 					Computed:      true,
-					Description:   "SecondFactor is the type of mult-factor. Deprecated: Prefer using SecondFactors instead.",
+					Description:   "SecondFactor is the type of mult-factor.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"second_factors": {
-					Description: "SecondFactors is a list of supported multi-factor types. 1 is \"otp\", 2 is \"webauthn\", 3 is \"sso\", If unspecified, the current default value is [1], or [\"otp\"].",
+					Description: "SecondFactors is a list of supported multi-factor types. 1 is \"otp\", 2 is \"webauthn\", 3 is \"sso\", If unspecified, the current default value is [1], or [\"otp\"].  WARNING: only set SecondFactors if your cluster is fully upgraded to v17+. Due to a version compatibility bug, v16 teleport services do not properly handle this setting and may fail to start as a result.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
 				},
@@ -3451,6 +3471,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					}),
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
 					Optional:    true,
+				},
+				"preferred_request_binding": {
+					Description: "PreferredRequestBinding is a preferred SAML request binding method. Value must be either \"http-post\" or \"http-redirect\". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"provider": {
 					Description: "Provider is the external identity provider.",
@@ -5718,6 +5743,40 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 													t = string(v.Value)
 												}
 												obj.KDCHostName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_service_account_name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPServiceAccountName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_service_account_sid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPServiceAccountSID = t
 											}
 										}
 									}
@@ -8102,6 +8161,50 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.KDCHostName)
 											v.Unknown = false
 											tf.Attrs["kdc_host_name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_service_account_name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName"})
+										} else {
+											v, ok := tf.Attrs["ldap_service_account_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPServiceAccountName", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPServiceAccountName) == ""
+											}
+											v.Value = string(obj.LDAPServiceAccountName)
+											v.Unknown = false
+											tf.Attrs["ldap_service_account_name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_service_account_sid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID"})
+										} else {
+											v, ok := tf.Attrs["ldap_service_account_sid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPServiceAccountSID) == ""
+											}
+											v.Value = string(obj.LDAPServiceAccountSID)
+											v.Unknown = false
+											tf.Attrs["ldap_service_account_sid"] = v
 										}
 									}
 								}
@@ -11081,6 +11184,23 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["use_any_proxy_public_addr"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.UseAnyProxyPublicAddr"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.UseAnyProxyPublicAddr", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.UseAnyProxyPublicAddr = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -12576,6 +12696,28 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								c.Unknown = false
 								tf.Attrs["tcp_ports"] = c
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["use_any_proxy_public_addr"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.UseAnyProxyPublicAddr"})
+						} else {
+							v, ok := tf.Attrs["use_any_proxy_public_addr"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"AppV3.Spec.UseAnyProxyPublicAddr", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.UseAnyProxyPublicAddr", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.UseAnyProxyPublicAddr) == false
+							}
+							v.Value = bool(obj.UseAnyProxyPublicAddr)
+							v.Unknown = false
+							tf.Attrs["use_any_proxy_public_addr"] = v
 						}
 					}
 				}
@@ -15005,6 +15147,23 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["pin_cache_ttl"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL"})
+										} else {
+											v, ok := a.(DurationValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", "DurationValue"})
+											} else {
+												var t github_com_gravitational_teleport_api_types.Duration
+												if !v.Null && !v.Unknown {
+													t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+												}
+												obj.PinCacheTTL = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -16288,6 +16447,28 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 												v.Unknown = false
 												tf.Attrs["serial_number_validation"] = v
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["pin_cache_ttl"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL"})
+										} else {
+											v, ok := tf.Attrs["pin_cache_ttl"].(DurationValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", err})
+												}
+												v, ok = i.(DurationValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", "DurationValue"})
+												}
+												v.Null = false
+											}
+											v.Value = time.Duration(obj.PinCacheTTL)
+											v.Unknown = false
+											tf.Attrs["pin_cache_ttl"] = v
 										}
 									}
 								}
@@ -33982,6 +34163,23 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["preferred_request_binding"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.PreferredRequestBinding = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -35195,6 +35393,28 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 							v.Value = int64(obj.ForceAuthn)
 							v.Unknown = false
 							tf.Attrs["force_authn"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["preferred_request_binding"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding"})
+						} else {
+							v, ok := tf.Attrs["preferred_request_binding"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.PreferredRequestBinding", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.PreferredRequestBinding) == ""
+							}
+							v.Value = string(obj.PreferredRequestBinding)
+							v.Unknown = false
+							tf.Attrs["preferred_request_binding"] = v
 						}
 					}
 				}

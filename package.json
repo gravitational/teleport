@@ -22,16 +22,17 @@
     "lint-fix": "pnpm eslint --fix && pnpm prettier-write",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
+    "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
+    "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
   "pnpm": {
     "overrides": {
       "@bundled-es-modules/cookie>cookie": "0.7.1",
-      "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0"
+      "jsdom@^20.0.3>nwsapi@^2": "2.2.9"
     }
   },
   "devDependencies": {
@@ -50,7 +51,7 @@
     "@testing-library/user-event": "^14.5.2",
     "@types/history": "^4.7.11",
     "@types/jest": "^29.5.13",
-    "@types/node": "^20.16.10",
+    "@types/node": "^22.14.0",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",
     "@types/react-highlight": "^0.12.8",
@@ -59,14 +60,16 @@
     "@types/react-transition-group": "^4.4.11",
     "@types/wicg-file-system-access": "^2023.10.5",
     "jest": "^29.7.0",
+    "jest-canvas-mock": "^2.5.2",
     "jsdom-testing-mocks": "^1.13.1",
     "msw": "^2.4.9",
     "msw-storybook-addon": "^2.0.3",
-    "node-gyp": "11.0.0",
+    "node-gyp": "^11.2.0",
     "playwright": "^1.47.2",
     "prettier": "^3.3.3",
     "react-select-event": "^5.5.1",
     "storybook": "^8.3.4",
+    "svgo": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.8"
   },
@@ -86,13 +89,13 @@
     "d3-scale": "^4.0.2",
     "d3-time-format": "^4.1.0",
     "date-fns": "^2.28.0",
+    "highlight.js": "^11.11.1",
     "history": "^4.9.0",
     "immer": "^10.1.1",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
-    "react-highlight": "^0.15.0",
     "react-is": "^18.3.1",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
@@ -108,8 +111,8 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.7.0+sha512.6b865ad4b62a1d9842b61d674a393903b871d9244954f652b8842c2b553c72176b278f64c463e52d40fff8aba385c235c8c9ecf5cc7de4fd78b8bb6d49633ab6",
+  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184",
   "engines": {
-    "node": "^20"
+    "node": "^22"
   }
 }

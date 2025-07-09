@@ -115,6 +115,8 @@ export class MockTshClient implements TshdClient {
     });
   startHeadlessWatcher = () => new MockedUnaryCall({});
   getApp = () => new MockedUnaryCall({ app: makeApp() });
+  connectToDesktop = undefined;
+  setSharedDirectoryForDesktopSession = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {

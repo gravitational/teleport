@@ -44,6 +44,12 @@ import Dialog, {
 import { Warning } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton } from 'shared/components/MenuAction';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
@@ -54,12 +60,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import {
-  InfoExternalTextLink,
-  InfoGuideButton,
-  InfoParagraph,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import { JoinToken } from 'teleport/services/joinToken';
 import { KindJoinToken, Resource } from 'teleport/services/resources';
@@ -134,6 +134,9 @@ export const JoinTokens = () => {
 
   useEffect(() => {
     runJoinTokensAttempt();
+
+    // runJoinTokensAttempt is not stable and causes a render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -161,7 +164,7 @@ export const JoinTokens = () => {
           </InfoGuideButton>
         )}
       </FeatureHeader>
-      <Flex>
+      <Flex gap={24}>
         <Box
           css={`
             flex-grow: 1;
@@ -231,7 +234,8 @@ export const JoinTokens = () => {
                         if (
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
-                          token.method === 'token'
+                          token.method === 'token' ||
+                          (token.method === 'github' && token.github)
                         ) {
                           setEditingToken(token);
                           return;
@@ -395,7 +399,7 @@ function TokenDelete({
         <DialogTitle>Delete Join Token?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'error' && <Alert children={attempt.statusText} />}
+        {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
         <Text mb={4}>
           You are about to delete join token
           <Text bold as="span">

@@ -4731,12 +4731,22 @@ message ResourceWithSecretsRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // WithSecrets specifies whether to load associated secrets.
   bool WithSecrets = 2 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+  // SAMLValidationNoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  // ResourceWithSecretsRequest is not a great place for this field but it's
+  // necessary for backward compatibility.
+  bool SAMLValidationNoFollowURLs = 3 [(gogoproto.jsontag) = "saml_validation_no_follow_urls"];
 }
 
 // ResourcesWithSecretsRequest is a request relating to resources with secrets.
 message ResourcesWithSecretsRequest {
   // WithSecrets specifies whether to load associated secrets.
   bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+  // SAMLValidationNoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  // ResourceWithSecretsRequest is not a great place for this field but it's
+  // necessary for backward compatibility.
+  bool SAMLValidationNoFollowURLs = 2 [(gogoproto.jsontag) = "saml_validation_no_follow_urls"];
 }
 
 // ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.

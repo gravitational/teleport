@@ -197,9 +197,9 @@ func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl 
 }
 
 func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username string, ttl time.Duration, sshKey, tlsKey crypto.Signer) *client.KeyRing {
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 	keyRing := client.NewKeyRing(sshPriv, tlsPriv)
 	keyRing.ClusterName = tc.Secrets.SiteName

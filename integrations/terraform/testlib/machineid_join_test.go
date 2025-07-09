@@ -93,6 +93,8 @@ func TestTerraformJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	bot := &machineidv1.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: testBotName,
 		},

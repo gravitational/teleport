@@ -616,6 +616,10 @@ message AD {
   string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
   // KDCHostName is the host name for a KDC for x509 Authentication.
   string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
+  // LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountName = 7 [(gogoproto.jsontag) = "ldap_service_account_name,omitempty"];
+  // LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountSID = 8 [(gogoproto.jsontag) = "ldap_service_account_sid,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
@@ -1038,6 +1042,11 @@ message AppSpecV3 {
   // If this field is not empty, URI is expected to contain no port number and start with the tcp
   // protocol.
   repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
+  // UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+  // request originated from. This should be true if your proxy has multiple proxy public addrs and you
+  // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+  // setting this value to true will overwrite that public address in the web UI.
+  bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1295,6 +1304,9 @@ message ProvisionTokenV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is extended status information, depending on token type. It is not
+  // user writable.
+  ProvisionTokenStatusV2 Status = 6 [(gogoproto.jsontag) = "status,omitempty"];
 }
 
 // ProvisionTokenV2List is a list of provisioning tokens.
@@ -1384,6 +1396,58 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
   // Oracle allows the configuration of options specific to the "oracle" join method.
   ProvisionTokenSpecV2Oracle Oracle = 18 [(gogoproto.jsontag) = "oracle,omitempty"];
+  // BoundKeypair allows the configuration of options specific to the "bound_keypair" join method.
+  ProvisionTokenSpecV2BoundKeypair BoundKeypair = 19 [(gogoproto.jsontag) = "bound_keypair,omitempty"];
+  // AzureDevops allows the configuration of options specific to the "azure_devops" join method.
+  ProvisionTokenSpecV2AzureDevops AzureDevops = 20 [(gogoproto.jsontag) = "azure_devops,omitempty"];
+}
+
+// ProvisionTokenSpecV2AzureDevops contains the Azure Devops-specific
+// configuration.
+message ProvisionTokenSpecV2AzureDevops {
+  message Rule {
+    // Sub also known as Subject is a string that roughly uniquely identifies
+    // the workload. Example:
+    // `p://my-organization/my-project/my-pipeline`
+    // Mapped from the `sub` claim.
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // The name of the AZDO project. Example:
+    // `my-project`.
+    // Mapped out of the `sub` claim.
+    string ProjectName = 2 [(gogoproto.jsontag) = "project_name,omitempty"];
+    // The name of the AZDO pipeline. Example:
+    // `my-pipeline`.
+    // Mapped out of the `sub` claim.
+    string PipelineName = 3 [(gogoproto.jsontag) = "pipeline_name,omitempty"];
+    // The ID of the AZDO pipeline. Example:
+    // `271ef6f7-0000-0000-0000-4b54d9129990`
+    // Mapped from the `prj_id` claim.
+    string ProjectID = 4 [(gogoproto.jsontag) = "project_id,omitempty"];
+    // The ID of the AZDO pipeline definition. Example:
+    // `1`
+    // Mapped from the `def_id` claim.
+    string DefinitionID = 5 [(gogoproto.jsontag) = "definition_id,omitempty"];
+    // The URI of the repository the pipeline is using. Example:
+    // `https://github.com/gravitational/teleport.git`.
+    // Mapped from the `rpo_uri` claim.
+    string RepositoryURI = 6 [(gogoproto.jsontag) = "repository_uri,omitempty"];
+    // The individual commit of the repository the pipeline is using. Example:
+    // `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+    // Mapped from the `rpo_ver` claim.
+    string RepositoryVersion = 7 [(gogoproto.jsontag) = "repository_version,omitempty"];
+    // The reference of the repository the pipeline is using. Example:
+    // `refs/heads/main`.
+    // Mapped from the `rpo_ref` claim.
+    string RepositoryRef = 8 [(gogoproto.jsontag) = "repository_ref,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token. At least one allow rule must be specified.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // OrganizationID specifies the UUID of the Azure DevOps organization that
+  // this join token will grant access to. This is used to identify the correct
+  // issuer verification of the ID token.
+  // This is a required field.
+  string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1799,6 +1863,149 @@ message ProvisionTokenSpecV2Oracle {
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
+// ProvisionTokenSpecV2BoundKeypair contains configuration for bound_keypair
+// type join tokens.
+message ProvisionTokenSpecV2BoundKeypair {
+  // OnboardingSpec contains parameters for initial joining and keypair
+  // registration.
+  message OnboardingSpec {
+    // InitialPublicKey is used to preregister a public key generated by
+    // `tbot keypair create`. When set, no initial join secret is generated or
+    // made available for use, and clients must have the associated private key
+    // available to join. If set, `initial_join_secret` and
+    // `must_register_before` are ignored. This value is written in SSH
+    // authorized_keys format.
+    string InitialPublicKey = 1 [(gogoproto.jsontag) = "initial_public_key,omitempty"];
+
+    // RegistrationSecret is a secret joining clients may use to register their
+    // public key on first join, which may be used instead of preregistering a
+    // public key with `initial_public_key`. If `initial_public_key` is set,
+    // this value is ignored. Otherwise, if set, this value will be used to
+    // populate `.status.bound_keypair.intitial_join_secret`. If unset and no
+    // `initial_public_key` is provided, a random secure value will be generated
+    // server-side to populate the status field.
+    string RegistrationSecret = 2 [(gogoproto.jsontag) = "registration_secret,omitempty"];
+
+    // MustRegisterBefore is an optional time before which registeration via
+    // initial join secret must be performed. Attempts to register using an
+    // initial join secret after this timestamp will not be allowed. This may be
+    // modified after creation if necessary to allow the initial registration to
+    // take place. This value is ignored if `initial_public_key` is set.
+    google.protobuf.Timestamp MustRegisterBefore = 3 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "must_register_before,omitempty"
+    ];
+  }
+
+  // RecoverySpec contains parameters for recovery after identity expiration.
+  message RecoverySpec {
+    // Limit is the maximum number of allowed recovery attempts. This value may
+    // be raised or lowered after creation to allow additional recovery attempts
+    // should the initial limit be exhausted. If `mode` is set to `standard`,
+    // recovery attempts will only be allowed if
+    // `.status.bound_keypair.recovery_count` is less than this limit. This
+    // limit is not enforced if `mode` is set to `relaxed` or `insecure`. This
+    // value must be at least 1 to allow for the initial join during onboarding,
+    // which counts as a recovery.
+    uint32 Limit = 1 [(gogoproto.jsontag) = "limit"];
+
+    // Mode sets the recovery rule enforcement mode. It may be one of these
+    // values:
+    // - standard (or unset): all configured rules enforced. The recovery limit
+    //   and client join state are required and verified. This is the most
+    //   secure recovery mode.
+    // - relaxed: recovery limit is not enforced, but client join state is still
+    //   required. This effectively allows unlimited recovery attempts, but
+    //   client join state still helps mitigate stolen credentials.
+    // - insecure: neither the recovery limit nor client join state are
+    //   enforced. This allows any client with the private key to join freely.
+    //   This is less secure, but can be useful in certain situations, like in
+    //   otherwise unsupported CI/CD providers. This mode should be used with
+    //   care, and RBAC rules should be configured to heavily restrict which
+    //   resources this identity can access.
+    string Mode = 2 [(gogoproto.jsontag) = "mode"];
+  }
+
+  // Onboarding contains parameters related to initial onboarding and keypair
+  // registration.
+  OnboardingSpec Onboarding = 1 [(gogoproto.jsontag) = "onboarding"];
+
+  // Recovery contains parameters related to recovery after identity expiration.
+  RecoverySpec Recovery = 2 [(gogoproto.jsontag) = "recovery"];
+
+  // RotateAfter is an optional timestamp that forces clients to perform a
+  // keypair rotation on the next join or recovery attempt after the given date.
+  // If `LastRotatedAt` is unset or before this timestamp, a rotation will be
+  // requested. It is recommended to set this value to the current timestamp if
+  // a rotation should be triggered on the next join attempt.
+  google.protobuf.Timestamp RotateAfter = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "rotate_after,omitempty"
+  ];
+}
+
+// ProvisionTokenStatusV2 contains status information about a particular
+// ProvisionTokenV2. These fields should not be modified by end users.
+message ProvisionTokenStatusV2 {
+  // BoundKeypair contains status information related to bound_keypair type
+  // tokens.
+  ProvisionTokenStatusV2BoundKeypair BoundKeypair = 1 [(gogoproto.jsontag) = "bound_keypair,omitempty"];
+}
+
+// ProvisionTokenStatusV2BoundKeypair contains status information specific to
+// bound_keypair type tokens.
+message ProvisionTokenStatusV2BoundKeypair {
+  // RegistrationSecret contains a secret value that may be used for public key
+  // registration during the initial join process if no public key is
+  // preregistered. If `.spec.bound_keypair.onboarding.initial_public_key`
+  // is set, †his field will remain empty. Otherwise, if
+  // `.spec.bound_keypair.onboarding.registration_secret` is set, that value
+  // will be copied here. If that field is unset, a value will be randomly
+  // generated.
+  string RegistrationSecret = 1 [(gogoproto.jsontag) = "registration_secret"];
+
+  // BoundPublicKey contains the currently bound public key. If
+  // `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will
+  // be copied here on creation, otherwise it will be populated as part of
+  // public key registration process. This value will be updated over time if
+  // keypair rotation takes place, and will always reflect the currently trusted
+  // public key. This value is written in SSH authorized_keys format.
+  string BoundPublicKey = 2 [(gogoproto.jsontag) = "bound_public_key"];
+
+  // BoundBotInstanceID is the ID of the currently associated bot instance. A
+  // new bot instance is issued on each join; the new bot instance will
+  // have a `previous_bot_instance` set to this value, if any.
+  string BoundBotInstanceID = 3 [(gogoproto.jsontag) = "bound_bot_instance_id"];
+
+  // RecoveryCount is a count of the total number of recoveries performed using
+  // this token. It is incremented for every successful join or rejoin. Recovery
+  // is only allowed if this value is less than
+  // `.spec.bound_keypair.recovery.limit`, or if the recovery mode is `relaxed`
+  // or `insecure`.
+  uint32 RecoveryCount = 4 [(gogoproto.jsontag) = "recovery_count"];
+
+  // LastRecoveredAt contains a timestamp of the last successful recovery
+  // attempt. Note that normal renewals do not count as a recovery attempt,
+  // however onboarding does,  either with a preregistered key or registration
+  // secret. This corresponds with the last time `bound_bot_instance_id` was
+  // updated.
+  google.protobuf.Timestamp LastRecoveredAt = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_recovered_at,omitempty"
+  ];
+
+  // LastRotatedAt contains a timestamp of the last time the keypair was
+  // rotated, if any. This is not set at initial join.
+  google.protobuf.Timestamp LastRotatedAt = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_rotated_at,omitempty"
+  ];
+}
+
 // StaticTokensV2 implements the StaticTokens interface.
 message StaticTokensV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -1806,7 +2013,7 @@ message StaticTokensV2 {
 
   // Kind is a resource kind
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource sub kind, used in some resources
+  // SubKind is an optional resource sub kind, used in some csd presources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is version
   string Version = 3 [(gogoproto.jsontag) = "version"];
@@ -2138,7 +2345,6 @@ message AuthPreferenceSpecV2 {
   string Type = 1 [(gogoproto.jsontag) = "type"];
 
   // SecondFactor is the type of mult-factor.
-  // Deprecated: Prefer using SecondFactors instead.
   string SecondFactor = 2 [
     deprecated = true,
     (gogoproto.jsontag) = "second_factor,omitempty",
@@ -2242,6 +2448,10 @@ message AuthPreferenceSpecV2 {
   // SecondFactors is a list of supported multi-factor types.
   // 1 is "otp", 2 is "webauthn", 3 is "sso",
   // If unspecified, the current default value is [1], or ["otp"].
+  //
+  // WARNING: only set SecondFactors if your cluster is fully upgraded to v17+.
+  // Due to a version compatibility bug, v16 teleport services do not properly
+  // handle this setting and may fail to start as a result.
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
 
   // StableUnixUserConfig contains the cluster-wide configuration for stable
@@ -2372,6 +2582,13 @@ message HardwareKey {
   // SerialNumberValidation holds settings for hardware key serial number validation.
   // By default, serial number validation is disabled.
   HardwareKeySerialNumberValidation SerialNumberValidation = 2 [(gogoproto.jsontag) = "serial_number_validation,omitempty"];
+
+  // PinCacheTTL is the amount of time in nanoseconds that Teleport clients
+  // will cache the user's PIV PIN when hardware key PIN policy is enabled.
+  int64 PinCacheTTL = 3 [
+    (gogoproto.jsontag) = "pin_cache_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 message HardwareKeySerialNumberValidation {
@@ -2540,6 +2757,18 @@ message PromotedAccessList {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Title is the title of the access list.
   string Title = 2 [(gogoproto.jsontag) = "title"];
+}
+
+// AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+message AccessRequestDryRunEnrichment {
+  // ReasonMode specifies the reason mode for this Access Request as defined in
+  // [AccessRequestConditionsReason].reason.
+  string ReasonMode = 1 [
+    (gogoproto.jsontag) = "reason_mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
+  // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
 }
 
 // AccessReview is a review to be applied to an Access Request.
@@ -2763,6 +2992,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expiry,omitempty"
   ];
+
+  // DryRunEnrichment contains the extra info added in response to a dry run request.
+  AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
 }
 
 enum AccessRequestScope {
@@ -4731,12 +4963,22 @@ message ResourceWithSecretsRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // WithSecrets specifies whether to load associated secrets.
   bool WithSecrets = 2 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+  // SAMLValidationNoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  // ResourceWithSecretsRequest is not a great place for this field but it's
+  // necessary for backward compatibility.
+  bool SAMLValidationNoFollowURLs = 3 [(gogoproto.jsontag) = "saml_validation_no_follow_urls"];
 }
 
 // ResourcesWithSecretsRequest is a request relating to resources with secrets.
 message ResourcesWithSecretsRequest {
   // WithSecrets specifies whether to load associated secrets.
   bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+  // SAMLValidationNoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  // ResourceWithSecretsRequest is not a great place for this field but it's
+  // necessary for backward compatibility.
+  bool SAMLValidationNoFollowURLs = 2 [(gogoproto.jsontag) = "saml_validation_no_follow_urls"];
 }
 
 // ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
@@ -5060,6 +5302,14 @@ message SAMLConnectorSpecV2 {
   // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
   // is treated as NO.
   SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
+  // PreferredRequestBinding is a preferred SAML request binding method.
+  // Value must be either "http-post" or "http-redirect".
+  // In general, the SAML identity provider lists request binding methods it supports.
+  // And the SAML service provider uses one of the IdP supported request binding method that it prefers.
+  // But we never honored request binding value provided by the IdP and always used http-redirect
+  // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
+  // auth connector behavior and only use http-post binding if it is explicitly configured.
+  string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5112,6 +5362,7 @@ message SAMLAuthRequest {
   bool CheckUser = 4 [(gogoproto.jsontag) = "check_user"];
 
   // RedirectURL will be used by browser.
+  // Value only set if the PreferredRequestBinding "http-redirect".
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
 
   // PublicKey is an optional public key, users want these
@@ -5178,6 +5429,12 @@ message SAMLAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // PostForm is the HTML form value that contains the SAML authentication request data.
+  // Value is only set if the PreferredRequestBinding in the SAMLConnectorSpecV2
+  // is "http-post". In any other case, RedirectURL field will be populated.
+  bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
+  // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
+  string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -6506,6 +6763,10 @@ message PluginSpecV1 {
     PluginMSTeamsSettings msteams = 18;
     // Settings for the OpenTex NetIQ plugin.
     PluginNetIQSettings net_iq = 19;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // generation contains a unique ID that should:
@@ -6711,6 +6972,13 @@ message PluginOktaSyncSettings {
   // that has not been yet updated and during the next update the value will be set to "org" if
   // AppID is empty or "saml_app" if not.
   string user_sync_source = 11;
+
+  // bool enable_system_log_export" = 12; // v18
+
+  // DisableAssignDefaultRoles prevents the builtin okta-requester role from being assigned to all
+  // synchronized users. This is allows for a more advanced RBAC setup where not all
+  // Okta-originated users are allowed request all Okta-originated resources.
+  bool disable_assign_default_roles = 13;
 }
 
 // Defines a set of discord channel IDs
@@ -6903,6 +7171,19 @@ message PluginAWSICSettings {
   // Credentials represents the AWS credentials used by the Identity Center
   // integration
   AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+
+  // RolesSyncMode indicates how the Identity Center integration will create and
+  // manage roles representing potential Identity Center Account Assignments.
+  //
+  // Possible values are ALL or NONE:
+  //  ALL:           indicates that the AWS Identity Center integration should
+  //                 create and maintain roles for all possible Account Assignments.
+  //  NONE:          indicates that the AWS Identity Center integration should
+  //                 not create any roles representing potential account Account
+  //                 Assignments.
+  // For backwards compatibility, an empty value is treated as equivalent to
+  // to ALL
+  string roles_sync_mode = 12;
 }
 
 // AWSICCredentials holds the credentials for authenticating with AWS
@@ -6948,6 +7229,15 @@ message AWSICResourceFilter {
     // NameRegex indicates that the resource should be included its name matches
     // the supplied regex.
     string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
+
+  // Exclude specifies which AWS resources should be explicitly excluded.
+  oneof exclude {
+    // ExcludeId indicates that a resource should be excluded by exact ID.
+    string exclude_id = 3 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // ExcludeNameRegex excludes resources whose name matches this regex.
+    string exclude_name_regex = 4 [(gogoproto.jsontag) = "name_regex,omitempty"];
   }
 }
 
@@ -7107,6 +7397,10 @@ message PluginStatusV1 {
     PluginAWSICStatusV1 aws_ic = 8;
     // NetIQ holds status details for the NetIQ plugin.
     PluginNetIQStatusV1 net_iq = 9;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -7160,6 +7454,10 @@ enum PluginStatusCode {
   // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
   // that the bot has not been invited to a channel that it is configured to post in.
   SLACK_NOT_IN_CHANNEL = 10;
+
+  // OKTA_CONFIG_ERROR is an Okta-specific code that indicates a configuration error with setup or
+  // permissions within Okta.
+  OKTA_CONFIG_ERROR = 20;
 }
 
 // OktaPluginSyncStatusCode indicates the possible states of an Okta
@@ -7212,6 +7510,10 @@ message PluginOktaStatusDetailsSSO {
 
   // AppName is the human-readable name of the Okta Applicaion used for SSO.
   string app_name = 3;
+
+  // OktaGroupEveryoneMappedRoles are the role(s) that will be granted to Okta users
+  // through SSO or synchronization.
+  repeated string okta_group_everyone_mapped_roles = 4;
 }
 
 // PluginOktaStatusDetailsAppGroupSync are details related to the

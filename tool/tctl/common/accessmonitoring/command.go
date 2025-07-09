@@ -25,10 +25,10 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/asciitable"

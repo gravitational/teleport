@@ -41,6 +41,18 @@ let tshAppPlist;
 // protocols.name below.
 const appId = 'gravitational.teleport.connect';
 
+// Remap Teleport env vars to electron-builder equivalents if they are set.
+// TEAMID is provided automatically by `make release-connect`.
+if (process.env.APPLE_USERNAME) {
+  process.env.APPLE_ID = process.env.APPLE_USERNAME;
+}
+if (process.env.APPLE_PASSWORD) {
+  process.env.APPLE_APP_SPECIFIC_PASSWORD = process.env.APPLE_PASSWORD;
+}
+if (process.env.TEAMID) {
+  process.env.APPLE_TEAM_ID = process.env.TEAMID;
+}
+
 /**
  * @type { import('electron-builder').Configuration }
  */
@@ -48,9 +60,6 @@ module.exports = {
   appId,
   asar: true,
   asarUnpack: '**\\*.{node,dll}',
-  // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
-  // mac target.
-  afterSign: 'notarize.js',
   afterPack: packed => {
     // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
     // file it finds, causing signature verification to fail for tsh.app that gets
@@ -102,9 +111,7 @@ module.exports = {
     target: 'dmg',
     category: 'public.app-category.developer-tools',
     type: 'distribution',
-    // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
-    // mac target.
-    notarize: false,
+    notarize: true,
     hardenedRuntime: true,
     gatekeeperAssess: false,
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
@@ -152,30 +159,32 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
-    // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
-    // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
-    signingHashAlgorithms: ['sha256'],
-    sign: customSign => {
-      if (process.env.CI !== 'true') {
-        console.warn('Not running in CI pipeline: signing will be skipped');
-        return;
-      }
+    signtoolOptions: {
+      // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
+      // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
+      signingHashAlgorithms: ['sha256'],
+      sign: customSign => {
+        if (process.env.CI !== 'true') {
+          console.warn('Not running in CI pipeline: signing will be skipped');
+          return;
+        }
 
-      spawnSync(
-        'powershell',
-        [
-          '-noprofile',
-          '-executionpolicy',
-          'bypass',
-          '-c',
-          "$ProgressPreference = 'SilentlyContinue'; " +
-            "$ErrorActionPreference = 'Stop'; " +
-            '$PSNativeCommandUseErrorActionPreference = $true; ' +
-            '. ../../../build.assets/windows/build.ps1; ' +
-            `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
-        ],
-        { stdio: 'inherit' }
-      );
+        spawnSync(
+          'powershell',
+          [
+            '-noprofile',
+            '-executionpolicy',
+            'bypass',
+            '-c',
+            "$ProgressPreference = 'SilentlyContinue'; " +
+              "$ErrorActionPreference = 'Stop'; " +
+              '$PSNativeCommandUseErrorActionPreference = $true; ' +
+              '. ../../../build.assets/windows/build.ps1; ' +
+              `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+          ],
+          { stdio: 'inherit' }
+        );
+      },
     },
     artifactName: '${productName} Setup-${version}.${ext}',
     icon: 'build_resources/icon-win.ico',

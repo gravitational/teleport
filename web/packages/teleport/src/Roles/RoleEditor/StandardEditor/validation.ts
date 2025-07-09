@@ -32,13 +32,19 @@ import {
 } from 'teleport/services/resources';
 
 import {
+  AppAccess,
+  DatabaseAccess,
+  KubernetesAccess,
   KubernetesResourceModel,
   KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
+  ResourceKindOption,
   RoleEditorModel,
   RuleModel,
+  ServerAccess,
   VerbModel,
+  WindowsDesktopAccess,
 } from './standardmodel';
 
 export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
@@ -121,8 +127,14 @@ function validateMetadata(
   return runRules(model, metadataRules);
 }
 
+const mustBeFalse = (message: string) => (value: boolean) => () => ({
+  valid: !value,
+  message: value ? message : '',
+});
+
 const metadataRules = {
   name: requiredField('Role name is required'),
+  nameCollision: mustBeFalse('Role with this name already exists'),
   labels: nonEmptyLabels,
 };
 export type MetadataValidationResult = RuleSetValidationResult<
@@ -154,17 +166,17 @@ export function validateResourceAccess(
   const { kind } = resource;
   switch (kind) {
     case 'kube_cluster':
-      return runRules(resource, kubernetesAccessValidationRules);
+      return validateKubernetesAccess(resource);
     case 'node':
-      return runRules(resource, serverAccessValidationRules);
+      return validateServerAccess(resource);
     case 'app':
-      return runRules(resource, appAccessValidationRules);
+      return validateAppAccess(resource);
     case 'db':
-      return runRules(resource, databaseAccessValidationRules);
+      return validateDatabaseAccess(resource);
     case 'windows_desktop':
-      return runRules(resource, windowsDesktopAccessValidationRules);
+      return validateWindowsDesktopAccess(resource);
     case 'git_server':
-      return { valid: true };
+      return runRules(resource, gitHubOrganizationAccessValidationRules);
     default:
       kind satisfies never;
   }
@@ -248,7 +260,31 @@ const validKubernetesVerbs = (
   };
 };
 
+const validateKubernetesAccess = (
+  a: KubernetesAccess
+): KubernetesAccessValidationResult => {
+  const result = runRules(a, kubernetesAccessValidationRules);
+  if (
+    a.groups.length === 0 &&
+    a.users.length === 0 &&
+    a.labels.length === 0 &&
+    a.resources.length === 0
+  ) {
+    result.valid = false;
+    result.message = 'At least one group, user, label, or resource required';
+    result.fields.groups.valid = false;
+    result.fields.users.valid = false;
+    result.fields.labels.valid = false;
+    result.fields.resources.valid = false;
+  }
+  return result;
+};
+
+const alwaysValid = () => () => ({ valid: true });
+
 const kubernetesAccessValidationRules = {
+  groups: alwaysValid,
+  users: alwaysValid,
   labels: nonEmptyLabels,
   resources: arrayOf(validKubernetesResource),
 };
@@ -266,6 +302,19 @@ const noWildcardOptions = (message: string) => (options: Option[]) => () => {
   return { valid, message: valid ? '' : message };
 };
 
+const validateServerAccess = (
+  a: ServerAccess
+): ServerAccessValidationResult => {
+  const result = runRules(a, serverAccessValidationRules);
+  if (a.labels.length === 0 && a.logins.length === 0) {
+    result.valid = false;
+    result.message = 'At least one label or login required';
+    result.fields.labels.valid = false;
+    result.fields.logins.valid = false;
+  }
+  return result;
+};
+
 const serverAccessValidationRules = {
   labels: nonEmptyLabels,
   logins: noWildcardOptions('Wildcard is not allowed in logins'),
@@ -273,6 +322,25 @@ const serverAccessValidationRules = {
 export type ServerAccessValidationResult = RuleSetValidationResult<
   typeof serverAccessValidationRules
 >;
+
+const validateAppAccess = (a: AppAccess): AppAccessValidationResult => {
+  const result = runRules(a, appAccessValidationRules);
+  if (
+    a.labels.length === 0 &&
+    a.awsRoleARNs.length === 0 &&
+    a.azureIdentities.length === 0 &&
+    a.gcpServiceAccounts.length === 0
+  ) {
+    result.valid = false;
+    result.message =
+      'At least one label, AWS role ARN, Azure identity, or GCP service account required';
+    result.fields.labels.valid = false;
+    result.fields.awsRoleARNs.valid = false;
+    result.fields.azureIdentities.valid = false;
+    result.fields.gcpServiceAccounts.valid = false;
+  }
+  return result;
+};
 
 const appAccessValidationRules = {
   labels: nonEmptyLabels,
@@ -288,8 +356,33 @@ export type AppAccessValidationResult = RuleSetValidationResult<
   typeof appAccessValidationRules
 >;
 
+const validateDatabaseAccess = (
+  a: DatabaseAccess
+): DatabaseAccessValidationResult => {
+  const result = runRules(a, databaseAccessValidationRules);
+  if (
+    a.labels.length === 0 &&
+    a.names.length === 0 &&
+    a.users.length === 0 &&
+    a.roles.length === 0 &&
+    a.dbServiceLabels.length === 0
+  ) {
+    result.valid = false;
+    result.message =
+      'At least one label, database name, user, role, or service label required';
+    result.fields.labels.valid = false;
+    result.fields.names.valid = false;
+    result.fields.users.valid = false;
+    result.fields.roles.valid = false;
+    result.fields.dbServiceLabels.valid = false;
+  }
+  return result;
+};
+
 const databaseAccessValidationRules = {
   labels: nonEmptyLabels,
+  names: alwaysValid,
+  users: alwaysValid,
   roles: noWildcardOptions('Wildcard is not allowed in database roles'),
   dbServiceLabels: nonEmptyLabels,
 };
@@ -297,14 +390,33 @@ export type DatabaseAccessValidationResult = RuleSetValidationResult<
   typeof databaseAccessValidationRules
 >;
 
+const validateWindowsDesktopAccess = (
+  a: WindowsDesktopAccess
+): WindowsDesktopAccessValidationResult => {
+  const result = runRules(a, windowsDesktopAccessValidationRules);
+  if (a.labels.length === 0 && a.logins.length === 0) {
+    result.valid = false;
+    result.message = 'At least one label or login required';
+    result.fields.labels.valid = false;
+    result.fields.logins.valid = false;
+  }
+  return result;
+};
+
 const windowsDesktopAccessValidationRules = {
   labels: nonEmptyLabels,
+  logins: alwaysValid,
 };
 export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
 >;
 
-export type GitHubOrganizationAccessValidationResult = ValidationResult;
+const gitHubOrganizationAccessValidationRules = {
+  organizations: requiredField<Option>('At least one organization required'),
+};
+export type GitHubOrganizationAccessValidationResult = RuleSetValidationResult<
+  typeof gitHubOrganizationAccessValidationRules
+>;
 
 export function validateAdminRuleList(
   rules: RuleModel[],
@@ -337,7 +449,9 @@ const requiredVerbs = (message: string) => (verbs: VerbModel[]) => () => {
 };
 
 const adminRuleValidationRules = {
-  resources: requiredField('At least one resource kind is required'),
+  resources: requiredField<ResourceKindOption>(
+    'At least one resource kind is required'
+  ),
   verbs: requiredVerbs('At least one permission is required'),
 };
 export type AdminRuleValidationResult = RuleSetValidationResult<

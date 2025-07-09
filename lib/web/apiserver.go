@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -136,6 +138,10 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -378,7 +384,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
 		return
@@ -389,7 +395,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundApp := servers[0].GetApp()
+	foundApp := servers[rand.N(len(servers))].GetApp()
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
@@ -512,13 +518,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         findEndpointCacheTTL,
+		TTL:         cmcCacheTTL,
 		Clock:       h.clock,
 		Context:     cfg.Context,
 		ReloadOnErr: false,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating /find cache")
+		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
 	}
 	h.clusterMaintenanceConfigCache = cmcCache
 
@@ -658,7 +664,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -710,7 +716,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 	})
@@ -991,6 +997,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
@@ -1162,6 +1169,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -1357,6 +1369,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		Local:                   &webclient.LocalSettings{},
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1400,6 +1413,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1422,6 +1436,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1440,6 +1455,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1494,14 +1510,14 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnectorWithValidationOptions(ctx, authPreference.GetConnectorName(), false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
+			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1635,7 +1651,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
 		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientVersion,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
@@ -1667,7 +1683,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			Proxy:            *proxyConfig,
 			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
-			MinClientVersion: teleport.MinClientVersion,
+			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
@@ -1699,7 +1715,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
+		MinClientVersion: teleport.MinClientSemVer().String(),
 		ClusterName:      h.auth.clusterName,
 	}
 
@@ -1734,7 +1750,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err == nil {
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
@@ -1788,7 +1804,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
@@ -2336,18 +2352,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
-
-	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
-	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+	if u.Path == sso.WebMFARedirect {
+		// Transform the web sso mfa redirectURL into a relative redirect, preserving
+		// query parameters while ignoring scheme, hostname, and other url parts.
 		q := u.Query()
 		q.Add("response", string(out))
-		u.RawQuery = q.Encode()
-		return u, nil
+		return &url.URL{
+			Path:     sso.WebMFARedirect,
+			RawQuery: q.Encode(),
+		}, nil
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -3191,9 +3208,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				r.GetApp().GetName(): allowedAWSRoles,
 			}
 
+			proxyDNSName := h.proxyDNSName()
+			if r.GetApp().GetUseAnyProxyPublicAddr() {
+				// let the current proxy user is connected to override the dns name
+				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
+			}
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     h.proxyDNSName(),
+				LocalProxyDNSName:     proxyDNSName,
 				AppClusterName:        site.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
@@ -3864,6 +3887,7 @@ func (h *Handler) podConnect(
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,
 		configTLSServerName: tlsServerName,
+		publicProxyAddr:     h.cfg.PublicProxyAddr,
 	}
 
 	ph.ServeHTTP(w, r)
@@ -3936,7 +3960,7 @@ func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx 
 		return session.Session{}, trace.Wrap(err)
 	}
 	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
+	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
 		Kind:           types.SSHSessionKind,
@@ -4008,7 +4032,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
-	accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+	accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 
 	return session.Session{
 		Kind:      tracker.GetSessionKind(),
@@ -4054,7 +4078,7 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	accessContext := auth.SessionAccessContext{
+	accessContext := moderation.SessionAccessContext{
 		Username: sctx.GetUser(),
 		Roles:    userRoles,
 	}
@@ -4064,7 +4088,7 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			session := trackerToLegacySession(tracker, p.ByName("site"))
 			// Get the participant modes available to the user from their roles.
-			accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+			accessEvaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 			participantModes := accessEvaluator.CanJoin(accessContext)
 
 			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
@@ -4769,7 +4793,8 @@ func checkTokenTTL(tok types.ProvisionToken) bool {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
-func isValidRedirectURL(redirectURL string) bool {
+// IsValidRedirectURL validates redirect URL.
+func IsValidRedirectURL(redirectURL string) bool {
 	u, err := url.ParseRequestURI(redirectURL)
 	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
@@ -4780,7 +4805,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4794,7 +4819,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)

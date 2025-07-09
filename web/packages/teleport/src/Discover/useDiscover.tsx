@@ -19,12 +19,13 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
 import cfg from 'teleport/config';
-import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { App } from 'teleport/services/apps';
 import type { Database } from 'teleport/services/databases';
@@ -40,6 +41,7 @@ import type { Node } from 'teleport/services/nodes';
 import type {
   SamlGcpWorkforce,
   SamlIdpServiceProvider,
+  SamlMicrosoftEntraId,
 } from 'teleport/services/samlidp/types';
 import {
   DiscoverDiscoveryConfigMethod,
@@ -610,6 +612,7 @@ export type AppMeta = BaseMeta & {
 export type SamlMeta = BaseMeta & {
   samlGeneric?: SamlIdpServiceProvider;
   samlGcpWorkforce?: SamlGcpWorkforce;
+  samlMicrosoftEntraId?: SamlMicrosoftEntraId;
 };
 
 export type AgentMeta =

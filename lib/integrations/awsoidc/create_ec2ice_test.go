@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 )
 
 type mockCreateEC2ICEClient struct {

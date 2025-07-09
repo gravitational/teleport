@@ -107,6 +107,23 @@ get_labels() {
   echo "$LABELS"
 }
 
+install_deps() {
+  # shellcheck disable=SC1091
+  . /etc/os-release
+
+  if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
+    sudo apt-get update
+    sudo apt-get install -y jq
+  elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
+    sudo yum install -y jq
+  elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
+    sudo zypper --non-interactive install -y jq
+  else
+    echo "Unsupported distro: $ID"
+    exit 1
+  fi
+}
+
 install_teleport() {
   # shellcheck disable=SC1091
   . /etc/os-release
@@ -210,6 +227,7 @@ install_teleport() {
 
   TOKEN="$1"
 
+  install_deps
   if ! test -f /usr/local/bin/teleport; then
     install_teleport
   fi

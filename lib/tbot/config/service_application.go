@@ -35,6 +35,8 @@ var (
 const ApplicationOutputType = "application"
 
 type ApplicationOutput struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 	// Roles is the list of roles to request for the generated credentials.
@@ -66,6 +68,11 @@ func (o *ApplicationOutput) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *ApplicationOutput) GetName() string {
+	return o.Name
 }
 
 func (o *ApplicationOutput) GetDestination() bot.Destination {

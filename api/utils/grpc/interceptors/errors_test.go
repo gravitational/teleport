@@ -80,6 +80,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		assert.Equal(t, "not found", err.Error())
 
 		var traceErr *trace.TraceErr
+		//nolint:testifylint //assert.NotErrorsAs does not exist until later versions of testify
 		assert.False(t, errors.As(err, &traceErr), "client error should not include traces originating in the middleware")
 		var remoteErr *interceptors.RemoteError
 		assert.ErrorAs(t, err, &remoteErr, "Remote error is not marked as an interceptors.RemoteError")
@@ -110,6 +111,8 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		assert.True(t, trace.IsAlreadyExists(err), "trace.IsAlreadyExists failed: err=%v (%T)", err, trace.Unwrap(err))
 		assert.Equal(t, "already exists", err.Error())
 		var traceErr *trace.TraceErr
+
+		//nolint:testifylint //assert.NotErrorsAs does not exist until later versions of testify
 		assert.False(t, errors.As(err, &traceErr), "client error should not include traces originating in the middleware")
 		assert.True(t, trace.IsAlreadyExists(err), "trace.IsAlreadyExists failed: err=%v (%T)", err, trace.Unwrap(err))
 		var remoteErr *interceptors.RemoteError

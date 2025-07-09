@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -255,6 +258,9 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	}
 	if cfg.Auth.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
+	}
+	if cfg.Kube.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.KubernetesReady)
 	}
 	waitForEvents(t, auth, serviceReadyEvents...)
 
@@ -546,7 +552,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -706,10 +712,23 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		})
 		go ssh.DiscardRequests(reqs)
 
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
 		var agentForwarded bool
 		var shellRequested bool
 		var execRequested bool
-		for channelReq := range channels {
+		var sftpRequested bool
+		for {
+			var channelReq ssh.NewChannel
+			select {
+			case channelReq = <-channels:
+				if channelReq == nil { // server is closed
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
 			if !assert.Equal(t, "session", channelReq.ChannelType()) {
 				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
 				continue
@@ -721,28 +740,56 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				_ = channel.Close()
 			})
 
-		outer:
-			for req := range reqs {
-				if req.WantReply {
-					assert.NoError(t, req.Reply(true, nil))
+			go func() {
+			outer:
+				for {
+					var req *ssh.Request
+					select {
+					case req = <-reqs:
+						if req == nil { // channel is closed
+							return
+						}
+					case <-ctx.Done():
+						break outer
+					}
+					if req.WantReply {
+						assert.NoError(t, req.Reply(true, nil))
+					}
+					switch req.Type {
+					case sshutils.AgentForwardRequest:
+						agentForwarded = true
+					case sshutils.ShellRequest:
+						assert.NoError(t, channel.Close())
+						shellRequested = true
+						break outer
+					case sshutils.ExecRequest:
+						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
+						assert.NoError(t, err)
+						assert.NoError(t, channel.Close())
+						execRequested = true
+						break outer
+					case sshutils.SubsystemRequest:
+						var r sshutils.SubsystemReq
+						err := ssh.Unmarshal(req.Payload, &r)
+						assert.NoError(t, err)
+						assert.Equal(t, "sftp", r.Name)
+						sftpRequested = true
+
+						sftpServer, err := sftp.NewServer(channel)
+						assert.NoError(t, err)
+						go sftpServer.Serve()
+						t.Cleanup(func() {
+							err := sftpServer.Close()
+							if err != nil {
+								assert.ErrorIs(t, err, io.EOF)
+							}
+						})
+						break outer
+					}
 				}
-				switch req.Type {
-				case sshutils.AgentForwardRequest:
-					agentForwarded = true
-				case sshutils.ShellRequest:
-					assert.NoError(t, channel.Close())
-					shellRequested = true
-					break outer
-				case sshutils.ExecRequest:
-					_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
-					assert.NoError(t, err)
-					assert.NoError(t, channel.Close())
-					execRequested = true
-					break outer
-				}
-			}
+				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
+			}()
 		}
-		assert.True(t, (agentForwarded && shellRequested) || execRequested)
 	}()
 
 	return lis.Addr().String()

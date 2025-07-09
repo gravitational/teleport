@@ -26,9 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -85,9 +83,11 @@ var log = logrus.WithFields(logrus.Fields{
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
 	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+	WriteTeleportVersion(ctx context.Context, version semver.Version) error
+	// DeleteTeleportVersion removes the last known Teleport version in storage.
+	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config
@@ -335,6 +335,13 @@ type InitConfig struct {
 	// WorkloadIdentityX509Revocations.
 	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
 
+	// WorkloadIdentityX509Overrides handles the storage for workload
+	// identity-related X.509 certificate overrides.
+	WorkloadIdentityX509Overrides services.WorkloadIdentityX509Overrides
+
+	// SigstorePolicies handles the storage for Sigstore policy objects.
+	SigstorePolicies services.SigstorePolicies
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
@@ -361,6 +368,12 @@ type InitConfig struct {
 
 	// StableUNIXUsers handles the storage for stable UNIX users.
 	StableUNIXUsers services.StableUNIXUsersInternal
+
+	// BackendInfo is a service of backend information.
+	BackendInfo services.BackendInfoService
+
+	// SkipVersionCheck skips version check during major version upgrade/downgrade.
+	SkipVersionCheck bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -408,8 +421,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
-		return trace.Wrap(err)
+
+	if cfg.SkipVersionCheck {
+		if err := upsertTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// if bootstrap resources are supplied, use them to bootstrap backend state
@@ -666,7 +686,11 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	}
 
 	// Collect CAs from integrations to avoid deleting them.
-	err := clientutils.IterateResources(ctx, asrv.Services.ListIntegrations, func(ig types.Integration) error {
+	for ig, err := range clientutils.Resources(ctx, asrv.Services.ListIntegrations) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
 		switch {
 		case trace.IsNotImplemented(err):
@@ -678,9 +702,6 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
 		}
 		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
@@ -767,7 +788,10 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			" this cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/",
 			caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
 	}
-
+	ca, err = applyAuthorityConfig(ctx, asrv, ca)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	keysInUse := collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
 	return usableKeysResult, keysInUse, nil
 }
@@ -785,6 +809,59 @@ func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
 		}
 	}
 	return keysInUse
+}
+
+// applyAuthorityConfig applies the latest keystore config to active keys updating
+// the stored CA if any changes occur.
+func applyAuthorityConfig(ctx context.Context, asrv *Server, ca types.CertAuthority) (types.CertAuthority, error) {
+	activeKeys := ca.GetActiveKeys()
+	var (
+		changed bool
+		err     error
+	)
+
+	apply := func(curr []byte) ([]byte, error) {
+		next, err := asrv.keyStore.ApplyMultiRegionConfig(ctx, curr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Equal(curr, next) {
+			changed = true
+		}
+		return next, nil
+	}
+
+	for _, key := range activeKeys.SSH {
+		key.PrivateKey, err = apply(key.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, key := range activeKeys.TLS {
+		key.Key, err = apply(key.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, key := range activeKeys.JWT {
+		key.PrivateKey, err = apply(key.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if !changed {
+		return ca, nil
+	}
+	if err := ca.SetActiveKeys(activeKeys); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// This is only executed during cluster init while holding a lock to prevent
+	// other auth servers from updating CAs simulaniously.
+	ca, err = asrv.UpdateCertAuthority(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ca, nil
 }
 
 // generateAuthority creates a new self-signed authority of the provided type
@@ -864,15 +941,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
 		}
 
@@ -900,6 +976,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			// would unset the default suite after the first auth restart.
 			newAuthPref = newAuthPref.Clone()
 			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
+		if err := modules.ValidateResource(newAuthPref); err != nil {
+			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			}
+
+			return trace.Wrap(err)
 		}
 
 		if storedAuthPref == nil {
@@ -1211,13 +1295,13 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 
 		if types.IsSystemResource(user) {
 			// System resources *always* get reset on every auth startup
-			if user, err := um.UpsertUser(ctx, user); err != nil {
+			if _, err := um.UpsertUser(ctx, user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}
 			continue
 		}
 
-		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+		if _, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}

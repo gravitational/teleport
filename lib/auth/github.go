@@ -41,7 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -691,9 +691,9 @@ func (a *Server) makeGithubAuthResponse(
 		return nil, trace.Wrap(err)
 	}
 	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SshAttestationStatement),
-		keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
 	)
 	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
 		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
@@ -1027,20 +1027,34 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 		// they're used a lot in test code
 		return nil
 	}
+
 	u, err := url.Parse(clientRedirect)
 	if err != nil {
 		return trace.Wrap(err, "parsing client redirect URL")
 	}
-	if u.Path == sso.WebMFARedirect {
-		// If this is a SSO redirect in the WebUI, allow.
-		return nil
-	}
+
 	if u.Opaque != "" {
 		return trace.BadParameter("unexpected opaque client redirect URL")
 	}
 	if u.User != nil {
 		return trace.BadParameter("unexpected userinfo in client redirect URL")
 	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return trace.BadParameter("unexpected fragment in client redirect URL")
+	}
+
+	// For Web MFA redirect, we expect a relative path. The proxy handling the SSO callback
+	// will will redirect to itself with this relative path.
+	if u.Path == sso.WebMFARedirect {
+		if u.IsAbs() {
+			return trace.BadParameter("invalid scheme in client redirect URL for SSO MFA")
+		}
+		if u.Hostname() != "" {
+			return trace.BadParameter("invalid host name in client redirect URL for SSO MFA")
+		}
+		return nil
+	}
+
 	if u.EscapedPath() != "/callback" {
 		return trace.BadParameter("invalid path in client redirect URL")
 	}
@@ -1048,9 +1062,6 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 		return trace.Wrap(err, "parsing query in client redirect URL")
 	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
 		return trace.BadParameter("malformed query parameters in client redirect URL")
-	}
-	if u.Fragment != "" || u.RawFragment != "" {
-		return trace.BadParameter("unexpected fragment in client redirect URL")
 	}
 
 	// we checked everything but u.Scheme and u.Host now

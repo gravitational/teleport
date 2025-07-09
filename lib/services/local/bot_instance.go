@@ -18,6 +18,8 @@ package local
 
 import (
 	"context"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -89,17 +91,45 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instan
 	return instance, trace.Wrap(err)
 }
 
-// ListBotInstances lists all bot instances matching the given bot name filter.
-// If an empty bot name is provided, all bot instances will be fetched.
-func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string) ([]*machineidv1.BotInstance, string, error) {
-	// If botName is empty, return instances for all bots by not using a service prefix
+// ListBotInstances lists all matching bot instances. A bot name and/or search terms can be optionally provided.
+// If an non-empty bot name is provided, only instances for that bot will be fetched.
+// If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
+// Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest)
+func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string) ([]*machineidv1.BotInstance, string, error) {
+	var service *generic.ServiceWrapper[*machineidv1.BotInstance]
 	if botName == "" {
-		r, nextToken, err := b.service.ListResources(ctx, pageSize, lastKey)
+		// If botName is empty, return instances for all bots by not using a service prefix
+		service = b.service
+	} else {
+		service = b.service.WithPrefix(botName)
+	}
+
+	if search == "" {
+		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
-	serviceWithPrefix := b.service.WithPrefix(botName)
-	r, nextToken, err := serviceWithPrefix.ListResources(ctx, pageSize, lastKey)
+	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
+		latestHeartbeats := item.GetStatus().GetLatestHeartbeats()
+		heartbeat := item.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+		if len(latestHeartbeats) > 0 {
+			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+		}
+
+		values := []string{
+			item.Spec.BotName,
+			item.Spec.InstanceId,
+		}
+
+		if heartbeat != nil {
+			values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+		}
+
+		return slices.ContainsFunc(values, func(val string) bool {
+			return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+		})
+	})
+
 	return r, nextToken, trace.Wrap(err)
 }
 

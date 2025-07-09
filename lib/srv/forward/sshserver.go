@@ -44,8 +44,8 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -607,7 +607,7 @@ func (s *Server) Serve() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
 		// the user and gracefully fail if the user is attempting to create one.
 		policySets := s.identityContext.AccessChecker.SessionPolicySets()
-		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
+		evaluator := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {
 			s.rejectChannel(chans, "Moderated sessions cannot be created for OpenSSH nodes")
 			sconn.Close()
@@ -1121,7 +1121,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardFailureCode, scx.DstAddr)
+	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
 		scx.WithError(err).Warn("Failed to emit port forward event.")
 	}
@@ -1478,7 +1478,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	}
 
 	// if SFTP was requested, check that
-	if subsystem.subsystemName == teleport.SFTPSubsystem {
+	if subsystem.Name() == teleport.SFTPSubsystem {
 		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
 		if err != nil {
 			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
@@ -1499,7 +1499,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
 		serverContext.SendSubsystemResult(srv.SubsystemResult{
-			Name: subsystem.subsystemName,
+			Name: subsystem.Name(),
 			Err:  trace.Wrap(err),
 		})
 		return trace.Wrap(err)
@@ -1509,7 +1509,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	go func() {
 		err := subsystem.Wait()
 		serverContext.SendSubsystemResult(srv.SubsystemResult{
-			Name: subsystem.subsystemName,
+			Name: subsystem.Name(),
 			Err:  trace.Wrap(err),
 		})
 	}()
@@ -1596,7 +1596,7 @@ func (s *Server) stderrWrite(ch ssh.Channel, message string) {
 	}
 }
 
-func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (*remoteSubsystem, error) {
+func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (RemoteSubsystem, error) {
 	var r sshutils.SubsystemReq
 	err := ssh.Unmarshal(req.Payload, &r)
 	if err != nil {

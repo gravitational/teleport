@@ -1,5 +1,5 @@
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   # This is the address that windows_desktop_service will listen on.
   listen_addr: "0.0.0.0:3028"
   # (optional) This is the address that windows_desktop_service will advertise

@@ -77,6 +77,9 @@ enum UserKind {
 
   // Indicates the user associated with this event is a Machine ID bot user.
   USER_KIND_BOT = 2;
+
+  // Indicates that the user associated with this event is a system component e.g. Okta service.
+  USER_KIND_SYSTEM = 3;
 }
 
 // UserOrigin is the origin of a user account.
@@ -279,6 +282,9 @@ message AccessListMemberMetadata {
 
   // Members are all members affected by the access list membership change.
   repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -336,6 +342,9 @@ message AccessListReviewMetadata {
 
   // RemovedMembers are the members that were removed as part of the review.
   repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // LockMetadata contains common metadata for lock resource events.
@@ -1280,6 +1289,9 @@ message UserLogin {
   // AppliedLoginRules stores the name of each login rule that was applied
   // during the login.
   repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
+
+  // ConnectorID is the ID of the connector used
+  string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
@@ -1572,6 +1584,9 @@ message AccessRequestCreate {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // ResourceNames contains the names of the requested resources.
+  repeated string ResourceNames = 17 [(gogoproto.jsontag) = "resource_names,omitempty"];
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -4774,6 +4789,11 @@ message OneOf {
     events.WorkloadIdentityX509RevocationCreate WorkloadIdentityX509RevocationCreate = 201;
     events.WorkloadIdentityX509RevocationDelete WorkloadIdentityX509RevocationDelete = 202;
     events.WorkloadIdentityX509RevocationUpdate WorkloadIdentityX509RevocationUpdate = 203;
+    WorkloadIdentityX509IssuerOverrideCreate WorkloadIdentityX509IssuerOverrideCreate = 208;
+    WorkloadIdentityX509IssuerOverrideDelete WorkloadIdentityX509IssuerOverrideDelete = 209;
+    events.SigstorePolicyCreate SigstorePolicyCreate = 210;
+    events.SigstorePolicyUpdate SigstorePolicyUpdate = 211;
+    events.SigstorePolicyDelete SigstorePolicyDelete = 212;
   }
 }
 
@@ -6330,6 +6350,9 @@ message AccessListCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListUpdate is emitted when an access list is updated.
@@ -6354,6 +6377,9 @@ message AccessListUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListDelete is emitted when an access list is deleted.
@@ -6378,6 +6404,9 @@ message AccessListDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMemberCreate is emitted when an access list member is created.
@@ -6804,6 +6833,12 @@ message SPIFFESVIDIssued {
   // The revision of the WorkloadIdentity resource that was used to issue the
   // SVID. This will be empty if the legacy RPCs were used.
   string WorkloadIdentityRevision = 13 [(gogoproto.jsontag) = "workload_identity_revision,omitempty"];
+  // Attributes is the collection of data that was used to make the decision on
+  // whether to issue the workload identity credential & to perform templating.
+  google.protobuf.Struct Attributes = 14 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
@@ -8101,4 +8136,149 @@ message StableUNIXUserCreate {
 message StableUNIXUser {
   string username = 1;
   int32 uid = 2;
+}
+
+message WorkloadIdentityX509IssuerOverrideCreate {
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+message WorkloadIdentityX509IssuerOverrideDelete {
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SigstorePolicyCreate is emitted when a SigstorePolicy is created.
+message SigstorePolicyCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SigstorePolicyUpdate is emitted when a SigstorePolicy is updated.
+message SigstorePolicyUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SigstorePolicyDelete is emitted when a SigstorePolicy is deleted.
+message SigstorePolicyDelete {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

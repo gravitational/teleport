@@ -285,7 +285,7 @@ When disabled, users can only log in through authentication connectors like `sam
 | `string` | `""`          | No        | `auth_service.authentication.locking_mode` |
 
 `authentication.lockingMode` controls the locking mode cluster-wide. Possible values are `best_effort` and `strict`.
-See [the locking modes documentation](../../admin-guides/access-controls/guides/locking.mdx) for more
+See [the locking modes documentation](../../identity-governance/locking.mdx) for more
 details.
 
 Defaults to Teleport's binary default when empty: `best_effort`.
@@ -303,12 +303,12 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 ### `authentication.secondFactor`
 
 <Admonition type="warning">
-Deprecated, you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
+Deprecated, after upgrading your Teleport cluster to v17.0.0 or higher you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
 </Admonition>
 
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
 |----------|---------------|-----------|---------------------------------------------|
-| `string` | none          | Yes       | `auth_service.authentication.second_factor` |
+| `string` | `on`          | Yes       | `auth_service.authentication.second_factor` |
 
 `authentication.secondFactor` configures multi-factor authentication for local users.
 Possible values supported by this chart are `on`, `otp`, and `webauthn`.
@@ -338,7 +338,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 | Type    | Default value         | Required? | `teleport.yaml` equivalent                   |
 |---------|-----------------------|-----------|----------------------------------------------|
-| `array` | `["otp", "webauthn"]` | No        | `auth_service.authentication.second_factors` |
+| `array` | none                  | No        | `auth_service.authentication.second_factors` |
 
 `authentication.secondFactors` configures multi-factor authentication types.
 Supported item values are `otp`, `sso`, and `webauthn`.
@@ -885,7 +885,7 @@ If you want to run Teleport version `X.Y.Z`, you should use
 `helm --version X.Y.Z` instead.
 </Admonition>
 
-See our [installation guide](../../installation.mdx#docker) for information on
+See our [installation guide](../../installation/docker.mdx) for information on
 Docker image versions.
 
 `values.yaml` example:
@@ -1225,11 +1225,11 @@ Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
 
 ### `aws.accessMonitoring`
 
-`aws.accessMonitoring` configures the [Access Monitoring](../../admin-guides/access-controls/access-monitoring.mdx)
+`aws.accessMonitoring` configures the [Access Monitoring](../../identity-governance/access-monitoring.mdx)
 feature of the Auth Service.
 
 Using this features requires setting up specific AWS infrastructure as described
-in [the AccessMonitoring configuration section](../../admin-guides/access-controls/access-monitoring.mdx).
+in [the AccessMonitoring configuration section](../../identity-governance/access-monitoring.mdx).
 The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 code will output the chart values for this section.
 

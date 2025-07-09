@@ -210,6 +210,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverride, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverrideCSR, RW()),
+					types.NewRule(types.KindSigstorePolicy, RW()),
 				},
 			},
 		},
@@ -730,6 +733,8 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindStaticHostUser, RW()),
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindGitServer, RW()),
+					types.NewRule(types.KindAutoUpdateConfig, RW()),
+					types.NewRule(types.KindAutoUpdateVersion, RW()),
 				},
 			},
 		},
@@ -794,9 +799,10 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 		},
 		teleport.PresetTerraformProviderRoleName: {
-			AppLabels:      wildcardLabels,
-			DatabaseLabels: wildcardLabels,
-			NodeLabels:     wildcardLabels,
+			AppLabels:            wildcardLabels,
+			DatabaseLabels:       wildcardLabels,
+			NodeLabels:           wildcardLabels,
+			WindowsDesktopLabels: wildcardLabels,
 		},
 	}
 
@@ -947,6 +953,7 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 			types.KindDatabaseService,
 			types.KindNode,
 			types.KindUserGroup,
+			types.KindWindowsDesktop,
 		} {
 			var labels types.Labels
 			switch kind {
@@ -960,6 +967,8 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 				labels = defaultLabels.NodeLabels
 			case types.KindUserGroup:
 				labels = defaultLabels.GroupLabels
+			case types.KindWindowsDesktop:
+				labels = defaultLabels.WindowsDesktopLabels
 			}
 			labelsUpdated, err := updateAllowLabels(role, kind, labels)
 			if err != nil {

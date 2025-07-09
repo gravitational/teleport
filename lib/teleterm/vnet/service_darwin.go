@@ -36,11 +36,11 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	if s.networkStackInfo.IfaceName == "" {
+	if s.networkStackInfo.InterfaceName == "" {
 		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
-	if s.networkStackInfo.IPv6Prefix == "" {
+	if s.networkStackInfo.Ipv6Prefix == "" {
 		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
 	}
 
@@ -54,7 +54,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	}
 
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: s.networkStackInfo.IfaceName,
+		VnetIfaceName: s.networkStackInfo.InterfaceName,
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})
@@ -77,17 +77,14 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 }
 
 func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
-	profileNames, err := s.cfg.DaemonService.ListProfileNames()
+	targetOSConfig, err := s.vnetProcess.GetOSConfigProvider().GetTargetOSConfiguration(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	dnsZones, cidrRanges := s.listDNSZonesAndCIDRRanges(ctx, profileNames)
-
 	return &diagv1.NetworkStack{
-		InterfaceName:  s.networkStackInfo.IfaceName,
-		Ipv6Prefix:     s.networkStackInfo.IPv6Prefix,
-		Ipv4CidrRanges: cidrRanges,
-		DnsZones:       dnsZones,
+		InterfaceName:  s.networkStackInfo.InterfaceName,
+		Ipv6Prefix:     s.networkStackInfo.Ipv6Prefix,
+		Ipv4CidrRanges: targetOSConfig.GetIpv4CidrRanges(),
+		DnsZones:       targetOSConfig.GetDnsZones(),
 	}, nil
 }

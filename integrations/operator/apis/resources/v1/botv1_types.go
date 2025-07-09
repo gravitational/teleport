@@ -93,7 +93,9 @@ func (spec *TeleportBotV1Spec) UnmarshalJSON(data []byte) error {
 // necessary for the BotSpec (and other Proto RFD153 resources) to be
 // marshaled correctly into the unstructured object.
 func (spec *TeleportBotV1Spec) MarshalJSON() ([]byte, error) {
-	return protojson.Marshal((*machineidv1.BotSpec)(spec))
+	return protojson.MarshalOptions{
+		UseProtoNames: true,
+	}.Marshal((*machineidv1.BotSpec)(spec))
 }
 
 // DeepCopyInto deep-copies one user spec into another.

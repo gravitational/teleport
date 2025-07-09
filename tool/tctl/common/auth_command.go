@@ -288,7 +288,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI authCommandCl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -517,7 +517,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -877,7 +877,7 @@ func generateKeyRing(ctx context.Context, clusterAPI certificateSigner, purpose 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := keys.NewSoftwarePrivateKey(signer)
+	key, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -195,6 +195,8 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 		return nil, trace.Wrap(err)
 	}
 
+	cfg.AuthServerAddressMode = config.WarnIfAuthServerIsProxy
+
 	return cfg, nil
 }
 
@@ -203,6 +205,21 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 // for explicitly _not_ loading a config file, like in `tbot configure ...`
 func BaseConfigWithMutators(mutators ...ConfigMutator) (*config.BotConfig, error) {
 	cfg := &config.BotConfig{}
+	if err := applyMutators(log, cfg, mutators...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg, nil
+}
+
+// TestConfigWithMutators applies mutators to the input config and returns the
+// result. `CheckAndSetDefaults()` will be called before returning. This is
+// meant for use in tests to avoid needing to load or parse a config file.
+func TestConfigWithMutators(cfg *config.BotConfig, mutators ...ConfigMutator) (*config.BotConfig, error) {
 	if err := applyMutators(log, cfg, mutators...); err != nil {
 		return nil, trace.Wrap(err)
 	}

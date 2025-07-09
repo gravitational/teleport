@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
@@ -72,6 +73,13 @@ type AzureParams struct {
 	// ClientID is the client ID of the managed identity for Teleport to assume
 	// when authenticating a node.
 	ClientID string
+}
+
+// GitlabParams is the parameters specific to the gitlab join method.
+type GitlabParams struct {
+	// EnvVarName is the name of the environment variable that contains the
+	// IDToken. If unset, this will default to "TBOT_GITLAB_JWT".
+	EnvVarName string
 }
 
 // RegisterParams specifies parameters
@@ -143,6 +151,8 @@ type RegisterParams struct {
 	// containing TF Cloud's Workload Identity Token when using Terraform Cloud
 	// joining.
 	TerraformCloudAudienceTag string
+	// GitlabParams is the parameters specific to the gitlab join method.
+	GitlabParams GitlabParams
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -230,7 +240,9 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGitLab:
-		params.IDToken, err = gitlab.NewIDTokenSource(os.Getenv).GetIDToken()
+		params.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
+			EnvVarName: params.GitlabParams.EnvVarName,
+		}).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -261,6 +273,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		}
 	case types.JoinMethodBitbucket:
 		params.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodAzureDevops:
+		params.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

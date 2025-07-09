@@ -29,23 +29,24 @@ import {
   Text,
 } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
-
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
 import {
   InfoExternalTextLink,
   InfoGuideButton,
   InfoParagraph,
   InfoUl,
   ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
-import cfg from 'teleport/config';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import UserAddEdit from './UserAddEdit';
-import UserDelete from './UserDelete';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { useGetUsers } from 'teleport/services/user/hooks';
+
+import { UserAddEdit } from './UserAddEdit';
+import { UserDelete } from './UserDelete';
 import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
@@ -57,9 +58,6 @@ export function UsersContainer(props: UsersContainerProps) {
 
 export function Users(props: State) {
   const {
-    attempt,
-    users,
-    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,
@@ -69,9 +67,6 @@ export function Users(props: State) {
     showMauInfo,
     onDismissUsersMauNotice,
     onClose,
-    onCreate,
-    onUpdate,
-    onDelete,
     onReset,
     onStartInviteCollaborators,
     onInviteCollaboratorsClose,
@@ -80,6 +75,8 @@ export function Users(props: State) {
     EmailPasswordReset,
     onEmailPasswordResetClose,
   } = props;
+
+  const users = useGetUsers();
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {
@@ -98,7 +95,7 @@ export function Users(props: State) {
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
-        {attempt.isSuccess && (
+        {users.isSuccess && (
           <Flex gap={2}>
             {!InviteCollaborators && (
               <HoverTooltip
@@ -162,12 +159,12 @@ export function Users(props: State) {
           </Flex>
         )}
       </FeatureHeader>
-      {attempt.isProcessing && (
+      {users.isFetching && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {showMauInfo && (
+      {showMauInfo && !users.isFetching && (
         <Alert
           data-testid="users-not-mau-alert"
           dismissible
@@ -201,11 +198,11 @@ export function Users(props: State) {
           .
         </Alert>
       )}
-      {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
-      {attempt.isSuccess && (
+      {users.isError && <Alert kind="danger" children={users.error.message} />}
+      {users.isSuccess && !users.isFetching && (
         <UserList
           usersAcl={usersAcl}
-          users={users}
+          users={users.data}
           onEdit={onStartEdit}
           onDelete={onStartDelete}
           onReset={onStartReset}
@@ -214,19 +211,12 @@ export function Users(props: State) {
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
           isNew={operation.type === 'create'}
-          fetchRoles={fetchRoles}
           onClose={onClose}
-          onCreate={onCreate}
-          onUpdate={onUpdate}
           user={operation.user}
         />
       )}
       {operation.type === 'delete' && (
-        <UserDelete
-          onClose={onClose}
-          onDelete={onDelete}
-          username={operation.user.name}
-        />
+        <UserDelete onClose={onClose} username={operation.user.name} />
       )}
       {operation.type === 'reset' && !EmailPasswordReset && (
         <UserReset

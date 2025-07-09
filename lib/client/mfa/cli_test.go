@@ -483,6 +483,10 @@ func (m *mockSSOMFACeremony) GetClientCallbackURL() string {
 	return ""
 }
 
+func (m *mockSSOMFACeremony) GetProxyAddress() string {
+	return ""
+}
+
 // Run the SSO MFA ceremony.
 func (m *mockSSOMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if m.mfaResp == nil {

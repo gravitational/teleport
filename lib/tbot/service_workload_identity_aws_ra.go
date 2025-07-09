@@ -18,6 +18,7 @@ package tbot
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -31,30 +32,36 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"gopkg.in/ini.v1"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.WorkloadIdentityAWSRAService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	resolver          reversetunnelclient.Resolver
-	reloadBroadcaster *channelBroadcaster
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	botCfg             *config.BotConfig
+	cfg                *config.WorkloadIdentityAWSRAService
+	getBotIdentity     getBotIdentityFn
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	reloadBroadcaster  *channelBroadcaster
+	statusReporter     readyz.Reporter
 }
 
 // String returns a human-readable description of the service.
 func (s *WorkloadIdentityAWSRAService) String() string {
-	return fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("workload-identity-aws-roles-anywhere (%s)", s.cfg.Destination.String()),
+	)
 }
 
 // OneShot runs the service once, generating the output and writing it to the
@@ -70,13 +77,15 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		service:    s.String(),
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.cfg.SessionRenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
+		service:         s.String(),
+		name:            "output-renewal",
+		f:               s.generate,
+		interval:        s.cfg.SessionRenewalInterval,
+		retryLimit:      renewalRetryLimit,
+		log:             s.log,
+		reloadCh:        reloadCh,
+		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
@@ -90,7 +99,14 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "marshaling private key")
 	}
-	svid, err := x509svid.ParseRaw(res.GetX509Svid().Cert, pkcs8)
+	certWithChain := new(bytes.Buffer)
+	_, _ = certWithChain.Write(res.GetX509Svid().GetCert())
+	// If external PKI is configured, we need to append the chain to the leaf
+	// certificate before calling x509svid.ParseRaw.
+	for _, cert := range res.GetX509Svid().GetChain() {
+		_, _ = certWithChain.Write(cert)
+	}
+	svid, err := x509svid.ParseRaw(certWithChain.Bytes(), pkcs8)
 	if err != nil {
 		return trace.Wrap(err, "parsing x509 svid")
 	}
@@ -113,7 +129,7 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 		"aws_credentials_expiry", creds.Expiration,
 	)
 
-	return renderAWSCreds(ctx, creds, s.cfg.Destination)
+	return s.renderAWSCreds(ctx, creds)
 }
 
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
@@ -224,10 +240,31 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 	return x509Credential, privateKey, nil
 }
 
+func loadExistingAWSCredentialFile(
+	ctx context.Context, dest bot.Destination, artifactName string,
+) (*ini.File, error) {
+	// Load the existing credential file if it exists so we can merge with
+	// it.
+	data, err := dest.Read(ctx, artifactName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return ini.Empty(), nil
+		}
+		return nil, trace.Wrap(err, "reading existing credentials")
+	}
+
+	f, err := ini.Load(data)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing existing credentials")
+	}
+	return f, nil
+}
+
 // render will write the AWS credentials to the AWS CLI configuration file.
 // See https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html
-func renderAWSCreds(
-	ctx context.Context, creds *vendoredaws.CredentialProcessOutput, dest bot.Destination,
+func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
+	ctx context.Context,
+	creds *vendoredaws.CredentialProcessOutput,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -235,24 +272,42 @@ func renderAWSCreds(
 	)
 	defer span.End()
 
-	// TODO(noah): At a later date, we can add a mode where we read in and
-	// modify an existing profile within the credentials file - without
-	// overwriting other profiles.
+	expiresAt, err := time.Parse(time.RFC3339, creds.Expiration)
+	if err != nil {
+		return fmt.Errorf("parsing expiration time: %w", err)
+	}
+
+	artifactName := cmp.Or(s.cfg.ArtifactName, "aws_credentials")
+
 	f := ini.Empty()
-	// "default" is the name of the section that the AWS CLI will use by
+	if !s.cfg.OverwriteCredentialFile {
+		var err error
+		f, err = loadExistingAWSCredentialFile(
+			ctx, s.cfg.Destination, artifactName,
+		)
+		if err != nil {
+			return trace.Wrap(err, "loading existing credentials")
+		}
+	}
+
+	// "default" is the special profile name that the AWS CLI/SDK will read by
 	// default.
-	sec := f.Section("default")
+	profileName := cmp.Or(s.cfg.CredentialProfileName, "default")
+	sec := f.Section(profileName)
 	sec.Key("aws_secret_access_key").SetValue(creds.SecretAccessKey)
 	sec.Key("aws_access_key_id").SetValue(creds.AccessKeyId)
 	sec.Key("aws_session_token").SetValue(creds.SessionToken)
+	sec.Key("expiration").SetValue(
+		fmt.Sprintf("%d", expiresAt.UnixMilli()),
+	)
 
 	b := &bytes.Buffer{}
-	_, err := f.WriteTo(b)
+	_, err = f.WriteTo(b)
 	if err != nil {
 		return trace.Wrap(err, "writing credentials to buffer")
 	}
 
-	err = dest.Write(ctx, "aws_credentials", b.Bytes())
+	err = s.cfg.Destination.Write(ctx, artifactName, b.Bytes())
 	if err != nil {
 		return trace.Wrap(err, "writing credentials to destination")
 	}

@@ -57,6 +57,8 @@ const (
 	dbDirSuffix = "-db"
 	// kubeDirSuffix is the suffix of a sub-directory where kube TLS certs are stored.
 	kubeDirSuffix = "-kube"
+	// windowsDesktopDirSuffix is the suffix of a subdirectory where Windows desktop TLS certs are stored.
+	windowsDesktopDirSuffix = "-windowsdesktop"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
 	// fileNameKubeCredLock is file name of lockfile used to prevent excessive login attempts.
@@ -112,20 +114,29 @@ const (
 //    │   │   │   ├── dbC.crt          --> TLS cert for database service "dbC"
 //    │   │   │   └── dbC.key          --> private key for database service "dbC"
 //    │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
+//    │   ├── foo-windowsdesktop       --> Windows desktop access certs for user "foo"
+//    │   │   ├── root                 --> Windows desktop access certs for cluster "root"
+//    │   │   │   ├── desktopA.crt     --> TLS cert for desktop service "desktopA"
+//    │   │   │   ├── desktopA.key     --> private key for desktop service "desktopA"
+//    │   │   │   ├── desktopB.crt     --> TLS cert for desktop service "desktopB"
+//    │   │   │   └── desktopB.key     --> private key for desktop service "desktopB"
+//    │   │   └── leaf                 --> Windows desktop access for cluster "leaf"
+//    │   │       ├── desktopC.crt     --> TLS cert for desktop service "desktopC"
+//    │   │       └── desktopC.key     --> private key for desktop service "desktopC"
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
-//    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
-//    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeA.cred       --> TLS private key and cert for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   ├── kubeB.cred       --> TLS private key and cert for Kubernetes cluster "kubeB"
-//    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
-//    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
-//    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
-//    │   |        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
-//    |   └── cas                       --> Trusted clusters certificates
-//    |        ├── root.pem             --> TLS CA for teleport cluster "root"
-//    |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
-//    |        └── leaf2.pem            --> TLS CA for teleport cluster "leaf2"
+//    │   │    ├── root                 --> Kubernetes certs for Teleport cluster "root"
+//    │   │    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
+//    │   │    │   ├── kubeA.cred       --> TLS private key and cert for Kubernetes cluster "kubeA"
+//    │   │    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
+//    │   │    │   ├── kubeB.cred       --> TLS private key and cert for Kubernetes cluster "kubeB"
+//    │   │    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
+//    │   │    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
+//    │   │        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
+//    │   │        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
+//    │   └── cas                       --> Trusted clusters certificates
+//    │        ├── root.pem             --> TLS CA for teleport cluster "root"
+//    │        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
+//    │        └── leaf2.pem            --> TLS CA for teleport cluster "leaf2"
 //    └── two.example.com			    --> Additional proxy host entries follow the same format
 //		  ...
 
@@ -287,6 +298,38 @@ func AppKeyPath(baseDir, proxy, username, cluster, appname string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
 func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
+}
+
+// WindowsDesktopDir returns the path to the user's Windows desktop directory
+// for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop
+func WindowsDesktopDir(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+windowsDesktopDirSuffix)
+}
+
+// WindowsDesktopCredentialDir returns the path to the user's Windows desktop credential directory for
+// the given proxy and cluster.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop/<cluster>
+func WindowsDesktopCredentialDir(baseDir, proxy, username, cluster string) string {
+	return filepath.Join(WindowsDesktopDir(baseDir, proxy, username), cluster)
+}
+
+// WindowsDesktopCertPath returns the path to the user's TLS certificate
+// for the given proxy, cluster, and Windows desktop.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop/<cluster>/<desktop>.crt
+func WindowsDesktopCertPath(baseDir, proxy, username, cluster, desktop string) string {
+	return filepath.Join(WindowsDesktopCredentialDir(baseDir, proxy, username, cluster), desktop+FileExtTLSCert)
+}
+
+// WindowsDesktopKeyPath returns the path to the user's private key for the given proxy,
+// cluster, and Windows desktop.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop/<cluster>/<desktop>.key
+func WindowsDesktopKeyPath(baseDir, proxy, username, cluster, desktop string) string {
+	return filepath.Join(WindowsDesktopCredentialDir(baseDir, proxy, username, cluster), desktop+fileExtTLSKey)
 }
 
 // DatabaseDir returns the path to the user's database directory

@@ -1,6 +1,6 @@
 app_service:
-    # Turns 'app' role on. Default is 'no'
-    enabled: yes
+    # Turns 'app' role on. Default is false
+    enabled: true
     # Teleport contains a small debug app that can be used to make sure the
     # Application Service is working correctly. The app outputs JWTs so it can
     # be useful when extending your application.

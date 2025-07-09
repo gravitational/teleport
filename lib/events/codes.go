@@ -691,11 +691,24 @@ const (
 	// WorkloadIdentityX509RevocationDeleteCode is the
 	// WorkloadIdentityX509Revocation delete event code.
 	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
+	// WorkloadIdentityX509IssuerOverrideCreateCode is the code for the
+	// workload_identity_x509_issuer_override.create event.
+	WorkloadIdentityX509IssuerOverrideCreateCode = "WID007I"
+	// WorkloadIdentityX509IssuerOverrideDeleteCode is the code for the
+	// workload_identity_x509_issuer_override.delete event.
+	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
 
 	// ContactCreateCode is the auto update version create event code.
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
 	ContactDeleteCode = "TCTC002I"
+
+	// SigstorePolicyCreateCode is the Sigstore policy create event code.
+	SigstorePolicyCreateCode = "TSSP001I"
+	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
+	SigstorePolicyUpdateCode = "TSSP002I"
+	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
+	SigstorePolicyDeleteCode = "TSSP003I"
 
 	// GitCommandCode is the git command event code
 	GitCommandCode = "TGIT001I"

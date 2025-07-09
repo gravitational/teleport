@@ -41,7 +41,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -58,6 +57,7 @@ import (
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
@@ -441,6 +441,7 @@ func (h *Handler) dbConnect(
 		"database_name", req.DatabaseName,
 		"database_user", req.DatabaseUser,
 		"database_roles", req.DatabaseRoles,
+		"remote_addr", logutils.StringerAttr(ws.RemoteAddr()),
 	)
 	log.DebugContext(ctx, "Received database interactive session request")
 
@@ -696,28 +697,33 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 
 	routeToDatabase := s.route()
 
-	certsReq := clientproto.UserCertsRequest{
+	certsReq := proto.UserCertsRequest{
 		TLSPublicKey:    publicKeyPEM,
 		Username:        s.sctx.GetUser(),
 		Expires:         s.sctx.cfg.Session.GetExpiryTime(),
 		Format:          constants.CertificateFormatStandard,
 		RouteToCluster:  s.site.GetName(),
-		Usage:           clientproto.UserCertsRequest_Database,
+		Usage:           proto.UserCertsRequest_Database,
 		RouteToDatabase: routeToDatabase,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+	var certs *proto.Certs
+	result, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
 		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
-		MFARequiredReq: &clientproto.IsMFARequiredRequest{
-			Target: &clientproto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
+		MFARequiredReq: &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
 		},
 		CertsReq: &certsReq,
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if result != nil {
+		certs = result.NewCerts
 	}
 
 	if certs == nil {
@@ -772,8 +778,8 @@ func (s *databaseInteractiveSession) makeReplConn() (*tls.Conn, error) {
 	return tls.Client(s.replConn, tlsConfig), nil
 }
 
-func (s *databaseInteractiveSession) route() clientproto.RouteToDatabase {
-	return clientproto.RouteToDatabase{
+func (s *databaseInteractiveSession) route() proto.RouteToDatabase {
+	return proto.RouteToDatabase{
 		Protocol:    s.req.Protocol,
 		ServiceName: s.req.ServiceName,
 		Username:    s.req.DatabaseUser,

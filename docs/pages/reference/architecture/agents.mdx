@@ -69,7 +69,7 @@ following components:
 
 The Teleport Auth Service runs a certificate authority that issues a host
 certificate to an agent when it joins the cluster for the first time. Read [Join
-Services to your Teleport Cluster](../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
+Services to your Teleport Cluster](../../enroll-resources/agents/agents.mdx)
 for the available methods you can use to join an agent to your Teleport cluster.
 
 All agents in a Teleport cluster keep the Auth Service updated on their status
@@ -120,7 +120,7 @@ agent.
 <summary>Connecting to agents without reverse tunnels</summary>
 
 It is possible to join Teleport Agents to a cluster [through the Teleport Auth
-Service](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+Service](../../enroll-resources/agents/join-token.mdx).
 Once an agent joins a cluster through the Teleport Auth Service, the Teleport
 Proxy Service dials the agent directly, without creating a reverse tunnel. This
 mode supports the following services:
@@ -278,4 +278,4 @@ Reference](../monitoring/audit.mdx).
 ## Further reading
 
 - For instructions on deploying agents, see the [Teleport Agent
-  guides](../../enroll-resources/agents/introduction.mdx).
+  guides](../../enroll-resources/agents/agents.mdx).

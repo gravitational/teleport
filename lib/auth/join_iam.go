@@ -329,7 +329,7 @@ type iamRegisterConfig struct {
 
 func defaultIAMRegisterConfig(fips bool) *iamRegisterConfig {
 	return &iamRegisterConfig{
-		authVersion: teleport.SemVersion,
+		authVersion: teleport.SemVer(),
 		fips:        fips,
 	}
 }

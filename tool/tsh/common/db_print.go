@@ -78,9 +78,20 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
+	// includeColumns specifies a whitelist of columns to include. verbose and
+	// showProxyAndCluster are ignored when includeColumns is provided.
+	includeColumns []string
 }
 
-func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
+func (cfg printDatabaseTableConfig) excludeColumns(allColumns []string) (out []string) {
+	if len(cfg.includeColumns) > 0 {
+		for _, column := range allColumns {
+			if !slices.Contains(cfg.includeColumns, column) {
+				out = append(out, column)
+			}
+		}
+		return
+	}
 	if !cfg.showProxyAndCluster {
 		out = append(out, "Proxy", "Cluster")
 	}
@@ -93,7 +104,7 @@ func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
 func printDatabaseTable(cfg printDatabaseTableConfig) {
 	allColumns := makeTableColumnTitles(databaseTableRow{})
 	rowsWithAllColumns := makeTableRows(cfg.rows)
-	excludeColumns := cfg.excludeColumns()
+	excludeColumns := cfg.excludeColumns(allColumns)
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
@@ -118,7 +129,7 @@ func printDatabaseTable(cfg printDatabaseTableConfig) {
 }
 
 func formatDatabaseRolesForDB(database types.Database, accessChecker services.AccessChecker) string {
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		// may happen if fetching the role set failed for any reason.
 		if accessChecker == nil {
 			return "(unknown)"

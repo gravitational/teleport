@@ -151,10 +151,8 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
   }
 
   VNEConfig *config = [[VNEConfig alloc] init];
-  [config setSocketPath:@(request->socket_path)];
-  [config setIpv6Prefix:@(request->ipv6_prefix)];
-  [config setDnsAddr:@(request->dns_addr)];
-  [config setHomePath:@(request->home_path)];
+  [config setServiceCredentialPath:@(request->service_credential_path)];
+  [config setClientApplicationServiceAddr:@(request->client_application_service_addr)];
 
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
 

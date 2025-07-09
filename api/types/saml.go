@@ -115,6 +115,8 @@ type SAMLConnector interface {
 	WithMFASettings() error
 	// GetForceAuthn returns ForceAuthn
 	GetForceAuthn() bool
+	// GetPreferredRequestBinding returns PreferredRequestBinding.
+	GetPreferredRequestBinding() string
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -446,6 +448,21 @@ func (o *SAMLConnectorV2) GetForceAuthn() bool {
 	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
+const (
+	// SAMLRequestHTTPRedirectBinding is the SAML http-redirect binding request name.
+	SAMLRequestHTTPRedirectBinding = "http-redirect"
+	// SAMLRequestHTTPPostBinding is the SAML http-post binding request name.
+	SAMLRequestHTTPPostBinding = "http-post"
+)
+
+// SAMLRequestBindingValues includes supported SAML request binding values.
+var SAMLRequestBindingValues = []string{SAMLRequestHTTPRedirectBinding, SAMLRequestHTTPPostBinding}
+
+// GetPreferredRequestBinding returns PreferredRequestBinding.
+func (o *SAMLConnectorV2) GetPreferredRequestBinding() string {
+	return o.Spec.PreferredRequestBinding
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -487,6 +504,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
+
 	return nil
 }
 
@@ -619,4 +637,23 @@ func (s *SAMLForceAuthn) setFromEnum(val int32) error {
 	}
 	*s = SAMLForceAuthn(val)
 	return nil
+}
+
+// SAMLConnectorValidationOptions are options for SAML connector validation.
+type SAMLConnectorValidationOptions struct {
+	// NoFollowURLs disables following of URLs to populate SAML connector
+	// metadata. Useful when full metadata is not necessary, especially for
+	// endpoints like /webapi/ping which must not hang or fail.
+	NoFollowURLs bool
+}
+
+// SAMLConnectorValidationOption is an option for validation of SAML connectors.
+type SAMLConnectorValidationOption func(*SAMLConnectorValidationOptions)
+
+// SAMLConnectorValidationFollowURLs returns a SAMLConnectorValidationOptions
+// that sets whether URLs should be followed while validating the connector.
+func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.NoFollowURLs = !follow
+	}
 }

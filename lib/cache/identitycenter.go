@@ -64,8 +64,7 @@ func (identityCenterAccountExecutor) delete(ctx context.Context, cache *Cache, r
 }
 
 func (identityCenterAccountExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
-	return trace.Wrap(err)
+	return trace.Wrap(cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx))
 }
 
 func (identityCenterAccountExecutor) getReader(cache *Cache, cacheOK bool) identityCenterAccountGetter {
@@ -126,8 +125,7 @@ func (identityCenterPrincipalAssignmentExecutor) delete(ctx context.Context, cac
 }
 
 func (identityCenterPrincipalAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllPrincipalAssignments(ctx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{})
-	return trace.Wrap(err)
+	return trace.Wrap(cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx))
 }
 
 func (identityCenterPrincipalAssignmentExecutor) getReader(cache *Cache, cacheOK bool) identityCenterPrincipalAssignmentGetter {
@@ -178,8 +176,7 @@ func (identityCenterAccountAssignmentExecutor) delete(ctx context.Context, cache
 }
 
 func (identityCenterAccountAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
-	return trace.Wrap(err)
+	return trace.Wrap(cache.identityCenterCache.DeleteAllAccountAssignments(ctx))
 }
 
 func (identityCenterAccountAssignmentExecutor) getReader(cache *Cache, cacheOK bool) identityCenterAccountAssignmentGetter {

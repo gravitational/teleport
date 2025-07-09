@@ -120,8 +120,11 @@ func appLogin(
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
 ) (*client.KeyRing, error) {
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
@@ -293,7 +296,8 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.AppsForCluster(tc.SiteName)
+
+	activeRoutes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -362,7 +366,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.AppsForCluster(tc.SiteName)
+	routes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}

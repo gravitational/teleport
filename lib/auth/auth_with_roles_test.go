@@ -163,8 +163,8 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			require.NoError(t, err)
 			mfaVerified := sshCert.Permissions.Extensions[teleport.CertExtensionMFAVerified]
 
-			switch {
-			case mfaResponse == nil:
+			switch mfaResponse {
+			case nil:
 				require.Empty(t, mfaVerified, "GenerateUserCerts returned certificate with non-empty CertExtensionMFAVerified")
 			default:
 				require.Equal(t, mfaVerified, u.totpDev.MFA.Id, "GenerateUserCerts returned certificate with unexpected CertExtensionMFAVerified")
@@ -182,6 +182,16 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	start := srv.AuthServer.Clock().Now()
+
+	botSessionTTLOverride := WithRoleMutator(func(role types.Role) {
+		// Bots have a longer max TTL than the default MaxSessionTTL value
+		// (30h), so the longer value must be manually set to actually get certs
+		// of the longer duration. The bot service manages this value when it
+		// creates bots, but this test creates the user/role by hand.
+		opts := role.GetOptions()
+		opts.MaxSessionTTL = types.Duration(defaults.MaxRenewableCertTTL)
+		role.SetOptions(opts)
+	})
 
 	for _, test := range []struct {
 		desc         string
@@ -236,7 +246,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
-			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil)
+			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil, botSessionTTLOverride)
+
 			require.NoError(t, err)
 			authPref, err := srv.Auth().GetAuthPreference(ctx)
 			require.NoError(t, err)
@@ -2901,7 +2912,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
+	require.Len(t, testServers, len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -2945,7 +2956,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Len(t, testServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3028,7 +3039,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
+	require.Len(t, testServers, len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3072,7 +3083,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Len(t, testServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3236,7 +3247,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testAppServers[1:]), len(servers))
+	require.Len(t, testAppServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testAppServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3311,7 +3322,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 
 	sps, _, err := clt.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServiceProviders), len(sps))
+	require.Len(t, testServiceProviders, len(sps))
 	require.Empty(t, cmp.Diff(testServiceProviders, sps))
 	resp, err := clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -4447,7 +4458,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.NoError(t, err)
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, len(testDesktops), len(desktops))
+	require.Len(t, testDesktops, len(desktops))
 	require.Empty(t, cmp.Diff(testDesktops, desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -4502,7 +4513,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, len(testDesktops[1:]), len(desktops))
+	require.Len(t, testDesktops[1:], len(desktops))
 	require.Empty(t, cmp.Diff(testDesktops[1:], desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -4674,12 +4685,12 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	}
 
 	// Add user groups.
-	testUg1 := createUserGroup(t, s, "c", map[string]string{"label": "value"})
-	testUg2 := createUserGroup(t, s, "a", map[string]string{"label": "value"})
-	testUg3 := createUserGroup(t, s, "b", map[string]string{"label": "value"})
+	testUg1 := createUserGroup(t, s.authServer, "c", map[string]string{"label": "value"})
+	testUg2 := createUserGroup(t, s.authServer, "a", map[string]string{"label": "value"})
+	testUg3 := createUserGroup(t, s.authServer, "b", map[string]string{"label": "value"})
 
 	// This user group should never should up because the user doesn't have group label access to it.
-	_ = createUserGroup(t, s, "d", map[string]string{"inaccessible": "value"})
+	_ = createUserGroup(t, s.authServer, "d", map[string]string{"inaccessible": "value"})
 
 	authContext, err = srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestUser(user.GetName()).I))
 	require.NoError(t, err)
@@ -4764,13 +4775,15 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	})
 }
 
-func createUserGroup(t *testing.T, s *ServerWithRoles, name string, labels map[string]string) types.UserGroup {
+func createUserGroup(t *testing.T, s *Server, name string, labels map[string]string) types.UserGroup {
+	t.Helper()
+	ctx := context.Background()
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
 	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
-	err = s.CreateUserGroup(context.Background(), userGroup)
+	err = s.CreateUserGroup(ctx, userGroup)
 	require.NoError(t, err)
 	return userGroup
 }
@@ -5497,12 +5510,23 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	// 1. Create Okta-originated app server in the backend.
+	// 1. Create Okta-originated app_server and user_group in the backend.
 
-	searchableOktaApp := newTestAppServerV3(t, srv.Auth(), "serachable-okta-app", map[string]string{
-		"name":            "serachable-okta-app",
-		types.OriginLabel: types.OriginOkta,
-	})
+	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
+		"serachable-okta-app",
+		map[string]string{
+			"name":            "serachable-okta-app",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
+
+	searchableUserGroup := createUserGroup(t, srv.Auth(),
+		"serachable-okta-group",
+		map[string]string{
+			"name":            "serachable-okta-group",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
 
 	// 2. Create a role allowing the Okta app (used for search_as_roles)
 
@@ -5510,6 +5534,9 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				"name": {searchableOktaApp.GetName()},
+			},
+			GroupLabels: types.Labels{
+				"name": {searchableUserGroup.GetName()},
 			},
 		},
 	})
@@ -5555,28 +5582,69 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 				mustResourceID(srv.ClusterName(), types.KindAppServer, searchableOktaApp.GetName()),
 			},
 		),
+		// requesting user_group
+		mustAccessRequest(t, alice.GetName(), types.RequestState_PENDING, srv.Clock().Now(), srv.Clock().Now().Add(time.Hour),
+			[]string{}, // roles
+			[]types.ResourceID{
+				mustResourceID(srv.ClusterName(), types.KindUserGroup, searchableUserGroup.GetName()),
+			},
+		),
 	}
 
 	// 7. Run tests
 
 	t.Run("requesting okta resources but no okta plugin", func(t *testing.T) {
-		// Note: Okta-originated resources present in the cluster and no Okta plugin
-		// configured is the situation where the plugin was freshly deleted and the
-		// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
-		// error is a bit confusing.
+		// v18+ version:
+		/*
+			// Note: Okta-originated resources present in the cluster and no Okta plugin
+			// configured is the situation where the plugin was freshly deleted and the
+			// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
+			// error is a bit confusing.
+			for _, accessRequest := range testAccessRequests {
+				_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			}
+		*/
+
+		// v17 only - we need to support okta_service where no plugin exists:
 		for _, accessRequest := range testAccessRequests {
+			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
 			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
-			require.Error(t, err)
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			require.NoError(t, err, msg)
 		}
 	})
 
-	t.Run("requesting okta resources and okta bidirectional sync enabled", func(t *testing.T) {
+	t.Run("requesting okta resources and okta bidirectional sync enabled for access list sync", func(t *testing.T) {
 		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
 			oktatest.NewPlugin(t,
 				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
 					SyncAccessLists:          true,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: false,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.NoError(t, err, msg)
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync enabled for app and group only sync", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
+					SyncAccessLists:          false,
 					DefaultOwners:            []string{"the-owner"},
 					DisableBidirectionalSync: false,
 				}),
@@ -5589,10 +5657,13 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("requesting okta resources and okta bidirectional sync disabled", func(t *testing.T) {
+	t.Run("requesting okta resources and okta bidirectional sync disabled for access list sync", func(t *testing.T) {
 		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
 			oktatest.NewPlugin(t,
 				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
 					SyncAccessLists:          true,
 					DefaultOwners:            []string{"the-owner"},
 					DisableBidirectionalSync: true,
@@ -5607,6 +5678,29 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
 		}
 	})
+
+	t.Run("requesting okta resources and okta bidirectional sync disabled for app and group only sync", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
+					SyncAccessLists:          false,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: true,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.Error(t, err, msg)
+			require.True(t, trace.IsBadParameter(err), msg)
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error(), msg)
+		}
+	})
 }
 
 func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
@@ -5616,14 +5710,14 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 
 	// 1. Create app resources
 
-	searchableGenericApp := newTestAppServerV3(t, srv.Auth(),
+	searchableGenericApp := createTestAppServerV3(t, srv.Auth(),
 		"test_generic_app",
 		map[string]string{
 			"find_me": "please",
 		},
 	)
 
-	searchableOktaApp := newTestAppServerV3(t, srv.Auth(),
+	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
 		"test_searchable_okta_app",
 		map[string]string{
 			"find_me":         "please",
@@ -5631,7 +5725,7 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 		},
 	)
 
-	assignedOktaApp := newTestAppServerV3(t, srv.Auth(),
+	assignedOktaApp := createTestAppServerV3(t, srv.Auth(),
 		"test_assigned_okta_app",
 		map[string]string{
 			"owner":           "alice",
@@ -5734,7 +5828,9 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 
 			oktatest.UpsertPlugin(t, srv.Auth().Plugins,
 				oktatest.NewPlugin(t, oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
-					SyncAccessLists:          true,
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
 					DefaultOwners:            []string{"alice"},
 					DisableBidirectionalSync: !tc.oktaBidirectionalSync,
 				})),
@@ -10539,7 +10635,7 @@ func TestValidateOracleJoinToken(t *testing.T) {
 	})
 }
 
-func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[string]string) *types.AppServerV3 {
+func createTestAppServerV3(t *testing.T, auth *Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
 	ctx := context.Background()
 

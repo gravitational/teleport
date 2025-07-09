@@ -15,6 +15,8 @@ This guide will explain how to:
 - Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
 
+## How it works
+
 In this setup, the Teleport Application Service has an AWS IAM role that can
 assume one or more target IAM roles. Teleport users access the AWS Management
 Console and APIs through the Teleport Web UI and `tsh`. When a user visits the
@@ -120,7 +122,7 @@ AWS APIs.
    ```
    
    Create a file called `app-service-tp.json` with the following content,
-   assigning <Var name="oidc-issuer" /> to the issuer string you retrieved and
+   assigning <Var name="OIDC_ISSUER" /> to the issuer string you retrieved and
    <Var name="EKS_ACCOUNT" /> to the ID of the AWS account that belongs to your
    EKS cluster:
    
@@ -386,7 +388,8 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 <TabItem label="EC2">
 
 On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token:
+file called `/tmp/token` that consists only of your token, assigning 
+<Var name="join-token" /> to the value of the token:
 
 ```code
 $ echo <Var name="join-token" /> | sudo tee /tmp/token
@@ -412,13 +415,13 @@ Application Service:
        method: token
      proxy_server: "<Var name="PROXY_ADDR" />"
    auth_service:
-     enabled: off
+     enabled: false
    proxy_service:
-     enabled: off
+     enabled: false
    ssh_service:
-     enabled: off
+     enabled: false
    app_service:
-     enabled: "yes"
+     enabled: true
      apps:
      - name: "awsconsole"
      # The public AWS Console is used after authenticating the user from Teleport
@@ -502,7 +505,7 @@ label to the account ID:
 
 ```yaml
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   - name: "awsconsole-test"
     uri: "https://console.aws.amazon.com/ec2/v2/home"
@@ -553,7 +556,7 @@ to AWS, users can access AWS resources through Teleport.
 
 ### Access the AWS console
 
-1. Visit the home page of the Teleport Web UI or click the **Resources** tab. If
+1. Visit the home page of the Teleport Web UI and click **Resources**. If
    the Teleport Application Service is proxying the AWS Management Console as
    expected, the Web UI will display the name of the application you registered,
    which this guide assumes is `awsconsole`. (Enter the name of the application
@@ -819,7 +822,7 @@ applications](../guides/dynamic-registration.mdx).
 This guide shows you how to use the **join token method** to enroll the Teleport
 Application Service in your cluster. This is one of several available methods,
 and we recommend reading the [Join Services to your Teleport
-Cluster](../../agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide to configure the
+Cluster](../../../index.mdx) guide to configure the
 most appropriate method for your environment.
 
 ## Further reading

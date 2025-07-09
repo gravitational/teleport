@@ -144,7 +144,6 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        $Env:COREPACK_INTEGRITY_KEYS = '{"npm":[{"expires":"2025-01-29T00:00:00.000Z","keyid":"SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1Olb3zMAFFxXKHiIkQO5cJ3Yhl5i6UPp+IhuteBJbuHcA5UogKo0EWtlWwW6KSaKoTNEYL7JlCQiVnkhBktUgg=="},{"expires":null,"keyid":"SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY6Ya7W++7aUPzvMTrezH6Ycx3c+HOKYCcNGybJZSCJq/fd7Qa8uuAKtdIkUQtQiEKERhAmE5lMMJhP8OkDOa2g=="}]}'
         corepack enable pnpm
         Write-Host "::endgroup::"
     }
@@ -162,6 +161,25 @@ function Enable-Node {
     )
     begin {
         $Env:Path = "$ToolchainDir/node;$Env:Path"
+    }
+}
+
+function Install-WasmPack {
+    <#
+    .SYNOPSIS
+        Builds and installs wasm-pack and dependent tooling.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $WasmPackVersion
+    )
+    begin {
+        Write-Host "::group::Installing wasm-pack $WasmPackVersion"
+        # TODO(camscale): Don't hard-code wasm-binden-cli version
+        cargo install wasm-bindgen-cli --locked --version 0.2.95
+        cargo install wasm-pack --locked --version "$WasmPackVersion"
+        Write-Host "::endgroup::"
     }
 }
 
@@ -295,6 +313,9 @@ function Install-BuildRequirements {
 
         $GoVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-go-version).TrimStart("go")
         Install-Go -GoVersion "$GoVersion" -ToolchainDir "$InstallDirectory"
+
+        $WasmPackVersion = $(make --no-print-directory -C "$TeleportSourceDirectory/build.assets" print-wasm-pack-version).Trim()
+        Install-WasmPack -WasmPackVersion "$WasmPackVersion"
     }
     Write-Host $("All build requirements installed in {0:g}" -f $CommandDuration)
 }
@@ -370,11 +391,12 @@ function Build-Tsh {
     $BinaryName = "tsh.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
@@ -403,11 +425,12 @@ function Build-Tctl {
     $BinaryName = "tctl.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tctl..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }

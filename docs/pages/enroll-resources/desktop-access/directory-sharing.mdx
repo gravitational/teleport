@@ -7,6 +7,8 @@ Directory Sharing is a Teleport feature of that makes it easy to move files
 between a local machine and a remote desktop—and apply changes to those
 files—without compromising security.
 
+## How it works
+
 During a remote desktop session, you can select a folder on your local
 workstation to share with the remote desktop. Changes to the folder on either
 the remote desktop or your workstation are reflected on both machines for the
@@ -28,9 +30,9 @@ after the session ends.
   Started with desktop access](./getting-started.mdx) before beginning this
   guide.
 
-- A browser on your local machine that supports the File System Access API,
-  which Teleport uses for Directory Sharing. We support the latest versions of
-  Chromium-based browsers like Google Chrome, Brave, and Microsoft Edge.
+- Teleport Connect app or a browser on your local machine. The browser must
+  support the File System Access API, which Teleport uses for Directory Sharing.
+  We support the latest versions of Chromium-based browsers like Google Chrome, Brave, and Microsoft Edge.
 
   Brave users can enable the File System Access API by navigating to
   [brave://flags/#file-system-access-api](brave://flags/#file-system-access-api)
@@ -43,9 +45,8 @@ after the session ends.
 
 ## Step 1/4. Share a directory
 
-To share a directory, open the Teleport Web UI and begin a desktop session by
-navigating to the "Desktops" tab on the sidebar, finding a desktop you want to
-connect to, and clicking "CONNECT".
+To share a directory, open the Teleport Web UI or Teleport Connect,
+find the desktop, and click 'Connect' to start a session.
 
 Once the session starts, click the three-dot menu on the top-right of the screen
 and click "Share Directory":
@@ -54,9 +55,9 @@ and click "Share Directory":
 
 ### Limitations on directories you can share
 
-#### Prohibited directories
+#### Prohibited directories (Web UI only)
 
-For security reasons the web browser's filesystem access API prohibits you from
+For security reasons, the web browser's filesystem access API prohibits you from
 sharing certain directories, including the standard locations for commonly used
 user directories such as "Desktop" and "Documents", as well as critical
 directories more typically used by the operating system itself.
@@ -66,6 +67,13 @@ Specification](https://wicg.github.io/file-system-access/#enumdef-wellknowndirec
 
 Subdirectories *within* these blocked user directories may still be shared.
 
+<Admonition type="note">
+
+  This restriction only affects the Web UI.
+  Teleport Connect uses a native file system API, so it can share any directory on your local machine.
+
+</Admonition>
+
 #### Long directory names
 
 Based on testing, we have determined that directory sharing leads to unexpected
@@ -74,9 +82,8 @@ errors if you share directories whose names (including all path segments) have
 
 ### After you share a directory
 
-When you first share a directory, your browser will prompt you to allow it to
-make changes in the directory, and you will need to grant these permissions to
-enable directory sharing.
+If you are using a browser to share a directory, you'll be prompted to grant permission for it to make changes.
+You will need to accept this prompt to enable directory sharing.
 
 After you grant permissions, you will see a new directory in File Explorer on
 the remote desktop. The directory will have the same name as the directory on
@@ -94,8 +101,7 @@ the remote desktop.
 ### Editing on the remote side
 
 When you create, edit, or delete a file in the shared directory on the remote
-side, your browser will apply those changes to the directory on your local
-machine.
+side, these changes will be applied to the directory on your local machine.
 
 If you move a file into the shared directory on the remote side, that
 file will appear on the local side as well. And if you move a file outside the
@@ -120,7 +126,7 @@ local machine, as well as move files between subdirectories.
 To view your local changes on the remote side, you will need to either refresh
 or re-open the remote directory, or re-open any individual files you changed
 locally. When you do this, the remote desktop will request the current state of
-the directory from the Teleport Web UI.
+the directory from your local machine.
 
 ### File size restrictions
 
@@ -135,8 +141,7 @@ directory on network bandwidth and system resources.
 ## Step 3/4. Disconnect
 
 To stop sharing a directory, end your remote desktop session. Navigate to the
-three-dot menu on the upper-right of the desktop session in your browser and
-click "Disconnect."
+three-dot menu on the upper-right of the desktop session and click "Disconnect."
 
 The next time you start a session on the remote desktop, the directory will no
 longer be shared. You will need to share the directory again to access its
@@ -189,6 +194,8 @@ share the contents of your clipboard with a remote desktop. Learn how to use
 
 ### How Directory Sharing works
 
+#### In a browser
+
 Directory Sharing involves a browser on a local workstation and a remote Windows
 desktop.
 
@@ -217,3 +224,19 @@ You can read more about TDP in [Teleport RFD
 37](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md)
 and how Directory Sharing uses it in [RFD
 67](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md).
+
+#### In Teleport Connect
+
+Directory Sharing involves a Teleport Connect app on a local workstation and
+a remote Windows desktop.
+
+On the remote side, Directory Sharing takes advantage of [file system-related
+messaging](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/)
+within the Remote Desktop Protocol (RDP). On the local side, Teleport Connect uses Go's
+native file system API to read from and write to the user-selected directory
+
+Teleport Connect establishes a secure mTLS connection to the Teleport Proxy Service,
+which forwards traffic to and from the relevant Teleport Desktop Service instance.
+
+Just like the Web UI, Teleport Connect uses the Teleport Desktop Protocol (TDP)
+to communicate with the Teleport Desktop Service, which then connects to the remote desktop via RDP.

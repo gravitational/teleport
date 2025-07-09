@@ -29,7 +29,7 @@ import (
 )
 
 // clientApplicationServiceClient is a gRPC client for the client application
-// service. This client is used in the Windows admin service to make requests to
+// service. This client is used in the VNet admin process to make requests to
 // the VNet client application.
 type clientApplicationServiceClient struct {
 	clt  vnetv1.ClientApplicationServiceClient
@@ -59,14 +59,6 @@ func (c *clientApplicationServiceClient) close() error {
 	return trace.Wrap(c.conn.Close())
 }
 
-// Ping pings the client application.
-func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
-	if _, err := c.clt.Ping(ctx, &vnetv1.PingRequest{}); err != nil {
-		return trace.Wrap(err, "calling Ping rpc")
-	}
-	return nil
-}
-
 // Authenticate process authenticates the client application process.
 func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context, pipePath string) error {
 	resp, err := c.clt.AuthenticateProcess(ctx, &vnetv1.AuthenticateProcessRequest{
@@ -83,21 +75,37 @@ func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context
 	return nil
 }
 
-// ResolveAppInfo resolves fqdn to a [*vnetv1.AppInfo], or returns an error if
-// no matching app is found.
-func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
-	resp, err := c.clt.ResolveAppInfo(ctx, &vnetv1.ResolveAppInfoRequest{
+func (c *clientApplicationServiceClient) ReportNetworkStackInfo(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
+	if _, err := c.clt.ReportNetworkStackInfo(ctx, &vnetv1.ReportNetworkStackInfoRequest{
+		NetworkStackInfo: nsi,
+	}); err != nil {
+		return trace.Wrap(err, "calling ReportNetworkStackInfo rpc")
+	}
+	return nil
+}
+
+// Ping pings the client application.
+func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
+	if _, err := c.clt.Ping(ctx, &vnetv1.PingRequest{}); err != nil {
+		return trace.Wrap(err, "calling Ping rpc")
+	}
+	return nil
+}
+
+// ResolveFQDN resolves a query for a fully-qualified domain name to a target.
+func (c *clientApplicationServiceClient) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+	resp, err := c.clt.ResolveFQDN(ctx, &vnetv1.ResolveFQDNRequest{
 		Fqdn: fqdn,
 	})
 	// Convert NotFound errors to errNoTCPHandler, which is what the network
-	// stack is looking for. Avoid wrapping, no need to collect a stack trace.
+	// stack is looking for.
 	if trace.IsNotFound(err) {
 		return nil, errNoTCPHandler
 	}
 	if err != nil {
-		return nil, trace.Wrap(err, "calling ResolveAppInfo rpc")
+		return nil, trace.Wrap(err, "calling ResolveFQDN rpc")
 	}
-	return resp.GetAppInfo(), nil
+	return resp, nil
 }
 
 // ReissueAppCert issues a new certificate for the requested app.

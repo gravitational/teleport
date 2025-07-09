@@ -243,7 +243,7 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 // configureEntityDescriptorPerPreset configures entity descriptor based on SAML service provider preset.
 func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp types.SAMLIdPServiceProvider) error {
 	switch sp.GetPreset() {
-	case preset.GCPWorkforce:
+	case preset.GCPWorkforce, preset.MicrosoftEntraID:
 		return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
 	default:
 		// fetchAndSetEntityDescriptor is expected to return error if it fails
@@ -304,7 +304,7 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 	newServiceProvider := saml.ServiceProvider{
 		EntityID:          sp.GetEntityID(),
 		AcsURL:            *acsURL,
-		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
+		AuthnNameIDFormat: nameIDFormatPerPreset(sp.GetPreset()),
 	}
 
 	ed := newServiceProvider.Metadata()
@@ -429,4 +429,13 @@ func spReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, serviceP
 	}
 
 	return nil
+}
+
+func nameIDFormatPerPreset(presetType string) saml.NameIDFormat {
+	switch presetType {
+	case preset.MicrosoftEntraID:
+		return saml.PersistentNameIDFormat
+	default:
+		return saml.UnspecifiedNameIDFormat
+	}
 }

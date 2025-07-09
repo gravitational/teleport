@@ -24,12 +24,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -66,7 +66,7 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 	s.mfaMu.Lock()
 	defer s.mfaMu.Unlock()
 
-	return s.tshdEventsClient.PromptMFA(ctx, in)
+	return s.cfg.TshdEventsClient.client.PromptMFA(ctx, in)
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
@@ -76,7 +76,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 
 	// No prompt to run, no-op.
-	if !(promptOTP || promptWebauthn || promptSSO) {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 

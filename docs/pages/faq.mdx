@@ -41,7 +41,7 @@ Yes. When running a Teleport Agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
-Cluster](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+Cluster](enroll-resources/agents/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -109,7 +109,7 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 Teleport offers this feature for the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
 
-## Why do changes to a user's role set only take effect on the log next login?
+## Why do changes to a user's role set only take effect on the next login?
 
 A Teleport user's assigned roles are embedded in the client certificate they
 receive upon logging on. This certificate remains valid and can be used until
@@ -119,7 +119,7 @@ To get a new certificate with the new role set, the user will need to log out
 and log back in.
 
 Revocation of Teleport access should be done with Teleport's
-[session and identity locks](./admin-guides/access-controls/guides/locking.mdx),
+[session and identity locks](identity-governance/locking.mdx),
 not by removing roles.
 
 ## Does Teleport support provisioning users via SCIM?
@@ -128,7 +128,7 @@ Teleport supports [SCIM](https://scim.cloud/) provisioning for Okta via the
 hosted Okta integration, available in the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
 
-Refer to the [hosted Okta integration guide](./enroll-resources/application-access/okta/hosted-guide.mdx)
+Refer to the [hosted Okta integration guide](identity-governance/okta/okta.mdx)
 for details on setting up and configuring SCIM support.
 
 ## Why do I see an alert that some agents are out of date?

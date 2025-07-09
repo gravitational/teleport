@@ -20,18 +20,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
 import {
-  AlertDialog,
+  DisconnectedState,
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { TdpClient } from 'shared/libs/tdp';
+import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
+import auth from 'teleport/services/auth';
 
 export function DesktopSession() {
   const ctx = useTeleport();
@@ -44,17 +46,25 @@ export function DesktopSession() {
     () =>
       //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
       new TdpClient(
-        () =>
-          new AuthenticatedWebSocket(
-            cfg.api.desktopWsAddr
-              .replace(':fqdn', getHostName())
-              .replace(':clusterId', clusterId)
-              .replace(':desktopName', desktopName)
-              .replace(':username', username)
-          )
+        abortSignal =>
+          adaptWebSocketToTdpTransport(
+            new AuthenticatedWebSocket(
+              cfg.api.desktopWsAddr
+                .replace(':fqdn', getHostName())
+                .replace(':clusterId', clusterId)
+                .replace(':desktopName', desktopName)
+                .replace(':username', username)
+            ),
+            abortSignal
+          ),
+        selectDirectoryInBrowser
       )
   );
-  const mfa = useMfaEmitter(client);
+  const mfa = useMfaEmitter(client, undefined, {
+    // When the user cancels the MFA prompt, shut down the connection.
+    // To get a new challenge, we need to recreate it.
+    onPromptCancel: useCallback(() => client.shutdown(), [client]),
+  });
 
   const [aclAttempt, fetchAcl] = useAsync(
     useCallback(async () => {
@@ -63,10 +73,29 @@ export function DesktopSession() {
     }, [ctx.userService])
   );
 
-  const hasAnotherSession = useCallback(
-    () => ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
-    [clusterId, ctx.desktopService, desktopName]
-  );
+  // Returns an active session only if per-session MFA is disabled.
+  // This improves the user experience by preventing multiple confirmation prompts:
+  // - one from the active desktop alert,
+  // - another from the per-session MFA prompt.
+  // The check for another session was added to prevent a situation where a user could be tricked
+  // into clicking a link that would DOS another user's active session.
+  // https://github.com/gravitational/webapps/pull/1297
+  // Showing only the MFA prompt is enough for security.
+  const hasAnotherSession = useCallback(async (): Promise<boolean> => {
+    const [mfaRequiredResponse, desktopActive] = await Promise.all([
+      auth.checkMfaRequired(clusterId, {
+        windows_desktop: {
+          desktop_name: desktopName,
+          login: username,
+        },
+      }),
+      ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
+    ]);
+    if (mfaRequiredResponse.required) {
+      return false;
+    }
+    return desktopActive;
+  }, [clusterId, ctx.desktopService, desktopName, username]);
 
   useEffect(() => {
     fetchAcl();
@@ -81,12 +110,17 @@ export function DesktopSession() {
         // Errors, except for dialog cancellations, are handled within the MFA dialog.
         if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
           return (
-            <AlertDialog
+            <DisconnectedState
               message={{
                 title: 'This session requires multi factor authentication',
                 details: mfa.attempt.statusText,
               }}
-              onRetry={retry}
+              desktopName={desktopName}
+              onRetry={() => {
+                // Clear the MFA attempt to hide this alert state.
+                mfa.reset();
+                retry();
+              }}
             />
           );
         }
@@ -95,6 +129,7 @@ export function DesktopSession() {
         }
       }}
       aclAttempt={aclAttempt}
+      browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
     />
   );

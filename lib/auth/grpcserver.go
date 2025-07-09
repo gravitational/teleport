@@ -32,7 +32,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -60,7 +59,6 @@ import (
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -68,7 +66,6 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -80,6 +77,7 @@ import (
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -437,18 +435,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			var errors []error
 			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
-			// v13 clients expect this request to also emit the event, so emit here
-			// just for them.
-			switch event.GetType() {
-			// Don't emit really verbose events.
-			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
-			default:
-				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
-				if versionExists && semver.New(clientVersion).Major <= 13 {
-					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
-				}
-			}
-
 			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
@@ -617,6 +603,15 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
+		if req.Usage != authpb.UserCertsRequest_Database {
+			return trace.BadParameter("requester %s can only request database certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -709,8 +704,10 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleNode: constants.KeepAliveNode,
-	types.RoleApp:  constants.KeepAliveApp,
+	types.RoleApp:      constants.KeepAliveApp,
+	types.RoleDatabase: constants.KeepAliveDatabase,
+	types.RoleKube:     constants.KeepAliveKube,
+	types.RoleNode:     constants.KeepAliveNode,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -1835,6 +1832,32 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *emptypb.Empty) (*aut
 	}, nil
 }
 
+// StreamWebSessions implements [authpb.AuthServiceServer].
+func (g *GRPCServer) StreamWebSessions(req *emptypb.Empty, srv authpb.AuthService_StreamWebSessionsServer) error {
+	ctx := srv.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		sess, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", session)
+		}
+		if err := srv.Send(sess); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteWebSession removes the web session given with req.
 func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2246,9 +2269,8 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 // related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
-
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, challengeReq.ProxyAddress, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2596,7 +2618,7 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2613,7 +2635,7 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3447,8 +3469,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -3482,8 +3503,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -3896,6 +3916,39 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.Windo
 	return &authpb.GetWindowsDesktopsResponse{
 		Desktops: desktops,
 	}, nil
+}
+
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (g *GRPCServer) ListWindowsDesktops(ctx context.Context, req *authpb.ListWindowsDesktopsRequest) (*authpb.ListWindowsDesktopsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+		Limit:                int(req.Limit),
+		StartKey:             req.StartKey,
+		PredicateExpression:  req.PredicateExpression,
+		Labels:               req.Labels,
+		SearchKeywords:       req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &authpb.ListWindowsDesktopsResponse{
+		Desktops: make([]*types.WindowsDesktopV3, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		if v3, ok := d.(*types.WindowsDesktopV3); ok {
+			out.Desktops = append(out.Desktops, v3)
+		}
+	}
+
+	return out, nil
 }
 
 // CreateWindowsDesktop registers a new Windows desktop host.
@@ -5225,12 +5278,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
-		Authorizer:  cfg.Authorizer,
-		Cache:       cfg.AuthServer.Cache,
-		Emitter:     cfg.Emitter,
-		Clock:       cfg.AuthServer.GetClock(),
-		KeyStore:    cfg.AuthServer.keyStore,
-		ClusterName: clusterName.GetClusterName(),
+		Authorizer:                 cfg.Authorizer,
+		Cache:                      cfg.AuthServer.Cache,
+		Emitter:                    cfg.Emitter,
+		Clock:                      cfg.AuthServer.GetClock(),
+		KeyStore:                   cfg.AuthServer.keyStore,
+		OverrideGetter:             cfg.AuthServer,
+		ClusterName:                clusterName.GetClusterName(),
+		GetSigstorePolicyEvaluator: cfg.AuthServer.GetSigstorePolicyEvaluator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
@@ -5256,6 +5311,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
 	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
+
+	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
+		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
+			Authorizer: cfg.Authorizer,
+			Storage:    cfg.AuthServer.Services,
+			Emitter:    cfg.Emitter,
+
+			ClusterName: clusterName.GetClusterName(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
+		}
+		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
+	}
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5529,19 +5599,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
-
-	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identitycenterv1.RegisterIdentityCenterServiceServer(server, identityCenterService)
-
-	provisioningStateService, err := local.NewProvisioningStateService(cfg.AuthServer.bk)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
 	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
 		Authorizer:               cfg.Authorizer,

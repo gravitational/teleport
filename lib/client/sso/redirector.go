@@ -20,6 +20,7 @@ package sso
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/saml"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -239,7 +241,22 @@ func (rd *Redirector) startServer() error {
 
 // OpenRedirect opens the redirect URL in a new browser window.
 func (rd *Redirector) OpenRedirect(ctx context.Context, redirectURL string) error {
-	clickableURL := rd.clickableURL(redirectURL)
+	return trace.Wrap(rd.processLoginURL(redirectURL, ""))
+}
+
+// OpenLoginURL opens the redirector served redirect URL in a new browser window, suitable for
+// both SAML http-redirect and http-post binding SSO authentication request.
+func (rd *Redirector) OpenLoginURL(ctx context.Context, redirectURL, postForm string) error {
+	return trace.Wrap(rd.processLoginURL(redirectURL, postForm))
+}
+
+func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
+	if redirectURL == "" && postForm == "" {
+		// This is not expected as either one of the param will always be populated
+		// but we should return with an error to indicate a bug.
+		return trace.BadParameter("either redirectURL or postForm value must be configured")
+	}
+	clickableURL := rd.clickableURL(redirectURL, postForm)
 
 	// If a command was found to launch the browser, create and start it.
 	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
@@ -260,7 +277,7 @@ func (rd *Redirector) OpenRedirect(ctx context.Context, redirectURL string) erro
 
 // clickableURL returns a short, clickable URL that will redirect
 // the browser to the SSO redirect URL.
-func (rd *Redirector) clickableURL(redirectURL string) string {
+func (rd *Redirector) clickableURL(redirectURL, postForm string) string {
 	// shortPath is a link-shortener path presented to the user
 	// it is used to open up the browser window, notice
 	// that redirectURL will be set later
@@ -269,7 +286,20 @@ func (rd *Redirector) clickableURL(redirectURL string) string {
 	// short path is a link-shortener style URL
 	// that will redirect to the Teleport-Proxy supplied address
 	rd.mux.HandleFunc(shortPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, redirectURL, http.StatusFound)
+		if postForm != "" {
+			form, err := base64.StdEncoding.DecodeString(postForm)
+			if err != nil {
+				http.Error(w, err.Error(), trace.ErrorToCode(err))
+				return
+			}
+			if err := saml.WriteSAMLPostRequestWithHeaders(w, form); err != nil {
+				http.Error(w, err.Error(), trace.ErrorToCode(err))
+				return
+			}
+		} else {
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
 	})
 
 	return utils.ClickableURL(rd.baseURL() + shortPath)

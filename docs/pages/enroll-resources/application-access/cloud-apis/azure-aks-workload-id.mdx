@@ -40,12 +40,17 @@ the client IDs of the managed identities for user access. This managed identity
 will be assigned as the default identity for the Kubernetes service account.
 
 Log in to your Azure admin account with `az login` command if you haven't
-already, and prepare some environment variables for later steps:
+already, and prepare some environment variables for later steps. Assign <Var
+name="eastus" /> to an Azure region name, <Var name="myResourceGroup" /> to the
+name of your Azure resource group, <Var name="myAKSCluster" /> to the name of
+your AKS cluster, and <Var name="teleport-azure-cli-aks-agent" /> to the Azure
+identity to assign to the Teleport Agent:
+
 ```code
 $ export SUBSCRIPTION="$(az account show --query id --output tsv)"
 $ export LOCATION="<Var name="eastus" />"
 $ export RESOURCE_GROUP="<Var name="myResourceGroup" />"
-$ export AKS_CLUSTER_NAME="<Var name="myASKCluster" />"
+$ export AKS_CLUSTER_NAME="<Var name="myAKSCluster" />"
 $ export USER_ASSIGNED_IDENTITY_NAME="<Var name="teleport-azure-cli-aks-agent" />"
 ```
 
@@ -170,8 +175,8 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 ### Start the Teleport Application Service
 
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
-to the value of the join token you retrieved above, <Var
-name="example.teleport.sh:443" /> to the host **and port** of your Teleport
+to the value of the join token you retrieved above, 
+<Var name="example.teleport.sh:443" /> to the host **and port** of your Teleport
 Proxy Service (e.g., `teleport.example.com:443`):
 
 ```code
@@ -221,8 +226,8 @@ teleport-azure-access-agent-0   1/1     Running   0          99s
   your Teleport users can only manage Azure resources temporarily, with no
   longstanding admin roles for attackers to hijack. View our documentation on
   [Role Access
-  Requests](../../../admin-guides/access-controls/access-requests/role-requests.mdx) and
-  [Access Request plugins](../../../admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx).
+  Requests](../../../identity-governance/access-requests/role-requests.mdx) and
+  [Access Request plugins](../../../identity-governance/access-request-plugins/access-request-plugins.mdx).
 - Consult the Azure documentation for information about [Azure managed
   identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   and how to [manage user-assigned managed

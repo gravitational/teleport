@@ -72,6 +72,8 @@ export default function useAccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     reset: resetSpecifiableFields,
+    reasonMode,
+    reasonPrompts,
   } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -450,6 +452,8 @@ export default function useAccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
+    reasonMode,
+    reasonPrompts,
   };
 }
 
@@ -463,6 +467,7 @@ type ResourceKind =
       | 'saml_idp_service_provider'
       | 'namespace'
       | 'aws_ic_account_assignment'
+      | 'windows_desktop'
     >
   | 'role';
 

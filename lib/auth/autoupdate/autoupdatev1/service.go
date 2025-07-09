@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -540,7 +541,7 @@ func (s *Service) CreateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -569,7 +570,7 @@ func (s *Service) UpdateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -598,7 +599,7 @@ func (s *Service) UpsertAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -627,7 +628,7 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -697,11 +698,12 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 		return trace.Wrap(err, "validating autoupdate config")
 	}
 
-	var maxGroups int
-	isCloud := modules.GetModules().Features().Cloud
+	isLimitedCloud := modules.GetModules().Features().Cloud &&
+		!modules.GetModules().Features().Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
 
+	var maxGroups int
 	switch {
-	case isCloud && agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
+	case isLimitedCloud && agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
 		maxGroups = maxGroupsHaltOnErrorStrategyCloud
 	case agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
 		maxGroups = maxGroupsHaltOnErrorStrategy
@@ -715,7 +717,7 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 		return trace.BadParameter("max groups (%d) exceeded for strategy %s, %s schedule contains %d groups", maxGroups, agentsSpec.GetStrategy(), update.AgentsScheduleRegular, len(agentsSpec.GetSchedules().GetRegular()))
 	}
 
-	if !isCloud {
+	if !isLimitedCloud {
 		return nil
 	}
 
@@ -733,7 +735,6 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 		if !maps.Equal(cloudWeekdays, weekdays) {
 			return trace.BadParameter("weekdays must be set to %v in cloud", cloudGroupUpdateDays)
 		}
-
 	}
 
 	if duration := computeMinRolloutTime(agentsSpec.GetSchedules().GetRegular()); duration > maxRolloutDurationCloudHours {

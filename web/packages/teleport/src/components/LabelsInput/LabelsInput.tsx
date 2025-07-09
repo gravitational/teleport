@@ -66,20 +66,7 @@ export type LabelsRule = Rule<Label[], LabelListValidationResult>;
 
 const buttonIconSize = 0;
 
-export function LabelsInput({
-  legend,
-  tooltipContent,
-  tooltipSticky,
-  labels = [],
-  setLabels,
-  disableBtns = false,
-  autoFocus = false,
-  required = false,
-  adjective = 'Label',
-  labelKey = { fieldName: 'Key', placeholder: 'label key' },
-  labelVal = { fieldName: 'Value', placeholder: 'label value' },
-  rule = defaultRule,
-}: {
+export type LabelsInputProps = {
   legend?: string;
   tooltipContent?: string;
   tooltipSticky?: boolean;
@@ -100,12 +87,55 @@ export function LabelsInput({
    * input as required if this property is undefined.
    */
   rule?: LabelsRule;
-}) {
+  /**
+   * Always show at least one row, even if the label list is empty. Caveat: the
+   * list input in this mode has no way to correctly represent a single label
+   * with empty key and value.
+   */
+  atLeastOneRow?: boolean;
+};
+
+export function LabelsInput({
+  legend,
+  tooltipContent,
+  tooltipSticky,
+  labels = [],
+  setLabels,
+  disableBtns = false,
+  autoFocus = false,
+  required = false,
+  adjective = 'Label',
+  labelKey = { fieldName: 'Key', placeholder: 'label key' },
+  labelVal = { fieldName: 'Value', placeholder: 'label value' },
+  rule = defaultRule,
+  atLeastOneRow = false,
+}: LabelsInputProps) {
   const validator = useValidation() as Validator;
   const validationResult: LabelListValidationResult = useRule(rule(labels));
+  const unspecifiedGlobalValidationError =
+    hasUnspecifiedGlobalValidationError(validationResult);
+  const singleEmptyRow = atLeastOneRow && labels.length === 0;
+
+  if (singleEmptyRow) {
+    labels = [{ name: '', value: '' }];
+  }
+
+  function updateLabels(newList: Label[]) {
+    if (
+      atLeastOneRow &&
+      newList.length === 1 &&
+      newList[0].name === '' &&
+      newList[0].value === ''
+    ) {
+      // Collapse the single empty row into an empty model.
+      setLabels([]);
+    } else {
+      setLabels(newList);
+    }
+  }
 
   function addLabel() {
-    setLabels([...labels, { name: '', value: '' }]);
+    updateLabels([...labels, { name: '', value: '' }]);
   }
 
   function removeLabel(index: number) {
@@ -122,7 +152,7 @@ export function LabelsInput({
     }
     const newList = [...labels];
     newList.splice(index, 1);
-    setLabels(newList);
+    updateLabels(newList);
   }
 
   const handleChange = (
@@ -133,7 +163,7 @@ export function LabelsInput({
     const { value } = event.target;
     const newList = [...labels];
     newList[index] = { ...newList[index], [labelField]: value };
-    setLabels(newList);
+    updateLabels(newList);
   };
 
   const requiredKey = value => () => {
@@ -181,8 +211,21 @@ export function LabelsInput({
         )}
         <tbody>
           {labels.map((label, index) => {
-            const validationItem: LabelValidationResult | undefined =
+            let validationItem: LabelValidationResult | undefined =
               validationResult.results?.[index];
+            if (unspecifiedGlobalValidationError) {
+              validationItem = {
+                name: { valid: false },
+                value: { valid: false },
+              };
+            } else if (singleEmptyRow) {
+              // Special case: a single empty row in the "at least one row" mode
+              // is always valid.
+              validationItem = {
+                name: { valid: true },
+                value: { valid: true },
+              };
+            }
             return (
               <tr key={index}>
                 <td>
@@ -231,10 +274,9 @@ export function LabelsInput({
                       css={`
                         &:disabled {
                           opacity: 0.65;
-                          pointer-events: none;
                         }
                       `}
-                      disabled={disableBtns}
+                      disabled={disableBtns || singleEmptyRow}
                     >
                       <Icons.Cross color="text.muted" size="small" />
                     </ButtonIcon>
@@ -252,6 +294,8 @@ export function LabelsInput({
         }}
         disabled={disableBtns}
         gap={1}
+        size="small"
+        inputAlignment
       >
         <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
         {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
@@ -262,16 +306,24 @@ export function LabelsInput({
 
 const defaultRule = () => () => ({ valid: true });
 
-export const nonEmptyLabels: LabelsRule = labels => () => {
-  const results = labels.map(label => ({
-    name: requiredField('required')(label.name)(),
-    value: requiredField('required')(label.value)(),
-  }));
-  return {
-    valid: results.every(r => r.name.valid && r.value.valid),
-    results: results,
+function hasUnspecifiedGlobalValidationError(llvr: LabelListValidationResult) {
+  return (
+    !llvr.valid &&
+    (!llvr.results || llvr.results.every(vr => vr.name.valid && vr.value.valid))
+  );
+}
+
+export const nonEmptyLabels: LabelsRule =
+  labels => (): LabelListValidationResult => {
+    const results = labels.map(label => ({
+      name: requiredField('required')(label.name)(),
+      value: requiredField('required')(label.value)(),
+    }));
+    return {
+      valid: results.every(r => r.name.valid && r.value.valid),
+      results: results,
+    };
   };
-};
 
 const Fieldset = styled.fieldset`
   border: none;

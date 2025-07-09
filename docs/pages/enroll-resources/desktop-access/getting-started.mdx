@@ -134,7 +134,7 @@ Windows Desktop Service by running the following command:
    ```
 
    If Teleport isn't installed on the Linux server, follow the appropriate [Installation
-instructions](../../installation.mdx#linux) for your environment.
+instructions](../../installation/linux.mdx) for your environment.
 
 1. Configure the `/etc/teleport.yaml` file on the Linux server with settings similar to the
 following for the Windows Desktop Service:
@@ -147,18 +147,18 @@ following for the Windows Desktop Service:
      proxy_server: <Var name="teleport.example.com" />:443
      auth_token: "/tmp/token"
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
      - name: host1
        ad: false
        addr: 192.0.2.156
 
    auth_service:
-     enabled: no
+     enabled: false
    proxy_service:
-     enabled: no
+     enabled: false
    ssh_service:
-     enabled: no
+     enabled: false
    ```
 
    In this file:
@@ -186,7 +186,7 @@ following for the Windows Desktop Service:
      proxy_server: teleport.example.com:443
      auth_token: /tmp/token
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
      - name: host1
        ad: false
@@ -205,7 +205,7 @@ following for the Windows Desktop Service:
      nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport-proxy.example.com:443
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      static_hosts:
       - name: host1
         ad: false
@@ -271,6 +271,7 @@ Now that you have configured a Linux server to run the Windows Desktop Service a
 created a role to allow a Teleport user to connect to Microsoft Windows with a local
 Windows login, you can use the Teleport user assigned the `windows-desktop-admins` role
 to connect to Windows desktops from the Teleport Web UI.
+Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 
@@ -291,8 +292,7 @@ Windows login to use for the connection.
 
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
-   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
-   in the Activity section.
+   To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
 ## Uninstall
 

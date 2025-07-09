@@ -33,7 +33,7 @@ import (
 )
 
 // beginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
-func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
+func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
 	chal := &proto.SSOChallenge{
 		Device: sso,
 	}
@@ -56,6 +56,7 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 			ConnectorID:       sso.ConnectorId,
 			Type:              sso.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
+			ProxyAddress:      proxyAddress,
 			CheckUser:         true,
 		})
 		if err != nil {

@@ -25,11 +25,11 @@ import Flex from 'design/Flex';
 import { ArrowBack } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
 import { H1 } from 'design/Text';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import TextEditor from 'shared/components/TextEditor';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 
 import { InfoGuide } from '../AuthConnectors';
 
@@ -88,15 +88,13 @@ export function AuthConnectorEditorContent({
             {saveAttempt.status === 'error' && (
               <Alert width="100%">{saveAttempt.statusText}</Alert>
             )}
-            <Flex height="600px" width="100%">
-              {content && (
-                <TextEditor
-                  bg="levels.deep"
-                  readOnly={false}
-                  data={[{ content, type: 'yaml' }]}
-                  onChange={setContent}
-                />
-              )}
+            <Flex height="100%" width="100%">
+              <TextEditor
+                bg="levels.deep"
+                readOnly={false}
+                data={[{ content, type: 'yaml' }]}
+                onChange={setContent}
+              />
             </Flex>
             <Box mt={3}>
               <ButtonPrimary disabled={isSaveDisabled} onClick={onSave} mr="3">

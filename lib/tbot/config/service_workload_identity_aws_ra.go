@@ -43,6 +43,8 @@ var (
 // WorkloadIdentityAWSRAService is the configuration for the
 // WorkloadIdentityAWSRAService
 type WorkloadIdentityAWSRAService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
@@ -77,10 +79,28 @@ type WorkloadIdentityAWSRAService struct {
 	// defaults to 1 hour.
 	SessionRenewalInterval time.Duration `yaml:"session_renewal_interval"`
 
+	// CredentialProfileName is the name of the AWS credentials profile to
+	// write to. If unspecified, the profile will be named "default".
+	CredentialProfileName string `yaml:"credential_profile_name,omitempty"`
+
+	// ArtifactName is the name of the artifact to write to. This is the
+	// filename of the file that will be written to the destination. This is
+	// by default "aws_credentials".
+	ArtifactName string `yaml:"artifact_name,omitempty"`
+	// OverwriteCredentialFile is a flag that indicates whether the output
+	// should overwrite the existing credentials file rather than merging with
+	// it.
+	OverwriteCredentialFile bool `yaml:"overwrite_credential_file,omitempty"`
+
 	// EndpointOverride is the endpoint to use for the AWS Roles Anywhere service.
 	// This is designed to be leveraged by tests and unset in production
 	// circumstances.
 	EndpointOverride string `yaml:"-"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *WorkloadIdentityAWSRAService) GetName() string {
+	return o.Name
 }
 
 // Init initializes the destination.

@@ -58,12 +58,36 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		},
 	})
 
-	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	s, err := auth.NewTestTLSServer(auth.TestTLSServerConfig{
+		APIConfig: &auth.APIConfig{
+			AuthServer: testServer.AuthServer,
+			Authorizer: testServer.Authorizer,
+			AuditLog:   testServer.AuditLog,
+			Emitter:    testServer.AuditLog,
+		},
+		AuthServer: testServer,
+	})
+	require.NoError(t, err)
+
+	clt, err := s.NewClient(auth.TestAdmin())
+	require.NoError(t, err)
+
+	ap := types.DefaultAuthPreference()
+	ap.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY)
+	authPref, err := clt.UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
-	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
-	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
+	_, err = clt.UpdateAuthPreference(ctx, authPref)
+	require.ErrorContains(t, err, "rpc error: code = Unknown desc = cannot disable multi-factor authentication")
+
+	// Validate the storage layer doesn't enforce module validation.
+	authPref, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+	require.False(t, authPref.IsSecondFactorEnabled())
+	authPref, err = testServer.AuthServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+	require.False(t, authPref.IsSecondFactorEnabled())
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
@@ -108,30 +132,32 @@ func TestFeatures_ToProto(t *testing.T) {
 		AccessMonitoringConfigured: false,
 		CloudAnonymizationKey:      []byte("001"),
 		Entitlements: map[string]*proto.EntitlementInfo{
-			string(entitlements.AccessLists):            {Enabled: true, Limit: 111},
-			string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 2113},
-			string(entitlements.AccessRequests):         {Enabled: true, Limit: 39},
-			string(entitlements.App):                    {Enabled: false},
-			string(entitlements.CloudAuditLogRetention): {Enabled: true},
-			string(entitlements.DB):                     {Enabled: true},
-			string(entitlements.Desktop):                {Enabled: true},
-			string(entitlements.DeviceTrust):            {Enabled: true, Limit: 103},
-			string(entitlements.ExternalAuditStorage):   {Enabled: true},
-			string(entitlements.FeatureHiding):          {Enabled: true},
-			string(entitlements.HSM):                    {Enabled: true},
-			string(entitlements.Identity):               {Enabled: true},
-			string(entitlements.JoinActiveSessions):     {Enabled: true},
-			string(entitlements.K8s):                    {Enabled: true},
-			string(entitlements.MobileDeviceManagement): {Enabled: true},
-			string(entitlements.OIDC):                   {Enabled: true},
-			string(entitlements.OktaSCIM):               {Enabled: true},
-			string(entitlements.OktaUserSync):           {Enabled: true},
-			string(entitlements.Policy):                 {Enabled: true},
-			string(entitlements.SAML):                   {Enabled: true},
-			string(entitlements.SessionLocks):           {Enabled: true},
-			string(entitlements.UpsellAlert):            {Enabled: true},
-			string(entitlements.UsageReporting):         {Enabled: true},
-			string(entitlements.LicenseAutoUpdate):      {Enabled: true},
+			string(entitlements.AccessLists):                {Enabled: true, Limit: 111},
+			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 2113},
+			string(entitlements.AccessRequests):             {Enabled: true, Limit: 39},
+			string(entitlements.App):                        {Enabled: false},
+			string(entitlements.CloudAuditLogRetention):     {Enabled: true},
+			string(entitlements.DB):                         {Enabled: true},
+			string(entitlements.Desktop):                    {Enabled: true},
+			string(entitlements.DeviceTrust):                {Enabled: true, Limit: 103},
+			string(entitlements.ExternalAuditStorage):       {Enabled: true},
+			string(entitlements.FeatureHiding):              {Enabled: true},
+			string(entitlements.HSM):                        {Enabled: true},
+			string(entitlements.Identity):                   {Enabled: true},
+			string(entitlements.JoinActiveSessions):         {Enabled: true},
+			string(entitlements.K8s):                        {Enabled: true},
+			string(entitlements.MobileDeviceManagement):     {Enabled: true},
+			string(entitlements.OIDC):                       {Enabled: true},
+			string(entitlements.OktaSCIM):                   {Enabled: true},
+			string(entitlements.OktaUserSync):               {Enabled: true},
+			string(entitlements.Policy):                     {Enabled: true},
+			string(entitlements.SAML):                       {Enabled: true},
+			string(entitlements.SessionLocks):               {Enabled: true},
+			string(entitlements.UpsellAlert):                {Enabled: true},
+			string(entitlements.UsageReporting):             {Enabled: true},
+			string(entitlements.LicenseAutoUpdate):          {Enabled: true},
+			string(entitlements.AccessGraphDemoMode):        {Enabled: true},
+			string(entitlements.UnrestrictedManagedUpdates): {Enabled: true},
 		},
 		//	 Legacy Fields; remove in v18
 		Kubernetes:             true,
@@ -183,30 +209,32 @@ func TestFeatures_ToProto(t *testing.T) {
 		AccessMonitoringConfigured: false,
 		CloudAnonymizationKey:      []byte("001"),
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.AccessLists:            {Enabled: true, Limit: 111},
-			entitlements.AccessMonitoring:       {Enabled: true, Limit: 2113},
-			entitlements.AccessRequests:         {Enabled: true, Limit: 39},
-			entitlements.App:                    {Enabled: false, Limit: 0},
-			entitlements.CloudAuditLogRetention: {Enabled: true, Limit: 0},
-			entitlements.DB:                     {Enabled: true, Limit: 0},
-			entitlements.Desktop:                {Enabled: true, Limit: 0},
-			entitlements.DeviceTrust:            {Enabled: true, Limit: 103},
-			entitlements.ExternalAuditStorage:   {Enabled: true, Limit: 0},
-			entitlements.FeatureHiding:          {Enabled: true, Limit: 0},
-			entitlements.HSM:                    {Enabled: true, Limit: 0},
-			entitlements.Identity:               {Enabled: true, Limit: 0},
-			entitlements.JoinActiveSessions:     {Enabled: true, Limit: 0},
-			entitlements.K8s:                    {Enabled: true, Limit: 0},
-			entitlements.MobileDeviceManagement: {Enabled: true, Limit: 0},
-			entitlements.OIDC:                   {Enabled: true, Limit: 0},
-			entitlements.OktaSCIM:               {Enabled: true, Limit: 0},
-			entitlements.OktaUserSync:           {Enabled: true, Limit: 0},
-			entitlements.Policy:                 {Enabled: true, Limit: 0},
-			entitlements.SAML:                   {Enabled: true, Limit: 0},
-			entitlements.SessionLocks:           {Enabled: true, Limit: 0},
-			entitlements.UpsellAlert:            {Enabled: true, Limit: 0},
-			entitlements.UsageReporting:         {Enabled: true, Limit: 0},
-			entitlements.LicenseAutoUpdate:      {Enabled: true, Limit: 0},
+			entitlements.AccessLists:                {Enabled: true, Limit: 111},
+			entitlements.AccessMonitoring:           {Enabled: true, Limit: 2113},
+			entitlements.AccessRequests:             {Enabled: true, Limit: 39},
+			entitlements.App:                        {Enabled: false, Limit: 0},
+			entitlements.CloudAuditLogRetention:     {Enabled: true, Limit: 0},
+			entitlements.DB:                         {Enabled: true, Limit: 0},
+			entitlements.Desktop:                    {Enabled: true, Limit: 0},
+			entitlements.DeviceTrust:                {Enabled: true, Limit: 103},
+			entitlements.ExternalAuditStorage:       {Enabled: true, Limit: 0},
+			entitlements.FeatureHiding:              {Enabled: true, Limit: 0},
+			entitlements.HSM:                        {Enabled: true, Limit: 0},
+			entitlements.Identity:                   {Enabled: true, Limit: 0},
+			entitlements.JoinActiveSessions:         {Enabled: true, Limit: 0},
+			entitlements.K8s:                        {Enabled: true, Limit: 0},
+			entitlements.MobileDeviceManagement:     {Enabled: true, Limit: 0},
+			entitlements.OIDC:                       {Enabled: true, Limit: 0},
+			entitlements.OktaSCIM:                   {Enabled: true, Limit: 0},
+			entitlements.OktaUserSync:               {Enabled: true, Limit: 0},
+			entitlements.Policy:                     {Enabled: true, Limit: 0},
+			entitlements.SAML:                       {Enabled: true, Limit: 0},
+			entitlements.SessionLocks:               {Enabled: true, Limit: 0},
+			entitlements.UpsellAlert:                {Enabled: true, Limit: 0},
+			entitlements.UsageReporting:             {Enabled: true, Limit: 0},
+			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
+			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 0},
 		},
 	}
 

@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { produce } from 'immer';
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useId } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
@@ -37,6 +36,7 @@ import {
   OptionsModel,
   roleEditorModelToRole,
   StandardEditorModel,
+  StandardEditorTab,
 } from './standardmodel';
 import { ActionType, StandardModelDispatcher } from './useStandardModel';
 
@@ -60,20 +60,10 @@ export const StandardEditor = ({
   dispatch,
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
-  const { roleModel, validationResult } = standardEditorModel;
+  const { roleModel, validationResult, currentTab, disabledTabs } =
+    standardEditorModel;
   const modelValid = validationResult.isValid;
 
-  enum StandardEditorTab {
-    Overview,
-    Resources,
-    AdminRules,
-    Options,
-  }
-
-  const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
-  const [disabledTabs, setDisabledTabs] = useState(
-    isEditing ? [false, false, false, false] : [false, true, true, true]
-  );
   const idPrefix = useId();
 
   const validator = useValidation();
@@ -104,6 +94,13 @@ export const StandardEditor = ({
     [dispatch]
   );
 
+  const setCurrentTab = useCallback(
+    (newTab: StandardEditorTab) => {
+      dispatch({ type: ActionType.SetCurrentTab, payload: newTab });
+    },
+    [dispatch]
+  );
+
   const validateAndGoToNextTab = useCallback(() => {
     const nextTabIndex = currentTab + 1;
     const valid = validate();
@@ -112,12 +109,7 @@ export const StandardEditor = ({
     }
     validator.reset();
     setCurrentTab(nextTabIndex);
-    setDisabledTabs(prevEnabledTabs =>
-      produce(prevEnabledTabs, et => {
-        et[nextTabIndex] = false;
-      })
-    );
-  }, [currentTab, validate, validator, setCurrentTab, setDisabledTabs]);
+  }, [currentTab, validate, validator, setCurrentTab]);
 
   const goToPreviousTab = useCallback(
     () => setCurrentTab(currentTab - 1),
@@ -136,7 +128,7 @@ export const StandardEditor = ({
     return {
       key: tab,
       title: tabTitles[tab],
-      disabled: disabledTabs[tab],
+      disabled: disabledTabs.has(tab),
       controls: tabElementIDs[tab],
       status: error ? validationErrorTabStatus : undefined,
     };
@@ -147,6 +139,7 @@ export const StandardEditor = ({
       <Box mb={3} mx={3}>
         <SlideTabs
           appearance="round"
+          size="medium"
           hideStatusIconOnActiveTab
           tabs={[
             tabSpec(
@@ -201,12 +194,11 @@ export const StandardEditor = ({
           }}
         >
           <MetadataSection
+            isEditing={isEditing}
             value={roleModel.metadata}
             isProcessing={isProcessing}
             validation={validationResult.metadata}
-            onChange={metadata =>
-              dispatch({ type: ActionType.SetMetadata, payload: metadata })
-            }
+            dispatch={dispatch}
           />
         </Box>
         <Box

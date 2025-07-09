@@ -20,7 +20,7 @@ import { memo } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
-import { ButtonSecondary } from 'design/Button';
+import { Button } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import { Add, Plus, Trash } from 'design/Icon';
@@ -33,6 +33,7 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { useRule } from 'shared/components/Validation';
 import { precomputed } from 'shared/components/Validation/rules';
 import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
@@ -165,27 +166,27 @@ export const resourceAccessSections: Record<
   }
 > = {
   kube_cluster: {
-    title: 'Kubernetes',
+    title: 'Kubernetes Access',
     component: KubernetesAccessSection,
   },
   node: {
-    title: 'Servers',
+    title: 'SSH Server Access',
     component: ServerAccessSection,
   },
   app: {
-    title: 'Applications',
+    title: 'Application Access',
     component: AppAccessSection,
   },
   db: {
-    title: 'Databases',
+    title: 'Database Access',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
-    title: 'Windows Desktops',
+    title: 'Windows Desktop Access',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
-    title: 'GitHub Organizations',
+    title: 'GitHub Organization Access',
     component: GitHubOrganizationAccessSection,
   },
 };
@@ -245,6 +246,7 @@ export function ServerAccessSection({
   return (
     <>
       <LabelsInput
+        atLeastOneRow
         legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
@@ -278,6 +280,9 @@ export function KubernetesAccessSection({
   validation,
   onChange,
 }: SectionProps<KubernetesAccess, KubernetesAccessValidationResult>) {
+  const resourcesValidationResult = useRule(
+    precomputed(validation.fields.resources)(value.resources)
+  );
   return (
     <>
       <FieldSelectCreatable
@@ -293,6 +298,7 @@ export function KubernetesAccessSection({
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.groups)}
       />
 
       <FieldSelectCreatable
@@ -308,9 +314,11 @@ export function KubernetesAccessSection({
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.users)}
       />
 
       <LabelsInput
+        atLeastOneRow
         legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
@@ -343,7 +351,9 @@ export function KubernetesAccessSection({
         ))}
 
         <Box>
-          <ButtonSecondary
+          <Button
+            fill={resourcesValidationResult.valid ? 'filled' : 'border'}
+            intent={resourcesValidationResult.valid ? 'neutral' : 'danger'}
             disabled={isProcessing}
             gap={1}
             onClick={() =>
@@ -355,12 +365,14 @@ export function KubernetesAccessSection({
                 ],
               })
             }
+            size="small"
+            inputAlignment
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0
               ? 'Add Another Kubernetes Resource'
               : 'Add a Kubernetes Resource'}
-          </ButtonSecondary>
+          </Button>
         </Box>
       </Flex>
     </>
@@ -465,6 +477,7 @@ export function AppAccessSection({
   return (
     <Flex flexDirection="column" gap={3}>
       <LabelsInput
+        atLeastOneRow
         legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
@@ -506,6 +519,7 @@ export function DatabaseAccessSection({
     <>
       <Box mb={3}>
         <LabelsInput
+          atLeastOneRow
           legend="Labels"
           tooltipContent="Access to databases with these labels will be affected by this role"
           disableBtns={isProcessing}
@@ -533,6 +547,7 @@ export function DatabaseAccessSection({
         value={value.names}
         onChange={names => onChange?.({ ...value, names })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.names)}
       />
       <FieldSelectCreatable
         isMulti
@@ -553,6 +568,7 @@ export function DatabaseAccessSection({
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.users)}
       />
       <FieldSelectCreatable
         isMulti
@@ -571,6 +587,7 @@ export function DatabaseAccessSection({
         menuPosition="fixed"
       />
       <LabelsInput
+        atLeastOneRow
         legend="Database Service Labels"
         tooltipContent="The database service labels control which Database Services (Teleport Agents) are visible to the user, which is required when adding Databases in the Enroll New Resource wizard. Access to Databases themselves is controlled by the Database Labels field."
         disableBtns={isProcessing}
@@ -592,6 +609,7 @@ export function WindowsDesktopAccessSection({
     <>
       <Box mb={3}>
         <LabelsInput
+          atLeastOneRow
           legend="Labels"
           disableBtns={isProcessing}
           labels={value.labels}
@@ -613,6 +631,7 @@ export function WindowsDesktopAccessSection({
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
         menuPosition="fixed"
+        rule={precomputed(validation.fields.logins)}
       />
     </>
   );
@@ -621,6 +640,7 @@ export function WindowsDesktopAccessSection({
 export function GitHubOrganizationAccessSection({
   value,
   isProcessing,
+  validation,
   onChange,
 }: SectionProps<
   GitHubOrganizationAccess,
@@ -641,6 +661,8 @@ export function GitHubOrganizationAccessSection({
       value={value.organizations}
       onChange={organizations => onChange?.({ ...value, organizations })}
       menuPosition="fixed"
+      rule={precomputed(validation.fields.organizations)}
+      mb={0}
     />
   );
 }

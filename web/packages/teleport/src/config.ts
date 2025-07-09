@@ -95,7 +95,7 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
-  configDir: '$HOME/.config',
+  configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
 
@@ -181,6 +181,8 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    botInstances: '/web/bots/instances',
+    botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -455,6 +457,9 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+    botInstancePath:
+      '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
+    botInstancesPath: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -723,6 +728,14 @@ const cfg = {
     return generatePath(cfg.routes.bots);
   },
 
+  getBotInstancesRoute() {
+    return generatePath(cfg.routes.botInstances);
+  },
+
+  getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
+    return generatePath(cfg.routes.botInstance, params);
+  },
+
   getBotsNewRoute(type?: string) {
     return generatePath(cfg.routes.botsNew, { type });
   },
@@ -830,8 +843,7 @@ const cfg = {
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
   },
 
-  getMfaRequiredUrl() {
-    const clusterId = cfg.proxyCluster;
+  getMfaRequiredUrl(clusterId: string) {
     return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 
@@ -1439,6 +1451,20 @@ const cfg = {
   getBotUrlWithName(name: string) {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.botsPath, { clusterId, name });
+  },
+
+  listBotInstancesUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botInstancesPath, { clusterId });
+  },
+
+  getBotInstanceUrl(botName: string, instanceId: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botInstancePath, {
+      clusterId,
+      botName,
+      instanceId,
+    });
   },
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {

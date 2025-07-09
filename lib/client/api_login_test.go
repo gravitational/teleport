@@ -276,7 +276,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			otpKey := sa.OTPKey
 
 			// Prepare client config.
-			cfg := client.MakeDefaultConfig()
+			cfg := &client.Config{}
+			cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 			cfg.Stdout = io.Discard
 			cfg.Stderr = io.Discard
 			cfg.Stdin = &bytes.Buffer{}
@@ -286,7 +287,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
 			// for Webauthn requests, and Webauthn doesn't take IP addresses.
 			cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
-			cfg.KeysDir = t.TempDir()
 			cfg.InsecureSkipVerify = true
 
 			// Prepare the client proper.
@@ -344,7 +344,8 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
 	// Prepare client config, it won't change throughout the test.
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
+	cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 	cfg.Stdout = io.Discard
 	cfg.Stderr = io.Discard
 	cfg.Stdin = &bytes.Buffer{}
@@ -352,7 +353,6 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	cfg.HostLogin = username
 	cfg.AddKeysToAgent = client.AddKeysToAgentNo
 	cfg.WebProxyAddr = sa.ProxyWebAddr
-	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
 	teleportClient, err := client.NewClient(cfg)
@@ -698,11 +698,11 @@ func TestRetryWithRelogin(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
 
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
+	cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 	cfg.Username = sa.Username
 	cfg.HostLogin = sa.Username
 	cfg.WebProxyAddr = sa.ProxyWebAddr
-	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 	cfg.AllowStdinHijack = true
 

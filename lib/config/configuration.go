@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1191,9 +1190,10 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
 		AWSAccount:  kmsConfig.Account,
 		AWSRegion:   kmsConfig.Region,
-		MultiRegion: kmsConfig.MultiRegion,
 		Tags:        kmsConfig.Tags,
+		MultiRegion: kmsConfig.MultiRegion,
 	}
+
 	return nil
 }
 
@@ -1227,6 +1227,9 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		cfg.Proxy.PROXYProtocolMode = val
 	}
+
+	allowDowngrade := fc.Proxy.ProxyProtocolAllowDowngrade
+	cfg.Proxy.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
 
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
@@ -1553,24 +1556,6 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
-
-		// If PAM is enabled, make sure that Teleport was built with PAM support
-		// and the PAM library was found at runtime.
-		if cfg.SSH.PAM.Enabled {
-			if !pam.BuildHasPAM() {
-				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
-					"Teleport binary was built without PAM support. To continue either download a \n" +
-					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
-					"or disable PAM in file configuration."
-				return trace.BadParameter(errorMessage)
-			}
-			if !pam.SystemHasPAM() {
-				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
-					"system does not have the needed PAM library installed. To continue either \n" +
-					"install libpam or disable PAM in file configuration."
-				return trace.BadParameter(errorMessage)
-			}
-		}
 	}
 	if len(fc.SSH.PublicAddr) != 0 {
 		addrs, err := utils.AddrsFromStrings(fc.SSH.PublicAddr, defaults.SSHServerListenPort)
@@ -1594,6 +1579,8 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 	}
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
+
+	cfg.SSH.ForceListen = fc.SSH.ForceListen
 
 	return nil
 }
@@ -1949,12 +1936,14 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 			AD: servicecfg.DatabaseAD{
-				KeytabFile:  database.AD.KeytabFile,
-				Krb5File:    database.AD.Krb5File,
-				Domain:      database.AD.Domain,
-				SPN:         database.AD.SPN,
-				LDAPCert:    database.AD.LDAPCert,
-				KDCHostName: database.AD.KDCHostName,
+				KeytabFile:             database.AD.KeytabFile,
+				Krb5File:               database.AD.Krb5File,
+				Domain:                 database.AD.Domain,
+				SPN:                    database.AD.SPN,
+				LDAPCert:               database.AD.LDAPCert,
+				KDCHostName:            database.AD.KDCHostName,
+				LDAPServiceAccountName: database.AD.LDAPServiceAccountName,
+				LDAPServiceAccountSID:  database.AD.LDAPServiceAccountSID,
 			},
 			Azure: servicecfg.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,
@@ -2050,15 +2039,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		// Add the application to the list of proxied applications.
 		app := servicecfg.App{
-			Name:               application.Name,
-			Description:        application.Description,
-			URI:                application.URI,
-			PublicAddr:         application.PublicAddr,
-			StaticLabels:       staticLabels,
-			DynamicLabels:      dynamicLabels,
-			InsecureSkipVerify: application.InsecureSkipVerify,
-			Cloud:              application.Cloud,
-			RequiredAppNames:   application.RequiredApps,
+			Name:                  application.Name,
+			Description:           application.Description,
+			URI:                   application.URI,
+			PublicAddr:            application.PublicAddr,
+			StaticLabels:          staticLabels,
+			DynamicLabels:         dynamicLabels,
+			InsecureSkipVerify:    application.InsecureSkipVerify,
+			Cloud:                 application.Cloud,
+			RequiredAppNames:      application.RequiredApps,
+			UseAnyProxyPublicAddr: application.UseAnyProxyPublicAddr,
 		}
 
 		if application.CORS != nil {

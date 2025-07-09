@@ -24,8 +24,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/gitserver"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,7 +43,7 @@ func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, er
 	ctx, span := c.Tracer.Start(ctx, "cache/GetGitServer")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.gitServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.gitServers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -54,7 +55,7 @@ func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken stri
 	ctx, span := c.Tracer.Start(ctx, "cache/ListGitServers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.gitServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.gitServers)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -65,19 +66,8 @@ func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken stri
 type gitServerExecutor struct{}
 
 func (gitServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) (all []types.Server, err error) {
-	var page []types.Server
-	var nextToken string
-	for {
-		page, nextToken, err = cache.GitServers.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		all = append(all, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return all, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.GitServers.ListGitServers))
+	return out, trace.Wrap(err)
 }
 
 func (gitServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {

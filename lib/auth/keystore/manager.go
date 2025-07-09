@@ -157,9 +157,11 @@ type Options struct {
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
 
-	awsKMSClient      kmsClient
-	awsSTSClient      stsClient
-	kmsClient         *kms.KeyManagementClient
+	awsKMSClient kmsClient
+	mrkClient    mrkClient
+	awsSTSClient stsClient
+	kmsClient    *kms.KeyManagementClient
+
 	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
 	faketimeOverride faketime.Clock
@@ -672,6 +674,21 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 // cluster and are not present in [activeKeys].
 func (m *Manager) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	return trace.Wrap(m.backendForNewKeys.deleteUnusedKeys(ctx, activeKeys))
+}
+
+// ApplyMultiRegionConfig configures the given keyID with the current multi-region
+// parameters and returns the updated keyID. This is currently only implemented
+// for AWS KMS.
+func (m *Manager) ApplyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
+	backend, ok := m.backendForNewKeys.(*awsKMSKeystore)
+	if !ok {
+		return keyID, nil
+	}
+	keyID, err := backend.applyMultiRegionConfig(ctx, keyID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keyID, nil
 }
 
 // UsingHSMOrKMS returns true if the keystore is configured to use an HSM or KMS

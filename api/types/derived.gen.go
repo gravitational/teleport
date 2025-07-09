@@ -196,7 +196,8 @@ func deriveTeleportEqual(this, that *AppSpecV3) bool {
 			deriveTeleportEqual_21(this.RequiredAppNames, that.RequiredAppNames) &&
 			deriveTeleportEqual_22(this.CORS, that.CORS) &&
 			deriveTeleportEqual_23(this.IdentityCenter, that.IdentityCenter) &&
-			deriveTeleportEqual_24(this.TCPPorts, that.TCPPorts)
+			deriveTeleportEqual_24(this.TCPPorts, that.TCPPorts) &&
+			this.UseAnyProxyPublicAddr == that.UseAnyProxyPublicAddr
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.
@@ -499,7 +500,9 @@ func deriveTeleportEqual_26(this, that *AD) bool {
 			this.Domain == that.Domain &&
 			this.SPN == that.SPN &&
 			this.LDAPCert == that.LDAPCert &&
-			this.KDCHostName == that.KDCHostName
+			this.KDCHostName == that.KDCHostName &&
+			this.LDAPServiceAccountName == that.LDAPServiceAccountName &&
+			this.LDAPServiceAccountSID == that.LDAPServiceAccountSID
 }
 
 // deriveTeleportEqual_27 returns whether this and that are equal.

@@ -33,6 +33,7 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/lib/teleterm/v1/windows_desktop.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
@@ -181,6 +182,16 @@ service TerminalService {
   // GetApp returns details of an app resource. It does not include information about AWS roles and
   // FQDN.
   rpc GetApp(GetAppRequest) returns (GetAppResponse);
+
+  // ConnectToDesktop is a bidirectional stream for the desktop connection.
+  rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
+  // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+  // If there is no active desktop session associated with the specified desktop_uri and login,
+  // the RPC returns an error.
+  //
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  // It only registers file system handlers for processing file system-related TDP events.
+  rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
 }
 
 message EmptyResponse {}
@@ -622,6 +633,7 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
     App app = 4;
+    WindowsDesktop windows_desktop = 6;
   }
   bool requires_request = 5;
 }
@@ -672,3 +684,39 @@ message GetAppRequest {
 message GetAppResponse {
   App app = 1;
 }
+
+// TargetDesktop contains information about the destination desktop.
+message TargetDesktop {
+  // URI of the desktop to connect to.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+}
+
+// Request for ConnectToDesktop.
+message ConnectToDesktopRequest {
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+  // Must be empty in the first message and nonempty in subsequent messages.
+  bytes data = 1;
+  // Target desktop and login. Must be set in the first message and unset in subsequent messages.
+  TargetDesktop target_desktop = 2;
+}
+
+// Response for ConnectToDesktop.
+message ConnectToDesktopResponse {
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
+  bytes data = 1;
+}
+
+// Request for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionRequest {
+  // URI of the desktop.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+  // Path to share with a remote machine. Must be a directory.
+  string path = 3;
+}
+
+// Response for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionResponse {}

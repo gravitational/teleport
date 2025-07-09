@@ -31,7 +31,7 @@ To complete the steps in this guide, verify your environment meets the following
   ```
 
   You can download these tools by following the appropriate [Installation
-  instructions](../../installation.mdx#linux) for the Teleport
+  instructions](../../installation/linux.mdx) for the Teleport
   edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
@@ -556,9 +556,9 @@ To export a CA certificate:
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
+1. Click Start, Control Panel, and Administrative Tools to select **Certification Authority**.
 1. Select your CA computer, right-click, then select **Properties**.
-1. One the General tab, click **View Certificate**.
+1. On the General tab, click **View Certificate**.
 1. Select **Details**, then click **Copy to File**.
 1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
    is selected.
@@ -597,7 +597,7 @@ To configure Teleport to protect access to Windows desktops:
      auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      ldap:
        # Port must be included for the addr.
        # LDAPS port is 636 by default (example.com:636)
@@ -610,11 +610,11 @@ To configure Teleport to protect access to Windows desktops:
      discovery:
        base_dn: "*"
    auth_service:
-     enabled: no
+     enabled: false
    proxy_service:
-     enabled: no
+     enabled: false
    ssh_service:
-     enabled: no
+     enabled: false
    ```
 
    For a detailed description of the configuration fields, see
@@ -656,6 +656,7 @@ To create a role for accessing Windows desktops:
    a role that allows Teleport users to connect to Windows computers, you can
    use the Teleport user assigned the `windows-desktop-admins` role
    to connect to Windows desktops from the Teleport Web UI.
+   Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 
@@ -676,20 +677,19 @@ To connect to a Windows desktop:
 
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
-   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
-   in the Activity section.
+   To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
 via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
 the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
-wildcard `'*` to search from the root of the domain, or you can specify an alternate
+wildcard `'*'` to search from the root of the domain, or you can specify an alternate
 base distinguished name to search from.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   discovery:
     base_dn: '*'
 ```
@@ -703,7 +703,7 @@ compute a logical AND of all filters specified.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   discovery:
     base_dn: '*'
     filters:
@@ -720,7 +720,7 @@ configuration.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   discovery:
     base_dn: '*'
     label_attributes:
@@ -778,7 +778,7 @@ domain, you would do the following:
 
   ```yaml
   windows_desktop_service:
-    enabled: yes
+    enabled: true
 
     # configure LDAP settings to point at the child domain
     ldap:
@@ -817,7 +817,7 @@ NLA against `example.com:88`.
 
 ```yaml
 windows_desktop_service:
-    enabled: yes
+    enabled: true
     ldap:
       addr: example.com:636
 ```
@@ -827,7 +827,7 @@ in your Teleport configuration file.
 
 ```yaml
 windows_desktop_service:
-    enabled: yes
+    enabled: true
     kdc_address: kdc.example.com   # defaults to port 88 if unspecified
 ```
 

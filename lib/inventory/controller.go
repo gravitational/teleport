@@ -165,7 +165,7 @@ func (options *controllerOptions) SetDefaults() {
 	if options.cleanupLimiter == nil {
 		// limit resource cleanup writes to 128 per second to reduce the chances that
 		// agents with very large resource counts cause throttling on graceful disconnect.
-		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second), 128)
+		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second/128), 1)
 	}
 
 	if options.cleanupTimeout == 0 {
@@ -182,7 +182,7 @@ func WithAuthServerID(serverID string) ControllerOption {
 }
 
 // WithOnConnect sets a function to be called every time a new
-// instance connects via the inventory control stream. The value
+// heartbeat connects via the inventory control stream. The value
 // provided to the callback is the keep alive type of the connected
 // resource. The callback should return quickly so as not to prevent
 // processing of heartbeats.
@@ -192,7 +192,7 @@ func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
 	}
 }
 
-// WithOnDisconnect sets a function to be called every time an existing instance
+// WithOnDisconnect sets a function to be called every time an existing heartbeat
 // disconnects from the inventory control stream. The values provided to the
 // callback are the keep alive type of the disconnected resource, as well as a
 // count of how many resources disconnected at once. The callback should return
@@ -342,11 +342,18 @@ func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, o
 	return
 }
 
-// Iter iterates across all handles registered with this controller.
-// note: if multiple handles are registered for a given server, only
+// UniqueHandles iterates across unique handles registered with this controller.
+// If multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.
-func (c *Controller) Iter(fn func(UpstreamHandle)) {
-	c.store.Iter(fn)
+func (c *Controller) UniqueHandles(fn func(UpstreamHandle)) {
+	c.store.UniqueHandles(fn)
+}
+
+// AllHandles iterates across all handles registered with this
+// controller. If multiple handles are registered for a given server,
+// all of them will be observed.
+func (c *Controller) AllHandles(fn func(UpstreamHandle)) {
+	c.store.AllHandles(fn)
 }
 
 // ConnectedInstances gets the total number of connected instances. Note that this is the total number of
@@ -940,7 +947,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
 	// client cert. after that point it is our responsibility to ensure that heartbeated information is
 	// consistent with the identity and capabilities claimed in the initial hello.
-	if !(handle.HasService(types.RoleKube) || handle.HasService(types.RoleProxy)) {
+	if !handle.HasService(types.RoleKube) && !handle.HasService(types.RoleProxy) {
 		return trace.AccessDenied("control stream not configured to support kubernetes server heartbeats")
 	}
 	if kubernetesServer.GetHostID() != handle.Hello().ServerID {

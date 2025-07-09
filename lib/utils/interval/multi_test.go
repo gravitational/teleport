@@ -117,7 +117,7 @@ func TestMultiIntervalBasics(t *testing.T) {
 	for i := 0; i < 60; i++ {
 		tick := <-interval.Next()
 		require.False(t, tick.Time.IsZero())
-		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
+		require.True(t, tick.Time.After(prevT) || tick.Time.Equal(prevT))
 		prevT = tick.Time
 		switch tick.Key {
 		case "fast":
@@ -172,7 +172,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 	for i := 0; i < 60; i++ {
 		tick := <-interval.Next()
 		require.False(t, tick.Time.IsZero())
-		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
+		require.True(t, tick.Time.After(prevT) || tick.Time.Equal(prevT))
 		prevT = tick.Time
 		switch tick.Key {
 		case "foo":

@@ -47,6 +47,8 @@ type JoinToken struct {
 	Allow []*types.TokenRule `json:"allow,omitempty"`
 	// GCP allows the configuration of options specific to the "gcp" join method.
 	GCP *types.ProvisionTokenSpecV2GCP `json:"gcp,omitempty"`
+	// GitHub-specific configuration for the join method.
+	Github *types.ProvisionTokenSpecV2GitHub `json:"github,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
 }
@@ -71,6 +73,11 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 	if uiToken.Method == types.JoinMethodGCP {
 		uiToken.GCP = token.GetGCPRules()
 	}
+
+	if uiToken.Method == types.JoinMethodGitHub {
+		uiToken.Github = token.GetGithubRules()
+	}
+
 	return uiToken, nil
 }
 

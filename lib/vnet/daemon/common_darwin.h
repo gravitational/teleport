@@ -32,10 +32,8 @@ extern const int VNEMissingCodeSigningIdentifiersError;
 // In either case, the expectation is that the Obj-C side pushes the config to the Go side which
 // actually validates the config.
 @interface VNEConfig : NSObject <NSSecureCoding>
-@property(copy) NSString *socketPath;
-@property(copy) NSString *ipv6Prefix;
-@property(copy) NSString *dnsAddr;
-@property(copy) NSString *homePath;
+@property(copy) NSString *serviceCredentialPath;
+@property(copy) NSString *clientApplicationServiceAddr;
 @end
 
 @protocol VNEDaemonProtocol

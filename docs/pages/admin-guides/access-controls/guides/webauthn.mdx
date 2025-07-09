@@ -34,7 +34,7 @@ It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric auth
 
 - The `tctl` admin tool and `tsh` client tool.
 
-  Visit [Installation](../../../installation.mdx) for instructions on downloading `tctl` and `tsh`.
+  Visit [Installation](../../../installation/installation.mdx) for instructions on downloading `tctl` and `tsh`.
 
 - WebAuthn hardware device, such as YubiKey or SoloKey
 
@@ -62,8 +62,8 @@ Teleport configuration as below:
     name: cluster-auth-preference
   spec:
     type: local
-    # To enable WebAuthn support, include "webauthn" as a second factor method.
-    second_factors: ["webauthn"]
+    #To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+    second_factor: "webauthn"
     webauthn:
       # Required, replace with proxy web address (example.com, example.teleport.sh).
       # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
@@ -360,7 +360,7 @@ enrolls the user's device in their next Teleport (`tsh`) login.
 
 For auto-enrollment to work, the following conditions must be met:
 - A device must be registered. Registration may be [manual](#implement-cluster-wide-device-trust) or performed using an
-integration, like the [Jamf Pro integration](../device-trust/jamf-integration.mdx).
+integration, like the [Jamf Pro integration](../../../identity-governance/device-trust/jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 
 ### Step 1/2. Enable auto-enrollment in your cluster settings
@@ -472,7 +472,7 @@ Update the `cluster_auth_preference` definition to include the following content
     name: cluster-auth-preference
   spec:
     type: local
-    second_factors: ["webauthn"]
+    second_factor: "webauthn"
     webauthn:
       rp_id: example.com
   ```
@@ -489,6 +489,6 @@ Update the `cluster_auth_preference` definition to include the following content
 For additional cluster hardening measures, see:
 
 - [Passwordless Authentication](./passwordless.mdx): Provides passwordless and usernameless authentication.
-- [Locking](./locking.mdx): Lock access to active user sessions or hosts.
+- [Locking](../../../identity-governance/locking.mdx): Lock access to active user sessions or hosts.
 - [Moderated Sessions](./joining-sessions.mdx): Require session auditors and allow fine-grained live session access.
 - [Hardware Key Support](./hardware-key-support.mdx): Enforce the use of hardware-based private keys.

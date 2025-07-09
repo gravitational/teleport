@@ -1055,6 +1055,10 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 	}
 }
 
+func (i TestIdentity) GetUsername() string {
+	return i.I.GetIdentity().Username
+}
+
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
@@ -1191,35 +1195,53 @@ func (t *TestTLSServer) Start() error {
 
 // Close closes the listener and HTTP server
 func (t *TestTLSServer) Close() error {
-	err := t.TLSServer.Close()
-	if t.Listener != nil {
-		t.Listener.Close()
+	var errs []error
+	if err := t.Stop(); err != nil {
+		errs = append(errs, err)
 	}
+
 	if t.AuthServer.Backend != nil {
-		t.AuthServer.Backend.Close()
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	return err
+	return trace.NewAggregate(errs...)
 }
 
 // Shutdown closes the listener and HTTP server gracefully
 func (t *TestTLSServer) Shutdown(ctx context.Context) error {
-	errs := []error{t.TLSServer.Shutdown(ctx)}
+	var errs []error
+	if err := t.TLSServer.Shutdown(ctx); err != nil {
+		errs = append(errs, err)
+	}
+
 	if t.Listener != nil {
-		errs = append(errs, t.Listener.Close())
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+
 	}
 	if t.AuthServer.Backend != nil {
-		errs = append(errs, t.AuthServer.Backend.Close())
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return trace.NewAggregate(errs...)
 }
 
 // Stop stops listening server, but does not close the auth backend
 func (t *TestTLSServer) Stop() error {
-	err := t.TLSServer.Close()
-	if t.Listener != nil {
-		t.Listener.Close()
+	var errs []error
+	if err := t.TLSServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return err
+	if t.Listener != nil {
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // FakeTeleportVersion fake version storage implementation always return current version.
@@ -1231,12 +1253,17 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 }
 
 // GetTeleportVersion returns current Teleport version.
-func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVersion, nil
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (semver.Version, error) {
+	return *teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.
-func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ semver.Version) error {
+	return nil
+}
+
+// DeleteTeleportVersion error stub function for deleting.
+func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 

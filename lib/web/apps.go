@@ -22,6 +22,8 @@ package web
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"sort"
 
@@ -176,10 +178,16 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		if clusterName == "" {
 			clusterName = result.ClusterName
 		}
-		for _, required := range requiredAppNames {
-			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
+		for _, requiredAppName := range requiredAppNames {
+			if result.App.GetUseAnyProxyPublicAddr() {
+				proxyDNSName := utils.FindMatchingProxyDNS(req.FQDNHint, h.proxyDNSNames())
+				requiredAppFQDN := fmt.Sprintf("%s.%s", requiredAppName, proxyDNSName)
+				resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, requiredAppFQDN)
+				continue
+			}
+			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: requiredAppName})
 			if err != nil {
-				h.log.Errorf("Error getting app details for %s, a required app for %s", required, result.App.GetName())
+				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", requiredAppName, "app", result.App.GetName(), "error", err)
 				continue
 			}
 			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
@@ -351,7 +359,11 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 		return nil, trace.Wrap(err)
 	}
 
-	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
+	proxyDNSName := h.proxyDNSName()
+	if server.GetApp().GetUseAnyProxyPublicAddr() {
+		proxyDNSName = utils.FindMatchingProxyDNS(params.FQDNHint, h.proxyDNSNames())
+	}
+	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, proxyDNSName, appClusterName, server.GetApp())
 
 	return &resolveAppResult{
 		ServerID:    server.GetName(),
@@ -374,7 +386,7 @@ func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclien
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.Match(ctx, authClient, app.MatchName(appName))
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchName(appName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -383,7 +395,7 @@ func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclien
 		return nil, "", trace.NotFound("failed to match applications with name %s", appName)
 	}
 
-	return servers[0], clusterName, nil
+	return servers[rand.N(len(servers))], clusterName, nil
 }
 
 // resolveDirect takes a public address and cluster name and exactly resolves
@@ -399,7 +411,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -408,7 +420,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 		return nil, "", trace.NotFound("failed to match applications with public addr %s", publicAddr)
 	}
 
-	return servers[0], clusterName, nil
+	return servers[rand.N(len(servers))], clusterName, nil
 }
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application

@@ -36,47 +36,49 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TerminalService_UpdateTshdEventsServerAddress_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
-	TerminalService_ListRootClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
-	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
-	TerminalService_StartHeadlessWatcher_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
-	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
-	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
-	TerminalService_GetAccessRequests_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
-	TerminalService_GetAccessRequest_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
-	TerminalService_DeleteAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
-	TerminalService_CreateAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest"
-	TerminalService_ReviewAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
-	TerminalService_GetRequestableRoles_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
-	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
-	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
-	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
-	TerminalService_ListKubernetesResources_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
-	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
-	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
-	TerminalService_ListGateways_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
-	TerminalService_CreateGateway_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
-	TerminalService_RemoveGateway_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
-	TerminalService_SetGatewayTargetSubresourceName_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName"
-	TerminalService_SetGatewayLocalPort_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort"
-	TerminalService_GetAuthSettings_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings"
-	TerminalService_GetCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetCluster"
-	TerminalService_Login_FullMethodName                             = "/teleport.lib.teleterm.v1.TerminalService/Login"
-	TerminalService_LoginPasswordless_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
-	TerminalService_Logout_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/Logout"
-	TerminalService_TransferFile_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
-	TerminalService_ReportUsageEvent_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
-	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
-	TerminalService_CreateConnectMyComputerRole_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
-	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
-	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
-	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
-	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
-	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
-	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
-	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
-	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
-	TerminalService_GetApp_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
+	TerminalService_UpdateTshdEventsServerAddress_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
+	TerminalService_ListRootClusters_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
+	TerminalService_ListLeafClusters_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
+	TerminalService_StartHeadlessWatcher_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
+	TerminalService_ListDatabaseUsers_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
+	TerminalService_GetServers_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
+	TerminalService_GetAccessRequests_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
+	TerminalService_GetAccessRequest_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
+	TerminalService_DeleteAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
+	TerminalService_CreateAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest"
+	TerminalService_ReviewAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
+	TerminalService_GetRequestableRoles_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
+	TerminalService_AssumeRole_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
+	TerminalService_PromoteAccessRequest_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
+	TerminalService_GetSuggestedAccessLists_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
+	TerminalService_ListKubernetesResources_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
+	TerminalService_AddCluster_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
+	TerminalService_RemoveCluster_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
+	TerminalService_ListGateways_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
+	TerminalService_CreateGateway_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
+	TerminalService_RemoveGateway_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
+	TerminalService_SetGatewayTargetSubresourceName_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName"
+	TerminalService_SetGatewayLocalPort_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort"
+	TerminalService_GetAuthSettings_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings"
+	TerminalService_GetCluster_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetCluster"
+	TerminalService_Login_FullMethodName                               = "/teleport.lib.teleterm.v1.TerminalService/Login"
+	TerminalService_LoginPasswordless_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
+	TerminalService_Logout_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/Logout"
+	TerminalService_TransferFile_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
+	TerminalService_ReportUsageEvent_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
+	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
+	TerminalService_CreateConnectMyComputerRole_FullMethodName         = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
+	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName    = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
+	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName    = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
+	TerminalService_DeleteConnectMyComputerNode_FullMethodName         = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
+	TerminalService_GetConnectMyComputerNodeName_FullMethodName        = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
+	TerminalService_ListUnifiedResources_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
+	TerminalService_GetUserPreferences_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
+	TerminalService_UpdateUserPreferences_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
+	TerminalService_AuthenticateWebDevice_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
+	TerminalService_GetApp_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
+	TerminalService_ConnectToDesktop_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
+	TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -217,6 +219,15 @@ type TerminalServiceClient interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error)
+	// ConnectToDesktop is a bidirectional stream for the desktop connection.
+	ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error)
+	// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+	// If there is no active desktop session associated with the specified desktop_uri and login,
+	// the RPC returns an error.
+	//
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -650,6 +661,29 @@ func (c *terminalServiceClient) GetApp(ctx context.Context, in *GetAppRequest, o
 	return out, nil
 }
 
+func (c *terminalServiceClient) ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[2], TerminalService_ConnectToDesktop_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ConnectToDesktopRequest, ConnectToDesktopResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TerminalService_ConnectToDesktopClient = grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse]
+
+func (c *terminalServiceClient) SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetSharedDirectoryForDesktopSessionResponse)
+	err := c.cc.Invoke(ctx, TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -788,6 +822,15 @@ type TerminalServiceServer interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error)
+	// ConnectToDesktop is a bidirectional stream for the desktop connection.
+	ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error
+	// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+	// If there is no active desktop session associated with the specified desktop_uri and login,
+	// the RPC returns an error.
+	//
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -920,6 +963,12 @@ func (UnimplementedTerminalServiceServer) AuthenticateWebDevice(context.Context,
 }
 func (UnimplementedTerminalServiceServer) GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
+}
+func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ConnectToDesktop not implemented")
+}
+func (UnimplementedTerminalServiceServer) SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetSharedDirectoryForDesktopSession not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1662,6 +1711,31 @@ func _TerminalService_GetApp_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_ConnectToDesktop_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TerminalServiceServer).ConnectToDesktop(&grpc.GenericServerStream[ConnectToDesktopRequest, ConnectToDesktopResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TerminalService_ConnectToDesktopServer = grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]
+
+func _TerminalService_SetSharedDirectoryForDesktopSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetSharedDirectoryForDesktopSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).SetSharedDirectoryForDesktopSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).SetSharedDirectoryForDesktopSession(ctx, req.(*SetSharedDirectoryForDesktopSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1825,6 +1899,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetApp",
 			Handler:    _TerminalService_GetApp_Handler,
 		},
+		{
+			MethodName: "SetSharedDirectoryForDesktopSession",
+			Handler:    _TerminalService_SetSharedDirectoryForDesktopSession_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1837,6 +1915,12 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "TransferFile",
 			Handler:       _TerminalService_TransferFile_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ConnectToDesktop",
+			Handler:       _TerminalService_ConnectToDesktop_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "teleport/lib/teleterm/v1/service.proto",

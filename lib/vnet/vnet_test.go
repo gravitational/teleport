@@ -61,6 +61,11 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
+)
+
+const (
+	appCertLifetime = time.Hour
 )
 
 func TestMain(m *testing.M) {
@@ -79,8 +84,8 @@ type testPack struct {
 }
 
 type testPackConfig struct {
-	clock       clockwork.FakeClock
-	appProvider appProvider
+	clock         clockwork.Clock
+	fakeClientApp *fakeClientApp
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -99,7 +104,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
 	}
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "test network stack",
 		Task: func(ctx context.Context) error {
 			if err := forwardBetweenTunAndNetstack(ctx, tun1, testLinkEndpoint); !errIsOK(err) {
@@ -133,7 +138,17 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver := newTCPAppResolver(cfg.appProvider, cfg.clock)
+	// In reality the VNet networking stack runs in a separate process from the
+	// client application and communicates over gRPC. For the test, everything
+	// runs in a single process, but we still set up the gRPC service and only
+	// interface with fakeClientApp via the gRPC client.
+	clt := runTestClientApplicationService(t, ctx, cfg.clock, cfg.fakeClientApp)
+	appProvider := newAppProvider(clt)
+	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
+		clt:         clt,
+		appProvider: appProvider,
+		clock:       cfg.clock,
+	})
 
 	// Create the VNet and connect it to the other side of the TUN.
 	ns, err := newNetworkStack(&networkStackConfig{
@@ -145,7 +160,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	})
 	require.NoError(t, err)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
 			if err := ns.run(ctx); !errIsOK(err) {
@@ -235,6 +250,62 @@ func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Con
 	return nil, trace.Wrap(trace.NewAggregate(allErrs...), "dialing %s", host)
 }
 
+// runTestClientApplicationService runs the gRPC service that's normally used to
+// expose the client application and Teleport client methods to the VNet
+// admin/networking process over gRPC. It returns a client of the gRPC service.
+func runTestClientApplicationService(t *testing.T, ctx context.Context, clock clockwork.Clock, clientApp *fakeClientApp) *clientApplicationServiceClient {
+	clusterConfigCache := NewClusterConfigCache(clock)
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
+	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
+		clientApplication:  clientApp,
+		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
+	})
+	clientApplicationService := newClientApplicationService(&clientApplicationServiceConfig{
+		clientApplication:     clientApp,
+		fqdnResolver:          fqdnResolver,
+		localOSConfigProvider: nil, // OS configuration is not needed in tests.
+	})
+
+	ipcCredentials, err := newIPCCredentials()
+	require.NoError(t, err)
+	serverTLSConfig, err := ipcCredentials.server.serverTLSConfig()
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer(
+		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+	)
+	vnetv1.RegisterClientApplicationServiceServer(grpcServer, clientApplicationService)
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+		Name: "user process gRPC server",
+		Task: func(ctx context.Context) error {
+			return trace.Wrap(grpcServer.Serve(listener), "serving VNet user process gRPC service")
+		},
+		Terminate: func() error {
+			grpcServer.Stop()
+			return nil
+		},
+	})
+
+	// Write the service credentials to and from disk as that's what really
+	// happens outside of tests.
+	credDir := t.TempDir()
+	require.NoError(t, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
+	clientCreds, err := readCredentials(credDir)
+	require.NoError(t, err, "reading service credentials from disk")
+
+	clt, err := newClientApplicationServiceClient(ctx, clientCreds, listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { clt.close() })
+	return clt
+}
+
 type noUpstreamNameservers struct{}
 
 func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]string, error) {
@@ -255,44 +326,49 @@ type testClusterSpec struct {
 }
 
 type fakeClientApp struct {
-	clusters                    map[string]testClusterSpec
-	dialOpts                    *vnetv1.DialOptions
-	reissueAppCert              func() tls.Certificate
+	cfg *fakeClientAppConfig
+
+	tlsCA    tls.Certificate
+	dialOpts *vnetv1.DialOptions
+
 	onNewConnectionCallCount    atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
-	clusterConfigCache     *ClusterConfigCache
 }
 
-// newFakeClientApp returns an app provider with the list of named apps
-// in each profile and leaf cluster.
-func newFakeClientApp(
-	clusterSpecs map[string]testClusterSpec,
-	dialOpts *vnetv1.DialOptions,
-	reissueAppCert func() tls.Certificate,
-	clock clockwork.Clock,
-) *fakeClientApp {
+type fakeClientAppConfig struct {
+	clusters                map[string]testClusterSpec
+	clock                   clockwork.Clock
+	signatureAlgorithmSuite types.SignatureAlgorithmSuite
+}
+
+// newFakeClientApp returns a faked implementation of [ClientApplication].
+// This is what ultimately defines the environment for the test. VNet should be
+// able to run with any implementation of [ClientApplication] and little to no
+// other configuration.
+func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfig) *fakeClientApp {
+	tlsCA := newSelfSignedCA(t)
+	dialOpts := mustStartFakeWebProxy(ctx, t, tlsCA, cfg.clock, cfg.signatureAlgorithmSuite)
 	return &fakeClientApp{
-		clusters:             clusterSpecs,
+		cfg:                  cfg,
+		tlsCA:                tlsCA,
 		dialOpts:             dialOpts,
-		reissueAppCert:       reissueAppCert,
 		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
-		clusterConfigCache:   NewClusterConfigCache(clock),
 	}
 }
 
 // ListProfiles lists the names of all profiles saved for the user.
 func (p *fakeClientApp) ListProfiles() ([]string, error) {
-	return slices.Collect(maps.Keys(p.clusters)), nil
+	return slices.Collect(maps.Keys(p.cfg.clusters)), nil
 }
 
-// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
-// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
-// expected to be cached, as this may be called frequently.
+// GetCachedClient returns a [ClusterClient] for the given profile and leaf cluster.
+// [leafClusterName] may be empty when requesting a client for the root cluster.
+// Returned clients are expected to be cached, as this may be called frequently.
 func (p *fakeClientApp) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error) {
-	rootCluster, ok := p.clusters[profileName]
+	rootCluster, ok := p.cfg.clusters[profileName]
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s", profileName)
 	}
@@ -318,10 +394,6 @@ func (p *fakeClientApp) GetCachedClient(ctx context.Context, profileName, leafCl
 	}, nil
 }
 
-func (p *fakeClientApp) GetCachedClusterConfig(ctx context.Context, clt ClusterClient) (*ClusterConfig, error) {
-	return p.clusterConfigCache.GetClusterConfig(ctx, clt)
-}
-
 func (p *fakeClientApp) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
 	p.requestedRouteToAppsMu.Lock()
 	defer p.requestedRouteToAppsMu.Unlock()
@@ -329,7 +401,12 @@ func (p *fakeClientApp) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppI
 	routeToApp := RouteToApp(appInfo, targetPort)
 	p.requestedRouteToApps[routeToApp.PublicAddr] = append(p.requestedRouteToApps[routeToApp.PublicAddr], routeToApp)
 
-	return p.reissueAppCert(), nil
+	return newClientCert(ctx,
+		p.tlsCA,
+		"testclient",
+		p.cfg.clock.Now().Add(appCertLifetime),
+		p.cfg.signatureAlgorithmSuite,
+		cryptosuites.UserTLS)
 }
 
 func (p *fakeClientApp) RequestedRouteToApps(publicAddr string) []*proto.RouteToApp {
@@ -348,7 +425,7 @@ func (p *fakeClientApp) GetDialOptions(ctx context.Context, profileName string) 
 }
 
 func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error) {
-	rootCluster, ok := p.clusters[profileName]
+	rootCluster, ok := p.cfg.clusters[profileName]
 	if !ok {
 		return nil, trace.Errorf("no cluster for %s", profileName)
 	}
@@ -445,6 +522,7 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 			},
 			Spec: types.AppSpecV3{
 				PublicAddr: app.publicAddr,
+				URI:        "tcp://" + app.publicAddr,
 			},
 		}
 
@@ -503,86 +581,83 @@ func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, e
 	return vnetConfig, nil
 }
 
+// TestDialFakeApp tests basic functionality of TCP app access via VNet.
 func TestDialFakeApp(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-
 	clock := clockwork.NewFakeClockAt(time.Now())
-	ca := newSelfSignedCA(t)
-	dialOpts := mustStartFakeWebProxy(ctx, t, ca, clock)
 
-	const appCertLifetime = time.Hour
-	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), cryptosuites.ECDSAP256)
-	}
-
-	clientApp := newFakeClientApp(map[string]testClusterSpec{
-		"root1.example.com": {
-			apps: []appSpec{
-				appSpec{publicAddr: "echo1.root1.example.com"},
-				appSpec{publicAddr: "echo2.root1.example.com"},
-				appSpec{publicAddr: "echo.myzone.example.com"},
-				appSpec{publicAddr: "echo.nested.myzone.example.com"},
-				appSpec{publicAddr: "not.in.a.custom.zone"},
-				appSpec{
-					publicAddr: "multi-port.root1.example.com",
-					tcpPorts: []*types.PortRange{
-						&types.PortRange{
-							Port: 1337,
-						},
-						&types.PortRange{
-							Port: 4242,
-						},
-					},
-				},
-			},
-			customDNSZones: []string{
-				"myzone.example.com",
-			},
-			cidrRange: "192.168.2.0/24",
-			leafClusters: map[string]testClusterSpec{
-				"leaf1.example.com": {
-					apps: []appSpec{
-						appSpec{publicAddr: "echo1.leaf1.example.com"},
-						appSpec{
-							publicAddr: "multi-port.leaf1.example.com",
-							tcpPorts: []*types.PortRange{
-								&types.PortRange{
-									Port: 1337,
-								},
-								&types.PortRange{
-									Port: 4242,
-								},
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				apps: []appSpec{
+					appSpec{publicAddr: "echo1.root1.example.com"},
+					appSpec{publicAddr: "echo2.root1.example.com"},
+					appSpec{publicAddr: "echo.myzone.example.com"},
+					appSpec{publicAddr: "echo.nested.myzone.example.com"},
+					appSpec{publicAddr: "not.in.a.custom.zone"},
+					appSpec{
+						publicAddr: "multi-port.root1.example.com",
+						tcpPorts: []*types.PortRange{
+							&types.PortRange{
+								Port: 1337,
+							},
+							&types.PortRange{
+								Port: 4242,
 							},
 						},
 					},
 				},
-				"leaf2.example.com": {
-					apps: []appSpec{
-						appSpec{publicAddr: "echo1.leaf2.example.com"},
+				customDNSZones: []string{
+					"myzone.example.com",
+				},
+				cidrRange: "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{
+					"leaf1.example.com": {
+						apps: []appSpec{
+							appSpec{publicAddr: "echo1.leaf1.example.com"},
+							appSpec{
+								publicAddr: "multi-port.leaf1.example.com",
+								tcpPorts: []*types.PortRange{
+									&types.PortRange{
+										Port: 1337,
+									},
+									&types.PortRange{
+										Port: 4242,
+									},
+								},
+							},
+						},
+					},
+					"leaf2.example.com": {
+						apps: []appSpec{
+							appSpec{publicAddr: "echo1.leaf2.example.com"},
+						},
+					},
+				},
+			},
+			"root2.example.com": {
+				apps: []appSpec{
+					appSpec{publicAddr: "echo1.root2.example.com"},
+					appSpec{publicAddr: "echo2.root2.example.com"},
+				},
+				leafClusters: map[string]testClusterSpec{
+					"leaf3.example.com": {
+						apps: []appSpec{
+							appSpec{publicAddr: "echo1.leaf3.example.com"},
+						},
 					},
 				},
 			},
 		},
-		"root2.example.com": {
-			apps: []appSpec{
-				appSpec{publicAddr: "echo1.root2.example.com"},
-				appSpec{publicAddr: "echo2.root2.example.com"},
-			},
-			leafClusters: map[string]testClusterSpec{
-				"leaf3.example.com": {
-					apps: []appSpec{
-						appSpec{publicAddr: "echo1.leaf3.example.com"},
-					},
-				},
-			},
-		},
-	}, dialOpts, reissueClientCert, clock)
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
 
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: newLocalAppProvider(clientApp, clock),
+		fakeClientApp: clientApp,
+		clock:         clock,
 	})
 
 	validTestCases := []struct {
@@ -706,6 +781,9 @@ func TestDialFakeApp(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				for _, tc := range validTestCases {
+					if tc.expectRouteToApp.URI == "" && tc.expectRouteToApp.PublicAddr != "" {
+						tc.expectRouteToApp.URI = "tcp://" + tc.expectRouteToApp.PublicAddr
+					}
 					t.Run(tc.app, func(t *testing.T) {
 						t.Parallel()
 
@@ -797,36 +875,34 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	}
 }
 
+// TestOnNewConnection tests that the client applications OnNewConnection method
+// is called when a user connects to a valid TCP app.
 func TestOnNewConnection(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-
 	clock := clockwork.NewFakeClockAt(time.Now())
-	ca := newSelfSignedCA(t)
-	dialOpts := mustStartFakeWebProxy(ctx, t, ca, clock)
 
-	const appCertLifetime = time.Hour
-	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), cryptosuites.ECDSAP256)
-	}
-
-	clientApp := newFakeClientApp(map[string]testClusterSpec{
-		"root1.example.com": {
-			apps: []appSpec{
-				appSpec{publicAddr: "echo1"},
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				apps: []appSpec{
+					appSpec{publicAddr: "echo1"},
+				},
+				cidrRange:    "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{},
 			},
-			cidrRange:    "192.168.2.0/24",
-			leafClusters: map[string]testClusterSpec{},
 		},
-	}, dialOpts, reissueClientCert, clock)
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
 
 	validAppName := "echo1.root1.example.com"
 	invalidAppName := "not.an.app.example.com."
 
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: newLocalAppProvider(clientApp, clock),
+		clock:         clock,
+		fakeClientApp: clientApp,
 	})
 
 	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
@@ -844,106 +920,168 @@ func TestOnNewConnection(t *testing.T) {
 	require.Equal(t, uint32(1), clientApp.onNewConnectionCallCount.Load())
 }
 
-// TestRemoteAppProvider tests basic VNet functionality when remoteAppProvider
-// is used to provide access to the client application over gRPC.
-func TestRemoteAppProvider(t *testing.T) {
+// TestWithAlgorithmSuites tests basic VNet functionality with each signature
+// algorithm suite to make sure that the suite does not break anything. It
+// mostly makes a difference when TLS signatures are completed over gRPC with
+// the private key only accessible to the client application.
+func TestWithAlgorithmSuites(t *testing.T) {
 	t.Parallel()
-	for _, alg := range []cryptosuites.Algorithm{
-		cryptosuites.RSA2048,
-		cryptosuites.ECDSAP256,
+	for _, suite := range []types.SignatureAlgorithmSuite{
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 	} {
-		t.Run(alg.String(), func(t *testing.T) {
-			testRemoteAppProvider(t, alg)
+		t.Run(suite.String(), func(t *testing.T) {
+			t.Parallel()
+			testWithAlgorithmSuite(t, suite)
 		})
 	}
 }
 
-func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
-	t.Parallel()
+func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	t.Cleanup(cancel)
 	clock := clockwork.NewFakeClockAt(time.Now())
-	ca := newSelfSignedCA(t)
-	dialOpts := mustStartFakeWebProxy(ctx, t, ca, clock)
 
-	const appCertLifetime = time.Hour
-	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), alg)
-	}
-
-	clientApp := newFakeClientApp(map[string]testClusterSpec{
-		"root.example.com": {
-			apps: []appSpec{
-				appSpec{publicAddr: "echo"},
-			},
-			cidrRange: "192.168.2.0/24",
-			leafClusters: map[string]testClusterSpec{
-				"leaf.example.com": {
-					apps: []appSpec{
-						appSpec{publicAddr: "echo"},
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root.example.com": {
+				apps: []appSpec{
+					appSpec{publicAddr: "echo1"},
+					appSpec{publicAddr: "echo2"},
+				},
+				cidrRange: "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{
+					"leaf.example.com": {
+						apps: []appSpec{
+							appSpec{publicAddr: "echo1"},
+							appSpec{publicAddr: "echo2"},
+						},
+						cidrRange: "192.168.2.0/24",
 					},
-					cidrRange: "192.168.2.0/24",
 				},
 			},
 		},
-	}, dialOpts, reissueClientCert, clock)
-
-	ipcCredentials, err := newIPCCredentials()
-	require.NoError(t, err)
-	serverTLSConfig, err := ipcCredentials.server.serverTLSConfig()
-	require.NoError(t, err)
-
-	grpcServer := grpc.NewServer(
-		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
-		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
-		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
-	)
-	appProvider := newLocalAppProvider(clientApp, clock)
-	svc := newClientApplicationService(appProvider)
-	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "user process gRPC server",
-		Task: func(ctx context.Context) error {
-			return trace.Wrap(grpcServer.Serve(listener), "serving VNet user process gRPC service")
-		},
-		Terminate: func() error {
-			grpcServer.Stop()
-			return nil
-		},
+		clock:                   clock,
+		signatureAlgorithmSuite: suite,
 	})
-
-	// Test writing the service credentials to and from disk as that's what
-	// really happens on Windows.
-	credDir := t.TempDir()
-	require.NoError(t, ipcCredentials.client.write(credDir), "writing service credentials to disk")
-	clientCreds, err := readCredentials(credDir)
-	require.NoError(t, err, "reading service credentials from disk")
-
-	clt, err := newClientApplicationServiceClient(ctx, clientCreds, listener.Addr().String())
-	require.NoError(t, err)
-	defer clt.close()
-	remoteAppProvider := newRemoteAppProvider(clt)
 
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: remoteAppProvider,
+		fakeClientApp: clientApp,
+		clock:         clock,
 	})
 
+	// References to each app private key may be cached so try repeated
+	// out-of-order connections to different apps.
 	for _, app := range []string{
-		"echo.root.example.com",
-		"echo.leaf.example.com",
+		"echo1.root.example.com",
+		"echo2.root.example.com",
+		"echo1.root.example.com",
+		"echo1.leaf.example.com",
+		"echo2.leaf.example.com",
+		"echo1.leaf.example.com",
 	} {
 		conn, err := p.dialHost(ctx, app, 123)
 		require.NoError(t, err)
 		testEchoConnection(t, conn)
 	}
+
+	// Sanity check connecting to a non-existent app fails.
 	dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
-	_, err = p.dialHost(dialCtx, "badapp.root.example.com.", 123)
+	_, err := p.dialHost(dialCtx, "badapp.root.example.com.", 123)
 	require.Error(t, err)
+}
+
+// TestSSH tests basic VNet SSH functionality.
+func TestSSH(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewRealClock()
+
+	const (
+		root1CIDR = "192.168.1.0/24"
+		leaf1CIDR = "192.168.2.0/24"
+		root2CIDR = "192.168.3.0/24"
+		leaf2CIDR = "192.168.4.0/24"
+	)
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				cidrRange: root1CIDR,
+				leafClusters: map[string]testClusterSpec{
+					"leaf1.example.com": {
+						cidrRange: leaf1CIDR,
+					},
+				},
+			},
+			"root2.example.com": {
+				cidrRange: root2CIDR,
+				leafClusters: map[string]testClusterSpec{
+					"leaf2.example.com": {
+						cidrRange: leaf2CIDR,
+					},
+				},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		fakeClientApp: clientApp,
+		clock:         clock,
+	})
+
+	for _, tc := range []struct {
+		addr       string
+		expectCIDR string
+	}{
+		{
+			addr:       "node.root1.example.com",
+			expectCIDR: root1CIDR,
+		},
+		{
+			addr:       "node.leaf1.example.com.root1.example.com",
+			expectCIDR: leaf1CIDR,
+		},
+		{
+			addr:       "node.root2.example.com",
+			expectCIDR: root2CIDR,
+		},
+		{
+			addr:       "node.leaf2.example.com.root2.example.com",
+			expectCIDR: leaf2CIDR,
+		},
+	} {
+		t.Run(tc.addr, func(t *testing.T) {
+			t.Parallel()
+			// SSH access isn't fully implemented yet, at this point the DNS
+			// lookup for *.<cluster-name> should resolve to an IP in the
+			// expected CIDR range for the cluster.
+			resolvedAddrs, err := p.lookupHost(ctx, tc.addr)
+			require.NoError(t, err)
+
+			_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
+			require.NoError(t, err)
+
+			for _, resolvedAddr := range resolvedAddrs {
+				resolvedIP := net.ParseIP(resolvedAddr)
+				// The query may have resolved to a v4 or v6 address or both,
+				// either way the 4-byte suffix should be a valid IPv4 address
+				// in the expected CIDR range.
+				resolvedIPSuffix := resolvedIP[len(resolvedIP)-4:]
+				assert.True(t, expectNet.Contains(resolvedIPSuffix),
+					"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
+			}
+
+			// Actually dialing the address should still fail until VNet SSH is
+			// implemented.
+			_, err = p.dialHost(ctx, tc.addr, 22)
+			require.Error(t, err)
+		})
+	}
 }
 
 func randomULAAddress() (tcpip.Address, error) {
@@ -1057,21 +1195,45 @@ func newSelfSignedCA(t *testing.T) tls.Certificate {
 	}
 }
 
-func newServerCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
-	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageServerAuth, cryptosuites.ECDSAP256)
+func newServerCert(
+	ctx context.Context,
+	ca tls.Certificate,
+	cn string,
+	expires time.Time,
+	suite types.SignatureAlgorithmSuite,
+	purpose cryptosuites.KeyPurpose,
+) (tls.Certificate, error) {
+	return newLeafCert(ctx, ca, cn, expires, x509.ExtKeyUsageServerAuth, suite, purpose)
 }
 
-func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, alg cryptosuites.Algorithm) tls.Certificate {
-	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageClientAuth, alg)
+func newClientCert(
+	ctx context.Context,
+	ca tls.Certificate,
+	cn string,
+	expires time.Time,
+	suite types.SignatureAlgorithmSuite,
+	purpose cryptosuites.KeyPurpose,
+) (tls.Certificate, error) {
+	return newLeafCert(ctx, ca, cn, expires, x509.ExtKeyUsageClientAuth, suite, purpose)
 }
 
-func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage, alg cryptosuites.Algorithm) tls.Certificate {
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
-	require.NoError(t, err)
-
+func newLeafCert(
+	ctx context.Context,
+	ca tls.Certificate,
+	cn string,
+	expires time.Time,
+	keyUsage x509.ExtKeyUsage,
+	suite types.SignatureAlgorithmSuite,
+	purpose cryptosuites.KeyPurpose,
+) (tls.Certificate, error) {
+	signer, err := cryptosuites.GenerateKey(ctx, cryptosuites.StaticAlgorithmSuite(suite), purpose)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 	caCert, err := x509.ParseCertificate(ca.Certificate[0])
-	require.NoError(t, err)
-
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject: pkix.Name{
@@ -1084,15 +1246,22 @@ func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time,
 		DNSNames:    []string{cn},
 	}
 	certBytes, err := x509.CreateCertificate(rand.Reader, &template, caCert, signer.Public(), ca.PrivateKey)
-	require.NoError(t, err)
-
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 	return tls.Certificate{
 		Certificate: [][]byte{certBytes},
 		PrivateKey:  signer,
-	}
+	}, nil
 }
 
-func mustStartFakeWebProxy(ctx context.Context, t *testing.T, ca tls.Certificate, clock clockwork.FakeClock) *vnetv1.DialOptions {
+func mustStartFakeWebProxy(
+	ctx context.Context,
+	t *testing.T,
+	ca tls.Certificate,
+	clock clockwork.Clock,
+	suite types.SignatureAlgorithmSuite,
+) *vnetv1.DialOptions {
 	t.Helper()
 
 	roots := x509.NewCertPool()
@@ -1101,7 +1270,15 @@ func mustStartFakeWebProxy(ctx context.Context, t *testing.T, ca tls.Certificate
 	roots.AddCert(caX509)
 
 	const proxyCN = "testproxy"
-	proxyCert := newServerCert(t, ca, proxyCN, clock.Now().Add(365*24*time.Hour))
+	proxyCert, err := newServerCert(
+		ctx,
+		ca,
+		proxyCN,
+		clock.Now().Add(365*24*time.Hour),
+		suite,
+		cryptosuites.HostIdentity,
+	)
+	require.NoError(t, err)
 
 	proxyTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{proxyCert},
@@ -1112,8 +1289,7 @@ func mustStartFakeWebProxy(ctx context.Context, t *testing.T, ca tls.Certificate
 	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
 	require.NoError(t, err)
 
-	// Run a fake web proxy that will accept any client connection and echo the input back.
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "web proxy",
 		Task: func(ctx context.Context) error {
 			for {

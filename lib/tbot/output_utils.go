@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -288,7 +289,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func generateIdentity(
 	ctx context.Context,
-	client *authclient.Client,
+	client *apiclient.Client,
 	currentIdentity *identity.Identity,
 	roles []string,
 	ttl time.Duration,

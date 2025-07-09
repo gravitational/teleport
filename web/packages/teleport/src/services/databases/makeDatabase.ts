@@ -56,6 +56,7 @@ export function makeDatabase(json: any): Database {
     aws: madeAws,
     requiresRequest,
     supportsInteractive: json.supports_interactive || false,
+    autoUsersEnabled: json.auto_users_enabled || false,
   };
 }
 

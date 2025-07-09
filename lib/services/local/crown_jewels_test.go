@@ -132,7 +132,7 @@ func TestGetCrownJewel(t *testing.T) {
 				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
-			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+			require.Empty(t, cmp.Diff(tt.wantObj, obj, cmpOpts...))
 		})
 	}
 }
@@ -238,7 +238,7 @@ func TestListCrownJewel(t *testing.T) {
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 
@@ -262,7 +262,7 @@ func TestListCrownJewel(t *testing.T) {
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 		})

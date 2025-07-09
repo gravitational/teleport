@@ -89,6 +89,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv1.Close)
 	testSrv2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, err := federation.NewHandler(td2, bundle2)
 		if !assert.NoError(t, err) {
@@ -96,6 +97,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv2.Close)
 
 	caPool := x509.NewCertPool()
 	caPool.AddCert(testSrv1.Certificate())
@@ -138,7 +140,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	}()
 
 	// Wait for the initially created SPIFFEFederation to be synced
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		got, err := store.GetSPIFFEFederation(ctx, created1.Metadata.Name)
 		if !assert.NoError(t, err) {
 			return
@@ -170,7 +172,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		got, err := store.GetSPIFFEFederation(ctx, created2.Metadata.Name)
 		if !assert.NoError(t, err) {
 			return
@@ -222,6 +224,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv.Close)
 	caPool := x509.NewCertPool()
 	caPool.AddCert(testSrv.Certificate())
 

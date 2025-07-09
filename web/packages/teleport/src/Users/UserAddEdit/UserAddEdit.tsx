@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+
 import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
   DialogContent,
@@ -29,33 +32,128 @@ import { Option } from 'shared/components/Select';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import UserTokenLink from './../UserTokenLink';
-import { TraitsEditor } from './TraitsEditor';
-import useDialog, { Props } from './useDialog';
+import { useTeleport } from 'teleport';
+import auth from 'teleport/services/auth';
+import userService, {
+  ExcludeUserField,
+  ResetToken,
+  type CreateUserVariables,
+  type User,
+} from 'teleport/services/user';
+import { GetUsersQueryKey } from 'teleport/services/user/hooks';
 
-export default function Container(props: Props) {
-  const dialog = useDialog(props);
-  return <UserAddEdit {...dialog} />;
+import UserTokenLink from './../UserTokenLink';
+import {
+  TraitsEditor,
+  traitsToTraitsOption,
+  type TraitsOption,
+} from './TraitsEditor';
+
+interface UserAddEditProps {
+  user: User;
+  isNew: boolean;
+  onClose: () => void;
 }
 
-export function UserAddEdit(props: ReturnType<typeof useDialog>) {
-  const {
-    onChangeName,
-    onChangeRoles,
-    onClose,
-    fetchRoles,
-    setConfiguredTraits,
-    attempt,
-    name,
-    selectedRoles,
-    onSave,
-    isNew,
-    token,
-    configuredTraits,
-  } = props;
+export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
+  const ctx = useTeleport();
 
-  if (attempt.status === 'success' && isNew) {
-    return <UserTokenLink onClose={onClose} token={token} asInvite={true} />;
+  const queryClient = useQueryClient();
+
+  const createUser = useMutation({
+    mutationFn: async (variables: CreateUserVariables) => {
+      const mfaResponse =
+        await auth.getMfaChallengeResponseForAdminAction(true);
+
+      const user = await userService.createUser({ ...variables, mfaResponse });
+
+      const token = await ctx.userService.createResetPasswordToken(
+        user.name,
+        'invite',
+        mfaResponse
+      );
+
+      return {
+        user,
+        token,
+      };
+    },
+    onSuccess: ({ token, user }) => {
+      setToken(token);
+
+      queryClient.setQueryData(GetUsersQueryKey, previous => {
+        if (!previous) {
+          return [];
+        }
+
+        return [user, ...previous];
+      });
+    },
+  });
+
+  const updateUser = useMutation({
+    mutationFn: userService.updateUser,
+    onSuccess: data => {
+      queryClient.setQueryData(GetUsersQueryKey, previous => {
+        if (!previous) {
+          return [];
+        }
+
+        return [data, ...previous.filter(i => i.name !== data.name)];
+      });
+    },
+  });
+
+  const [name, setName] = useState(user.name);
+  const [token, setToken] = useState<ResetToken>(null);
+  const [selectedRoles, setSelectedRoles] = useState<Option[]>(
+    user.roles.map(r => ({
+      value: r,
+      label: r,
+    }))
+  );
+  const [configuredTraits, setConfiguredTraits] = useState<TraitsOption[]>(() =>
+    traitsToTraitsOption(user.allTraits)
+  );
+
+  function onChangeName(name = '') {
+    setName(name);
+  }
+
+  function onChangeRoles(roles = [] as Option[]) {
+    setSelectedRoles(roles);
+  }
+
+  async function onSave() {
+    const traitsToSave = {};
+
+    for (const traitKV of configuredTraits) {
+      traitsToSave[traitKV.traitKey.value] = traitKV.traitValues.map(
+        t => t.value
+      );
+    }
+
+    const u: User = {
+      name,
+      roles: selectedRoles.map(r => r.value),
+      allTraits: traitsToSave,
+    };
+
+    if (isNew) {
+      await createUser.mutateAsync({
+        user: u,
+        excludeUserField: ExcludeUserField.Traits,
+      });
+
+      return;
+    }
+
+    await updateUser.mutateAsync({
+      user: u,
+      excludeUserField: ExcludeUserField.Traits,
+    });
+
+    onClose();
   }
 
   function save(validator) {
@@ -65,6 +163,22 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
 
     onSave();
   }
+
+  async function fetchRoles(search: string): Promise<string[]> {
+    const { items } = await ctx.resourceService.fetchRoles({
+      search,
+      limit: 50,
+    });
+    return items.map(r => r.name);
+  }
+
+  if (createUser.isSuccess && isNew && token) {
+    return <UserTokenLink onClose={onClose} token={token} asInvite={true} />;
+  }
+
+  const isLoading = createUser.isPending || updateUser.isPending;
+  const hasError = createUser.isError || updateUser.isError;
+  const errorMessage = createUser.error?.message || updateUser.error?.message;
 
   return (
     <Validation>
@@ -84,9 +198,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
             <DialogTitle>{isNew ? 'Create User' : 'Edit User'}</DialogTitle>
           </DialogHeader>
           <DialogContent overflow={'auto'}>
-            {attempt.status === 'failed' && (
-              <Alert kind="danger" children={attempt.statusText} />
-            )}
+            {hasError && <Alert kind="danger" children={errorMessage} />}
             <Box maxWidth={690}>
               <FieldInput
                 mr={2}
@@ -96,7 +208,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
                 autoFocus
                 value={name}
                 onChange={e => onChangeName(e.target.value)}
-                readonly={isNew ? false : true}
+                readonly={!isNew}
               />
               <FieldSelectAsync
                 mr={2}
@@ -117,7 +229,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
                 elevated={true}
               />
               <TraitsEditor
-                attempt={attempt}
+                isLoading={isLoading}
                 configuredTraits={configuredTraits}
                 setConfiguredTraits={setConfiguredTraits}
               />
@@ -126,15 +238,12 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
           <DialogFooter>
             <ButtonPrimary
               mr="3"
-              disabled={attempt.status === 'processing'}
+              disabled={isLoading}
               onClick={() => save(validator)}
             >
               Save
             </ButtonPrimary>
-            <ButtonSecondary
-              disabled={attempt.status === 'processing'}
-              onClick={onClose}
-            >
+            <ButtonSecondary disabled={isLoading} onClick={onClose}>
               Cancel
             </ButtonSecondary>
           </DialogFooter>

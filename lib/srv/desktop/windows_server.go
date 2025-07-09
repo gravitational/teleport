@@ -356,20 +356,15 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
 		cfg: cfg,
 		middleware: &auth.Middleware{
-			ClusterName:   clustername.GetClusterName(),
+			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
-		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
+		lc:          windows.NewLDAPClient(nil),
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,

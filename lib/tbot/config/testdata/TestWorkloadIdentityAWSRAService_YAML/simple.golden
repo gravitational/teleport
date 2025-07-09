@@ -1,0 +1,11 @@
+type: workload-identity-aws-roles-anywhere
+selector:
+  name: my-workload-identity
+destination:
+  type: memory
+role_arn: arn:aws:iam::123456789012:role/example-role
+profile_arn: arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000
+trust_anchor_arn: arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000
+region: us-east-1
+session_duration: 59m0s
+session_renewal_interval: 29m0s

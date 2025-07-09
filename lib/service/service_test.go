@@ -51,6 +51,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1037,7 +1038,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Set the Node's major version to be greater than the Auth Service's,
 	// which should make the version check fail.
-	currentVersion := semver.Version{Major: teleport.SemVersion.Major + 1}
+	currentVersion := semver.Version{Major: api.VersionMajor + 1}
 	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
@@ -1093,25 +1094,6 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 			wantFunc: func(receivedID string) bool {
 				return receivedID == id
-			},
-		},
-		{
-			name: "Kube Backend is available but key is missing. Load from local storage and store in kube",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return cmp.Diff(&backend.Item{
-					Key:   backend.KeyFromString(hostUUIDKey),
-					Value: []byte(id),
-				}, i, cmp.AllowUnexported(backend.Key{})) == ""
 			},
 		},
 		{

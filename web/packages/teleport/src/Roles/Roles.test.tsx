@@ -19,14 +19,14 @@
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { yamlService } from 'teleport/services/yaml';
 
 import { withDefaults } from './RoleEditor/StandardEditor/withDefaults';
-import { Roles } from './Roles';
+import { RoleDiffState, Roles } from './Roles';
 import { State } from './useRoles';
 
 describe('Roles list', () => {
@@ -291,6 +291,7 @@ test('renders the role diff component', async () => {
   jest.spyOn(yamlService, 'parse').mockImplementation(async () => {
     return withDefaults({});
   });
+
   const roleDiffElement = <div>i am rendered</div>;
 
   render(
@@ -301,6 +302,7 @@ test('renders the role diff component', async () => {
             {...defaultState()}
             roleDiffProps={{
               roleDiffElement,
+              roleDiffState: RoleDiffState.PolicyEnabled,
               updateRoleDiff: () => null,
               roleDiffAttempt: {
                 status: 'error',

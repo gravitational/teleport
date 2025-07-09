@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -655,6 +656,14 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			Cloud: true,
 		},
 	}
+	cloudUnlimitedModules := &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.UnrestrictedManagedUpdates: {Enabled: true},
+			},
+		},
+	}
 	selfHostedModules := &modules.TestModules{
 		TestFeatures: modules.Features{
 			Cloud: false,
@@ -698,6 +707,18 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			expectErr: require.Error,
 		},
 		{
+			name:    "over max groups halt-on-error cloud unlimited",
+			modules: cloudUnlimitedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
 			name:    "over max groups halt-on-error cloud",
 			modules: cloudModules,
 			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
@@ -720,6 +741,18 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 				},
 			},
 			expectErr: require.Error,
+		},
+		{
+			name:    "cloud unlimited should allow custom weekdays",
+			modules: cloudUnlimitedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
+				},
+			},
+			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow custom weekdays",
@@ -747,6 +780,21 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 				},
 			},
 			expectErr: require.Error,
+		},
+		{
+			name:    "cloud should allow long rollouts with entitlement",
+			modules: cloudUnlimitedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{Name: "g1", Days: cloudGroupUpdateDays},
+						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+					},
+				},
+			},
+			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow long rollouts",

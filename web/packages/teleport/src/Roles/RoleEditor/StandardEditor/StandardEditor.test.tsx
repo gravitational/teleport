@@ -25,7 +25,11 @@ import { render, screen, userEvent } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { ApiError } from 'teleport/services/api/parseError';
+import ResourceService, {
+  Role,
+  RoleWithYaml,
+} from 'teleport/services/resources';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { StandardEditor, StandardEditorProps } from './StandardEditor';
@@ -53,11 +57,23 @@ let user: UserEvent;
 
 beforeEach(() => {
   user = userEvent.setup();
+  jest
+    .spyOn(ResourceService.prototype, 'fetchRole')
+    .mockImplementation(async name => {
+      // Make sure that validation never fails because of a role name collision.
+      throw new ApiError({
+        message: `role ${name} is not found`,
+        response: { status: 404 } as Response,
+      });
+    });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 test('adding and removing sections', async () => {
   render(<TestStandardEditor originalRole={newRoleWithYaml(newRole())} />);
-  expect(getAllSectionNames()).toEqual(['Role Information']);
   await user.click(getTabByName('Resources'));
   expect(getAllSectionNames()).toEqual([]);
 
@@ -65,66 +81,47 @@ test('adding and removing sections', async () => {
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
-    'Kubernetes',
-    'Servers',
-    'Applications',
-    'Databases',
-    'Windows Desktops',
-    'GitHub Organizations',
+    'Kubernetes Access',
+    'SSH Server Access',
+    'Application Access',
+    'Database Access',
+    'Windows Desktop Access',
+    'GitHub Organization Access',
   ]);
 
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
-  expect(getAllSectionNames()).toEqual(['Servers']);
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
+  expect(getAllSectionNames()).toEqual(['SSH Server Access']);
 
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
-    'Kubernetes',
-    'Applications',
-    'Databases',
-    'Windows Desktops',
-    'GitHub Organizations',
+    'Kubernetes Access',
+    'Application Access',
+    'Database Access',
+    'Windows Desktop Access',
+    'GitHub Organization Access',
   ]);
 
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
-  expect(getAllSectionNames()).toEqual(['Servers', 'Kubernetes']);
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes Access' }));
+  expect(getAllSectionNames()).toEqual([
+    'SSH Server Access',
+    'Kubernetes Access',
+  ]);
 
   await user.click(
-    within(getSectionByName('Servers')).getByRole('button', {
+    within(getSectionByName('SSH Server Access')).getByRole('button', {
       name: 'Remove section',
     })
   );
-  expect(getAllSectionNames()).toEqual(['Kubernetes']);
+  expect(getAllSectionNames()).toEqual(['Kubernetes Access']);
 
   await user.click(
-    within(getSectionByName('Kubernetes')).getByRole('button', {
+    within(getSectionByName('Kubernetes Access')).getByRole('button', {
       name: 'Remove section',
     })
   );
   expect(getAllSectionNames()).toEqual([]);
-});
-
-test('collapsed sections still apply validation', async () => {
-  const onSave = jest.fn();
-  render(
-    <TestStandardEditor
-      originalRole={newRoleWithYaml(newRole())}
-      onSave={onSave}
-    />
-  );
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name *'));
-  // Collapse the section.
-  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(onSave).not.toHaveBeenCalled();
-
-  // Expand the section, make it valid.
-  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
-  await user.type(screen.getByLabelText('Role Name *'), 'foo');
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(onSave).toHaveBeenCalled();
 });
 
 test('invisible tabs still apply validation', async () => {
@@ -135,16 +132,18 @@ test('invisible tabs still apply validation', async () => {
       onSave={onSave}
     />
   );
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name *'));
+
+  // Cause a validation error by adding a label with an empty key.
+  await user.type(screen.getByPlaceholderText('label value'), 'bar');
+
   // Switch to a different tab.
   await user.click(getTabByName('Resources'));
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).not.toHaveBeenCalled();
 
   // Switch back, make it valid.
-  await user.click(getTabByName('Invalid data Overview'));
-  await user.type(screen.getByLabelText('Role Name *'), 'foo');
+  await user.click(getTabByName('Overview Invalid data'));
+  await user.type(screen.getByPlaceholderText('label key'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
 });
@@ -157,8 +156,9 @@ test('hidden validation errors should not propagate to tab headings', async () =
       onSave={onSave}
     />
   );
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name *'));
+
+  // Cause a validation error by adding a label with an empty key.
+  await user.type(screen.getByPlaceholderText('label value'), 'bar');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).not.toHaveBeenCalled();
 
@@ -167,8 +167,13 @@ test('hidden validation errors should not propagate to tab headings', async () =
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
+  await user.type(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label value'
+    ),
+    'some-value'
+  );
 
   // Switch to the Admin Rules tab. Add a new section (it's invalid by
   // default).
@@ -177,15 +182,15 @@ test('hidden validation errors should not propagate to tab headings', async () =
 
   // Switch back. The newly invalid tabs should not bear the invalid indicator,
   // as the section has its validation errors hidden.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   expect(getTabByName('Resources')).toBeInTheDocument();
   expect(getTabByName('Admin Rules')).toBeInTheDocument();
 
   // Attempt to save, causing global validation. Now the invalid tabs should be
   // marked as invalid.
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(getTabByName('Invalid data Resources')).toBeInTheDocument();
-  expect(getTabByName('Invalid data Admin Rules')).toBeInTheDocument();
+  expect(getTabByName('Resources Invalid data')).toBeInTheDocument();
+  expect(getTabByName('Admin Rules Invalid data')).toBeInTheDocument();
   expect(onSave).not.toHaveBeenCalled();
 });
 
@@ -218,7 +223,7 @@ test('edits resource access', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
   await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
     createOptionText: 'Login: ec2-user',
   });
@@ -239,7 +244,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes Access' }));
   await user.click(
     screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
   );
@@ -265,7 +270,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await selectEvent.select(screen.getByLabelText('Version'), 'v7');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
-});
+}, 10000);
 
 test('creating a new role', async () => {
   async function forwardToTab(name: string) {
@@ -324,17 +329,28 @@ test('tab-level validation when creating a new role', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-  // The form should not be validating until we try to switch to the next tab.
-  expect(screen.getByPlaceholderText('label key')).toHaveAccessibleDescription(
-    ''
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
+  await user.type(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label value'
+    ),
+    'bar'
   );
+  // The form should not be validating until we try to switch to the next tab.
+  expect(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label key'
+    )
+  ).toHaveAccessibleDescription('');
   await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
   expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'false');
   // Fix the field value and retry.
-  await user.type(screen.getByPlaceholderText('label key'), 'foo');
-  await user.type(screen.getByPlaceholderText('label value'), 'bar');
+  await user.type(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label key'
+    ),
+    'foo'
+  );
   await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
   expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'true');
 });

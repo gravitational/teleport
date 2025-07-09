@@ -46,7 +46,7 @@ if [ -L "$TSH_SYMLINK_TARGET" ] && [ ! -e "$TSH_SYMLINK_TARGET" ]; then
   rm -f "$TSH_SYMLINK_TARGET"
 fi
 
-APPARMOR_PROFILE_DEST="/etc/apparmor.d/teleport-connect"
+APPARMOR_PROFILE_DEST='/etc/apparmor.d/${executable}'
 
 # Remove apparmor profile.
 if [ -f "$APPARMOR_PROFILE_DEST" ]; then

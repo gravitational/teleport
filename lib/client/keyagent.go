@@ -357,7 +357,7 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 
 	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: a.checkHostCertificateForClusters(clusters...),
+			IsHostAuthority: a.isHostAuthorityForClusters(clusters...),
 			HostKeyFallback: a.checkHostKey,
 		},
 		FIPS: isFIPS(),
@@ -372,11 +372,11 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 	return nil
 }
 
-// checkHostCertificateForClusters validates a host certificate and check if remote key matches the know
-// trusted cluster key based on  ~/.tsh/known_hosts. If server key is not known, the users is prompted to accept or
-// reject the server key.
-func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func(key ssh.PublicKey, addr string) bool {
-	return func(key ssh.PublicKey, addr string) bool {
+// isHostAuthorityForClusters validates a host certificate's issuer to see if it
+// matches the known trusted cluster CA keys in ~/.tsh/known_hosts. If the CA is
+// not known, the users is prompted to accept or reject it.
+func (a *LocalKeyAgent) isHostAuthorityForClusters(clusters ...string) func(authority ssh.PublicKey, addr string) bool {
+	return func(authority ssh.PublicKey, addr string) bool {
 		// Check the local cache (where all Teleport CAs are placed upon login) to
 		// see if any of them match.
 		var keys []ssh.PublicKey
@@ -402,14 +402,14 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 		}
 
 		for i := range keys {
-			if sshutils.KeysEqual(key, keys[i]) {
+			if sshutils.KeysEqual(authority, keys[i]) {
 				return true
 			}
 		}
 
-		// If this certificate was not seen before, prompt the user essentially
-		// treating it like a key.
-		err = a.checkHostKey(addr, nil, key)
+		// If this CA was not seen before, prompt the user essentially treating
+		// it like a key.
+		err = a.checkHostKey(addr, nil, authority)
 		return err == nil
 	}
 }
@@ -525,6 +525,15 @@ func (a *LocalKeyAgent) AddAppKeyRing(keyRing *KeyRing) error {
 	return a.addKeyRing(keyRing)
 }
 
+// AddWindowsDesktopKeyRing activates a new signed desktop key by adding it into the keystore.
+// key must contain at least one desktop credential. ssh cert is not required.
+func (a *LocalKeyAgent) AddWindowsDesktopKeyRing(keyRing *KeyRing) error {
+	if len(keyRing.WindowsDesktopTLSCredentials) == 0 {
+		return trace.BadParameter("key ring must contain at least one Windows desktop access certificate")
+	}
+	return a.addKeyRing(keyRing)
+}
+
 // addKeyRing activates a new signed session key ring by adding it into the keystore.
 func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 	if keyRing == nil {
@@ -565,6 +574,8 @@ func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 // DeleteKey removes the key with all its certs from the key store
 // and unloads the key from the agent.
 func (a *LocalKeyAgent) DeleteKey() error {
+	// TODO(Joerger): Delete profile? Delete current profile if it matches?
+
 	// remove key from key store
 	err := a.clientStore.DeleteKeyRing(KeyRingIndex{ProxyHost: a.proxyHost, Username: a.username})
 	if err != nil {

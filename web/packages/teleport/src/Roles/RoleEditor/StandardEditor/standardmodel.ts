@@ -53,6 +53,13 @@ import {
 import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
+export enum StandardEditorTab {
+  Overview,
+  Resources,
+  AdminRules,
+  Options,
+}
+
 export type StandardEditorModel = {
   /**
    * The role model. Can be undefined if there was an unhandled error when
@@ -65,11 +72,19 @@ export type StandardEditorModel = {
    */
   isDirty: boolean;
   /**
+   * Indicates if the user interacted with the editor. It's different from
+   * {@link StandardEditorModel.isDirty} by not taking into consideration if
+   * anything changed from the original.
+   */
+  isTouched: boolean;
+  /**
    * Result of validating {@link StandardEditorModel.roleModel}. Can be
    * undefined if there was an unhandled error when converting an existing
    * role.
    */
   validationResult?: RoleEditorModelValidationResult;
+  currentTab: StandardEditorTab;
+  disabledTabs: Set<StandardEditorTab>;
 };
 
 /**
@@ -98,6 +113,14 @@ export function requiresReset(rm: RoleEditorModel | undefined): boolean {
 
 export type MetadataModel = {
   name: string;
+  /**
+   * Set to `true` when we detect an existing role with the same name. This is
+   * for validation purposes only, but it's stored in the model, because our
+   * validation framework doesn't currently have a native support for
+   * asynchronous validation. This flag is only being set if a new rule is
+   * being created.
+   */
+  nameCollision: boolean;
   description?: string;
   revision?: string;
   labels: UILabel[];
@@ -593,7 +616,7 @@ export function roleToRoleEditorModel(
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { kind, metadata, spec, version, ...unsupported } = role;
   conversionErrors.push(...unsupportedFieldErrorsFromObject('', unsupported));
 
@@ -638,6 +661,7 @@ export function roleToRoleEditorModel(
   return {
     metadata: {
       name,
+      nameCollision: false,
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
@@ -1326,7 +1350,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   const { name, description, revision, labels, version, ...mRest } =
     roleModel.metadata;
   // Compile-time assert that protects us from silently losing fields.
-  mRest satisfies Record<any, never>;
+  // `nameCollision` is the only field we don't care about, since its only use
+  // is validation, and it's not expected to be included in the result.
+  mRest satisfies { nameCollision: boolean };
 
   const role: Role = {
     kind: 'role',

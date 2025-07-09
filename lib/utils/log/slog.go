@@ -21,8 +21,10 @@ package log
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -128,4 +130,20 @@ func (a typeAttr) LogValue() slog.Value {
 		return slog.StringValue(t.String())
 	}
 	return slog.StringValue("nil")
+}
+
+type iterAttr[V any] struct {
+	iter iter.Seq[V]
+}
+
+// IterAttr creates a [slog.LogValuer] that will defer the collection of an
+// iter.Seq.
+func IterAttr[V any](iter iter.Seq[V]) slog.LogValuer {
+	return iterAttr[V]{
+		iter: iter,
+	}
+}
+
+func (a iterAttr[V]) LogValue() slog.Value {
+	return slog.AnyValue(slices.Collect[V](a.iter))
 }

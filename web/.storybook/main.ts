@@ -48,6 +48,25 @@ const config: StorybookConfig = {
     '@storybook/addon-controls',
     '@storybook/addon-actions',
   ],
+  viteFinal(config) {
+    return {
+      ...config,
+      server: {
+        ...config.server,
+        allowedHosts: resolveAllowedHosts(),
+      },
+    };
+  },
 };
+
+function resolveAllowedHosts() {
+  if (process.env.VITE_HOST) {
+    const { hostname } = new URL(`https://${process.env.VITE_HOST}`);
+
+    return [hostname];
+  }
+
+  return [];
+}
 
 export default config;

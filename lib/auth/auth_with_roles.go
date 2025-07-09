@@ -50,12 +50,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -338,8 +338,8 @@ func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker
 		return true
 	}
 
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	evaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
+	modes := evaluator.CanJoin(moderation.SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
 	return len(modes) != 0
 }
 
@@ -1359,7 +1359,9 @@ var (
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
-		return trace.BadParameter("unsupported kind %q requested", kind)
+		// Treat unknown kinds as an access denied error instead of a bad parameter
+		// to prevent rejecting the request if users have access to other kinds requested.
+		return trace.AccessDenied("unsupported kind %q requested", kind)
 	}
 	switch kind {
 	case types.KindNode:
@@ -1679,7 +1681,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+	matcher, err := utils.NewSSHRouteMatcherFromConfig(utils.SSHRouteMatcherConfig{
 		Host:                      req.Host,
 		Port:                      req.Port,
 		CaseInsensitive:           caseInsensitiveRouting,
@@ -3147,7 +3149,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			}
 		}
 	}
-	finalRequestIDs = apiutils.Deduplicate(finalRequestIDs)
+	finalRequestIDs = utils.Deduplicate(finalRequestIDs)
 
 	// Replace req.AccessRequests with final filtered values, these will be
 	// encoded into the cert.
@@ -3182,7 +3184,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			accessInfo.AllowedResourceIDs = requestedResourceIDs
 		}
 	}
-	accessInfo.Roles = apiutils.Deduplicate(accessInfo.Roles)
+	accessInfo.Roles = utils.Deduplicate(accessInfo.Roles)
 
 	return accessInfo, nil
 }
@@ -3229,7 +3231,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		requiredExt := &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		}
+		if req.AllowsMFAReuse() {
+			requiredExt.AllowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+		}
 		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3463,6 +3471,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+
+			BotName: getBotName(user),
+			// Always pass through a bot instance ID if available. Legacy bots
+			// joining without an instance ID may have one generated when
+			// `updateBotInstance()` is called below, and this (empty) value will be
+			// overridden.
+			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3479,9 +3494,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 	)
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -3995,7 +4010,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 	return updated, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4005,11 +4020,10 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
+	return a.authServer.GetSAMLConnectorWithValidationOptions(ctx, id, withSecrets, opts...)
 }
 
-func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4021,7 +4035,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetSAMLConnectors(ctx, withSecrets)
+	return a.authServer.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets, opts...)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
@@ -6740,6 +6754,40 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 	return filtered, nil
 }
 
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resp types.ListWindowsDesktopsResponse
+	desktopStream := stream.FilterMap(a.authServer.streamWindowsDesktops(ctx, req), func(d types.WindowsDesktop) (types.WindowsDesktop, bool) {
+		if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
+			return d, true
+		}
+
+		if err := a.checkAccessToWindowsDesktop(d); err == nil {
+			return d, true
+		}
+
+		return nil, false
+	})
+
+	limit := cmp.Or(req.Limit, apidefaults.DefaultChunkSize)
+	for desktopStream.Next() {
+		desktop := desktopStream.Item()
+		if len(resp.Desktops) == limit {
+			resp.NextKey = desktop.GetHostID() + "/" + desktop.GetName()
+			desktopStream.Done()
+			break
+		}
+
+		resp.Desktops = append(resp.Desktops, desktop)
+	}
+
+	return &resp, nil
+}
+
 // CreateWindowsDesktop creates a new windows desktop host.
 func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {
@@ -7400,7 +7448,7 @@ func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, next
 		return filteredUserGroups, "", nil
 	}
 
-	return filteredUserGroups[:pageSize], backend.NextPaginationKey(filteredUserGroups[pageSize-1]), nil
+	return filteredUserGroups[:pageSize], filteredUserGroups[pageSize-1].GetName(), nil
 }
 
 // GetUserGroup returns the specified user group resources.
@@ -7569,9 +7617,11 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
-		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		// Only WebAuthn and SSO are supported in headless login flow for superior phishing prevention.
+		switch mfaResp.Response.(type) {
+		case *proto.MFAAuthenticateResponse_Webauthn, *proto.MFAAuthenticateResponse_SSO:
+		default:
+			err = trace.BadParameter("MFA response of type %T is not supported for headless authentication", mfaResp.Response)
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return err
 		}

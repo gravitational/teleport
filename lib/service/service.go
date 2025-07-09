@@ -139,6 +139,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -517,8 +518,8 @@ func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
+func (c *Connector) getPROXYSigner(clock clockwork.Clock, allowDowngrade bool) (multiplexer.PROXYHeaderSigner, error) {
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock, allowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
@@ -1039,6 +1040,24 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
+	// If PAM is enabled, make sure that Teleport was built with PAM support
+	// and the PAM library was found at runtime.
+	if cfg.SSH.PAM != nil && cfg.SSH.PAM.Enabled {
+		if !pam.BuildHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"Teleport binary was built without PAM support. To continue either download a \n" +
+				"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
+				"or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+		if !pam.SystemHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"system does not have the needed PAM library installed. To continue either \n" +
+				"install libpam or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+	}
+
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -1282,23 +1301,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		switch upgraderKind {
 		case types.UpgraderKindTeleportUpdate:
-			isDefault, err := autoupdate.IsManagedAndDefault()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !isDefault {
-				// Only write the nop schedule for the default updater.
-				// Suffixed installations of Teleport can coexist with the old upgrader system.
-				break
-			}
-			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := driver.ForceNop(process.ExitContext()); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Unable to disable the teleport-upgrade command provided by the deprecated teleport-ent-updater package.", "error", err)
-				process.logger.WarnContext(process.ExitContext(), "If the deprecated teleport-ent-updater package is installed, please ensure /etc/teleport-upgrade.d/schedule contains 'nop'.")
-			}
+			// Exports are not required for teleport-update
 		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
@@ -2153,6 +2156,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+	// Environment variable for disabling the check major version upgrade check and overrides
+	// latest known version in backend.
+	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(
@@ -2160,6 +2166,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,
@@ -2181,7 +2188,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Provisioner:             cfg.Provisioner,
 			Identity:                cfg.Identity,
 			Access:                  cfg.Access,
-			UsageReporter:           cfg.UsageReporter,
 			StaticTokens:            cfg.Auth.StaticTokens,
 			Roles:                   cfg.Auth.Roles,
 			AuthPreference:          cfg.Auth.Preference,
@@ -2251,7 +2257,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
@@ -2261,7 +2266,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetAccessRequestCache(accessRequestCache)
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
@@ -2271,7 +2275,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUserNotificationCache(userNotificationCache)
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
@@ -2281,7 +2284,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetGlobalNotificationCache(globalNotificationCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
@@ -2298,7 +2300,11 @@ func (process *TeleportProcess) initAuthService() error {
 	// a node can abandon an upload before it is competed.
 	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
 	// packages up the parts into a single upload before sending to auth)
-	if uploadHandler != nil {
+	disableCompleter, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_AUTH_UPLOAD_COMPLETER"))
+	switch {
+	case disableCompleter:
+		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
+	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
@@ -2309,7 +2315,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "starting upload completer")
 		}
 	}
 
@@ -2633,6 +2639,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
 	cfg.AccessLists = services.AccessLists
@@ -3047,13 +3054,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
+
 		// Provide helpful log message if listen_addr or public_addr are not being
 		// used (tunnel is used to connect to cluster).
 		//
 		// If a tunnel is not being used, set the default here (could not be done in
 		// file configuration because at that time it's not known if server is
 		// joining cluster directly or through a tunnel).
-		if conn.UseTunnel() {
+		if !useLocalListener {
 			if !cfg.SSH.Addr.IsEmpty() {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring listen_addr setting.")
 			}
@@ -3061,7 +3070,7 @@ func (process *TeleportProcess) initSSH() error {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring public_addr setting.")
 			}
 		}
-		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
+		if useLocalListener && cfg.SSH.Addr.IsEmpty() {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
 
@@ -3180,7 +3189,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
-		if !conn.UseTunnel() {
+		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3228,7 +3237,9 @@ func (process *TeleportProcess) initSSH() error {
 			if err := s.Start(); err != nil {
 				return trace.Wrap(err)
 			}
+		}
 
+		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -3301,7 +3312,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
-		if role.IsLocalService() && !(process.instanceRoleExpected(role) || process.hostedPluginRoleExpected(role)) {
+		if role.IsLocalService() && !process.instanceRoleExpected(role) && !process.hostedPluginRoleExpected(role) {
 			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function, or forgot to call SetExpectedHostedPluginRole during
 			// the hosted plugin init process.
@@ -4488,7 +4499,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySigner, err := conn.getPROXYSigner(process.Clock)
+	proxySigner, err := conn.getPROXYSigner(process.Clock, cfg.Proxy.PROXYAllowDowngrade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5052,6 +5063,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.OnExit("tls.config.generator", func(a any) {
+		clientTLSConfigGenerator.Close()
+	})
+
 	sshGRPCTLSConfig.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
 	sshGRPCCreds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
@@ -5459,7 +5474,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
@@ -5803,7 +5818,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload interface{}) {
+	process.OnExit("tls.config.generator", func(payload any) {
 		generator.Close()
 	})
 
@@ -6121,16 +6136,17 @@ func (process *TeleportProcess) initApps() {
 				Description: app.Description,
 				Labels:      app.StaticLabels,
 			}, types.AppSpecV3{
-				URI:                app.URI,
-				PublicAddr:         publicAddr,
-				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
-				InsecureSkipVerify: app.InsecureSkipVerify,
-				Rewrite:            rewrite,
-				AWS:                aws,
-				Cloud:              app.Cloud,
-				RequiredAppNames:   app.RequiredAppNames,
-				CORS:               makeApplicationCORS(app.CORS),
-				TCPPorts:           makeApplicationTCPPorts(app.TCPPorts),
+				URI:                   app.URI,
+				PublicAddr:            publicAddr,
+				DynamicLabels:         types.LabelsToV2(app.DynamicLabels),
+				InsecureSkipVerify:    app.InsecureSkipVerify,
+				Rewrite:               rewrite,
+				AWS:                   aws,
+				Cloud:                 app.Cloud,
+				RequiredAppNames:      app.RequiredAppNames,
+				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
+				CORS:                  makeApplicationCORS(app.CORS),
+				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6324,9 +6340,10 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	}
 
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentBackend,
-		Backend:   backend.NewSanitizer(bk),
-		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Component:  teleport.ComponentBackend,
+		Backend:    backend.NewSanitizer(bk),
+		Tracer:     process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Registerer: process.metricsRegistry,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6643,6 +6660,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken,
 				types.JoinMethodUnspecified,
+				types.JoinMethodAzureDevops,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,
@@ -6679,18 +6697,6 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
-		}
-	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
-		// This case is used when loading a Teleport pre-11 agent with storage attached.
-		// In this case, we have to copy the "host_uuid" from the agent to the secret
-		// in case storage is removed later.
-		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
-		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
-			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-			// This is only required if PV storage is removed later.
-			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 	return nil

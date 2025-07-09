@@ -59,4 +59,21 @@ export const SAML_APPLICATIONS: SelectResourceSpec[] = [
     icon: 'googlecloud',
     event: DiscoverEventResource.SamlApplication,
   },
+  {
+    id: DiscoverGuideId.ApplicationSamlMicrosoftEntraId,
+    name: 'Microsoft Entra External ID',
+    kind: ResourceKind.SamlApplication,
+    samlMeta: { preset: SamlServiceProviderPreset.MicrosoftEntraId },
+    keywords: [
+      'saml',
+      'sso',
+      'application',
+      'idp',
+      'microsoft',
+      'azure',
+      'entra-id',
+    ],
+    icon: 'entraid',
+    event: DiscoverEventResource.SamlApplication,
+  },
 ];

@@ -28,7 +28,7 @@ The Teleport Proxy Service should be available to clients and set up with TLS.
 
 ## Prerequisites
 
-(!docs/pages/includes/self-hosted-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="self-hosted Teleport"!)
 
 - A host where you will run an OpenSSH server.
 - (!docs/pages/includes/tctl.mdx!)
@@ -71,7 +71,7 @@ possibility for Person-in-the-Middle attacks and is not recommended.
 ```yaml
 # snippet from /etc/teleport.yaml
 auth_service:
-  proxy_checks_host_keys: no
+  proxy_checks_host_keys: false
 ```
 
 ## Step 2/3. Configure `sshd`

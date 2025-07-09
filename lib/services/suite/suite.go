@@ -122,14 +122,11 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		if err != nil {
 			panic(err)
 		}
-		keyPEM, err = keys.MarshalPrivateKey(signer)
+		key, err = keys.NewPrivateKey(signer)
 		if err != nil {
 			panic(err)
 		}
-		key, err = keys.NewPrivateKey(signer, keyPEM)
-		if err != nil {
-			panic(err)
-		}
+		keyPEM = key.PrivateKeyPEM()
 	}
 
 	ca := &types.CertAuthorityV2{
@@ -223,7 +220,7 @@ func (s *ServicesTestSuite) Users() services.UsersService {
 }
 
 func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
-	require.EqualValuesf(t, len(a), len(b), "a: %#v b: %#v", a, b)
+	require.Lenf(t, a, len(b), "a: %#v b: %#v", a, b)
 
 	sort.Sort(services.Users(a))
 	sort.Sort(services.Users(b))

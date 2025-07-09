@@ -29,8 +29,8 @@ import (
 // ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 
-func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, NetworkStackInfo, error) {
-	return nil, NetworkStackInfo{}, trace.Wrap(ErrVnetNotImplemented)
+func (*UserProcess) runPlatformUserProcess(_ context.Context) error {
+	return trace.Wrap(ErrVnetNotImplemented)
 }
 
 type platformOSConfigState struct{}
@@ -44,4 +44,6 @@ var (
 	_ = newOSConfigurator
 	_ = (*osConfigurator).runOSConfigurationLoop
 	_ = runCommand
+	_ = newNetworkStackConfig
+	_ = (*networkStack).addDNSAddress
 )

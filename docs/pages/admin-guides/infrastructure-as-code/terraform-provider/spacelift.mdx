@@ -12,6 +12,8 @@ This guide shows you how to use the Machine ID agent, `tbot`, to allow the
 Teleport Terraform provider running in a Spacelift stack to configure your
 Teleport cluster.
 
+## How it works
+
 In this setup, `tbot` proves its identity to the Teleport Auth Service by
 presenting an ID token signed by Spacelift. This allows `tbot` to authenticate
 with the Teleport cluster without the need for a long-lived shared secret.
@@ -22,7 +24,7 @@ resources.
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - A GitHub repository where you will store your Terraform configuration and a
