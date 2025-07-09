@@ -173,6 +173,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/term v0.5.2
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
+	github.com/openai/openai-go v1.8.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/selinux v1.12.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
@@ -262,8 +263,6 @@ require (
 	sigs.k8s.io/yaml v1.5.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
-
-require github.com/openai/openai-go v1.8.2
 
 require (
 	cel.dev/expr v0.23.1 // indirect

@@ -61,7 +61,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	)
 	log.DebugContext(stream.Context(), "dial request from peer")
 
-	_, clusterName, err := SplitServerID(dial.NodeID)
+	_, clusterName, err := splitServerID(dial.NodeID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,8 +111,8 @@ func (s *proxyService) Ping(ctx context.Context, _ *proto.ProxyServicePingReques
 	return new(proto.ProxyServicePingResponse), nil
 }
 
-// SplitServerID splits a server id in to a node id and cluster name.
-func SplitServerID(address string) (string, string, error) {
+// splitServerID splits a server id in to a node id and cluster name.
+func splitServerID(address string) (string, string, error) {
 	split := strings.Split(address, ".")
 	if len(split) == 0 || split[0] == "" {
 		return "", "", trace.BadParameter("invalid server id: \"%s\"", address)

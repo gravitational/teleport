@@ -168,7 +168,7 @@ func TestSplitServerID(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		id, cluster, err := SplitServerID(tc.serverID)
+		id, cluster, err := splitServerID(tc.serverID)
 		require.Equal(t, tc.expectServerID, id)
 		require.Equal(t, tc.expectClusterName, cluster)
 		tc.assertErr(t, err)

@@ -1365,6 +1365,8 @@ func (a *Server) RegisterUploadCompletionHook(hook events.UploadCompletionHook) 
 // CallUploadCompletionHooks calls the registered upload completion hooks for a
 // given session. The sessionEndEvent parameter is optional, but should be
 // specified if possible, as it may be used to skip reading the event stream.
+// If any hook fails with an error, this function will continue to call other
+// hooks. It then returns an aggregate of all errors returned by the hooks.
 func (a *Server) CallUploadCompletionHooks(
 	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
 ) error {
