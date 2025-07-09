@@ -35,6 +35,10 @@ This guide leverages ArgoCD's native Helm support to deploy the Teleport agent u
   
 ## Generate a join token
 
+Teleport agents use a join token to obtain certificates and connect to Teleport. See [joining docs](../../../reference/join-methods.mdx) for more information.
+The token must be valid only on first join, the Teleport Kube agent will store its
+certificates in Kubernetes and won't need a token to join again in the future.
+In this section, we will create a token for the agent to join the Teleport cluster.
 ```code
 $ tctl tokens add --type=kube,app --ttl=5m
 ```
