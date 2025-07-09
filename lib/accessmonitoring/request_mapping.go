@@ -17,6 +17,7 @@ limitations under the License.
 package accessmonitoring
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -89,11 +90,38 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 			return env.Expiry, nil
 		}),
 
-		"access_request.spec.requested_resources": typical.DynamicVariable(func(env AccessRequestExpressionEnv) ([]types.ResourceWithLabels, error) {
-			return env.RequestedResources, nil
+		"access_request.spec.resource_labels_union": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			union := make(map[string][]string)
+			for _, resource := range env.RequestedResources {
+				for k, v := range resource.GetAllLabels() {
+					union[k] = append(union[k], v)
+				}
+			}
+			return expression.DictFromStringSliceMap(union), nil
 		}),
-		"access_request.spec.requested_resources.length": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (int, error) {
-			return len(env.RequestedResources), nil
+		"access_request.spec.resource_labels_intersection": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			if len(env.RequestedResources) == 0 {
+				return expression.Dict{}, nil
+			}
+
+			intersection := make(map[string][]string)
+
+			// Get first resource labels.
+			labels := env.RequestedResources[0].GetAllLabels()
+			for k, v := range labels {
+				intersection[k] = append(intersection[k], v)
+			}
+
+			// Remove non-intersecting labels.
+			for _, resource := range env.RequestedResources {
+				labels := resource.GetAllLabels()
+				for k, v := range intersection {
+					if label, ok := labels[k]; !ok || !slices.Contains(v, label) {
+						delete(intersection, k)
+					}
+				}
+			}
+			return expression.DictFromStringSliceMap(intersection), nil
 		}),
 
 		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
@@ -101,36 +129,8 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		}),
 	}
 
-	expFuncs := map[string]typical.Function{
-		"all_has_labels": typical.TernaryFunction[AccessRequestExpressionEnv](
-			func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
-				for _, resource := range resources {
-					if resource.GetAllLabels()[key] != val {
-						return false, nil
-					}
-				}
-				return true, nil
-			}),
-		"some_has_labels": typical.TernaryFunction[AccessRequestExpressionEnv](
-			func(resources []types.ResourceWithLabels, key, val string) (bool, error) {
-				for _, resource := range resources {
-					if resource.GetAllLabels()[key] == val {
-						return true, nil
-					}
-				}
-				return false, nil
-			}),
-	}
-
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
-
-	// Set additional expression functions/methods, overwriting any defaults
-	// with the same name.
-	for key, fn := range expFuncs {
-		defParserSpec.Functions[key] = fn
-		defParserSpec.Methods[key] = fn
-	}
 
 	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {
