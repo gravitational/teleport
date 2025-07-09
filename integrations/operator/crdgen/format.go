@@ -49,8 +49,8 @@ title: {{.Title}}
 description: {{.Description}}
 tocDepth: 3
 labels:
-  - reference
-  - platform-wide
+ - reference
+ - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
