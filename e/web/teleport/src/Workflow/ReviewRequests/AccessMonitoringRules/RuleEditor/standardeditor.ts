@@ -195,7 +195,7 @@ function ruleToReviewsEditor(
       getAutomaticReviewIntegration(integration);
     if (!configurableFields.automaticReview.value) {
       configurableFields.errors.push(
-        `Unsuported automatic_review.integration: ${configurableFields.automaticReview}`
+        `Unsupported automatic_review.integration: ${configurableFields.automaticReview}`
       );
     }
     configurableFields.reviewDecisionOption = getReviewDecision(decision);
