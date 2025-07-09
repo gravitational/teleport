@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
 
 func TestParseJoinURI(t *testing.T) {
@@ -36,7 +37,7 @@ func TestParseJoinURI(t *testing.T) {
 		{
 			uri: "tbot+proxy+token://asdf@example.com:1234",
 			expect: &JoinURIParams{
-				AddressKind:         AddressKindProxy,
+				AddressKind:         connection.AddressKindProxy,
 				Token:               "asdf",
 				JoinMethod:          types.JoinMethodToken,
 				Address:             "example.com:1234",
@@ -46,7 +47,7 @@ func TestParseJoinURI(t *testing.T) {
 		{
 			uri: "tbot+auth+bound-keypair://token:param@example.com",
 			expect: &JoinURIParams{
-				AddressKind:         AddressKindAuth,
+				AddressKind:         connection.AddressKindAuth,
 				Token:               "token",
 				JoinMethod:          types.JoinMethodBoundKeypair,
 				Address:             "example.com",

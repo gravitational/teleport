@@ -35,6 +35,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -517,7 +518,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 	}
 	botConfig := &embeddedtbot.BotConfig{
 		AuthServer:            addr,
-		AuthServerAddressMode: tbotconfig.AllowProxyAsAuthServer,
+		AuthServerAddressMode: connection.AllowProxyAsAuthServer,
 		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: joinToken,
 			CAPath:     caPath,
