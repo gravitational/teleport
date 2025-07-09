@@ -136,14 +136,14 @@ following sets would match:
 - `set("cloud-stage")`
 - `set("cloud-dev", "cloud-stage")`
 
-The `Requested Resource Labels` input is converted into a series of `all_has_labels`
-expressions. In the example form, the resource labels are:
+The `Requested Resource Labels` input is converted into a `contains_all` expression
+using the `access_request.spec.resource_labels_intersection` variable. In the example
+form, the resource labels are:
 - `env: dev`
 - `service: demo`
 
-The resulting expresion uses AND across labels. All requested resources must
-have both labels `env: dev` and `service: demo`. The expression will also ensure
-that the length of requested resources is greater zero.
+The resulting expression uses AND across the intersection of labels. All requested
+resources must have both labels `env: dev` and `service: demo`.
 
 The `User Traits` input is converted into a series of `contains_any` expressions.
 The resulting expression uses AND across traits, and OR logic within a trait.
@@ -166,9 +166,8 @@ spec:
     - access_request
   condition: |-
     contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
-    access_request.spec.requested_resources.length > 0 &&
-    access_request.spec.requested_resources.all_has_labels("env", "dev") &&
-    access_request.spec.requested_resources.all_has_labels("service", "demo") &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev") &&
+    access_request.spec.resource_labels_intersection["service"].contains("demo") &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
@@ -218,18 +217,14 @@ dynamic variables:
 - `contains_all(list, items)` and `list.contains_all(items)` return `true` if
 `list` contains an exact match for all elements in `items`. This function enables
 users to define more restrictive conditions for automatic reviews.
-- `all_has_labels(resources_list, key, value)` returns `true` if all resources
-within `resources_list` has the `key: value` label.
-- `some_has_labels(resources_list, key, value)` returns `true` if at least one
-resource within `resources_list` has the `key: value` label.
 - `user.traits` variable contains the requester's user traits. It maps trait
 names to sets of values. This allows users to specify arbitrary traits—such as
 "level", "team", or "location"—which can then be used to determine whether a
 user is on-call or pre-approved for the access request.
-- `access_request.spec.requested_resources` contains the list of requested
-resource. This allows users to specify which sets of requested resources are
-automatically reviewed. The only function/method allowed with this value is
-`all_has_labels` and `some_has_labels`.
+- `access_request.spec.resource_labels_union` variable is a map containing the
+union of all requested resource labels.
+- `access_request.spec.resource_labels_intersection` variable is a map containing
+the intersection of all requested resource labels.
 
 #### Examples
 ```yaml
@@ -264,8 +259,7 @@ spec:
   subjects:
     - access_request
   condition: |-
-    access_request.spec.requested_resources.length > 0 &&
-    access_request.spec.requested_resources.some_has_labels("env", "prod") &&
+    access_request.spec.resource_labels_union["env"].contains("prod") &&
     !user.traits["team"].contains("admin")
   desired_state: reviewed
   automatic_review:
@@ -336,13 +330,13 @@ same information as regular access request reviews.
 
 ### Condition Misconfiguration
 Now that access monitoring rules support automatic approvals for access
-requests, potentionally granting access to users, there are some concerns
+requests, potentially granting access to users, there are some concerns
 about the risk of misconfigured access monitoring rule conditions.
 
 In addition, the lack of condition validation tooling make it difficult for
 administrators to trust that their automatic review rules are correctly set up.
 
-While these edge cases aren't blockers, they do represent potential footguns
+While these edge cases aren't blockers, they do represent potential foot guns
 that admins should be cautious of.
 
 
@@ -359,7 +353,7 @@ spec:
   subjects:
     - access_request
   condition: |-
-    access_request.spec.requested_resources.all_has_labels("env", "dev")
+    access_request.spec.resource_labels_intersection["env"].contains("dev")
   desired_state: reviewed
   automatic_review:
     integration: builtin
@@ -396,60 +390,6 @@ In order for this edge case to be possible, it would require that the `editor` r
 has been added to `search_as_roles` in the `requester` role RBAC. The preset role
 does not include privileged access roles within `search_as_roles`, and it would
 be unexpected for users to add them.
-
-#### Example Scenario 2
-Suppose the access monitoring rule is now updated to also match on a specific
-role:
-```yaml
-# This AMR automatically approves requests the access role and for resources
-# with the label `env: dev`.
-kind: access_monitoring_rule
-version: v1
-metadata:
-  name: pre-approved-resources
-spec:
-  subjects:
-    - access_request
-  condition: |-
-    contains_all(set("access"), access_request.spec.roles) &&
-    access_request.spec.requested_resources.all_has_labels("env", "dev")
-  desired_state: reviewed
-  automatic_review:
-    integration: builtin
-    decision: APPROVED
-```
-
-Now in the case that a requesting user has permissions to request access to the
-`access` role, the requester could submit the following request and be automatically
-approved:
-```sh
-$ tsh request create --roles=access
-Creating request...
-Request ID:     <request-id>
-Username:       requester
-Roles:          access
-Status:         PENDING
-
-Waiting for request approval...
-
-Approval received, reason="Access request has been automatically approved by \"@teleport-access-approval-bot\". User \"requester\" is approved by access_monitoring_rule \"demo\"."
-Getting updated certificates...
-
-> Profile URL:        https://example.teleport.sh:443
-  Logged in as:       requester
-  Active requests:    <request-id>
-  Cluster:            example.teleport.sh
-  Roles:              access, requester
-  Logins:             root
-  Kubernetes:         enabled
-```
-
-This is the expected behavior because the `all_has_labels` function returns `true`
-if the list of requested resources is empty.
-
-In order for this edge case to be possible, it would require that the `access`
-role has been added to `allow.request.roles` in the `requester` role RBAC. The
-preset role does not include the `access` role within `allow.request.roles`.
 
 ## Observability
 Anonymized metrics will be collected for access requests. These metrics will
@@ -516,15 +456,7 @@ should consider extending the language to support some of these.
 
 These macros would give users more control over the access monitoring rule match
 condition. Here are some examples that would not be possible with only the
-`has_labels` function:
-
-```yaml
-# This condition would match if all requested resources have the labels
-# `env: dev` or `env: state`.
-condition: |-
-  access_request.spec.requested_resources.
-  all(resource, resource.labels["env"].contains_any("dev", "stage"))
-```
+`resource_labels_*` function:
 
 ```yaml
 # This condition would match if all requested resources are either
@@ -556,8 +488,8 @@ reviews with the Terraform provider.
 Monitoring Rules.
 
 ### Resource Access Request
-1. Extend the Access Monitoring Rule to support the `access_request.spec.requested_resources`
-variable and the `has_labels` function/method.
+1. Extend the Access Monitoring Rule to support the `access_request.spec.resource_labels_union`
+and `access_request.spec.resource_labels_intersection` variables
 2. Update the automatic review service to allow automatic reviews of resource
 access requests.
 3. Update WebUI standard editor to support configuration of automatic reviews
