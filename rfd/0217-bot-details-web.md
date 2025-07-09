@@ -243,16 +243,16 @@ In a scenario where an older version proxy is in place, the endpoint will return
 
 Fetch active instances for a bot by name. Endpoint exists.
 
-##### `PUT /v1/webapi/sites/:site/machine-id/bot/:name`
+##### `PUT /v2/webapi/sites/:site/machine-id/bot/:name`
 
 Update roles, traits and config (`max_session_ttl`).
 
 **Approach**
 
-Existing endpoint with additional capabilities added. Currently only updating roles is supported. Support for updating traits and `max_session_ttl` are already supported by the underlying RPC and will be exposed by this endpoint. Not all items of data are saved to the same resource. As such, it's important to ensure the update happens atomically and rolled back on failure.
+New endpoint supporting updating roles, traits and max session duration. Support for updating traits and `max_session_ttl` are already supported by the underlying RPC and will be exposed by this endpoint. Not all items of data are saved to the same resource. As such, it's important to ensure the update happens atomically and rolled back on failure. The `v1` endpoint will be marked for removal.
 
 **Backwards compatibility**
-In a scenario where an older version proxy is in place, the endpoint will return without an error, but only update roles, silently ignoring any changes to traits and `max_session_ttl`. To mitigate this, the frontend will check the resulting Bot object for the expected changes and show an alert if there is a mismatch.
+In a scenario where an older version proxy is in place, the api will return a 404 (including a `proxyVersion` field), as the new endpoint wont exist. In this case, the frontend will detect the version mismatch and provide the user with an explanation. This is preferable to a partial update, as performing only some of the update (roles only) may introduce a security risk, or simply just be confusing to users.
 
 ##### `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`
 
