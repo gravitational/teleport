@@ -89,8 +89,9 @@ source:
 
       roles: kube,app,discovery
       authToken: $YOUR_AUTH_TOKEN
-      proxyAddr: $YOUR_PROXY_ADDR
-      kubeClusterName: $KUBE_CLUSTER_NAME
+      proxyAddr: $YOUR_PROXY_ADDRESS
+      kubeClusterName: $YOUR_KUBE_CLUSTER_NAME
+
       highAvailability:
           replicaCount: 2
           podDisruptionBudget:
@@ -99,7 +100,16 @@ source:
   chart: teleport-kube-agent
 destination:
   server: 'https://kubernetes.default.svc'
-  namespace: teleport
+  namespace: $YOUR_TARGET_NAMESPACE
+# This section is used to allow the teleport-kube-agent-updater to update the agent
+# without ArgoCD reverting the update.
+ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    name: $YOUR_APPLICATION_NAME
+    namespace: $YOUR_TARGET_NAMESPACE
+    jqPathExpressions:
+      - '.spec.template.spec.containers[] | select(.name == "teleport").image'
 ```
 
 4. Sync your changes to apply the configuration.
