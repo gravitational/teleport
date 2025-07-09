@@ -580,6 +580,11 @@ func ValidateClientRedirect(clientRedirect string, ceremonyType CeremonyType, se
 		if u.Hostname() != "" {
 			return trace.BadParameter("invalid client redirect URL for SSO MFA")
 		}
+		if q, err := url.ParseQuery(u.RawQuery); err != nil {
+			return trace.Wrap(err, "parsing query in client redirect URL")
+		} else if len(q) != 1 || len(q["channel_id"]) != 1 {
+			return trace.BadParameter("malformed query parameters in client redirect URL")
+		}
 		return nil
 	}
 
