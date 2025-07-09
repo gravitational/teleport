@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestWindowsDesktops tests that CRUD operations on
@@ -291,13 +293,11 @@ func TestDynamicWindowsDesktop(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
-			desktops, _, err := p.dynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, 0, "")
-			return desktops, err
+			return stream.Collect(clientutils.Resources(ctx, p.dynamicWindowsDesktops.ListDynamicWindowsDesktops))
 		},
 		cacheGet: p.cache.GetDynamicWindowsDesktop,
 		cacheList: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
-			desktops, _, err := p.cache.ListDynamicWindowsDesktops(ctx, 0, "")
-			return desktops, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDynamicWindowsDesktops))
 		},
 		update: func(ctx context.Context, dwd types.DynamicWindowsDesktop) error {
 			_, err := p.dynamicWindowsDesktops.UpdateDynamicWindowsDesktop(ctx, dwd)
