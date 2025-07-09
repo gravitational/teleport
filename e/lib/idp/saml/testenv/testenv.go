@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -147,7 +148,11 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	require.NoError(t, err)
 
 	emitter := eventstest.NewChannelEmitter(20)
-	keyStore := keystore.NewSoftwareKeystoreForTests(t)
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          clusterName,
+		AuthPreferenceGetter: clusterService,
+	})
+	require.NoError(t, err)
 
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
 		Backend:       bk,
@@ -169,7 +174,7 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		Client:         client,
 		Emitter:        emitter,
 		Authorizer:     authorizer,
-		KeyStore:       keyStore,
+		KeyStore:       keyStoreManager,
 		GenericService: svc,
 	}
 }
