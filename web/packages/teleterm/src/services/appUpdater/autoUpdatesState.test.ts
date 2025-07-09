@@ -34,7 +34,6 @@ test.each([
         reachableClusters: [],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
     },
     expected: {
       enabled: false,
@@ -50,11 +49,9 @@ test.each([
         reachableClusters: [],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
     },
     expected: {
       enabled: true,
-      baseUrl: 'cdn.teleport.dev',
       version: '14.0.0',
       source: { kind: 'env-var' },
     },
@@ -75,7 +72,6 @@ test.each([
         ],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
     },
     expected: {
       enabled: false,
@@ -98,13 +94,11 @@ test.each([
         ],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
       managingClusterUri: '/clusters/cluster-a',
     },
     expected: {
       enabled: true,
       version: '14.0.0',
-      baseUrl: 'cdn.teleport.dev',
       source: {
         kind: 'managing-cluster',
         clusterUri: '/clusters/cluster-a',
@@ -142,13 +136,11 @@ test.each([
         ],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
       managingClusterUri: '/clusters/missing-cluster',
     },
     expected: {
       enabled: true,
       version: '14.0.0',
-      baseUrl: 'cdn.teleport.dev',
       source: {
         kind: 'most-compatible',
         candidateClusters: [
@@ -192,13 +184,11 @@ test.each([
         ],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
       managingClusterUri: '/clusters/missing-cluster',
     },
     expected: {
       enabled: true,
       version: '14.2.0', // the newer version should be taken
-      baseUrl: 'cdn.teleport.dev',
       source: {
         kind: 'most-compatible',
         candidateClusters: [
@@ -243,13 +233,11 @@ test.each([
         unreachableClusters: [],
       }),
 
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
       managingClusterUri: '/clusters/missing-cluster',
     },
     expected: {
       enabled: true,
       version: '15.0.0',
-      baseUrl: 'cdn.teleport.dev',
       source: {
         kind: 'most-compatible',
         candidateClusters: [
@@ -299,7 +287,6 @@ test.each([
         ],
         unreachableClusters: [],
       }),
-      getDownloadBaseUrl: async () => 'cdn.teleport.dev',
       managingClusterUri: '',
     },
     expected: {

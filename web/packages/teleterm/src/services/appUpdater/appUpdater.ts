@@ -51,13 +51,16 @@ export class AppUpdater {
   constructor(
     private storage: AppUpdaterStorage,
     private getClusterVersions: () => Promise<GetClusterVersionsResponse>,
-    private getDownloadBaseUrl: () => Promise<string>
+    getDownloadBaseUrl: () => Promise<string>
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
       await this.refreshAutoUpdatesStatus();
 
       if (this.autoUpdatesStatus.enabled) {
-        return this.autoUpdatesStatus;
+        return {
+          version: this.autoUpdatesStatus.version,
+          baseUrl: await getDownloadBaseUrl(),
+        };
       }
     };
 
@@ -102,7 +105,6 @@ export class AppUpdater {
       versionEnvVar,
       managingClusterUri,
       getClusterVersions: this.getClusterVersions,
-      getDownloadBaseUrl: this.getDownloadBaseUrl,
     });
     if (this.autoUpdatesStatus.enabled) {
       autoUpdater.autoDownload = shouldAutoDownload(this.autoUpdatesStatus);

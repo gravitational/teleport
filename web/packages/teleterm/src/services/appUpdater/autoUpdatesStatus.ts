@@ -41,7 +41,6 @@ export async function resolveAutoUpdatesStatus(sources: {
   versionEnvVar: string;
   managingClusterUri: string | undefined;
   getClusterVersions(): Promise<GetClusterVersionsResponse>;
-  getDownloadBaseUrl(): Promise<string>;
 }): Promise<AutoUpdatesStatus> {
   if (sources.versionEnvVar === 'off') {
     return { enabled: false, reason: 'disabled-by-env-var' };
@@ -49,7 +48,6 @@ export async function resolveAutoUpdatesStatus(sources: {
   if (sources.versionEnvVar) {
     return {
       enabled: true,
-      baseUrl: await sources.getDownloadBaseUrl(),
       version: sources.versionEnvVar,
       source: { kind: 'env-var' },
     };
@@ -72,7 +70,6 @@ export async function resolveAutoUpdatesStatus(sources: {
     if (cluster) {
       return {
         enabled: true,
-        baseUrl: await sources.getDownloadBaseUrl(),
         version: cluster.toolsVersion,
         source: {
           kind: 'managing-cluster',
@@ -92,7 +89,6 @@ export async function resolveAutoUpdatesStatus(sources: {
   if (mostCompatibleVersion) {
     return {
       enabled: true,
-      baseUrl: await sources.getDownloadBaseUrl(),
       version: mostCompatibleVersion,
       source: {
         kind: 'most-compatible',
@@ -174,7 +170,6 @@ function findMostCompatibleToolsVersion(
 export type AutoUpdatesEnabled = {
   enabled: true;
   version: string;
-  baseUrl: string;
   source:
     | {
         /** TELEPORT_TOOLS_VERSION configures app version. */
