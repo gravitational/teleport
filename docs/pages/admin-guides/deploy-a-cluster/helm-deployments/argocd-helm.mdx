@@ -30,28 +30,6 @@ This guide leverages ArgoCD's native Helm support to deploy the Teleport agent u
 - An existing ArgoCD instance (version 2.10 or greater) that can deploy to the
   above Kubernetes cluster.
 
-- A persistent volume that the Auth Service can use for storing cluster state.
-  Make sure your Kubernetes cluster has one available.
-  
-  
-  ```code
-  $ kubectl get pv
-  ```
-
-  If there are no persistent volumes available, you will need to either provide
-  one or enable [dynamic volume
-  provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/#enabling-dynamic-provisioning)
-  for your cluster. For example, in Amazon Elastic Kubernetes Service, you can
-  configure the [Elastic Block Store Container Storage Interface driver
-  add-on](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html).
-
-  To tell whether you have dynamic volume provisioning enabled, check for the
-  presence of a default `StorageClass`:
-
-  ```code
-  $ kubectl get storageclasses
-  ```
-
 - The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
   You can download this from our [installation page](../../../installation/installation.mdx).
   
