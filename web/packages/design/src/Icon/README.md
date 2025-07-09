@@ -12,7 +12,8 @@
 2. Add the file to the `assets/` folder in this directory.
 3. Ensure that the icon does not contain unnecessary `clipPath` elements (this will be a single 24x24 rect in a
    `clipPath` element). If it does, delete the `g` element (keeping the `path`) that references the `clipPath`, and the
-   `defs` element that contains the `clipPath`. This is necessary to ensure that the icon optimizes correctly.
+   `defs` element that contains the `clipPath`. This is necessary to ensure that the icon optimizes correctly (
+   see https://github.com/gravitational/teleport/pull/56614 as an example).
 4. Run `pnpm process-icons`.
 
 A full collection of exported icons ready for download can be found
