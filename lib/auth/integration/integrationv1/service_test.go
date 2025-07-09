@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -889,11 +890,17 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		PluginStaticCredentialsService: localCredService,
 	}
 
+	keystoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		AuthPreferenceGetter: clusterConfigSvc,
+	})
+	require.NoError(t, err)
+
 	resourceSvc, err := NewService(&ServiceConfig{
 		Backend:         backendSvc,
 		Authorizer:      authorizer,
 		Cache:           cache,
-		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
+		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{
