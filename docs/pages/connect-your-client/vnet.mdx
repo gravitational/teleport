@@ -44,7 +44,7 @@ apps at their local VNet DNS or IP address.
 Untrusted websites can potentially use DNS rebinding attacks to bypass the
 browser’s Same-Origin Policy and issue plain HTTP requests to VNet IP addresses.
 If your Teleport cluster contains TCP apps serving plain HTTP APIs, it is
-stronly recommended to either avoid VNet or implement one or more of the
+strongly recommended to either avoid VNet or implement one or more of the
 following mitigations for DNS rebinding attacks:
 - upgrade these APIs to HTTPS or another protocol
 - enforce a Host header allowlist at the HTTP server
