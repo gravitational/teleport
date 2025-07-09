@@ -64,6 +64,7 @@ afterAll(() => server.close());
 describe('EditDialog', () => {
   it('should show a fetch error state', async () => {
     withFetchBotError();
+    withFetchRolesSuccess({ items: ['test-role'] });
     renderComponent();
     await waitForLoading();
 
@@ -72,34 +73,56 @@ describe('EditDialog', () => {
 
   it('should show a read unauthorised error state', async () => {
     withFetchBotSuccess();
+    withFetchRolesSuccess({ items: ['test-role'] });
     renderComponent({
       customAcl: makeAcl({
         bots: {
           ...defaultAccess,
           read: false,
         },
+        roles: {
+          ...defaultAccess,
+          list: true,
+        },
       }),
     });
 
     expect(
-      screen.getByText('You do not have permission to view this bot.')
+      screen.getByText('You do not have permission to view this bot.', {
+        exact: false,
+      })
     ).toBeInTheDocument();
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancelButton).toBeEnabled();
+    fireEvent.click(cancelButton);
   });
 
   it('should show an edit unauthorised error state', async () => {
     withFetchBotSuccess();
+    withFetchRolesSuccess({ items: ['test-role'] });
     renderComponent({
       customAcl: makeAcl({
         bots: {
           ...defaultAccess,
           edit: false,
         },
+        roles: {
+          ...defaultAccess,
+          list: true,
+        },
       }),
     });
 
     expect(
-      screen.getByText('You do not have permission to edit this bot.')
+      screen.getByText('You do not have permission to edit this bot.', {
+        exact: false,
+      })
     ).toBeInTheDocument();
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancelButton).toBeEnabled();
+    fireEvent.click(cancelButton);
   });
 
   it('should allow roles to be edited', async () => {
@@ -297,7 +320,7 @@ describe('EditDialog', () => {
 
     expect(
       screen.getByText(
-        'Warning: Some fields may not have updated correctly; max_session_ttl, roles, traits'
+        'Some fields may not have updated correctly; max_session_ttl, roles, traits'
       )
     ).toBeInTheDocument();
   });

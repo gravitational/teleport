@@ -19,7 +19,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+} from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -164,17 +171,23 @@ export function EditDialog(props: {
                 <Alert kind="warning">Bot {botName} does not exist</Alert>
               )}
 
-              {!hasReadPermission && (
-                <Alert kind="warning">
-                  You do not have permission to view this bot
+              {!hasReadPermission ? (
+                <Alert kind="info">
+                  <Flex gap={2}>
+                    You do not have permission to view this bot. Missing role
+                    permissions: <code>bots.read</code>
+                  </Flex>
                 </Alert>
-              )}
+              ) : undefined}
 
-              {!hasEditPermission && (
-                <Alert kind="warning">
-                  You do not have permission to edit this bot
+              {!hasEditPermission ? (
+                <Alert kind="info">
+                  <Flex gap={2}>
+                    You do not have permission to edit this bot. Missing role
+                    permissions: <code>bots.edit</code>
+                  </Flex>
                 </Alert>
-              )}
+              ) : undefined}
 
               <div
                 style={{

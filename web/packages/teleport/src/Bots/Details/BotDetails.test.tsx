@@ -163,7 +163,9 @@ describe('BotDetails', () => {
       }),
     });
     expect(
-      screen.getByText('You do not have permission to view this bot.')
+      screen.getByText('You do not have permission to view this bot.', {
+        exact: false,
+      })
     ).toBeInTheDocument();
   });
 

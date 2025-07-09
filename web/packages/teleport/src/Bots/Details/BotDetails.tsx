@@ -122,8 +122,11 @@ export function BotDetails() {
       )}
 
       {!hasReadPermission && (
-        <Alert kind="warning">
-          You do not have permission to view this bot.
+        <Alert kind="info">
+          <Flex gap={2}>
+            You do not have permission to view this bot. Missing role
+            permissions: <code>bots.read</code>
+          </Flex>
         </Alert>
       )}
 
