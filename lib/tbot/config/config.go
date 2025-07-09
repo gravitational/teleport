@@ -127,10 +127,10 @@ type GitlabOnboardingConfig struct {
 // BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
 // method
 type BoundKeypairOnboardingConfig struct {
-	// InitialJoinSecret is the name of the initial joining secret, if any. If
+	// RegistrationSecret is the name of the initial joining secret, if any. If
 	// not specified, a keypair must be created using `tbot keypair create` and
 	// registered with Teleport in advance.
-	InitialJoinSecret string
+	RegistrationSecret string `yaml:"registration_secret,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
