@@ -452,19 +452,28 @@ func StatementAccessGraphAWSSyncSQS(sqsQueueARN string) *Statement {
 	}
 }
 
-// StatementAccessGraphAWSSyncS3BucketDownload returns the statement that allows downloading
+// StatementsAccessGraphAWSSyncS3BucketDownload returns the statements that allows downloading
 // objects from the specified S3 bucket. This is used for downloading AWS cloud trail logs.
-func StatementAccessGraphAWSSyncS3BucketDownload(s3BucketARN string) *Statement {
-	return &Statement{
-		Effect: EffectAllow,
-		Actions: []string{
-			"s3:GetObject",
-			"s3:GetObjectVersion",
-			"s3:ListBucket",
-			"s3:ListBucketVersions",
-			"s3:GetBucketLocation",
+func StatementsAccessGraphAWSSyncS3BucketDownload(s3BucketARN string) []*Statement {
+	return []*Statement{
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:GetObject",
+				"s3:GetObjectVersion",
+			},
+			Resources: []string{s3BucketARN + "/*"},
 		},
-		Resources: []string{s3BucketARN},
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:ListBucket",
+				"s3:ListBucketVersions",
+				"s3:GetBucketLocation",
+				"s3:GetBucketVersioning",
+			},
+			Resources: []string{s3BucketARN},
+		},
 	}
 }
 

@@ -1613,6 +1613,35 @@ message DeleteWindowsDesktopServiceRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
+// ListWindowsDesktopsRequest is a request for a page of registered Windows desktop hosts.
+message ListWindowsDesktopsRequest {
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string start_key = 2;
+  // Labels is a label-based matcher if non-empty.
+  map<string, string> labels = 3;
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string predicate_expression = 4;
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string search_keywords = 5;
+  // WindowsDesktopFilter specifies windows desktop specific filters.
+  types.WindowsDesktopFilter windows_desktop_filter = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
+  ];
+}
+
+// ListWindowsDesktopsResponse contains a page of registered Windows desktop hosts.
+message ListWindowsDesktopsResponse {
+  // Desktops is a list of Windows desktop hosts.
+  repeated types.WindowsDesktopV3 desktops = 1;
+  // NextKey is the key for the next page of SAML IdP service providers.
+  string next_key = 2;
+}
+
 // GetWindowsDesktopsResponse contains all registered Windows desktop hosts.
 message GetWindowsDesktopsResponse {
   // Servers is a list of Windows desktop hosts.
@@ -3256,6 +3285,8 @@ service AuthService {
 
   // GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
   rpc GetWindowsDesktops(types.WindowsDesktopFilter) returns (GetWindowsDesktopsResponse);
+  // ListWindowsDesktops returns a page of registered Windows desktop hosts.
+  rpc ListWindowsDesktops(ListWindowsDesktopsRequest) returns (ListWindowsDesktopsResponse);
   // CreateWindowsDesktop registers a new Windows desktop host.
   rpc CreateWindowsDesktop(types.WindowsDesktopV3) returns (google.protobuf.Empty);
   // UpdateWindowsDesktop updates an existing Windows desktop host.
