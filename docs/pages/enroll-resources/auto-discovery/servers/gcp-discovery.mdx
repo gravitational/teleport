@@ -3,6 +3,11 @@ title: Automatically Discover GCP Compute Instances
 description: How to configure Teleport to automatically enroll GCP compute instances.
 ---
 
+This guide shows you how to set up automatic server discovery for Google Compute
+Engine virtual machines.
+
+## How it works
+
 The Teleport Discovery Service can connect to GCP and automatically
 discover and enroll GCP Compute Engine instances matching configured labels. It will then
 execute a script on these discovered instances that will install Teleport,
@@ -291,7 +296,7 @@ for details on alternate methods.
 
 ## Next steps
 
-- Read [Joining Services via GCP](../../../enroll-resources/agents/join-services-to-your-cluster/gcp.mdx)
+- Read [Joining Services via GCP](../../agents/gcp.mdx)
   for more information on GCP tokens.
 - Full documentation on GCP discovery configuration can be found through the [
   config file reference documentation](../../../reference/config.mdx).

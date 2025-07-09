@@ -121,7 +121,13 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 
 	// The current generations must match to continue:
 	if currentIdentityGeneration != currentUserGeneration {
-		if err := a.tryLockBotDueToGenerationMismatch(ctx, user.GetName()); err != nil {
+		if err := a.tryLockBotDueToGenerationMismatch(
+			ctx,
+			certReq.botName,
+			certReq.botInstanceID,
+			certReq.joinToken,
+			certReq.renewable,
+		); err != nil {
 			a.logger.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected",
 				"error", err,
 				"bot", user.GetName(),
@@ -176,7 +182,7 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, username string, newValue uint64) error {
 	var err error
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		user, err := a.Services.GetUser(ctx, username, false)
 		if err != nil {
 			return trace.Wrap(err)
@@ -223,19 +229,44 @@ func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, use
 
 // tryLockBotDueToGenerationMismatch creates a lock for the given bot user and
 // emits a `RenewableCertificateGenerationMismatch` audit event.
-func (a *Server) tryLockBotDueToGenerationMismatch(ctx context.Context, username string) error {
-	// TODO: In the future, consider only locking the current join method / token.
+func (a *Server) tryLockBotDueToGenerationMismatch(
+	ctx context.Context, botName, botInstanceID, joinTokenName string, renewable bool,
+) error {
+	var spec types.LockSpecV2
+	if renewable {
+		// Renewable implies `token` joining. These are one-time use secrets
+		// and will not be embedded in the TLS identity, so we can't target
+		// the join token and should instead rely on the bot instance ID. As
+		// there is a 1:1 relationship between bot instance and "token"-type
+		// token, this should be functionally equivalent.
+		spec = types.LockSpecV2{
+			Target: types.LockTarget{
+				BotInstanceID: botInstanceID,
+			},
+			Message: fmt.Sprintf(
+				"The bot instance %s/%s has been locked due to a certificate "+
+					"generation mismatch, possibly indicating a stolen "+
+					"certificate.",
+				botName, botInstanceID,
+			),
+			CreatedAt: a.clock.Now(),
+		}
+	} else {
+		spec = types.LockSpecV2{
+			Target: types.LockTarget{
+				JoinToken: joinTokenName,
+			},
+			Message: fmt.Sprintf(
+				"Bot joins via the token %q have been locked due to a "+
+					"certificate generation mismatch by %s/%s, possibly "+
+					"indicating a stolen certificate.",
+				joinTokenName, botName, botInstanceID,
+			),
+			CreatedAt: a.clock.Now(),
+		}
+	}
 
-	// Lock the bot user indefinitely.
-	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
-		Target: types.LockTarget{
-			User: username,
-		},
-		Message: fmt.Sprintf(
-			"The bot user %q has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.",
-			username,
-		),
-	})
+	lock, err := types.NewLock(uuid.New().String(), spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -256,6 +287,26 @@ func (a *Server) tryLockBotDueToGenerationMismatch(ctx context.Context, username
 	}
 
 	return nil
+}
+
+// shouldEnforceGenerationCounter decides if generation counter checks should be
+// enforced for a given join method. Note that in certain situations the counter
+// may still not technically be enforced, for example, when onboarding a new bot
+// or recovering a bound keypair bot.
+func shouldEnforceGenerationCounter(renewable bool, joinMethod string) bool {
+	if renewable {
+		return true
+	}
+
+	// Note: token renewals are handled by the `renewable` check above, since
+	// those certs are issued via `ServerWithRoles.generateUserCerts()` and do
+	// not have an associated join method.
+	switch joinMethod {
+	case string(types.JoinMethodBoundKeypair):
+		return true
+	default:
+		return false
+	}
 }
 
 // updateBotInstance updates the bot instance associated with the context
@@ -340,7 +391,12 @@ func (a *Server) updateBotInstance(
 			// If the incoming identity has a nonzero generation, validate it
 			// using the legacy check. This will increment the counter on the
 			// request automatically
-			if err := a.legacyValidateGenerationLabel(ctx, username, req, uint64(currentIdentityGeneration)); err != nil {
+			if err := a.legacyValidateGenerationLabel(
+				ctx,
+				username,
+				req,
+				uint64(currentIdentityGeneration),
+			); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -386,10 +442,10 @@ func (a *Server) updateBotInstance(
 
 		return trace.AccessDenied("a current identity generation must be provided")
 	} else if currentIdentityGeneration > 0 && currentIdentityGeneration != instanceGeneration {
-		// For now, continue to only enforce generation counter checks on
-		// renewable (i.e. token) identities.
-		if req.renewable {
-			if err := a.tryLockBotDueToGenerationMismatch(ctx, username); err != nil {
+		// Generation counter enforcement depends on the type of cert and join
+		// method (if any - token renewals technically have no join method.)
+		if shouldEnforceGenerationCounter(req.renewable, authRecord.JoinMethod) {
+			if err := a.tryLockBotDueToGenerationMismatch(ctx, botName, botInstanceID, req.joinToken, req.renewable); err != nil {
 				log.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected", "error", err)
 			}
 
@@ -422,6 +478,8 @@ func (a *Server) updateBotInstance(
 	// compatibility, but only if this is a renewable identity. Previous
 	// versions only expect a nonzero generation counter for token joins, so
 	// setting this for other methods will break compatibility.
+	// Note: new join methods that enforce generation counter checks will not
+	// write a generation counter to user labels (e.g. bound keypair).
 	if req.renewable {
 		if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
 			log.WarnContext(ctx, "unable to commit legacy generation counter to bot user", "error", err)
@@ -493,7 +551,7 @@ func (a *Server) generateInitialBotCerts(
 	sshPubKey, tlsPubKey []byte,
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
-	existingInstanceID string, currentIdentityGeneration int32,
+	existingInstanceID string, previousInstanceID string, currentIdentityGeneration int32,
 	joinAttrs *workloadidentityv1pb.JoinAttrs,
 ) (*proto.Certs, string, error) {
 	var err error
@@ -550,6 +608,14 @@ func (a *Server) generateInitialBotCerts(
 		joinAttributes: joinAttrs,
 	}
 
+	// Set the join token cert field for non-renewable identities. This is used
+	// for lock targeting; token name lock targets are particularly useful for
+	// token-joined bots and it's a secret value, so we don't bother setting it.
+	// (The renewable flag implies token joining.)
+	if !renewable {
+		certReq.joinToken = initialAuth.JoinToken
+	}
+
 	if existingInstanceID == "" {
 		// If no existing instance ID is known, create a new one.
 		uuid, err := uuid.NewRandom()
@@ -560,8 +626,9 @@ func (a *Server) generateInitialBotCerts(
 		initialAuth.Generation = 1
 
 		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
-			BotName:    botName,
-			InstanceId: uuid.String(),
+			BotName:            botName,
+			InstanceId:         uuid.String(),
+			PreviousInstanceId: previousInstanceID,
 		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)

@@ -144,6 +144,7 @@ Optional:
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specallowkubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
 - `logins` (List of String) Logins is a list of *nix system logins.
+- `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specallowmcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
 - `node_labels_expression` (String) NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.
 - `request` (Attributes) (see [below for nested schema](#nested-schema-for-specallowrequest))
@@ -203,10 +204,18 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
+
+
+### Nested Schema for `spec.allow.mcp`
+
+Optional:
+
+- `tools` (List of String) Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.
 
 
 ### Nested Schema for `spec.allow.request`
@@ -236,6 +245,7 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes Resource API group.
 - `kind` (String) kind specifies the Kubernetes Resource type.
 
 
@@ -342,6 +352,7 @@ Optional:
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specdenykubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
 - `logins` (List of String) Logins is a list of *nix system logins.
+- `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specdenymcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
 - `node_labels_expression` (String) NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.
 - `request` (Attributes) (see [below for nested schema](#nested-schema-for-specdenyrequest))
@@ -401,10 +412,18 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
+
+
+### Nested Schema for `spec.deny.mcp`
+
+Optional:
+
+- `tools` (List of String) Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.
 
 
 ### Nested Schema for `spec.deny.request`
@@ -434,6 +453,7 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes Resource API group.
 - `kind` (String) kind specifies the Kubernetes Resource type.
 
 

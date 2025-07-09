@@ -1,0 +1,124 @@
+---
+title: Analyze and Correlate Teleport Audit Logs
+description: Describes how to import and correlate Teleport Audit Logs using Identity Security.
+---
+
+In this guide, you will configure your Teleport cluster to forward
+Audit Logs to Identity Security product for better visibility
+and alerts on suspicious activities.
+
+(!docs/pages/includes/policy/identity-activity-center.mdx!)
+
+Identity Activity Center is a feature of [Teleport Identity Security](https://goteleport.com/platform/identity-security/)
+product that is only available to Teleport Enterprise customers.
+
+## How it works
+
+Your Teleport cluster will continuously monitor incoming Audit Logs and
+forward them to Identity Security, where they will be ingested, standardized,
+analyzed, and stored for long-term retention.
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v18.0.0 or later.
+- Identity Security enabled for your account.
+- For self-hosted clusters:
+  - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+  - A running Access Graph node v1.28.0 or later with Identity Activity Center enabled.
+Check the [Identity Security page](../teleport-policy.mdx) for details on
+how to set up Access Graph and enable Identity Activity Center.
+
+
+## Step 1/1. Enable Teleport Audit Log export
+
+This section will guide you through the process of configuring your Teleport cluster to
+export audit logs to Teleport Identity Security.
+
+<Admonition type="note">
+
+`start_date` parameter is optional. When not set, it will default to 10 days prior to the first successful
+audit log export. This parameter can't be modified afterwards.
+
+</Admonition>
+
+Please select the deployment mode used to deploy your cluster.
+
+<Tabs>
+<TabItem label="Self-hosted cluster">
+
+When running a self-hosted cluster, edit each one of your Teleport Auth Service
+instances' configuration files, by default `/etc/teleport.yaml`, and merge the
+following YAML snippet:
+
+```yaml
+access_graph:
+    # <...>
+
+    audit_log:
+        # enables Audit Log export from Teleport
+        enabled: true
+        # start_date is an optional field. It defines the date when
+        # Identity Activity Center should ingest the Teleport Logs.
+        # If not defined, it defaults to 10 days prior to the first init.
+        #
+        # start_date: "2025-06-01T00:00:00Z"
+
+```
+
+Once completed, restart your Teleport Auth Service with:
+
+```bash
+$ sudo systemctl restart teleport
+```
+
+</TabItem>
+
+<TabItem label="Self-hosted cluster using Helm Chart">
+
+When the Teleport cluster was installed using `teleport-cluster` Helm chart, update the values for the deployment
+and include the following details:
+
+```yaml
+auth:
+  teleportConfig:
+    # <...>
+
+    # Add a section for configuring the Access Graph connection.
+    access_graph:
+        # <...>
+        audit_log:
+            # enables Audit Log export from Teleport
+            enabled: true
+            # start_date is an optional field. It defines the date when
+            # Identity Activity Center should ingest the Teleport Logs.
+            # If not defined, it defaults to 10 days prior to the first init.
+            #
+            # start_date: "2025-06-01T00:00:00Z"
+
+
+```
+
+`start_date` parameter is optional. When not set, it will default to 10 days prior to the first successful
+audit log export. This parameter can't be modified afterwards.
+
+If not using the `teleport-cluster` Helm chart, you will need to do the equivalent changes to your Teleport cluster deployment:
+- Add the `access_graph:` section at the top-level of the YAML config file for the Teleport Auth Service.
+- Mount the created ConfigMap as a volume so that the Auth Service can read the CA certificate.
+
+Finally, redeploy the Helm chart (assuming the values are stored in
+`values-teleport.yaml`).  Once the Auth Service changes succeed, restart the
+Proxy Service. Assign <Var name="teleport-cluster-deployment-name" /> to the
+name of your `teleport-cluster` deployment:
+
+```code
+$ helm upgrade -n <Var name="teleport-cluster-namespace" /> -f values-teleport.yaml \
+  --version <version> <Var name="teleport-cluster-deployment-name" /> teleport/teleport-cluster
+$ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment/teleport-auth   # Wait for the deployment to succeed
+$ kubectl -n <Var name="teleport-cluster-namespace" /> rollout restart deployment/teleport-proxy
+$ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment/teleport-proxy  # Wait for the deployment to succeed
+```
+
+</TabItem>
+</Tabs>
+
+

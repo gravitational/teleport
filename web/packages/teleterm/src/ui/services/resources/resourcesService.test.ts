@@ -24,84 +24,8 @@ import {
   makeKube,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import type * as tsh from 'teleterm/services/tshd/types';
 
-import {
-  AmbiguousHostnameError,
-  ResourceSearchError,
-  ResourcesService,
-} from './resourcesService';
-
-describe('getServerByHostname', () => {
-  const server: tsh.Server = makeServer();
-  const getServerByHostnameTests: Array<
-    {
-      name: string;
-      getServersMockedValue: ReturnType<TshdClient['getServers']>;
-    } & (
-      | { expectedServer: tsh.Server; expectedErr?: never }
-      | { expectedErr: any; expectedServer?: never }
-    )
-  > = [
-    {
-      name: 'returns a server when the hostname matches a single server',
-      getServersMockedValue: new MockedUnaryCall({
-        agents: [server],
-        totalCount: 1,
-        startKey: 'foo',
-      }),
-      expectedServer: server,
-    },
-    {
-      name: 'throws an error when the hostname matches multiple servers',
-      getServersMockedValue: new MockedUnaryCall({
-        agents: [server, server],
-        totalCount: 2,
-        startKey: 'foo',
-      }),
-      expectedErr: AmbiguousHostnameError,
-    },
-    {
-      name: 'returns nothing if the hostname does not match any servers',
-      getServersMockedValue: new MockedUnaryCall({
-        agents: [],
-        totalCount: 0,
-        startKey: 'foo',
-      }),
-      expectedServer: undefined,
-    },
-  ];
-  test.each(getServerByHostnameTests)(
-    '$name',
-    async ({ getServersMockedValue, expectedServer, expectedErr }) => {
-      const tshClient: Partial<TshdClient> = {
-        getServers: jest.fn().mockResolvedValueOnce(getServersMockedValue),
-      };
-      const service = new ResourcesService(tshClient as TshdClient);
-
-      const promise = service.getServerByHostname('/clusters/bar', 'foo');
-
-      if (expectedErr) {
-        // eslint-disable-next-line jest/no-conditional-expect
-        await expect(promise).rejects.toThrow(expectedErr);
-      } else {
-        // eslint-disable-next-line jest/no-conditional-expect
-        await expect(promise).resolves.toStrictEqual(expectedServer);
-      }
-
-      expect(tshClient.getServers).toHaveBeenCalledWith({
-        clusterUri: '/clusters/bar',
-        query: 'name == "foo"',
-        limit: 2,
-        sort: null,
-        sortBy: '',
-        startKey: '',
-        search: '',
-        searchAsRoles: '',
-      });
-    }
-  );
-});
+import { ResourceSearchError, ResourcesService } from './resourcesService';
 
 describe('searchResources', () => {
   it('returns a promise with resources', async () => {

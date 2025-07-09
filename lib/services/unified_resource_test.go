@@ -33,14 +33,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	apimetadata "github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -57,7 +55,6 @@ type client struct {
 	services.SAMLIdPServiceProviders
 	services.GitServers
 	services.IdentityCenterAccounts
-	services.IdentityCenterAccountAssignments
 	types.Events
 }
 
@@ -77,14 +74,13 @@ func newClient(t *testing.T) *client {
 	require.NoError(t, err)
 
 	return &client{
-		bk:                               bk,
-		Presence:                         local.NewPresenceService(bk),
-		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders:          samlService,
-		Events:                           local.NewEventsService(bk),
-		GitServers:                       gitService,
-		IdentityCenterAccounts:           icService,
-		IdentityCenterAccountAssignments: icService,
+		bk:                      bk,
+		Presence:                local.NewPresenceService(bk),
+		WindowsDesktops:         local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders: samlService,
+		Events:                  local.NewEventsService(bk),
+		GitServers:              gitService,
+		IdentityCenterAccounts:  icService,
 	}
 }
 
@@ -114,6 +110,9 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	health := dbServer.GetTargetHealth()
+	health.Status = "unknown"
+	dbServer.SetTargetHealth(health)
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	gitServer := newGitServer(t, "my-org")
@@ -178,13 +177,11 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	icAcct := newICAccount(t, ctx, clt)
-	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
 
 	// we expect each of the resources above to exist
 	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct),
-		types.Resource153ToUnifiedResource(icAcctAssignment),
+		services.IdentityCenterAccountToAppServer(icAcct),
 	}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -198,25 +195,6 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
-				return t.UnwrapT()
-			}),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccount",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
-				return t.UnwrapT()
-			}),
-
-		// Ignore unexported values in RFD153-style resources
-		cmpopts.IgnoreUnexported(
-			headerv1.Metadata{},
-			identitycenterv1.Account{},
-			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{},
-			identitycenterv1.AccountAssignment{},
-			identitycenterv1.AccountAssignmentSpec{}),
 	))
 
 	// // Update and remove some resources.
@@ -229,8 +207,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	// this should include the updated node, and shouldn't have any apps included
 	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct),
-		types.Resource153ToUnifiedResource(icAcctAssignment)}
+		services.IdentityCenterAccountToAppServer(icAcct),
+	}
 
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -247,26 +225,6 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-
-		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
-		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
-				return t.UnwrapT()
-			}),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccount",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
-				return t.UnwrapT()
-			}),
-
-		// Ignore unexported values in RFD153-style resources
-		cmpopts.IgnoreUnexported(
-			headerv1.Metadata{},
-			identitycenterv1.Account{},
-			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{},
-			identitycenterv1.AccountAssignment{},
-			identitycenterv1.AccountAssignmentSpec{}),
 
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
@@ -298,6 +256,9 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	health := dbServer.GetTargetHealth()
+	health.Status = "unknown"
+	dbServer.SetTargetHealth(health)
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	gitServer := newGitServer(t, "my-org")
@@ -347,7 +308,6 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 	require.NoError(t, err)
 
 	icAcct := newICAccount(t, ctx, clt)
-	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
 
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -366,39 +326,19 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 
-		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
-				return t.UnwrapT()
-			}),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccount",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
-				return t.UnwrapT()
-			}),
-
-		// Ignore unexported values in RFD153-style resources
-		cmpopts.IgnoreUnexported(
-			headerv1.Metadata{},
-			identitycenterv1.Account{},
-			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{},
-			identitycenterv1.AccountAssignment{},
-			identitycenterv1.AccountAssignmentSpec{}),
-
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	}
 
 	expected := map[string]types.ResourceWithLabels{
-		types.KindApp:                             app,
-		types.KindDatabase:                        dbServer,
-		types.KindNode:                            node,
-		types.KindWindowsDesktop:                  win,
-		types.KindKubernetesCluster:               kubeServer,
-		types.KindSAMLIdPServiceProvider:          samlapp,
-		types.KindGitServer:                       gitServer,
-		types.KindIdentityCenterAccount:           types.Resource153ToUnifiedResource(icAcct),
-		types.KindIdentityCenterAccountAssignment: types.Resource153ToUnifiedResource(icAcctAssignment),
+		types.KindApp:                    app,
+		types.KindDatabase:               dbServer,
+		types.KindNode:                   node,
+		types.KindWindowsDesktop:         win,
+		types.KindKubernetesCluster:      kubeServer,
+		types.KindSAMLIdPServiceProvider: samlapp,
+		types.KindGitServer:              gitServer,
+		types.KindIdentityCenterAccount:  services.IdentityCenterAccountToAppServer(icAcct),
 	}
 
 	for r, err := range w.Resources(ctx, "", types.SortBy{Field: services.SortByKind}) {
@@ -408,6 +348,9 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		switch kind {
 		case types.KindAppServer:
 			kind = types.KindApp
+			if r.GetSubKind() == types.KindIdentityCenterAccount {
+				kind = types.KindIdentityCenterAccount
+			}
 		case types.KindDatabaseServer:
 			kind = types.KindDatabase
 		case types.KindKubeServer:
@@ -434,6 +377,9 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 			switch kind {
 			case types.KindAppServer:
 				kind = types.KindApp
+				if r.GetSubKind() == types.KindIdentityCenterAccount {
+					kind = types.KindIdentityCenterAccount
+				}
 			case types.KindDatabaseServer:
 				kind = types.KindDatabase
 			case types.KindKubeServer:
@@ -465,7 +411,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 
 	const resourceCount = 1234
 	ids := make([]string, 0, resourceCount)
-	for i := 0; i < resourceCount; i++ {
+	for i := range resourceCount {
 		ids = append(ids, "resource"+strconv.Itoa(i))
 	}
 
@@ -505,27 +451,33 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 		{
 			name: "databases",
 			createResource: func(name string, c *client) error {
-				db, err := types.NewDatabaseV3(types.Metadata{
-					Name: name,
-				}, types.DatabaseSpecV3{
-					Protocol: "test-protocol",
-					URI:      "test-uri",
-				})
-				if err != nil {
-					return err
+				for _, status := range []string{"healthy", "unhealthy", "unknown"} {
+					db, err := types.NewDatabaseV3(types.Metadata{
+						Name: name,
+					}, types.DatabaseSpecV3{
+						Protocol: "test-protocol",
+						URI:      "test-uri",
+					})
+					if err != nil {
+						return err
+					}
+					dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: name,
+					}, types.DatabaseServerSpecV3{
+						Hostname: "hostname:" + name,
+						HostID:   uuid.NewString(),
+						Database: db,
+					})
+					if err != nil {
+						return err
+					}
+					dbServer.SetTargetHealth(types.TargetHealth{Status: status})
+					_, err = c.UpsertDatabaseServer(ctx, dbServer)
+					if err != nil {
+						return err
+					}
 				}
-				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: name,
-				}, types.DatabaseServerSpecV3{
-					Hostname: "hostname:" + name,
-					HostID:   uuid.NewString(),
-					Database: db,
-				})
-				if err != nil {
-					return err
-				}
-				_, err = c.UpsertDatabaseServer(ctx, dbServer)
-				return err
+				return nil
 			},
 			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
@@ -706,94 +658,6 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "identity center account",
-			createResource: func(name string, c *client) error {
-				_, err := c.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-					Account: &identitycenterv1.Account{
-						Kind:    types.KindIdentityCenterAccount,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: name,
-							Labels: map[string]string{
-								types.OriginLabel: common.OriginAWSIdentityCenter,
-							},
-						},
-						Spec: &identitycenterv1.AccountSpec{
-							Id:          name,
-							Arn:         "arn:aws:sso:::account/" + name,
-							Name:        "Test AWS Account",
-							Description: "Used for testing",
-							PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-								{
-									Name: "Alpha",
-									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-								},
-								{
-									Name: "Beta",
-									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-								},
-							},
-						},
-					}})
-				return err
-			},
-			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
-				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.IdentityCenterAccounts(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
-						if err != nil {
-							yield(nil, err)
-							return
-						}
-
-						if !yield(types.Resource153ToResourceWithLabels(n), nil) {
-							return
-						}
-					}
-				}
-			},
-		},
-		{
-			name: "identity center account assignment",
-			createResource: func(name string, c *client) error {
-				_, err := c.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-					AccountAssignment: &identitycenterv1.AccountAssignment{
-						Kind:    types.KindIdentityCenterAccountAssignment,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: name,
-							Labels: map[string]string{
-								types.OriginLabel: common.OriginAWSIdentityCenter,
-							},
-						},
-						Spec: &identitycenterv1.AccountAssignmentSpec{
-							Display: "Admin access on Production",
-							PermissionSet: &identitycenterv1.PermissionSetInfo{
-								Arn:          "arn:aws::::ps-Admin",
-								Name:         "Admin",
-								AssignmentId: "production--admin",
-							},
-							AccountName: "Production",
-							AccountId:   "99999999",
-						},
-					}})
-				return err
-			},
-			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
-				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.IdentityCenterAccountAssignments(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
-						if err != nil {
-							yield(nil, err)
-							return
-						}
-
-						if !yield(types.Resource153ToResourceWithLabels(n), nil) {
-							return
-						}
-					}
-				}
-			},
-		},
 	}
 
 	for _, test := range tests {
@@ -811,7 +675,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			for i := 0; i < resourceCount; i++ {
+			for i := range resourceCount {
 				require.NoError(t, test.createResource(ids[i], clt), "creating resource %d", i)
 			}
 
@@ -832,6 +696,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						if r.GetName() != ids[count] {
 							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 						}
+						requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 						count++
 					}
 
@@ -846,6 +711,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						if r.GetName() != ids[count] {
 							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 						}
+						requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 						count--
 					}
 
@@ -868,6 +734,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 							if r.GetName() != ids[count] {
 								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 							}
+							requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 							count++
 						}
 
@@ -896,6 +763,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 							if r.GetName() != ids[count] {
 								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 							}
+							requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 							count--
 						}
 
@@ -969,24 +837,28 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	// add a database server
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: "db1",
-	}, types.DatabaseSpecV3{
-		Protocol: "test-protocol",
-		URI:      "test-uri",
-	})
-	require.NoError(t, err)
-	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "db1-server",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "db-hostname",
-		HostID:   uuid.NewString(),
-		Database: db,
-	})
-	require.NoError(t, err)
-	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
-	require.NoError(t, err)
+	// add multiple database servers for the same db (HA setup)
+	var dbServers []*types.DatabaseServerV3
+	for range 3 {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "db1",
+		}, types.DatabaseSpecV3{
+			Protocol: "test-protocol",
+			URI:      "test-uri",
+		})
+		require.NoError(t, err)
+		dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: "db1-server",
+		}, types.DatabaseServerSpecV3{
+			Hostname: "db-hostname",
+			HostID:   uuid.NewString(),
+			Database: db,
+		})
+		require.NoError(t, err)
+		_, err = clt.UpsertDatabaseServer(ctx, dbServer)
+		require.NoError(t, err)
+		dbServers = append(dbServers, dbServer)
+	}
 
 	// add a saml app
 	samlapp, err := types.NewSAMLIdPServiceProvider(
@@ -1002,52 +874,64 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.CreateSAMLIdPServiceProvider(ctx, samlapp)
 	require.NoError(t, err)
 
-	// Add an app server
-	app, err := types.NewAppServerV3(
-		types.Metadata{Name: "app1"},
-		types.AppServerSpecV3{
-			HostID: "app1-host-id",
-			App:    newApp(t, "app1"),
-		},
-	)
-	require.NoError(t, err)
-	_, err = clt.UpsertApplicationServer(ctx, app)
-	require.NoError(t, err)
+	// Add multiple app servers for the same app (HA setup)
+	var appServers []*types.AppServerV3
+	for range 3 {
+		app, err := types.NewAppServerV3(
+			types.Metadata{Name: "app1"},
+			types.AppServerSpecV3{
+				HostID: uuid.NewString(),
+				App:    newApp(t, "app1"),
+			},
+		)
+		require.NoError(t, err)
+		_, err = clt.UpsertApplicationServer(ctx, app)
+		require.NoError(t, err)
+		appServers = append(appServers, app)
+	}
 
-	// add desktop
-	desktop, err := types.NewWindowsDesktopV3(
-		"desktop",
-		map[string]string{"label": string(make([]byte, 0))},
-		types.WindowsDesktopSpecV3{
-			Addr:   "addr",
-			HostID: "HostID",
-		})
-	require.NoError(t, err)
-	err = clt.UpsertWindowsDesktop(ctx, desktop)
-	require.NoError(t, err)
+	// add multiple desktops (HA setup)
+	var desktops []*types.WindowsDesktopV3
+	for range 3 {
+		desktop, err := types.NewWindowsDesktopV3(
+			"desktop",
+			map[string]string{"label": string(make([]byte, 0))},
+			types.WindowsDesktopSpecV3{
+				Addr:   "addr",
+				HostID: uuid.NewString(),
+			})
+		require.NoError(t, err)
+		err = clt.UpsertWindowsDesktop(ctx, desktop)
+		require.NoError(t, err)
+		desktops = append(desktops, desktop)
+	}
 
-	// add kube
-	kube, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name:      "kube",
-			Namespace: defaults.Namespace,
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-	kubeServer, err := types.NewKubernetesServerV3(
-		types.Metadata{
-			Name:      "kube_server",
-			Namespace: defaults.Namespace,
-		},
-		types.KubernetesServerSpecV3{
-			Cluster: kube,
-			HostID:  "hostID",
-		},
-	)
-	require.NoError(t, err)
-	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
-	require.NoError(t, err)
+	// add multiple kube servers (HA setup)
+	var kubeServers []*types.KubernetesServerV3
+	for range 3 {
+		kube, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name:      "kube",
+				Namespace: defaults.Namespace,
+			},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+		kubeServer, err := types.NewKubernetesServerV3(
+			types.Metadata{
+				Name:      "kube_server",
+				Namespace: defaults.Namespace,
+			},
+			types.KubernetesServerSpecV3{
+				Cluster: kube,
+				HostID:  uuid.NewString(),
+			},
+		)
+		require.NoError(t, err)
+		_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+		kubeServers = append(kubeServers, kubeServer)
+	}
 
 	icAcct := newICAccount(t, ctx, clt)
 
@@ -1061,69 +945,69 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		return len(res) == 8
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
-	// delete everything
+	// delete just one of each of the HA servers
+	err = clt.DeleteDatabaseServer(ctx, "default", dbServers[0].Spec.HostID, dbServers[0].GetName())
+	require.NoError(t, err)
+	dbServers = dbServers[1:]
+	err = clt.DeleteApplicationServer(ctx, "default", appServers[0].Spec.HostID, appServers[0].GetName())
+	require.NoError(t, err)
+	appServers = appServers[1:]
+	err = clt.DeleteWindowsDesktop(ctx, desktops[0].Spec.HostID, desktops[0].GetName())
+	require.NoError(t, err)
+	desktops = desktops[1:]
+	err = clt.DeleteKubernetesServer(ctx, kubeServers[0].Spec.HostID, kubeServers[0].GetName())
+	require.NoError(t, err)
+	kubeServers = kubeServers[1:]
+
+	// delete everything else
 	err = clt.DeleteNode(ctx, "default", node.GetName())
 	require.NoError(t, err)
-	err = clt.DeleteDatabaseServer(ctx, "default", dbServer.Spec.HostID, dbServer.GetName())
-	require.NoError(t, err)
 	err = clt.DeleteSAMLIdPServiceProvider(ctx, samlapp.GetName())
-	require.NoError(t, err)
-	err = clt.DeleteApplicationServer(ctx, "default", app.Spec.HostID, app.GetName())
-	require.NoError(t, err)
-	err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
-	require.NoError(t, err)
-	err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
 	require.NoError(t, err)
 	err = clt.DeleteIdentityCenterAccount(ctx, services.IdentityCenterAccountID(icAcct.GetMetadata().GetName()))
 	require.NoError(t, err)
 	err = clt.DeleteGitServer(ctx, gitServer.GetName())
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 0
-	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be deleted")
-}
+	duplicatedServerNames := []string{
+		appServers[0].GetName(),
+		dbServers[0].GetName(),
+		desktops[0].GetName(),
+		kubeServers[0].GetName(),
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted except for HA servers")
 
-func Test_PaginatedResourcesSAMLIdPServiceProviderCompatibility(t *testing.T) {
-	samlApp, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp1",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newTestEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	)
-	require.NoError(t, err)
+	// delete all remaining (db, kube, app, desktop) servers
+	for _, dbServer := range dbServers {
+		err = clt.DeleteDatabaseServer(ctx, "default", dbServer.Spec.HostID, dbServer.GetName())
+		require.NoError(t, err)
+	}
+	for _, appServer := range appServers {
+		err = clt.DeleteApplicationServer(ctx, "default", appServer.Spec.HostID, appServer.GetName())
+		require.NoError(t, err)
+	}
+	for _, desktop := range desktops {
+		err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
+		require.NoError(t, err)
+	}
+	for _, kubeServer := range kubeServers {
+		err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
+		require.NoError(t, err)
+	}
 
-	// for a v15 client, expect AppServerOrSAMLIdPServiceProvider response
-	v15ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{apimetadata.VersionKey: "15.0.0"}))
-	v15response, err := services.MakePaginatedResources(v15ctx, types.KindUnifiedResource, []types.ResourceWithLabels{samlApp}, map[string]struct{}{})
-	require.NoError(t, err)
-	require.Equal(t,
-		&proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-				//nolint:staticcheck // SA1019. TODO(gzdunek): DELETE IN 17.0 (with the entire test)
-				AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-						SAMLIdPServiceProvider: samlApp.(*types.SAMLIdPServiceProviderV1),
-					},
-				}}},
-		v15response[0],
-	)
-
-	// for a v16 client, expect SAMLIdPServiceProvider response
-	v16ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{apimetadata.VersionKey: "16.0.0"}))
-	v16response, err := services.MakePaginatedResources(v16ctx, types.KindUnifiedResource, []types.ResourceWithLabels{samlApp}, map[string]struct{}{})
-	require.NoError(t, err)
-	require.Equal(t,
-		&proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
-				SAMLIdPServiceProvider: samlApp.(*types.SAMLIdPServiceProviderV1),
-			}},
-		v16response[0],
-	)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Empty(t, res)
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 
 func newTestEntityDescriptor(entityID string) string {
@@ -1151,7 +1035,7 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 </md:EntityDescriptor>
 `
 
-func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) services.IdentityCenterAccount {
+func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) *identitycenterv1.Account {
 	t.Helper()
 
 	accountID := t.Name()
@@ -1184,35 +1068,7 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 			},
 		}})
 	require.NoError(t, err, "creating Identity Center Account")
-	return icAcct
-}
-
-func newICAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenterAccountAssignments) services.IdentityCenterAccountAssignment {
-	t.Helper()
-
-	assignment, err := svc.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind:    types.KindIdentityCenterAccountAssignment,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
-				},
-			},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
-				Display: "Admin access on Production",
-				PermissionSet: &identitycenterv1.PermissionSetInfo{
-					Arn:          "arn:aws::::ps-Admin",
-					Name:         "Admin",
-					AssignmentId: "production--admin",
-				},
-				AccountName: "Production",
-				AccountId:   "99999999",
-			},
-		}})
-	require.NoError(t, err, "creating Identity Center Account Assignment")
-	return assignment
+	return icAcct.Account
 }
 
 func TestOktaAppServers(t *testing.T) {
@@ -1263,4 +1119,11 @@ func mustCreateOktaAppServer(t *testing.T, name, friendlyName string) *types.App
 	})
 	require.NoError(t, err)
 	return resource
+}
+
+func requireHealthStatusIfGiven(t *testing.T, r any, want types.TargetHealthStatus) {
+	t.Helper()
+	if r, ok := r.(types.TargetHealthStatusGetter); ok {
+		require.Equal(t, want, r.GetTargetHealthStatus(), "resource %v", r)
+	}
 }

@@ -50,32 +50,12 @@ func newProvisioningPrincipalState(id string) *provisioningv1.PrincipalState {
 	}
 }
 
-// TestProvisioningState asserts that a ProvisioningPrincipalState can be cached
+// TestProvisioningPrincipalState asserts that a ProvisioningPrincipalState can be cached
 func TestProvisioningPrincipalState(t *testing.T) {
-
 	t.Parallel()
 
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
-
-	collect := func(ctx context.Context, src provisioningStateGetter) ([]*provisioningv1.PrincipalState, error) {
-		var result []*provisioningv1.PrincipalState
-		var pageToken pagination.PageRequestToken
-		for {
-			page, nextPage, err := src.ListProvisioningStatesForAllDownstreams(ctx, 0, &pageToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			result = append(result, page...)
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-
-			pageToken.Update(nextPage)
-		}
-		return result, nil
-	}
 
 	testResources153(t, fixturePack, testFuncs153[*provisioningv1.PrincipalState]{
 		newResource: func(s string) (*provisioningv1.PrincipalState, error) {
@@ -90,7 +70,22 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return collect(ctx, fixturePack.provisioningStates)
+			var result []*provisioningv1.PrincipalState
+			var pageToken pagination.PageRequestToken
+			for {
+				page, nextPage, err := fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, page...)
+
+				if nextPage == pagination.EndOfList {
+					break
+				}
+
+				pageToken.Update(nextPage)
+			}
+			return result, nil
 		},
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteProvisioningState(
@@ -100,7 +95,22 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return collect(ctx, fixturePack.cache.provisioningStatesCache)
+			var result []*provisioningv1.PrincipalState
+			var pageToken pagination.PageRequestToken
+			for {
+				page, nextPage, err := fixturePack.cache.ListProvisioningStatesForAllDownstreams(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, page...)
+
+				if nextPage == pagination.EndOfList {
+					break
+				}
+
+				pageToken.Update(nextPage)
+			}
+			return result, nil
 		},
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
 			r, err := fixturePack.provisioningStates.GetProvisioningState(

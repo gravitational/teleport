@@ -48,7 +48,7 @@ export function RoleEditorDialog({
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
 } & RolesProps) {
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
   return (
     <CSSTransition
       in={open}

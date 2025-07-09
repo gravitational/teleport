@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -756,7 +758,7 @@ func (p *Pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
 		raConf.Logger = utils.NewSlogLoggerForTests()
@@ -903,7 +905,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 
 	servers, err := p.rootCluster.StartApps(configs)
 	require.NoError(t, err)
-	require.Equal(t, len(configs), len(servers))
+	require.Len(t, configs, len(servers))
 
 	for i, appServer := range servers {
 		srv := appServer
@@ -925,7 +927,7 @@ func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name stri
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
 		laConf.Logger = utils.NewSlogLoggerForTests()
@@ -1048,7 +1050,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 
 	servers, err := p.leafCluster.StartApps(configs)
 	require.NoError(t, err)
-	require.Equal(t, len(configs), len(servers))
+	require.Len(t, configs, len(servers))
 
 	for i, appServer := range servers {
 		srv := appServer
@@ -1062,6 +1064,12 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 }
 
 func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
+	if os.Getenv(libmcp.InMemoryServerEnvVar) == "true" {
+		cfgApps = append(cfgApps, servicecfg.App{
+			Name: libmcp.InMemoryServerName,
+		})
+	}
+
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		site, err := tunnel.GetSite(clusterName)
 		assert.NoError(t, err)

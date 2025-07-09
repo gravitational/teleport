@@ -30,7 +30,7 @@ jobs:
     name: Prettier, ESLint, & TSC
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4

@@ -97,27 +97,52 @@ The assertions currently provided by Teleport's SAML identity provider are liste
 | `uid`                  | `urn:oid:0.9.2342.19200300.100.1.1` | The user ID from Teleport | `urn:oasis:names:tc:SAML:2.0:attrname-format:uri` |
 | `eduPersonAffiliation` | `urn:oid:1.3.6.1.4.1.5923.1.1.1.1`  | The user's Teleport roles | `urn:oasis:names:tc:SAML:2.0:attrname-format:uri` |
 
-## Disabling SAML identity provider access
+## RBAC
 
-### Role level
+In role version 7 and below, the following access controls are applied to the `saml_idp_service_provider` resource access: 
 
-To disable access to the SAML identity provider at the role level,
-assign a role to a user with the follow `role` option:
+- Role option that enables idp: `spec.options.idp.saml.enabled: true/false`.
+- Cluster auth preference that enables idp: `spec.idp.saml.enabled: true/false`.
+- Resource rule `spec.allow/deny.rules.resources.saml_idp_service_provider`. Applicable only to admin actions. 
+  - Allow rule with `read,list` verbs are applied implicitly. 
+  - Deny rule with `read,list` verbs gets precedence over implicit allow. 
+- Per session MFA: `spec.options.require_session_mfa: true/false`.
 
-```yaml
-...
-options:
-    ...
-    idp:
-      saml:
-        enabled: false
-    ...
-```
+Teleport role version 8 introduces the following changes:
+- Label matchers based on `app_labels`.
+- Resource rule with verbs targeting `saml_idp_service_provider` is now applicable to both resource access and admin actions. 
+- Device Trust for SAML IdP session.
 
-If a user is assigned to any role that disables access to the identity
-provider, access will be denied even if other roles allow access.
+The role option `spec.options.idp.saml.enabled: true/false` is no longer supported starting role version 8.
 
-### Cluster level
+Per session MFA is supported in all role versions.
+
+### RBAC precedence
+
+Users can be assigned with both the newer role (version 8) and the older versioned roles (version 7 and below) at the same time.
+If a user is assigned with both role version 7 and 8, deny rules of the version 8 takes precedence.
+
+For example,
+- If role version 7 denies access, access is denied.
+- If role version 7 allows access but role version 8 denies access, access is denied. 
+- If role version 7 allows access and role version 8 also allows access, access is allowed.
+
+The table below shows a few more examples of applicable RBAC, when two roles with version 7 and 8 each are assigned to the user.
+
+| Role v7                                                                    | Role v8                                                    |  Result           |
+|----------------------------------------------------------------------------|------------------------------------------------------------|-------------------|
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: false</pre>      | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ❌ no access.      |
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>deny:<br/>  app_labels:<br/>     * : *</pre>          | ❌ no access       |  
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    * : *<br/>deny:<br/>  rules:<br/>    resources:<br/>    - saml_idp_service_provider<br/>    verbs:<br/>    - read<br/>    - list</pre>          | ❌ no access     | 
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ✅ full access     | 
+| No version 7 role assigned to the user                                     | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ✅ full access     | 
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | No version 8 role assigned to the user           | ✅ full access     | 
+
+<Admonition type="important" title="Admin Actions">
+ `saml_idp_service_provider` resource does not yet support MFA and Device Trust for admin actions. 
+</Admonition>
+
+## Disabling SAML identity provider at cluster level
 
 To disable access to the identity provider at the cluster level, create
 or update the `cluster_auth_preference` object with the following setting:
@@ -148,34 +173,6 @@ service provider. You can verify this by looking for a log entry in Teleport's l
 
 ```code
 2023-03-01T10:32:34-05:00 INFO [SAMLIDP]   failed to validate request: cannot find service provider https://samltest.id/saml/sp: could not find service provider https://samltest.id/saml/sp pid:31036.1 saml@v0.4.12/identity_provider.go:232
-```
-
-### `Not Found` when logging into an external application
-
-If the Teleport server returns a `Not Found`, make sure that none of the roles belonging
-to your user have SAML IdP access explicitly disabled. In the `options` section of each
-of the user roles, look for the `idp` section for the `saml` access to be disabled. Also,
-ensure the user's role allows the `list` and `read` action for the `saml_idp_service_provider`
-resource.
-
-```yaml
-...
-spec:
-  allow:
-    ...
-    rules:
-    - resources:
-      - saml_idp_service_provider
-      verbs:
-      - list
-      - read
-...
-options:
-    ...
-    idp:
-      saml:
-        enabled: false
-    ...
 ```
 
 ## References

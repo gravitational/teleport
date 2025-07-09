@@ -31,8 +31,7 @@ import (
 
 // TestFanoutV2Init verifies that Init event is sent exactly once.
 func TestFanoutV2Init(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	f := NewFanoutV2(FanoutV2Config{})
 
@@ -110,7 +109,7 @@ func TestFanoutV2StreamOrdering(t *testing.T) {
 	results := make(chan []string, streams)
 
 	var inputs []string
-	for i := 0; i < events; i++ {
+	for range events {
 		kind := "spam"
 		if rand.N(2) == 0 {
 			kind = "eggs"
@@ -118,7 +117,7 @@ func TestFanoutV2StreamOrdering(t *testing.T) {
 		inputs = append(inputs, kind)
 	}
 
-	for i := 0; i < streams; i++ {
+	for range streams {
 		stream := f.NewStream(ctx, types.Watch{
 			Name:  "test",
 			Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
@@ -146,7 +145,7 @@ func TestFanoutV2StreamOrdering(t *testing.T) {
 		put(k)
 	}
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		require.Equal(t, inputs, <-results)
 	}
 }

@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
@@ -173,10 +172,9 @@ func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
 // alpnConnUpgradeDialer makes an "HTTP" upgrade call to the Proxy Service then
 // tunnels the connection with this connection upgrade.
 type alpnConnUpgradeDialer struct {
-	dialer        ContextDialer
-	tlsConfig     *tls.Config
-	withPing      bool
-	useLegacyMode bool
+	dialer    ContextDialer
+	tlsConfig *tls.Config
+	withPing  bool
 }
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
@@ -185,8 +183,6 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 		dialer:    dialer,
 		tlsConfig: tlsConfig,
 		withPing:  withPing,
-		// Only use "legacy" mode when it's explicitly set by the env var.
-		useLegacyMode: strings.ToLower(os.Getenv(defaults.TLSRoutingConnUpgradeModeEnvVar)) == "legacy",
 	}
 }
 
@@ -202,7 +198,7 @@ func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr s
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType(), d.useLegacyMode)
+	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
 	if err != nil {
 		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}
@@ -216,7 +212,7 @@ func (d *alpnConnUpgradeDialer) upgradeType() string {
 	return constants.WebAPIConnUpgradeTypeALPN
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string, useLegacyMode bool) (net.Conn, error) {
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
 	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -227,13 +223,7 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 		return nil, trace.Wrap(err)
 	}
 
-	// Only set one mode at a time.
-	if useLegacyMode {
-		req.Header.Add(constants.WebAPIConnUpgradeHeader, alpnUpgradeType)
-		req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, alpnUpgradeType)
-	} else {
-		applyWebSocketUpgradeHeaders(req, alpnUpgradeType, challengeKey)
-	}
+	applyWebSocketUpgradeHeaders(req, alpnUpgradeType, challengeKey)
 
 	// Set "Connection" header to meet RFC spec:
 	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
@@ -271,19 +261,10 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 
 	// Handle WebSocket.
 	logger := slog.With("hostname", api.Host)
-	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) == constants.WebAPIConnUpgradeTypeWebSocket {
-		if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		logger.DebugContext(req.Context(), "Performing ALPN WebSocket connection upgrade.")
-		return newWebSocketALPNClientConn(conn), nil
+	if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Handle "legacy".
-	logger.DebugContext(req.Context(), "Performing ALPN legacy connection upgrade.")
-	if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
-		return pingconn.New(conn), nil
-	}
-	return conn, nil
+	logger.DebugContext(req.Context(), "Performing ALPN WebSocket connection upgrade.")
+	return newWebSocketALPNClientConn(conn), nil
 }

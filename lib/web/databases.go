@@ -41,7 +41,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -119,7 +118,7 @@ func (r *createOrOverwriteDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	var req *createOrOverwriteDatabaseRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -200,7 +199,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -293,7 +292,7 @@ type databaseIAMPolicyAWS struct {
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
@@ -304,10 +303,11 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	database := dbServers[0].GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -332,7 +332,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	tokenStr := p.ByName("token")
 	if err := validateJoinToken(tokenStr); err != nil {
 		return "", trace.Wrap(err)
@@ -413,7 +413,7 @@ func (h *Handler) dbConnect(
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
@@ -698,28 +698,33 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 
 	routeToDatabase := s.route()
 
-	certsReq := clientproto.UserCertsRequest{
+	certsReq := proto.UserCertsRequest{
 		TLSPublicKey:    publicKeyPEM,
 		Username:        s.sctx.GetUser(),
 		Expires:         s.sctx.cfg.Session.GetExpiryTime(),
 		Format:          constants.CertificateFormatStandard,
 		RouteToCluster:  s.site.GetName(),
-		Usage:           clientproto.UserCertsRequest_Database,
+		Usage:           proto.UserCertsRequest_Database,
 		RouteToDatabase: routeToDatabase,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+	var certs *proto.Certs
+	result, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
 		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
-		MFARequiredReq: &clientproto.IsMFARequiredRequest{
-			Target: &clientproto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
+		MFARequiredReq: &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
 		},
 		CertsReq: &certsReq,
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if result != nil {
+		certs = result.NewCerts
 	}
 
 	if certs == nil {
@@ -774,8 +779,8 @@ func (s *databaseInteractiveSession) makeReplConn() (*tls.Conn, error) {
 	return tls.Client(s.replConn, tlsConfig), nil
 }
 
-func (s *databaseInteractiveSession) route() clientproto.RouteToDatabase {
-	return clientproto.RouteToDatabase{
+func (s *databaseInteractiveSession) route() proto.RouteToDatabase {
+	return proto.RouteToDatabase{
 		Protocol:    s.req.Protocol,
 		ServiceName: s.req.ServiceName,
 		Username:    s.req.DatabaseUser,
@@ -814,8 +819,8 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-// fetchDatabaseWithName fetch a database with provided database name.
-func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
+// fetchDatabaseServersWithName fetches all database servers with provided database name.
+func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) ([]types.DatabaseServer, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -830,13 +835,10 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch len(servers) {
-	case 0:
+	if len(servers) == 0 {
 		return nil, trace.NotFound("database %q not found", databaseName)
-	default:
-		return servers[0].GetDatabase(), nil
 	}
+	return servers, nil
 }
 
 func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {

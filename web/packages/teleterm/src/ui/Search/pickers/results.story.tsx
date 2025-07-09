@@ -486,7 +486,7 @@ const SearchResultItems = () => {
       kind: 'windows_desktop',
       requiresRequest: false,
       resource: makeWindowsDesktopWithoutDefaultPort({
-        uri: `${clusterUri}/windowsDesktops/long-name`,
+        uri: `${clusterUri}/windows_desktops/long-name`,
         name: 'super-long-windows-desktop-name-with-uuid-7a96e498-88ec-442f-a25b-569fa9150123c',
         labels: makeLabelsList({
           'aws/Environment': 'demo-13-biz',
@@ -499,7 +499,7 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'windows_desktop',
       resource: makeWindowsDesktopWithoutDefaultPort({
-        uri: `${clusterUri}/windowsDesktops/long-label-list`,
+        uri: `${clusterUri}/windows_desktops/long-label-list`,
         name: 'long-label-list',
         labels: makeLabelsList({
           'aws/Environment': 'demo-13-biz',
@@ -514,7 +514,7 @@ const SearchResultItems = () => {
       kind: 'windows_desktop',
       requiresRequest: true,
       resource: makeWindowsDesktopWithoutDefaultPort({
-        uri: `${clusterUri}/windowsDesktops/short-label-list`,
+        uri: `${clusterUri}/windows_desktops/short-label-list`,
         name: 'short-label-list',
         labels: makeLabelsList({
           'im-just-a-smol': 'win',

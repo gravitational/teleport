@@ -358,7 +358,7 @@ func (p *transport) start() {
 
 	// wait for both io.Copy goroutines to finish, or for
 	// the context to be canceled.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-errorCh:
 		case <-p.closeContext.Done():

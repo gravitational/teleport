@@ -21,13 +21,8 @@ package terraformcloud
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/coreos/go-oidc"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 // DefaultIssuerURL is the issuer URL for Terraform Cloud
@@ -36,9 +31,6 @@ const DefaultIssuerURL = "https://app.terraform.io"
 // IDTokenValidatorConfig contains the configuration options needed to control
 // the behavior of IDTokenValidator.
 type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
 	// issuerHostnameOverride overrides the default Terraform Cloud issuer URL. Used only in
 	// tests.
 	issuerHostnameOverride string
@@ -56,10 +48,6 @@ type IDTokenValidator struct {
 func NewIDTokenValidator(
 	cfg IDTokenValidatorConfig,
 ) *IDTokenValidator {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
-
 	return &IDTokenValidator{
 		IDTokenValidatorConfig: cfg,
 	}
@@ -91,35 +79,6 @@ func (id *IDTokenValidator) issuerURL(tfeHostname string) string {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, audience, hostname, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(hostname),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating oidc provider")
-	}
-
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: audience,
-		Now:      id.Clock.Now,
-	})
-
-	idToken, err := verifier.Verify(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying token")
-	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err, "enforcing nbf")
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	issuer := id.issuerURL(hostname)
+	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
 }

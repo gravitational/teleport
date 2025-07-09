@@ -15,6 +15,8 @@ This guide will explain how to:
 - Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
 
+## How it works
+
 In this setup, the Teleport Application Service has an AWS IAM role that can
 assume one or more target IAM roles. Teleport users access the AWS Management
 Console and APIs through the Teleport Web UI and `tsh`. When a user visits the
@@ -120,7 +122,7 @@ AWS APIs.
    ```
    
    Create a file called `app-service-tp.json` with the following content,
-   assigning <Var name="oidc-issuer" /> to the issuer string you retrieved and
+   assigning <Var name="OIDC_ISSUER" /> to the issuer string you retrieved and
    <Var name="EKS_ACCOUNT" /> to the ID of the AWS account that belongs to your
    EKS cluster:
    
@@ -386,7 +388,8 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 <TabItem label="EC2">
 
 On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token:
+file called `/tmp/token` that consists only of your token, assigning 
+<Var name="join-token" /> to the value of the token:
 
 ```code
 $ echo <Var name="join-token" /> | sudo tee /tmp/token
@@ -833,7 +836,7 @@ applications](../guides/dynamic-registration.mdx).
 This guide shows you how to use the **join token method** to enroll the Teleport
 Application Service in your cluster. This is one of several available methods,
 and we recommend reading the [Join Services to your Teleport
-Cluster](../../agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide to configure the
+Cluster](../../../index.mdx) guide to configure the
 most appropriate method for your environment.
 
 ## Further reading

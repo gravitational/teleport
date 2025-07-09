@@ -34,7 +34,6 @@ import (
 	"github.com/moby/term"
 
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Terminal is used to configure raw input and output modes for an attached
@@ -89,7 +88,7 @@ func (t *Terminal) InitRaw(input bool) error {
 	ts, err := term.SetRawTerminal(0)
 
 	originalHandler := slog.Default().Handler()
-	slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	if err != nil {
 		log.WarnContext(context.Background(), "Could not put terminal into raw mode", "error", err)
 	} else {

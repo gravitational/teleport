@@ -1406,6 +1406,42 @@ more details on possible values for `extra_fields`.
 See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 for more details.
 
+## `disableTopologySpreadConstraints`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`disableTopologySpreadConstraints` turns off the topology spread constraints.
+The feature is automatically turned off on Kubernetes versions below 1.18.
+
+## `topologySpreadConstraints`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`topologySpreadConstraints` sets the topology spread constraints for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)
+for more details.
+
+When unset, the chart defaults to a soft topology spread constraint
+that tries to spread pods across hosts and zones.
+
+```
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: # dynamically computed
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: # dynamically computed
+```
+
 ## `dnsConfig`
 
 | Type | Default |

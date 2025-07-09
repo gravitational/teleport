@@ -55,7 +55,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 		Database:   config.RouteToDatabase.Database,
 		Encryption: msdsn.EncryptionDisabled,
 		Protocols:  []string{"tcp"},
-	}, nil)
+	})
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {
@@ -75,7 +75,7 @@ type TestConnector struct{}
 
 // Connect simulates successful connection to a SQL Server.
 func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
-	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
+	host, port, err := getHostPort(sessionCtx.Database)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -97,7 +97,7 @@ func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session,
 		Port:         portI,
 		LoginOptions: options,
 		Protocols:    []string{"tcp"},
-	}, nil)
+	})
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {

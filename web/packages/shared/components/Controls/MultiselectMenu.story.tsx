@@ -59,6 +59,10 @@ export default {
       description: 'Buffer selections until "Apply" is clicked',
       table: { defaultValue: { summary: 'false' } },
     },
+    disabled: {
+      control: { type: 'boolean' },
+      table: { defaultValue: { summary: 'false' } },
+    },
     showIndicator: {
       control: { type: 'boolean' },
       description: 'Show indicator when there are selected options',
@@ -106,10 +110,11 @@ export default {
     showIndicator: true,
     showSelectControls: true,
     onChange: action('onChange'),
+    disabled: false,
   },
   render: (args => {
     const [{ selected }, updateArgs] =
-      useArgs<Meta<typeof MultiselectMenu<OptionValue>>['args']>();
+      useArgs<Meta<typeof MultiselectMenu<typeof options>>['args']>();
     const onChange = (value: OptionValue[]) => {
       updateArgs({ selected: value });
       args.onChange?.(value);
@@ -119,10 +124,10 @@ export default {
         <MultiselectMenu {...args} selected={selected} onChange={onChange} />
       </Flex>
     );
-  }) satisfies StoryFn<typeof MultiselectMenu<OptionValue>>,
-} satisfies Meta<typeof MultiselectMenu<OptionValue>>;
+  }) satisfies StoryFn<typeof MultiselectMenu<typeof options>>,
+} satisfies Meta<typeof MultiselectMenu<typeof options>>;
 
-type Story = StoryObj<typeof MultiselectMenu<OptionValue>>;
+type Story = StoryObj<typeof MultiselectMenu<typeof options>>;
 
 const Default: Story = { args: { options } };
 
@@ -142,4 +147,11 @@ const WithDisabledOption: Story = {
   },
 };
 
-export { Default, WithCustomLabels, WithDisabledOption };
+const WithDisabledMenu: Story = {
+  args: {
+    options,
+    disabled: true,
+  },
+};
+
+export { Default, WithCustomLabels, WithDisabledOption, WithDisabledMenu };

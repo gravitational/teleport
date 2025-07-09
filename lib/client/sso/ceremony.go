@@ -64,6 +64,42 @@ func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 	}
 }
 
+// SAMLCeremony handles SAML login ceremony.
+type SAMLCeremony struct {
+	clientCallbackURL   string
+	Init                SAMLCeremonyInit
+	HandleRequest       func(ctx context.Context, redirectURL, postformData string) error
+	GetCallbackResponse func(ctx context.Context) (*authclient.SSHLoginResponse, error)
+}
+
+// SAMLCeremonyInit initializes an SAML based SSO login ceremony.
+type SAMLCeremonyInit func(ctx context.Context, clientCallbackURL string) (redirectURL, postformData string, err error)
+
+// Run the SAML SSO ceremony.
+func (c *SAMLCeremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error) {
+	redirectURL, postformData, err := c.Init(ctx, c.clientCallbackURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := c.HandleRequest(ctx, redirectURL, postformData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.GetCallbackResponse(ctx)
+	return resp, trace.Wrap(err)
+}
+
+// NewCLISAMLCeremony creates a new CLI SAML SSO ceremony from the given redirector.
+func NewCLISAMLCeremony(rd *Redirector, init SAMLCeremonyInit) *SAMLCeremony {
+	return &SAMLCeremony{
+		clientCallbackURL:   rd.ClientCallbackURL,
+		Init:                init,
+		HandleRequest:       rd.OpenLoginURL,
+		GetCallbackResponse: rd.WaitForResponse,
+	}
+}
+
 // Ceremony is a customizable SSO MFA ceremony.
 type MFACeremony struct {
 	close               func()

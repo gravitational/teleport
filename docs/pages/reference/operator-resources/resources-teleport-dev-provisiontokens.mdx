@@ -29,8 +29,10 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow|[][object](#specallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |aws_iid_ttl|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
 |azure|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
+|azure_devops|[object](#specazure_devops)|AzureDevops allows the configuration of options specific to the "azure_devops" join method.|
 |bitbucket|[object](#specbitbucket)|Bitbucket allows the configuration of options specific to the "bitbucket" join method.|
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
+|bound_keypair|[object](#specbound_keypair)|BoundKeypair allows the configuration of options specific to the "bound_keypair" join method.|
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
@@ -67,6 +69,26 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |resource_groups|[]string||
 |subscription|string||
 
+### spec.azure_devops
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specazure_devopsallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified.|
+|organization_id|string|OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.|
+
+### spec.azure_devops.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|definition_id|string||
+|pipeline_name|string||
+|project_id|string||
+|project_name|string||
+|repository_ref|string||
+|repository_uri|string||
+|repository_version|string||
+|sub|string||
+
 ### spec.bitbucket
 
 |Field|Type|Description|
@@ -83,6 +105,29 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |deployment_environment_uuid|string||
 |repository_uuid|string||
 |workspace_uuid|string||
+
+### spec.bound_keypair
+
+|Field|Type|Description|
+|---|---|---|
+|onboarding|[object](#specbound_keypaironboarding)|Onboarding contains parameters related to initial onboarding and keypair registration.|
+|recovery|[object](#specbound_keypairrecovery)|Recovery contains parameters related to recovery after identity expiration.|
+|rotate_after|string|RotateAfter is an optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.|
+
+### spec.bound_keypair.onboarding
+
+|Field|Type|Description|
+|---|---|---|
+|initial_public_key|string||
+|must_register_before|string||
+|registration_secret|string||
+
+### spec.bound_keypair.recovery
+
+|Field|Type|Description|
+|---|---|---|
+|limit|integer||
+|mode|string||
 
 ### spec.circleci
 

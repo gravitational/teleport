@@ -38,7 +38,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Database describes a database
+// Database describes a database (resource kind "db")
 type Database struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// uri is the cluster resource URI
@@ -56,7 +56,9 @@ type Database struct {
 	// addr is this database ip address
 	Addr string `protobuf:"bytes,7,opt,name=addr,proto3" json:"addr,omitempty"`
 	// labels is a list of labels for this database
-	Labels        []*Label `protobuf:"bytes,8,rep,name=labels,proto3" json:"labels,omitempty"`
+	Labels []*Label `protobuf:"bytes,8,rep,name=labels,proto3" json:"labels,omitempty"`
+	// target_health of the "db_server" that is serving this database.
+	TargetHealth  *TargetHealth `protobuf:"bytes,9,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -147,11 +149,89 @@ func (x *Database) GetLabels() []*Label {
 	return nil
 }
 
+func (x *Database) GetTargetHealth() *TargetHealth {
+	if x != nil {
+		return x.TargetHealth
+	}
+	return nil
+}
+
+// DatabaseServer (db_server) describes a database heartbeat signal
+// reported from an agent (db_service) that is proxying
+// the database.
+type DatabaseServer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
+	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	HostId        string                 `protobuf:"bytes,3,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	TargetHealth  *TargetHealth          `protobuf:"bytes,4,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DatabaseServer) Reset() {
+	*x = DatabaseServer{}
+	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DatabaseServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DatabaseServer) ProtoMessage() {}
+
+func (x *DatabaseServer) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_database_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DatabaseServer.ProtoReflect.Descriptor instead.
+func (*DatabaseServer) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DatabaseServer) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+func (x *DatabaseServer) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *DatabaseServer) GetHostId() string {
+	if x != nil {
+		return x.HostId
+	}
+	return ""
+}
+
+func (x *DatabaseServer) GetTargetHealth() *TargetHealth {
+	if x != nil {
+		return x.TargetHealth
+	}
+	return nil
+}
+
 var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xdd\x01\n" +
+	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xaa\x02\n" +
 	"\bDatabase\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -160,7 +240,13 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\x04type\x18\x05 \x01(\tR\x04type\x12\x1a\n" +
 	"\bhostname\x18\x06 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04addr\x18\a \x01(\tR\x04addr\x127\n" +
-	"\x06labels\x18\b \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labelsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"\x06labels\x18\b \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12K\n" +
+	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\"\xa4\x01\n" +
+	"\x0eDatabaseServer\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +
+	"\ahost_id\x18\x03 \x01(\tR\x06hostId\x12K\n" +
+	"\rtarget_health\x18\x04 \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealthBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_database_proto_rawDescOnce sync.Once
@@ -174,18 +260,22 @@ func file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP() []byte {
 	return file_teleport_lib_teleterm_v1_database_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_teleport_lib_teleterm_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_lib_teleterm_v1_database_proto_goTypes = []any{
-	(*Database)(nil), // 0: teleport.lib.teleterm.v1.Database
-	(*Label)(nil),    // 1: teleport.lib.teleterm.v1.Label
+	(*Database)(nil),       // 0: teleport.lib.teleterm.v1.Database
+	(*DatabaseServer)(nil), // 1: teleport.lib.teleterm.v1.DatabaseServer
+	(*Label)(nil),          // 2: teleport.lib.teleterm.v1.Label
+	(*TargetHealth)(nil),   // 3: teleport.lib.teleterm.v1.TargetHealth
 }
 var file_teleport_lib_teleterm_v1_database_proto_depIdxs = []int32{
-	1, // 0: teleport.lib.teleterm.v1.Database.labels:type_name -> teleport.lib.teleterm.v1.Label
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 0: teleport.lib.teleterm.v1.Database.labels:type_name -> teleport.lib.teleterm.v1.Label
+	3, // 1: teleport.lib.teleterm.v1.Database.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	3, // 2: teleport.lib.teleterm.v1.DatabaseServer.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_database_proto_init() }
@@ -194,13 +284,14 @@ func file_teleport_lib_teleterm_v1_database_proto_init() {
 		return
 	}
 	file_teleport_lib_teleterm_v1_label_proto_init()
+	file_teleport_lib_teleterm_v1_target_health_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_database_proto_rawDesc), len(file_teleport_lib_teleterm_v1_database_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

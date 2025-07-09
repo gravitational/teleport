@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"testing"
 	"time"
 
@@ -468,9 +469,7 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, re
 
 func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
 	eksTags := make(map[string]string, len(eksCluster.Tags))
-	for k, v := range eksCluster.Tags {
-		eksTags[k] = v
-	}
+	maps.Copy(eksTags, eksCluster.Tags)
 	eksTags[types.OriginLabel] = types.OriginCloud
 	eksTags[types.InternalResourceIDLabel] = resourceID
 

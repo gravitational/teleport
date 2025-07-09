@@ -55,17 +55,7 @@ func NewUserTasksService(b backend.Backend) (*UserTasksService, error) {
 
 func (s *UserTasksService) ListUserTasks(ctx context.Context, pagesize int64, lastKey string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	r, nextToken, err := s.service.ListResourcesWithFilter(ctx, int(pagesize), lastKey, func(ut *usertasksv1.UserTask) bool {
-		integrationFilter := filters.GetIntegration()
-		if integrationFilter != "" && integrationFilter != ut.GetSpec().GetIntegration() {
-			return false
-		}
-
-		stateFilter := filters.GetTaskState()
-		if stateFilter != "" && stateFilter != ut.GetSpec().GetState() {
-			return false
-		}
-
-		return true
+		return services.MatchUserTask(ut, filters)
 	})
 	return r, nextToken, trace.Wrap(err)
 }

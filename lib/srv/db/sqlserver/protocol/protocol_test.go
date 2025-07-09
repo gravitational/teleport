@@ -51,7 +51,7 @@ func TestReadLogin7(t *testing.T) {
 	packet, err := ReadLogin7Packet(bytes.NewBuffer(fixtures.Login7))
 	require.NoError(t, err)
 	require.Equal(t, "sa", packet.Username())
-	require.Equal(t, "", packet.Database())
+	require.Empty(t, packet.Database())
 }
 
 // TestErrorResponse verifies writing error response.

@@ -1082,6 +1082,32 @@ log:
 # for more details.
 affinity: {}
 
+# disableTopologySpreadConstraints(bool) -- turns off the topology spread constraints.
+# The feature is automatically turned off on Kubernetes versions below 1.18.
+disableTopologySpreadConstraints: false
+
+# topologySpreadConstraints(list) -- sets the topology spread constraints for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)
+# for more details.
+#
+# When unset, the chart defaults to a soft topology spread constraint
+# that tries to spread pods across hosts and zones.
+#
+# ```
+# topologySpreadConstraints:
+#   - maxSkew: 1
+#     topologyKey: kubernetes.io/hostname
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels: # dynamically computed
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels: # dynamically computed
+# ```
+topologySpreadConstraints: []
+
 # dnsConfig(object) -- contains custom Pod DNS Configuration for the agent pods.
 # This value is useful if you need to reduce the DNS load: set "ndots" to 0 and
 # only use FQDNs to refer to applications and databases.

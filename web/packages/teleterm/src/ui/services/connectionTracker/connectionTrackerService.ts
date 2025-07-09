@@ -23,7 +23,6 @@ import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import {
   Document,
   DocumentOrigin,
-  isDocumentTshNodeWithLoginHost,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import * as uri from 'teleterm/ui/uri';
@@ -33,13 +32,13 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { ImmutableStore } from '../immutableStore';
 import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
+  createDesktopConnection,
   createGatewayConnection,
   createGatewayKubeConnection,
-  createKubeConnection,
   createServerConnection,
+  getDesktopConnectionByDocument,
   getGatewayConnectionByDocument,
   getGatewayKubeConnectionByDocument,
-  getKubeConnectionByDocument,
   getServerConnectionByDocument,
 } from './trackedConnectionUtils';
 import {
@@ -76,15 +75,27 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
   }
 
   getConnections(): ExtendedTrackedConnection[] {
-    return this.state.connections.map(connection => {
-      const { rootClusterUri, leafClusterUri } =
-        this._trackedConnectionOperationsFactory.create(connection);
-      const clusterUri = leafClusterUri || rootClusterUri;
-      const clusterName =
-        this._clusterService.findCluster(clusterUri)?.name ||
-        routing.parseClusterName(clusterUri);
-      return { ...connection, clusterName };
-    });
+    return this.state.connections
+      .map(connection => {
+        const trackedConnection =
+          this._trackedConnectionOperationsFactory.create(connection);
+        // A connection is undefined when the state read from the disk
+        // contains a connection not supported by the given Connect version.
+        //
+        // For example, the user can open a desktop connection in Connect v18
+        // and then downgrade to a version that doesn't support desktops.
+        // That connection should be shown as 'UNKNOWN' in the connection list.
+        if (!trackedConnection) {
+          return;
+        }
+        const { rootClusterUri, leafClusterUri } = trackedConnection;
+        const clusterUri = leafClusterUri || rootClusterUri;
+        const clusterName =
+          this._clusterService.findCluster(clusterUri)?.name ||
+          routing.parseClusterName(clusterUri);
+        return { ...connection, clusterName };
+      })
+      .filter(Boolean);
   }
 
   async activateItem(
@@ -111,10 +122,6 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         return this.state.connections.find(
           getServerConnectionByDocument(document)
         );
-      case 'doc.terminal_tsh_kube':
-        return this.state.connections.find(
-          getKubeConnectionByDocument(document)
-        );
       case 'doc.gateway':
         return this.state.connections.find(
           getGatewayConnectionByDocument(document)
@@ -122,6 +129,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       case 'doc.gateway_kube':
         return this.state.connections.find(
           getGatewayKubeConnectionByDocument(document)
+        );
+      case 'doc.desktop_session':
+        return this.state.connections.find(
+          getDesktopConnectionByDocument(document)
         );
     }
   }
@@ -180,6 +191,8 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           return s.targetUri === resourceUri;
         case 'connection.kube':
           return s.kubeUri === resourceUri;
+        case 'connection.desktop':
+          return s.desktopUri === resourceUri;
         default:
           return assertUnreachable(s);
       }
@@ -239,7 +252,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             d.kind === 'doc.gateway' ||
             d.kind === 'doc.gateway_kube' ||
             d.kind === 'doc.terminal_tsh_node' ||
-            d.kind === 'doc.terminal_tsh_kube'
+            d.kind === 'doc.desktop_session'
         );
 
       if (!docs) {
@@ -297,11 +310,6 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           }
           // process tsh connections
           case 'doc.terminal_tsh_node': {
-            // DocumentTshNodeWithLoginHost is still in the process of resolving the hostname and
-            // doesn't have serverUri, so let's not create a connection for it.
-            if (isDocumentTshNodeWithLoginHost(doc)) {
-              break;
-            }
             const tshConn = draft.connections.find(
               getServerConnectionByDocument(doc)
             );
@@ -314,16 +322,15 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             }
             break;
           }
-          // process kube connections
-          case 'doc.terminal_tsh_kube': {
-            const kubeConn = draft.connections.find(
-              getKubeConnectionByDocument(doc)
+          case 'doc.desktop_session': {
+            const desktopConn = draft.connections.find(
+              getDesktopConnectionByDocument(doc)
             );
 
-            if (kubeConn) {
-              kubeConn.connected = doc.status === 'connected';
+            if (desktopConn) {
+              desktopConn.connected = doc.status === 'connected';
             } else {
-              const newItem = createKubeConnection(doc);
+              const newItem = createDesktopConnection(doc);
               draft.connections.push(newItem);
             }
             break;

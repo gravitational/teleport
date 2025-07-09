@@ -36,14 +36,14 @@ type yamlParseRequest struct {
 }
 
 type yamlParseResponse struct {
-	Resource interface{} `json:"resource"`
+	Resource any `json:"resource"`
 }
 
 type yamlStringifyResponse struct {
 	YAML string `json:"yaml"`
 }
 
-func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
@@ -71,18 +71,26 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 
 		return yamlParseResponse{Resource: resource}, nil
 
+	case types.KindToken:
+		resource, err := yamlToProvisionToken(req.YAML)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return yamlParseResponse{Resource: resource}, nil
+
 	default:
 		return nil, trace.NotImplemented("parsing YAML for kind %q is not supported", kind)
 	}
 }
 
-func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
 	}
 
-	var resource interface{}
+	var resource any
 
 	switch kind {
 	case types.KindAccessMonitoringRule:
@@ -142,6 +150,22 @@ func yamlToRole(yaml string) (types.Role, error) {
 		return nil, trace.BadParameter("resource kind %q is invalid, only role is allowed", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalRole(extractedRes.Raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resource, nil
+}
+
+func yamlToProvisionToken(yaml string) (types.ProvisionToken, error) {
+	extractedRes, err := extractResource(yaml)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if extractedRes.Kind != types.KindToken {
+		return nil, trace.BadParameter("resource kind %q is invalid, only token is allowed", extractedRes.Kind)
+	}
+	resource, err := services.UnmarshalProvisionToken(extractedRes.Raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

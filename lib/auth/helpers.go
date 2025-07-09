@@ -532,7 +532,6 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		Provisioner:             p.AuthServer.Services.Provisioner,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
-		SAMLIdPSession:          p.AuthServer.Services.Identity,
 		SecReports:              p.AuthServer.Services.SecReports,
 		SnowflakeSession:        p.AuthServer.Services.Identity,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
@@ -553,6 +552,8 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
+		BotInstance:             p.AuthServer.Services.BotInstance,
+		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1055,6 +1056,10 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 	}
 }
 
+func (i TestIdentity) GetUsername() string {
+	return i.I.GetIdentity().Username
+}
+
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
@@ -1191,35 +1196,53 @@ func (t *TestTLSServer) Start() error {
 
 // Close closes the listener and HTTP server
 func (t *TestTLSServer) Close() error {
-	err := t.TLSServer.Close()
-	if t.Listener != nil {
-		t.Listener.Close()
+	var errs []error
+	if err := t.Stop(); err != nil {
+		errs = append(errs, err)
 	}
+
 	if t.AuthServer.Backend != nil {
-		t.AuthServer.Backend.Close()
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	return err
+	return trace.NewAggregate(errs...)
 }
 
 // Shutdown closes the listener and HTTP server gracefully
 func (t *TestTLSServer) Shutdown(ctx context.Context) error {
-	errs := []error{t.TLSServer.Shutdown(ctx)}
+	var errs []error
+	if err := t.TLSServer.Shutdown(ctx); err != nil {
+		errs = append(errs, err)
+	}
+
 	if t.Listener != nil {
-		errs = append(errs, t.Listener.Close())
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+
 	}
 	if t.AuthServer.Backend != nil {
-		errs = append(errs, t.AuthServer.Backend.Close())
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return trace.NewAggregate(errs...)
 }
 
 // Stop stops listening server, but does not close the auth backend
 func (t *TestTLSServer) Stop() error {
-	err := t.TLSServer.Close()
-	if t.Listener != nil {
-		t.Listener.Close()
+	var errs []error
+	if err := t.TLSServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return err
+	if t.Listener != nil {
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // FakeTeleportVersion fake version storage implementation always return current version.
@@ -1231,12 +1254,17 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 }
 
 // GetTeleportVersion returns current Teleport version.
-func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVer(), nil
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (semver.Version, error) {
+	return *teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.
-func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ semver.Version) error {
+	return nil
+}
+
+// DeleteTeleportVersion error stub function for deleting.
+func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 
@@ -1386,10 +1414,18 @@ func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Ro
 type createUserAndRoleOptions struct {
 	mutateUser []func(user types.User)
 	mutateRole []func(role types.Role)
+	version    string
 }
 
 // CreateUserAndRoleOption is a functional option for CreateUserAndRole
 type CreateUserAndRoleOption func(*createUserAndRoleOptions)
+
+// WithRoleVersion sets the version of the role to be created.
+func WithRoleVersion(version string) CreateUserAndRoleOption {
+	return func(o *createUserAndRoleOptions) {
+		o.version = version
+	}
+}
 
 // WithUserMutator sets a function that will be called to mutate the user before it is created
 func WithUserMutator(mutate ...func(user types.User)) CreateUserAndRoleOption {
@@ -1410,7 +1446,9 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
 func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
-	o := createUserAndRoleOptions{}
+	o := createUserAndRoleOptions{
+		version: types.DefaultRoleVersion,
+	}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -1420,7 +1458,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 		return nil, nil, trace.Wrap(err)
 	}
 
-	role := services.RoleForUser(user)
+	role := services.RoleWithVersionForUser(user, o.version)
 	role.SetLogins(types.Allow, allowedLogins)
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)

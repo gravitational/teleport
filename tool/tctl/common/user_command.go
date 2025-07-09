@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -345,7 +346,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 // ["one", "two", "three"]
 func flattenSlice(slice []string) (retval []string) {
 	for i := range slice {
-		for _, role := range strings.Split(slice[i], ",") {
+		for role := range strings.SplitSeq(slice[i], ",") {
 			retval = append(retval, strings.TrimSpace(role))
 		}
 	}
@@ -423,10 +424,8 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	}
 	if len(u.allowedDatabaseRoles) > 0 {
 		dbRoles := flattenSlice(u.allowedDatabaseRoles)
-		for _, role := range dbRoles {
-			if role == types.Wildcard {
-				return trace.BadParameter("database role can't be a wildcard")
-			}
+		if slices.Contains(dbRoles, types.Wildcard) {
+			return trace.BadParameter("database role can't be a wildcard")
 		}
 		user.SetDatabaseRoles(dbRoles)
 		updateMessages["database roles"] = dbRoles
@@ -530,7 +529,7 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
 func (u *UserCommand) Delete(ctx context.Context, client *authclient.Client) error {
-	for _, l := range strings.Split(u.login, ",") {
+	for l := range strings.SplitSeq(u.login, ",") {
 		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)
 		}

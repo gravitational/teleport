@@ -385,3 +385,11 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 			trace.BadParameter("unknown user type %q", userType)
 	}
 }
+
+// Server describes an SSH node.
+type Server struct {
+	// URI is the database URI
+	URI uri.ResourceURI
+
+	types.Server
+}

@@ -68,12 +68,6 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 func NewRoles(roles []types.Role) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(roles))
 	for _, role := range roles {
-		// filter out system roles from web UI
-		// TODO(gzdunek): DELETE IN 17.0.0: We filter out the roles in the auth server.
-		if types.IsSystemResource(role) {
-			continue
-		}
-
 		item, err := NewResourceItem(role)
 		if err != nil {
 			return nil, trace.Wrap(err)

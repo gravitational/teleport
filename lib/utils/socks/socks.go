@@ -94,7 +94,7 @@ func readAuthenticationMethod(conn net.Conn) ([]byte, error) {
 	// Read nmethods number of bytes from the connection return the list of
 	// supported authentication methods to the caller.
 	authMethods := make([]byte, nmethods)
-	for i := byte(0); i < nmethods; i++ {
+	for range nmethods {
 		method, err := readByte(conn)
 		if err != nil {
 			return nil, trace.Wrap(err)

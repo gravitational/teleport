@@ -1,0 +1,129 @@
+---
+title: TeleportAppV3
+description: Provides a comprehensive list of fields in the TeleportAppV3 resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportAppV3`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|App resource definition v3 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|UserGroups|[]string|UserGroups are a list of user group IDs that this app is associated with.|
+|aws|[object](#specaws)|AWS contains additional options for AWS applications.|
+|cloud|string|Cloud identifies the cloud instance the app represents.|
+|cors|[object](#speccors)|CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.|
+|dynamic_labels|[object](#specdynamic_labels)|DynamicLabels are the app's command labels.|
+|identity_center|[object](#specidentity_center)|IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps.|
+|insecure_skip_verify|boolean|InsecureSkipVerify disables app's TLS certificate verification.|
+|integration|string|Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|
+|mcp|[object](#specmcp)|MCP contains MCP server related configurations.|
+|public_addr|string|PublicAddr is the public address the application is accessible at.|
+|required_app_names|[]string|RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.|
+|rewrite|[object](#specrewrite)|Rewrite is a list of rewriting rules to apply to requests and responses.|
+|tcp_ports|[][object](#spectcp_ports-items)|TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|
+|uri|string|URI is the web app endpoint.|
+|use_any_proxy_public_addr|boolean|UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|
+
+### spec.aws
+
+|Field|Type|Description|
+|---|---|---|
+|external_id|string|ExternalID is the AWS External ID used when assuming roles in this app.|
+|roles_anywhere_profile|[object](#specawsroles_anywhere_profile)|RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|
+
+### spec.aws.roles_anywhere_profile
+
+|Field|Type|Description|
+|---|---|---|
+|accept_role_session_name|boolean|Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName|
+|profile_arn|string|ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.|
+
+### spec.cors
+
+|Field|Type|Description|
+|---|---|---|
+|allow_credentials|boolean|allow_credentials indicates whether credentials are allowed.|
+|allowed_headers|[]string|allowed_headers specifies which headers can be used when accessing the app.|
+|allowed_methods|[]string|allowed_methods specifies which methods are allowed when accessing the app.|
+|allowed_origins|[]string|allowed_origins specifies which origins are allowed to access the app.|
+|exposed_headers|[]string|exposed_headers indicates which headers are made available to scripts via the browser.|
+|max_age|integer|max_age indicates how long (in seconds) the results of a preflight request can be cached.|
+
+### spec.dynamic_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[object](#specdynamic_labelsvalue)||
+
+### spec.dynamic_labels.value
+
+|Field|Type|Description|
+|---|---|---|
+|command|[]string|Command is a command to run|
+|period|string|Period is a time between command runs|
+|result|string|Result captures standard output|
+
+### spec.identity_center
+
+|Field|Type|Description|
+|---|---|---|
+|account_id|string|Account ID is the AWS-assigned ID of the account|
+|permission_sets|[][object](#specidentity_centerpermission_sets-items)|PermissionSets lists the available permission sets on the given account|
+
+### spec.identity_center.permission_sets items
+
+|Field|Type|Description|
+|---|---|---|
+|arn|string|ARN is the fully-formed ARN of the Permission Set.|
+|assignment_name|string|AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.|
+|name|string|Name is the human-readable name of the Permission Set.|
+
+### spec.mcp
+
+|Field|Type|Description|
+|---|---|---|
+|args|[]string|Args to execute with the command.|
+|command|string|Command to launch stdio-based MCP servers.|
+|run_as_host_user|string|RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.|
+
+### spec.rewrite
+
+|Field|Type|Description|
+|---|---|---|
+|headers|[][object](#specrewriteheaders-items)|Headers is a list of headers to inject when passing the request over to the application.|
+|jwt_claims|string|JWTClaims configures whether roles/traits are included in the JWT token.|
+|redirect|[]string|Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|
+
+### spec.rewrite.headers items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|Name is the http header name.|
+|value|string|Value is the http header value.|
+
+### spec.tcp_ports items
+
+|Field|Type|Description|
+|---|---|---|
+|end_port|integer|EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.|
+|port|integer|Port describes the start of the range. It must be between 1 and 65535.|
+

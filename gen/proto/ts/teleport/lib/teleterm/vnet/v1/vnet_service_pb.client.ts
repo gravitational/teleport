@@ -23,12 +23,14 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { VnetService } from "./vnet_service_pb";
+import type { AutoConfigureSSHResponse } from "./vnet_service_pb";
+import type { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import type { RunDiagnosticsResponse } from "./vnet_service_pb";
 import type { RunDiagnosticsRequest } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
-import type { ListDNSZonesResponse } from "./vnet_service_pb";
-import type { ListDNSZonesRequest } from "./vnet_service_pb";
+import type { GetServiceInfoResponse } from "./vnet_service_pb";
+import type { GetServiceInfoRequest } from "./vnet_service_pb";
 import type { StopResponse } from "./vnet_service_pb";
 import type { StopRequest } from "./vnet_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -55,19 +57,11 @@ export interface IVnetServiceClient {
      */
     stop(input: StopRequest, options?: RpcOptions): UnaryCall<StopRequest, StopResponse>;
     /**
-     * ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-     * includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+     * GetServiceInfo returns info about the running VNet service.
      *
-     * This is fetched independently of what the Electron app thinks the current state of the cluster
-     * looks like, since the VNet admin process also fetches this data independently of the Electron
-     * app.
-     *
-     * Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-     * be fetched (due to e.g., a network error or an expired cert).
-     *
-     * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
+     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
      */
-    listDNSZones(input: ListDNSZonesRequest, options?: RpcOptions): UnaryCall<ListDNSZonesRequest, ListDNSZonesResponse>;
+    getServiceInfo(input: GetServiceInfoRequest, options?: RpcOptions): UnaryCall<GetServiceInfoRequest, GetServiceInfoResponse>;
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
      * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
@@ -82,6 +76,13 @@ export interface IVnetServiceClient {
      * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
      */
     runDiagnostics(input: RunDiagnosticsRequest, options?: RpcOptions): UnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse>;
+    /**
+     * AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+     * connections to Teleport SSH hosts.
+     *
+     * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
+     */
+    autoConfigureSSH(input: AutoConfigureSSHRequest, options?: RpcOptions): UnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse>;
 }
 /**
  * VnetService provides methods to manage a VNet instance.
@@ -113,21 +114,13 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
         return stackIntercept<StopRequest, StopResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-     * includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+     * GetServiceInfo returns info about the running VNet service.
      *
-     * This is fetched independently of what the Electron app thinks the current state of the cluster
-     * looks like, since the VNet admin process also fetches this data independently of the Electron
-     * app.
-     *
-     * Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-     * be fetched (due to e.g., a network error or an expired cert).
-     *
-     * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
+     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
      */
-    listDNSZones(input: ListDNSZonesRequest, options?: RpcOptions): UnaryCall<ListDNSZonesRequest, ListDNSZonesResponse> {
+    getServiceInfo(input: GetServiceInfoRequest, options?: RpcOptions): UnaryCall<GetServiceInfoRequest, GetServiceInfoResponse> {
         const method = this.methods[2], opt = this._transport.mergeOptions(options);
-        return stackIntercept<ListDNSZonesRequest, ListDNSZonesResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetServiceInfoRequest, GetServiceInfoResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
@@ -148,5 +141,15 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
     runDiagnostics(input: RunDiagnosticsRequest, options?: RpcOptions): UnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse> {
         const method = this.methods[4], opt = this._transport.mergeOptions(options);
         return stackIntercept<RunDiagnosticsRequest, RunDiagnosticsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+     * connections to Teleport SSH hosts.
+     *
+     * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
+     */
+    autoConfigureSSH(input: AutoConfigureSSHRequest, options?: RpcOptions): UnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse> {
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        return stackIntercept<AutoConfigureSSHRequest, AutoConfigureSSHResponse>("unary", this._transport, method, opt, input);
     }
 }

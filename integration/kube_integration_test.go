@@ -222,7 +222,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -433,7 +433,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 			KubeUsers:  kubeUsers,
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -491,7 +491,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -621,7 +621,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -667,7 +667,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -695,7 +695,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -891,7 +891,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -941,7 +941,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubeGroups: auxKubeGroups,
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -969,7 +969,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -1155,7 +1155,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 		},
 	}
 
-	for i := 0; i < utils.GetIterations(); i++ {
+	for i := range utils.GetIterations() {
 		t.Run(fmt.Sprintf("Iteration=%d", i), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
@@ -1191,7 +1191,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -1290,7 +1290,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -1399,10 +1399,11 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind:      types.KindKubePod,
+					Kind:      "pods",
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
 				},
 			},
 		},
@@ -1682,7 +1683,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -2179,7 +2180,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -2401,7 +2402,7 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -2696,7 +2697,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -2715,7 +2716,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
 				},
 			},
 			RequireSessionJoin: []*types.SessionRequirePolicy{
@@ -2822,7 +2823,6 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()

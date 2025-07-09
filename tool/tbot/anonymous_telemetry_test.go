@@ -91,7 +91,7 @@ func TestSendTelemetry(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, mockClient.eventRequest)
 		require.NotZero(t, mockClient.eventRequest.Timestamp)
-		require.NotZero(t, mockClient.eventRequest.DistinctId)
+		require.NotEmpty(t, mockClient.eventRequest.DistinctId)
 		require.Equal(t, &prehogv1a.SubmitTbotEventRequest_Start{
 			Start: &prehogv1a.TbotStartEvent{
 				RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_ONE_SHOT,

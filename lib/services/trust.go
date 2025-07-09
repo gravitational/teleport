@@ -64,9 +64,6 @@ type Trust interface {
 	// DeleteCertAuthority deletes particular certificate authority
 	DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
 
-	// DeleteAllCertAuthorities deletes cert authorities of a certain type
-	DeleteAllCertAuthorities(caType types.CertAuthType) error
-
 	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
 	// the normal list.
 	ActivateCertAuthority(id types.CertAuthID) error
@@ -173,7 +170,4 @@ type Clusters interface {
 
 	// DeleteRemoteCluster deletes remote cluster by name
 	DeleteRemoteCluster(ctx context.Context, clusterName string) error
-
-	// DeleteAllRemoteClusters deletes all remote clusters
-	DeleteAllRemoteClusters(ctx context.Context) error
 }

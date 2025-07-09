@@ -236,7 +236,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleInstance.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
-	connectionProblem := func(t require.TestingT, err error, i ...interface{}) {
+	connectionProblem := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err, i...)
 		require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got: %v", err)
 	}
@@ -315,14 +315,14 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest{
+		status, err := clt.GetInventoryStatus(context.Background(), &proto.InventoryStatusRequest{
 			Connected: true,
 		})
 		require.NoError(t, err)
 
 		for _, hello := range status.Connected {
 			for _, s := range hello.Services {
-				if s != types.RoleNode {
+				if s != string(types.RoleNode) {
 					continue
 				}
 				nodeID = hello.ServerID
@@ -676,7 +676,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 			cl.Stderr = outbuf
 
 			// run command and wait a maximum of 10 seconds for it to complete
-			sessionEndC := make(chan interface{})
+			sessionEndC := make(chan any)
 			go func() {
 				// don't check for err, because sometimes this process should fail
 				// with an error and that's what the test is checking for.
@@ -1275,8 +1275,7 @@ func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			teleport := suite.newTeleport(t, nil, true)
 			defer teleport.StopAll()
 
@@ -1583,7 +1582,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 
 	t.Run("Host Connections", func(t *testing.T) {
 		for _, test := range testNodeCases {
-			test := test
 			t.Run(fmt.Sprintf("target=%q source cluster=%q target cluster=%q",
 				test.nodeAddr, test.instance.Secrets.SiteName, test.clusterName), func(t *testing.T) {
 				t.Run("grpc connection", func(t *testing.T) {
@@ -1740,7 +1738,6 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1884,10 +1881,7 @@ func (r repeatingReader) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	end := len(r.output)
-	if end > len(p) {
-		end = len(p)
-	}
+	end := min(len(r.output), len(p))
 
 	n := copy(p, r.output[:end])
 	return n, nil
@@ -2114,7 +2108,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 	asyncErrors := make(chan error, 1)
 
-	for i := 0; i < tc.concurrentConns; i++ {
+	for range tc.concurrentConns {
 		person := NewTerminal(250)
 
 		openSession := func() {
@@ -2246,17 +2240,14 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	tc.SessionID = uuid.NewString()
-
-	// The SessionID and Web address should be set in the session env vars.
-	cmd := []string{"printenv", sshutils.SessionEnvVar, ";", "printenv", teleport.SSHSessionWebProxyAddr}
+	// The Web address should be set in the session env vars.
+	cmd := []string{"printenv", teleport.SSHSessionWebProxyAddr}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
 	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
 	output := out.String()
-	require.Contains(t, output, tc.SessionID)
 	require.Contains(t, output, tc.WebProxyAddr)
 
 	term := NewTerminal(250)
@@ -2265,7 +2256,6 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	err = tc.SSH(ctx, nil)
 	require.NoError(t, err)
 	output = term.AllOutput()
-	require.Contains(t, output, tc.SessionID)
 	require.Contains(t, output, tc.WebProxyAddr)
 }
 
@@ -2622,7 +2612,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// try to execute an SSH command using the same old client  to helpers.Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd)
 		if err == nil {
@@ -2655,7 +2645,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// try to execute an SSH command using the same old client to site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		time.Sleep(1 * time.Second)
 		err = tc.SSH(ctx, cmd)
 		if err == nil {
@@ -2751,7 +2741,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// sure identity aware GetNodes works for remote clusters. Testing of the
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []types.Server
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace)
 		require.NoError(t, err)
 		if len(nodes) != 2 {
@@ -2775,7 +2765,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// try to execute an SSH command using the same old client  to helpers.Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(context.TODO(), cmd)
 		if err == nil {
@@ -3255,7 +3245,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd)
 		if err == nil {
@@ -3287,7 +3277,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// after removing the remote cluster and trusted cluster, the connection will start failing
 	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(ctx, clusterAux))
 	require.NoError(t, aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName()))
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd)
 		if err != nil {
@@ -3317,7 +3307,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// connection and client should recover and work again
 	output = &bytes.Buffer{}
 	tc.Stdout = output
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd)
 		if err == nil {
@@ -3727,7 +3717,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(context.TODO(), cmd)
 		if err == nil {
@@ -4029,7 +4019,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
 	// known proxies is all invalid.
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
 		require.NoError(t, helpers.WaitForProxyCount(remote, "cluster-main", 0))
@@ -4676,7 +4666,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			// Create and run an exec command twice with the passed in ControlPath. This
 			// will cause re-use of the connection and creation of two sessions within
 			// the connection.
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 					ForcePTY:     true,
 					ForwardAgent: true,
@@ -4785,7 +4775,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 
 					// Create and run an exec command twice. When ControlPath is set, this will cause
 					// re-use of the connection and creation of two sessions within the connection.
-					for i := 0; i < 2; i++ {
+					for range 2 {
 						execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 							ForcePTY:      true,
 							ForwardAgent:  true,
@@ -4828,7 +4818,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 							assert.NoError(t, err)
 
 							assert.Eventually(t, func() bool {
@@ -5853,7 +5843,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	var err error
-	for i := 0; i < attempts; i++ {
+	for range attempts {
 		err = tc.SSH(context.TODO(), command)
 		if err != nil {
 			time.Sleep(500 * time.Millisecond)
@@ -5935,7 +5925,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 			return false, nil
 		}
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			err = cl.Join(ctx, types.SessionPeerMode, session.ID(sessionID), personB)
 			if err == nil || isSSHError(err) {
 				err = nil
@@ -6189,9 +6179,14 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		{
 			desc: "Both",
 			// Print slowly so we can confirm that the output isn't interleaved.
-			command:     slowPrintCommand("abcd1234"),
-			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
+			command: slowPrintCommand("abcd1234"),
+			labels:  map[string]string{"spam": "eggs"},
+			expectLines: []string{
+				"Running command on server-01:",
+				"Running command on server-02:",
+				"[server-01] abcd1234",
+				"[server-02] abcd1234",
+			},
 		},
 		{
 			desc:        "Worker only",
@@ -6215,10 +6210,10 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 				Labels:  tt.labels,
 			}
 
-			output, err := runCommand(t, teleport, tt.command, cfg, 1)
+			output, err := runCommand(t, teleport, tt.command, cfg, 3)
 			require.NoError(t, err)
 			outputLines := strings.Split(strings.TrimSpace(output), "\n")
-			require.Len(t, outputLines, len(tt.expectLines))
+			require.Len(t, outputLines, len(tt.expectLines), "raw output:\n%v", output)
 			for _, line := range tt.expectLines {
 				require.Contains(t, outputLines, line)
 			}
@@ -6735,7 +6730,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 
 	// Try to find two command events from different sessions. Timeout after
 	// 10 seconds.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		sessionIDs := map[string]bool{}
 
 		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", time.Time{})
@@ -7024,7 +7019,7 @@ func WaitForResource(t *testing.T, watcher types.Watcher, kind, name string) {
 
 // findEventInLog polls the event log looking for an event of a particular type.
 func findEventInLog(t *helpers.TeleInstance, eventName string, after time.Time) (events.EventFields, error) {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", after)
 		if err != nil {
 			time.Sleep(1 * time.Second)
@@ -7056,7 +7051,7 @@ func findCommandEventInLog(t *helpers.TeleInstance, eventName string, programNam
 }
 
 func findMatchingEventInLog(t *helpers.TeleInstance, eventName string, match func(events.EventFields) bool) (events.EventFields, error) {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", time.Time{})
 		if err != nil {
 			time.Sleep(1 * time.Second)
@@ -7140,7 +7135,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 		close(doneC)
 	}()
 	tc.Stdout = write
-	for i := 0; i < attempts; i++ {
+	for range attempts {
 		err = tc.SSH(ctx, cmd)
 		if err == nil {
 			break
@@ -7214,7 +7209,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
 }
 
 // waitFor helper waits on a channel for up to the given timeout
-func waitFor(c chan interface{}, timeout time.Duration) error {
+func waitFor(c chan any, timeout time.Duration) error {
 	tick := time.Tick(timeout)
 	select {
 	case <-c:
@@ -8493,7 +8488,6 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8625,7 +8619,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8877,8 +8870,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	require.NoError(t, err)
 
 	// start ssh session with auth still running
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -8895,7 +8887,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	// restart the auth service a few times
 	authRestartChan := make(chan error, 3)
 	go func() {
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			authRestartChan <- auth.RestartAuth()
 		}
 	}()

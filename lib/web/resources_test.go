@@ -97,7 +97,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsAlreadyExists(err))
 			},
@@ -111,7 +111,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -125,7 +125,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does not exist.
 				return nil, trace.NotFound("")
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -150,7 +150,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -218,7 +218,8 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: pod
+    - api_group: '*'
+      kind: pods
       name: '*'
       namespace: '*'
     logins:
@@ -236,9 +237,6 @@ spec:
     - command
     - network
     forward_agent: false
-    idp:
-      saml:
-        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     record_session:
@@ -256,7 +254,7 @@ version: v8
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -297,7 +295,7 @@ version: v2
 	}, item)
 }
 
-func TestGetRoles(t *testing.T) {
+func TestListRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
@@ -419,9 +417,9 @@ func TestRoleCRUD(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &getResponse), "invalid resource item received")
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting roles")
 
-	assert.Equal(t, "", getResponse.StartKey)
-	for _, item := range getResponse.Items.([]interface{}) {
-		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
+	assert.Empty(t, getResponse.StartKey)
+	for _, item := range getResponse.Items.([]any) {
+		assert.NotEqual(t, "test-role", item.(map[string]any)["name"], "expected test-role to be deleted")
 	}
 
 	// Validate that attempting to retrieve a deleted role yields a NotFound error.
@@ -536,7 +534,7 @@ func TestGithubConnectorsCRUD(t *testing.T) {
 			assert.Equal(t, tt.wantConnectorType, connResponse.DefaultConnectorType)
 
 			// Verify connectors list
-			require.Equal(t, len(tt.connectors), len(connResponse.Connectors))
+			require.Len(t, tt.connectors, len(connResponse.Connectors))
 			for i, conn := range tt.connectors {
 				expectedItem, err := ui.NewResourceItem(conn)
 				require.NoError(t, err)
@@ -701,7 +699,6 @@ func TestListResources(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

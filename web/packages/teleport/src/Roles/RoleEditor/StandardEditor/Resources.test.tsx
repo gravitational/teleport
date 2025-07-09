@@ -153,11 +153,14 @@ describe('KubernetesAccessSection', () => {
       screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
     );
     expect(
-      reactSelectValueContainer(screen.getByLabelText('Kind'))
+      reactSelectValueContainer(screen.getByLabelText('Kind (plural)'))
     ).toHaveTextContent('Any kind');
+    expect(screen.getByLabelText('API Group *')).toHaveValue('*');
     expect(screen.getByLabelText('Name *')).toHaveValue('*');
     expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
-    await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+    await selectEvent.select(screen.getByLabelText('Kind (plural)'), 'jobs');
+    await user.clear(screen.getByLabelText('API Group *'));
+    await user.type(screen.getByLabelText('API Group *'), 'api-group-name');
     await user.clear(screen.getByLabelText('Name *'));
     await user.type(screen.getByLabelText('Name *'), 'job-name');
     await user.clear(screen.getByLabelText('Namespace *'));
@@ -178,13 +181,14 @@ describe('KubernetesAccessSection', () => {
       resources: [
         {
           id: expect.any(String),
-          kind: expect.objectContaining({ value: 'job' }),
+          kind: expect.objectContaining({ value: 'jobs' }),
           name: 'job-name',
           namespace: 'job-namespace',
           verbs: [
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
+          apiGroup: 'api-group-name',
           roleVersion: 'v8',
         },
       ],
@@ -258,7 +262,10 @@ describe('KubernetesAccessSection', () => {
     await user.click(
       screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
     );
-    await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
+
+    screen.getByLabelText('Kind').setAttribute('value', 'Service');
+
+    screen.getByLabelText('Kind');
     await user.clear(screen.getByLabelText('Name *'));
     await user.clear(screen.getByLabelText('Namespace *'));
     await selectEvent.select(screen.getByLabelText('Verbs'), [
@@ -317,6 +324,8 @@ describe('AppAccessSection', () => {
     screen.getByRole('group', { name: 'GCP Service Accounts' });
   const gcpServiceAccountTextBoxes = () =>
     within(gcpServiceAccounts()).getAllByRole('textbox');
+  const mcpTools = () => screen.getByRole('group', { name: 'MCP Tools' });
+  const mcpToolsTextBoxes = () => within(mcpTools()).getAllByRole('textbox');
 
   test('editing', async () => {
     const { user, onChange } = setup();
@@ -343,6 +352,11 @@ describe('AppAccessSection', () => {
     );
     await user.click(gcpServiceAccountTextBoxes()[1]);
     await user.paste('admin@some-project.iam.gserviceaccount.com');
+    await user.click(
+      within(mcpTools()).getByRole('button', { name: 'Add More' })
+    );
+    await user.click(mcpToolsTextBoxes()[1]);
+    await user.paste('allow_tools_with_prefix_*');
 
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
@@ -359,6 +373,7 @@ describe('AppAccessSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
+      mcpTools: ['{{internal.mcp_tools}}', 'allow_tools_with_prefix_*'],
       hideValidationErrors: true,
     } as AppAccess);
   });

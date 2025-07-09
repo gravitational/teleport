@@ -26,15 +26,15 @@ spec:
       desktop: true
 
     # Specify whether clipboard sharing should be allowed with the
-    # remote desktop (requires a supported browser). Defaults to true
-    # if unspecified. If one or more of the user's roles has disabled
-    # the clipboard, then it will be disabled.
+    # remote desktop (requires a supported browser or Teleport Connect).
+    # Defaults to true if unspecified.
+    # If one or more of the user's roles has disabled the clipboard, then it will be disabled.
     desktop_clipboard: true
 
     # Specify whether directory sharing should be allowed from the
-    # local machine to remote desktop (requires a supported browser). Defaults to true
-    # if unspecified. If one or more of the user's roles has disabled
-    # directory sharing, then it will be disabled.
+    # local machine to remote desktop (requires a supported browser or Teleport Connect).
+    # Defaults to true if unspecified.
+    # If one or more of the user's roles has disabled directory sharing, then it will be disabled.
     desktop_directory_sharing: true
 
     # Specify whether local users should be created automatically at connection

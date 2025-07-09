@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
@@ -170,12 +171,14 @@ type eventsWatcher interface {
 // preferable to serve the last-good value than to disrupt subscribed workloads
 // ability to communicate.
 type TrustBundleCache struct {
-	federationClient machineidv1pb.SPIFFEFederationServiceClient
-	trustClient      trustv1.TrustServiceClient
-	eventsClient     eventsWatcher
-	clusterName      string
+	federationClient   machineidv1pb.SPIFFEFederationServiceClient
+	trustClient        trustv1.TrustServiceClient
+	eventsClient       eventsWatcher
+	clusterName        string
+	botIdentityReadyCh <-chan struct{}
 
-	logger *slog.Logger
+	logger         *slog.Logger
+	statusReporter readyz.Reporter
 
 	mu        sync.RWMutex
 	bundleSet *BundleSet
@@ -191,11 +194,13 @@ func (m *TrustBundleCache) String() string {
 
 // TrustBundleCacheConfig is the configuration for a TrustBundleCache.
 type TrustBundleCacheConfig struct {
-	FederationClient machineidv1pb.SPIFFEFederationServiceClient
-	TrustClient      trustv1.TrustServiceClient
-	EventsClient     eventsWatcher
-	ClusterName      string
-	Logger           *slog.Logger
+	FederationClient   machineidv1pb.SPIFFEFederationServiceClient
+	TrustClient        trustv1.TrustServiceClient
+	EventsClient       eventsWatcher
+	ClusterName        string
+	Logger             *slog.Logger
+	BotIdentityReadyCh <-chan struct{}
+	StatusReporter     readyz.Reporter
 }
 
 // NewTrustBundleCache creates a new TrustBundleCache.
@@ -212,13 +217,18 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 	case cfg.Logger == nil:
 		return nil, trace.BadParameter("missing Logger")
 	}
+	if cfg.StatusReporter == nil {
+		cfg.StatusReporter = readyz.NoopReporter()
+	}
 	return &TrustBundleCache{
-		federationClient: cfg.FederationClient,
-		trustClient:      cfg.TrustClient,
-		eventsClient:     cfg.EventsClient,
-		clusterName:      cfg.ClusterName,
-		logger:           cfg.Logger,
-		initialized:      make(chan struct{}),
+		federationClient:   cfg.FederationClient,
+		trustClient:        cfg.TrustClient,
+		eventsClient:       cfg.EventsClient,
+		clusterName:        cfg.ClusterName,
+		logger:             cfg.Logger,
+		botIdentityReadyCh: cfg.BotIdentityReadyCh,
+		statusReporter:     cfg.StatusReporter,
+		initialized:        make(chan struct{}),
 	}, nil
 }
 
@@ -228,6 +238,19 @@ const trustBundleInitFailureBackoff = 10 * time.Second
 // the context is canceled, at which point it will return nil.
 // Implements the tbot Service interface.
 func (m *TrustBundleCache) Run(ctx context.Context) error {
+	if m.botIdentityReadyCh != nil {
+		select {
+		case <-m.botIdentityReadyCh:
+		default:
+			m.logger.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-m.botIdentityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+
 	for {
 		m.logger.InfoContext(
 			ctx,
@@ -243,6 +266,7 @@ func (m *TrustBundleCache) Run(ctx context.Context) error {
 				"error", err,
 				"backoff", trustBundleInitFailureBackoff,
 			)
+			m.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		}
 		select {
 		case <-ctx.Done():
@@ -294,6 +318,8 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 	case <-watcher.Done():
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}
+
+	m.statusReporter.Report(readyz.Healthy)
 
 	// Now that we know our watcher is streaming events, we can fetch the
 	// current point-in-time list of resources.

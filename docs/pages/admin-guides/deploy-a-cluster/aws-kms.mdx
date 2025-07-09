@@ -8,6 +8,8 @@ This guide will show you how to set up your Teleport cluster to use the AWS Key
 Management Service (KMS) to store and handle the CA private key material used to
 sign all certificates issued by your cluster.
 
+## How it works
+
 Teleport generates private key material for its internal Certificate Authorities
 (CAs) during the first Auth Service instance's initial startup.
 These CAs are used to sign all certificates issued to clients and hosts in the
@@ -143,7 +145,9 @@ $ iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
 CA key parameters are statically configured in the `teleport.yaml` configuration
 file of the Teleport Auth Service instances in your cluster.
 
-Include the following `ca_key_params` configuration in the `auth_service` section.
+Include the following `ca_key_params` configuration in the `auth_service`
+section. Assign <Var name="AWS account"/> to your AWS account ID and 
+"<Var name="AWS region"/>" to the name of your AWS region:
 
 ```yaml
 # /etc/teleport.yaml

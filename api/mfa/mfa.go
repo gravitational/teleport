@@ -46,6 +46,12 @@ var (
 	// support MFA ceremonies, or the server does not support MFA ceremonies for
 	// the client user.
 	ErrMFANotSupported = trace.BadParameterError{Message: "re-authentication with MFA is not supported for this client"}
+
+	// ErrExpiredReusableMFAResponse is returned by Auth APIs like
+	// GenerateUserCerts when an expired reusable MFA response is provided.
+	ErrExpiredReusableMFAResponse = trace.AccessDeniedError{
+		Message: "Reusable MFA response validation failed and possibly expired",
+	}
 )
 
 // WithCredentials can be called on a GRPC client request to attach

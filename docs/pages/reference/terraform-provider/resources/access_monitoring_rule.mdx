@@ -21,14 +21,16 @@ resource "teleport_access_monitoring_rule" "test" {
     name = "test"
   }
   spec = {
-    subjects  = ["access_request"]
-    condition = "access_request.spec.roles.contains(\"your_role_name\")"
+    subjects      = ["access_request"]
+    condition     = "access_request.spec.roles.contains(\"your_role_name\")"
+    desired_state = "reviewed"
     notification = {
       name       = "slack"
       recipients = ["your-slack-channel"]
     }
-    automatic_approval = {
-      name = "teleport"
+    automatic_review = {
+      integration = "builtin"
+      decision    = "APPROVED"
     }
   }
 }
@@ -65,7 +67,7 @@ Optional:
 
 Optional:
 
-- `decision` (String) decision specifies the proposed state of the access review. This can be either 'approved' or 'denied'.
+- `decision` (String) decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.
 - `integration` (String) integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.
 
 

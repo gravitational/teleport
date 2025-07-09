@@ -36,6 +36,15 @@ func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)
 	return ss
 }
 
+// Map calls the provided function on each element of a slice, and returns a slice containin the results.
+func Map[T, S any](items []T, fn func(T) S) []S {
+	result := make([]S, len(items))
+	for i, item := range items {
+		result[i] = fn(item)
+	}
+	return result
+}
+
 // ToPointers converts a slice of values to a slice of pointers to those values
 func ToPointers[T any](in []T) []*T {
 	out := make([]*T, len(in))

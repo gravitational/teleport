@@ -21,39 +21,38 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const healthCheckConfigStoreNameIndex = "name"
+type healthCheckConfigIndex string
 
-func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w types.WatchKind) (*collection[*healthcheckconfigv1.HealthCheckConfig], error) {
+const healthCheckConfigNameIndex healthCheckConfigIndex = "name"
+
+func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w types.WatchKind) (*collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter HealthCheckConfigReader")
 	}
 
-	return &collection[*healthcheckconfigv1.HealthCheckConfig]{
-		store: newStore(map[string]func(*healthcheckconfigv1.HealthCheckConfig) string{
-			healthCheckConfigStoreNameIndex: func(r *healthcheckconfigv1.HealthCheckConfig) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
-			var out []*healthcheckconfigv1.HealthCheckConfig
-			clientutils.IterateResources(ctx,
-				upstream.ListHealthCheckConfigs,
-				func(hcc *healthcheckconfigv1.HealthCheckConfig) error {
-					out = append(out, hcc)
-					return nil
+	return &collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
+		store: newStore(
+			types.KindHealthCheckConfig,
+			proto.CloneOf[*healthcheckconfigv1.HealthCheckConfig],
+			map[healthCheckConfigIndex]func(*healthcheckconfigv1.HealthCheckConfig) string{
+				healthCheckConfigNameIndex: func(r *healthcheckconfigv1.HealthCheckConfig) string {
+					return r.GetMetadata().GetName()
 				},
-			)
-			return out, nil
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListHealthCheckConfigs))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *healthcheckconfigv1.HealthCheckConfig {
 			return &healthcheckconfigv1.HealthCheckConfig{
@@ -73,16 +72,15 @@ func (c *Cache) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextTo
 	ctx, span := c.Tracer.Start(ctx, "cache/ListHealthCheckConfigs")
 	defer span.End()
 
-	lister := genericLister[*healthcheckconfigv1.HealthCheckConfig]{
+	lister := genericLister[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
 		cache:           c,
 		collection:      c.collections.healthCheckConfig,
-		index:           healthCheckConfigStoreNameIndex,
+		index:           healthCheckConfigNameIndex,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList:    c.Config.HealthCheckConfig.ListHealthCheckConfigs,
 		nextToken: func(t *healthcheckconfigv1.HealthCheckConfig) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
 	}
 	out, next, err := lister.list(ctx,
 		pageSize,
@@ -96,12 +94,11 @@ func (c *Cache) GetHealthCheckConfig(ctx context.Context, name string) (*healthc
 	ctx, span := c.Tracer.Start(ctx, "cache/GetHealthCheckConfig")
 	defer span.End()
 
-	getter := genericGetter[*healthcheckconfigv1.HealthCheckConfig]{
+	getter := genericGetter[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
 		cache:       c,
 		collection:  c.collections.healthCheckConfig,
-		index:       healthCheckConfigStoreNameIndex,
+		index:       healthCheckConfigNameIndex,
 		upstreamGet: c.Config.HealthCheckConfig.GetHealthCheckConfig,
-		clone:       utils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

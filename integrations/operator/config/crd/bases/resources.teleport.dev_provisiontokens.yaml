@@ -102,6 +102,43 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              azure_devops:
+                description: AzureDevops allows the configuration of options specific
+                  to the "azure_devops" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of TokenRules, nodes using this token
+                      must match one allow rule to use this token. At least one allow
+                      rule must be specified.
+                    items:
+                      properties:
+                        definition_id:
+                          type: string
+                        pipeline_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        repository_ref:
+                          type: string
+                        repository_uri:
+                          type: string
+                        repository_version:
+                          type: string
+                        sub:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  organization_id:
+                    description: OrganizationID specifies the UUID of the Azure DevOps
+                      organization that this join token will grant access to. This
+                      is used to identify the correct issuer verification of the ID
+                      token. This is a required field.
+                    type: string
+                type: object
               bitbucket:
                 description: Bitbucket allows the configuration of options specific
                   to the "bitbucket" join method.
@@ -140,6 +177,45 @@ spec:
                 description: BotName is the name of the bot this token grants access
                   to, if any
                 type: string
+              bound_keypair:
+                description: BoundKeypair allows the configuration of options specific
+                  to the "bound_keypair" join method.
+                nullable: true
+                properties:
+                  onboarding:
+                    description: Onboarding contains parameters related to initial
+                      onboarding and keypair registration.
+                    nullable: true
+                    properties:
+                      initial_public_key:
+                        type: string
+                      must_register_before:
+                        format: date-time
+                        type: string
+                      registration_secret:
+                        type: string
+                    type: object
+                  recovery:
+                    description: Recovery contains parameters related to recovery
+                      after identity expiration.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: RotateAfter is an optional timestamp that forces
+                      clients to perform a keypair rotation on the next join or recovery
+                      attempt after the given date. If `LastRotatedAt` is unset or
+                      before this timestamp, a rotation will be requested. It is recommended
+                      to set this value to the current timestamp if a rotation should
+                      be triggered on the next join attempt.
+                    format: date-time
+                    type: string
+                type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
                   to the "circleci" join method.

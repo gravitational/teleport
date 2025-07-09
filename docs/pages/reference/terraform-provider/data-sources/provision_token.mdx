@@ -22,6 +22,7 @@ description: This page describes the supported values of the teleport_provision_
 ### Optional
 
 - `metadata` (Attributes) Metadata is resource metadata (see [below for nested schema](#nested-schema-for-metadata))
+- `status` (Attributes) Status is extended status information, depending on token type. It is not user writable. (see [below for nested schema](#nested-schema-for-status))
 - `sub_kind` (String) SubKind is an optional resource sub kind, used in some resources
 
 ### Nested Schema for `spec`
@@ -35,8 +36,10 @@ Optional:
 - `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specallow))
 - `aws_iid_ttl` (String) AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.
 - `azure` (Attributes) Azure allows the configuration of options specific to the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
+- `azure_devops` (Attributes) AzureDevops allows the configuration of options specific to the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
 - `bitbucket` (Attributes) Bitbucket allows the configuration of options specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
+- `bound_keypair` (Attributes) BoundKeypair allows the configuration of options specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
@@ -75,6 +78,28 @@ Optional:
 
 
 
+### Nested Schema for `spec.azure_devops`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified. (see [below for nested schema](#nested-schema-for-specazure_devopsallow))
+- `organization_id` (String) OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.
+
+### Nested Schema for `spec.azure_devops.allow`
+
+Optional:
+
+- `definition_id` (String) The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.
+- `pipeline_name` (String) The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.
+- `project_id` (String) The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.
+- `project_name` (String) The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.
+- `repository_ref` (String) The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.
+- `repository_uri` (String) The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.
+- `repository_version` (String) The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.
+- `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.
+
+
+
 ### Nested Schema for `spec.bitbucket`
 
 Optional:
@@ -91,6 +116,32 @@ Optional:
 - `deployment_environment_uuid` (String) DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
 - `repository_uuid` (String) RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
 - `workspace_uuid` (String) WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
+
+
+
+### Nested Schema for `spec.bound_keypair`
+
+Optional:
+
+- `onboarding` (Attributes) Onboarding contains parameters related to initial onboarding and keypair registration. (see [below for nested schema](#nested-schema-for-specbound_keypaironboarding))
+- `recovery` (Attributes) Recovery contains parameters related to recovery after identity expiration. (see [below for nested schema](#nested-schema-for-specbound_keypairrecovery))
+- `rotate_after` (String) RotateAfter is an optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.
+
+### Nested Schema for `spec.bound_keypair.onboarding`
+
+Optional:
+
+- `initial_public_key` (String) InitialPublicKey is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.
+- `must_register_before` (String) MustRegisterBefore is an optional time before which registeration via initial join secret must be performed. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.
+- `registration_secret` (String) RegistrationSecret is a secret joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.
+
+
+### Nested Schema for `spec.bound_keypair.recovery`
+
+Optional:
+
+- `limit` (Number) Limit is the maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.
+- `mode` (String) Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.
 
 
 
@@ -286,4 +337,22 @@ Optional:
 - `expires` (String) Expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) Labels is a set of labels
 - `name` (String, Sensitive) Name is an object name
+
+
+### Nested Schema for `status`
+
+Optional:
+
+- `bound_keypair` (Attributes) BoundKeypair contains status information related to bound_keypair type tokens. (see [below for nested schema](#nested-schema-for-statusbound_keypair))
+
+### Nested Schema for `status.bound_keypair`
+
+Optional:
+
+- `bound_bot_instance_id` (String) BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.
+- `bound_public_key` (String) BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration process. This value will be updated over time if keypair rotation takes place, and will always reflect the currently trusted public key. This value is written in SSH authorized_keys format.
+- `last_recovered_at` (String) LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals do not count as a recovery attempt, however onboarding does,  either with a preregistered key or registration secret. This corresponds with the last time `bound_bot_instance_id` was updated.
+- `last_rotated_at` (String) LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.
+- `recovery_count` (Number) RecoveryCount is a count of the total number of recoveries performed using this token. It is incremented for every successful join or rejoin. Recovery is only allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or if the recovery mode is `relaxed` or `insecure`.
+- `registration_secret` (String) RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, †his field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.
 

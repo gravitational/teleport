@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, type JSX } from 'react';
 import { Transition } from 'react-transition-group';
 import styled, { css } from 'styled-components';
 
@@ -36,6 +36,7 @@ import type { IconProps } from 'design/Icon/Icon';
 import Indicator from 'design/Indicator';
 import { MenuIcon } from 'shared/components/MenuAction';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 import type * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -145,7 +146,7 @@ export function Status(props: { closeDocument?: () => void }) {
     isRemoved ||
     isAgentIncompatibleOrUnknown;
 
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">

@@ -18,11 +18,13 @@
 
 import 'styled-system';
 
+import type * as PropTypes from 'prop-types';
+
 declare module 'styled-system' {
   export function style(args: LowLevelStylefunctionArguments): styleFn;
 
   export interface styleFn {
     (...args: any[]): any;
-    propTypes: React.WeakValidationMap<{ [string]: any }>;
+    propTypes: PropTypes.WeakValidationMap<{ [string]: any }>;
   }
 }

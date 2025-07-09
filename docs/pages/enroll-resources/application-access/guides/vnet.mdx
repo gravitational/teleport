@@ -38,25 +38,26 @@ available through VNet at <Var name="public_addr" initial="tcp-app.company.test"
 
 ## Step 1/3. Configure custom DNS zone
 
-Create a file called `vnet-config.yaml` which specifies the custom DNS zone. In our case the
-`public_addr` of the app is going to be `tcp-app.company.test`, so we're going to set
-`company.test` as `suffix`:
-
-```yaml
-kind: vnet_config
-version: v1
-metadata:
-  name: vnet-config
-spec:
-  custom_dns_zones:
-  - suffix: <Var name="suffix" />
-```
-
-Create the VNet config:
+Edit the VNet config:
 
 ```code
-$ tctl create vnet-config.yaml
-vnet_config has been created
+$ tctl edit vnet_config
+```
+
+Add a custom DNS zone. In our case the `public_addr` of the app is going to be
+`tcp-app.company.test`, so we're going to set `company.test` as `suffix`. The `spec` section of the
+config should include the `custom_dns_zones` field:
+
+```diff
+kind: vnet_config
+metadata:
+  name: vnet-config
+  # …
+spec:
++ custom_dns_zones:
++ - suffix: <Var name="suffix" />
+  # …
+version: v1
 ```
 
 <Admonition type="note" title="Relationship between suffix and public_addr">
@@ -70,7 +71,7 @@ and the suffix can be set to `bar.qux.test`.
 Set `public_addr` field of the application in the Application Service configuration file
 `/etc/teleport.yaml` and restart the `teleport` daemon.
 
-```yaml
+```diff
 version: v3
 # …
 app_service:
@@ -78,7 +79,7 @@ app_service:
   apps:
   - name: "tcp-app"
     uri: tcp://localhost:5432
-    public_addr: "<Var name="public_addr" />"
++   public_addr: "<Var name="public_addr" />"
 ```
 
 ## Step 3/3. Connect
@@ -100,28 +101,23 @@ Each cluster has a configurable IPv4 CIDR range which VNet uses when assigning I
 applications from that cluster. Root and leaf clusters can use different ranges. The default is
 `100.64.0.0/10` and it can be changed by setting the `ipv4_cidr_range` field of the VNet config.
 
-Create a file called `vnet-config.yaml`:
-
-```yaml
-kind: vnet_config
-version: v1
-metadata:
-  name: vnet-config
-spec:
-  ipv4_cidr_range: "100.64.0.0/10"
-```
-
-Create the VNet config:
+Edit the VNet config:
 
 ```code
-$ tctl create vnet-config.yaml
-vnet_config has been created
-```
-
-If the config already exists, you can use `tctl edit` instead:
-
-```
 $ tctl edit vnet_config
+```
+
+Edit the `ipv4_cidr_range` field in the `spec` section of the config:
+
+```diff
+kind: vnet_config
+metadata:
+  name: vnet-config
+  # …
+spec:
++ ipv4_cidr_range: "100.64.0.0/10"
+  # …
+version: v1
 ```
 
 <Admonition type="note" title="IPv4 address of the TUN device">

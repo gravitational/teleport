@@ -5,14 +5,7 @@ videoBanner: LnaRP0xKWRI
 ---
 
 You can protect a server with Teleport by running the Teleport SSH Service on
-the server and enrolling it in your Teleport cluster. Once the server has joined
-your cluster, the Teleport RBAC system enforces secure access to the server, and
-administrators can identify security threats using the Teleport audit log.
-
-The Teleport SSH Service opens a reverse SSH tunnel to the Teleport Proxy
-Service, and SSH client traffic uses this tunnel to connect to a server. This
-setup is similar to the [bastion
-pattern](https://goteleport.com/blog/ssh-bastion-host/).
+the server and enrolling it in your Teleport cluster. 
 
 This guides shows you how to:
 
@@ -20,13 +13,24 @@ This guides shows you how to:
 - SSH into a server using Teleport.
 - Inspect server resources in the cluster using Teleport commands.
 
+## How it works
+
+The Teleport SSH Service opens a reverse SSH tunnel to the Teleport Proxy
+Service, and SSH client traffic uses this tunnel to connect to a server. This
+setup is similar to the [bastion
+pattern](https://goteleport.com/blog/ssh-bastion-host/).
+
+Once a server has joined your cluster, the Teleport RBAC system enforces
+secure access to the server, and administrators can identify security threats
+using the Teleport audit log.
+
 You can use Teleport to enable secure access to a Kubernetes node. To do so,
 modify your node's machine image to install and run the Teleport SSH Service as
 per the instructions in this guide. Do not run the SSH Service as a Kubernetes
 pod, as there is no guarantee that the SSH Service pod is running on a server
 that a user intends to access.
 
-  ![Teleport Bastion](../../../img/server-access/getting-started-diagram.png)
+![Teleport Bastion](../../../img/server-access/getting-started-diagram.png)
 
 ## Prerequisites
 

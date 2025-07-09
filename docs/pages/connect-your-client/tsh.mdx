@@ -381,7 +381,7 @@ every day. This doesn't work for non-interactive scripts, like cron jobs or a
 CI/CD pipeline.
 
 The most secure way to generate certificates for automation purposes is to use
-[Machine ID](../enroll-resources/machine-id/introduction.mdx). This ensures that your automation
+[Machine ID](../machine-workload-identity/machine-id/introduction.mdx). This ensures that your automation
 is taking advantage of the security properties of short-lived credentials.
 
 If Machine ID does not support your preferred CI/CD platform, you can create a
@@ -848,6 +848,33 @@ $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
 ```
+
+## Debug logs
+
+Adding the `--debug` flag to a command or setting the `TELEPORT_DEBUG` env var to `1` makes tsh
+print debug logs to standard output.
+
+### Unified logging system on macOS
+
+On macOS, the `--os-log` flag can be used instead of `--debug` to send debug logs to [the unified
+logging system](https://support.apple.com/en-gb/guide/console/welcome/mac). This behavior can also be controlled through the `TELEPORT_OS_LOG` env var.
+
+To stream logs in a separate shell session:
+
+```code
+$ log stream --predicate 'subsystem CONTAINS "tsh"' --style syslog --level debug
+```
+
+To dump logs captured so far to a file:
+
+```code
+$ log show --predicate 'subsystem CONTAINS "tsh"' --style syslog --info --debug > tsh.log
+```
+
+The logs can also be inspected in [the Console
+app](https://support.apple.com/en-gb/guide/console/cnsl1012/1.1/mac/15.0). Info and debug logs are
+not shown by default, so make sure to select "Include Info Messages" and "Include Debug Messages"
+from the Action menu.
 
 ## Examining recorded sessions
 

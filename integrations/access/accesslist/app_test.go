@@ -197,12 +197,75 @@ func TestAccessListReminders_Single(t *testing.T) {
 	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
 
 	// Advance 60 days a day at a time, expect two notifications each time.
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		// Make sure we only get a notification once per day by iterating through each 6 hours at a time.
-		for j := 0; j < 3; j++ {
+		for range 3 {
 			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists)
 		}
 		advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists, "owner1", "owner2")
+	}
+}
+
+func TestAccessListReminders_NoneForNonDynamic(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	server := newTestAuth(t)
+
+	as := server.Auth()
+	t.Cleanup(func() {
+		require.NoError(t, as.Close())
+	})
+
+	bot := &mockMessagingBot{
+		recipients: map[string]*common.Recipient{
+			"static-owner": {Name: "static-owner", ID: "static-owner"},
+		},
+	}
+	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
+	app.Clock = clock
+	ctx := context.Background()
+	go func() {
+		app.Run(ctx)
+	}()
+
+	ready, err := app.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	t.Cleanup(func() {
+		app.Terminate()
+		<-app.Done()
+		require.NoError(t, app.Err())
+	})
+
+	for _, typ := range []accesslist.Type{
+		accesslist.SCIM,
+		accesslist.Static,
+	} {
+		t.Run(string(typ), func(t *testing.T) {
+			nonDynamicAccessList, err := accesslist.NewAccessList(header.Metadata{
+				Name: "test-non-dynamnic-access-list",
+			}, accesslist.Spec{
+				Type:   typ,
+				Title:  "test static access list",
+				Owners: []accesslist.Owner{{Name: "static-owner"}},
+				Grants: accesslist.Grants{
+					Roles: []string{"role"},
+				},
+				Audit: accesslist.Audit{},
+			})
+			require.NoError(t, err)
+
+			accessLists := []*accesslist.AccessList{nonDynamicAccessList}
+
+			// No notifications for today
+			advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
+
+			// Advance by one week, expect no notifications.
+			advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
+		})
 	}
 }
 

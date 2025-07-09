@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // NetworkRestrictions defines network restrictions applied to SSH session.
@@ -33,6 +35,8 @@ type NetworkRestrictions interface {
 	GetDeny() []AddressCondition
 	// SetDeny sets a list of denied network addresses (overrides Allow list)
 	SetDeny(deny []AddressCondition)
+	// Clone returns a copy of the network restrictions.
+	Clone() NetworkRestrictions
 }
 
 // NewNetworkRestrictions creates a new NetworkRestrictions with the given name.
@@ -44,6 +48,11 @@ func NewNetworkRestrictions() NetworkRestrictions {
 			Name: MetaNameNetworkRestrictions,
 		},
 	}
+}
+
+// Clone returns a copy of the network restrictions.
+func (r *NetworkRestrictionsV4) Clone() NetworkRestrictions {
+	return utils.CloneProtoMsg(r)
 }
 
 func (r *NetworkRestrictionsV4) setStaticFields() {

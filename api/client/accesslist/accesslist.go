@@ -161,11 +161,6 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessLists removes all access lists.
-func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC client")
-}
-
 // CountAccessListMembers will count all access list members.
 func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
@@ -298,11 +293,6 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListMembers hard deletes all access list members.
-func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllAccessListMembers is not supported in the gRPC client")
-}
-
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
@@ -403,11 +393,6 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 		ReviewName:     reviewName,
 	})
 	return trace.Wrap(err)
-}
-
-// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
-func (c *Client) DeleteAllAccessListReviews(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }
 
 // GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.

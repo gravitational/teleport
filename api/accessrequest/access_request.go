@@ -130,6 +130,28 @@ func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesC
 	return resources, nil
 }
 
+// GetResourceNames returns the human readable names for the requested resources in an access request.
+func GetResourceNames(ctx context.Context, lister client.ListResourcesClient, req types.AccessRequest) ([]string, error) {
+	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourcesByCluster := GetResourceIDsByCluster(req)
+
+	for cluster, resources := range resourcesByCluster {
+		resourceDetails, err := GetResourceDetails(ctx, cluster, lister, resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			resourceName := types.ResourceIDToString(resource)
+			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
+				resourceName = fmt.Sprintf("/%s/%s", resource.Kind, details.FriendlyName)
+			}
+			resourceNames = append(resourceNames, resourceName)
+		}
+	}
+	return resourceNames, nil
+}
+
 // anyNameMatcher returns a PredicateExpression which matches any of a given list
 // of names. Given names will be escaped and quoted when building the expression.
 func anyNameMatcher(names []string) string {

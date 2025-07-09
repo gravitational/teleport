@@ -19,6 +19,7 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { AllUserTraits } from 'teleport/services/user';
 
 import {
@@ -66,7 +67,7 @@ test('Add and remove Trait', async () => {
   );
   expect(screen.queryAllByTestId('trait-key')).toHaveLength(0);
 
-  const addButtonEl = screen.getByRole('button', { name: /Add user trait/i });
+  const addButtonEl = screen.getByRole('button', { name: /Add a user trait/i });
   expect(addButtonEl).toBeInTheDocument();
   fireEvent.click(addButtonEl);
 

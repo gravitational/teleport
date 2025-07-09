@@ -26,26 +26,32 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const appStoreNameIndex = "name"
+type appIndex string
 
-func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.Application], error) {
+const appNameIndex appIndex = "name"
+
+func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.Application, appIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Apps")
 	}
 
-	return &collection[types.Application]{
-		store: newStore(map[string]func(types.Application) string{
-			appStoreNameIndex: func(u types.Application) string {
-				return u.GetName()
+	return &collection[types.Application, appIndex]{
+		store: newStore(
+			types.KindApp,
+			func(a types.Application) types.Application {
+				return a.Copy()
 			},
-		}),
+			map[appIndex]func(types.Application) string{
+				appNameIndex: types.Application.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Application, error) {
-			return p.GetApps(ctx)
+			apps, err := p.GetApps(ctx)
+			return apps, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Application {
 			return &types.AppV3{
-				Kind:    types.KindApp,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -72,7 +78,7 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	}
 
 	out := make([]types.Application, 0, rg.store.len())
-	for a := range rg.store.resources(appStoreNameIndex, "", "") {
+	for a := range rg.store.resources(appNameIndex, "", "") {
 		out = append(out, a.Copy())
 	}
 
@@ -84,45 +90,41 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.apps)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	getter := genericGetter[types.Application, appIndex]{
+		cache:       c,
+		collection:  c.collections.apps,
+		index:       appNameIndex,
+		upstreamGet: c.Config.Apps.GetApp,
 	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		apps, err := c.Config.Apps.GetApp(ctx, name)
-		return apps, trace.Wrap(err)
-	}
-
-	a, err := rg.store.get(appStoreNameIndex, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.Copy(), nil
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
 }
 
-const appServerStoreNameIndex = "name"
+type appServerIndex string
 
-func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer], error) {
+const appServerNameIndex appServerIndex = "name"
+
+func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer, appServerIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.AppServer]{
-		store: newStore(map[string]func(types.AppServer) string{
-			appServerStoreNameIndex: func(u types.AppServer) string {
-				return u.GetHostID() + "/" + u.GetName()
-			},
-		}),
+	return &collection[types.AppServer, appServerIndex]{
+		store: newStore(
+			types.KindAppServer,
+			types.AppServer.Copy,
+			map[appServerIndex]func(types.AppServer) string{
+				appServerNameIndex: func(u types.AppServer) string {
+					return u.GetHostID() + "/" + u.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.AppServer, error) {
 			return p.GetApplicationServers(ctx, defaults.Namespace)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.AppServer {
 			return &types.AppServerV3{
-				Kind:    types.KindAppServer,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -148,7 +150,7 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 
 	if rg.ReadCache() {
 		out := make([]types.AppServer, 0, rg.store.len())
-		for as := range rg.store.resources(appServerStoreNameIndex, "", "") {
+		for as := range rg.store.resources(appServerNameIndex, "", "") {
 			out = append(out, as.Copy())
 		}
 

@@ -33,7 +33,7 @@ import (
 func TestWriteCmd(t *testing.T) {
 	tests := []struct {
 		name     string
-		val      interface{}
+		val      any
 		expected []byte
 		wantErr  bool
 	}{
@@ -69,7 +69,7 @@ func TestWriteCmd(t *testing.T) {
 		},
 		{
 			name:     "[]nil",
-			val:      []interface{}{nil},
+			val:      []any{nil},
 			expected: []byte("*1\r\n$-1\r\n"),
 		},
 		{
@@ -100,7 +100,6 @@ func TestWriteCmd(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -140,27 +139,27 @@ func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
 		name          string
-		command       []interface{}
+		command       []any
 		expectedError redis.RedisError
 	}{
 		{
 			name:          "HELLO",
-			command:       []interface{}{"HELLO", 3, "AUTH", "user", "TOKEN"},
+			command:       []any{"HELLO", 3, "AUTH", "user", "TOKEN"},
 			expectedError: "ERR unknown command 'HELLO', with args beginning with: '3' 'AUTH' 'user' 'TOKEN'",
 		},
 		{
 			name:          "no extra args",
-			command:       []interface{}{"abcdef"},
+			command:       []any{"abcdef"},
 			expectedError: "ERR unknown command 'abcdef', with args beginning with: ",
 		},
 		{
 			name:          "cluster",
-			command:       []interface{}{"cluster", "aaa", "bbb"},
+			command:       []any{"cluster", "aaa", "bbb"},
 			expectedError: "ERR unknown subcommand 'aaa'. Try CLUSTER HELP.",
 		},
 		{
 			name:          "command",
-			command:       []interface{}{"command", "aaa", "bbb"},
+			command:       []any{"command", "aaa", "bbb"},
 			expectedError: "ERR unknown subcommand 'aaa'. Try COMMAND HELP.",
 		},
 	}

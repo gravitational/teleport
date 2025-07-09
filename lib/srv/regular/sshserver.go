@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -200,7 +199,7 @@ type Server struct {
 	lockWatcher *services.LockWatcher
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
-	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	connectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 
 	// createHostUser configures whether a host should allow host user
 	// creation
@@ -241,6 +240,9 @@ type Server struct {
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
 	stableUnixUsers stableunixusersv1.StableUNIXUsersServiceClient
+
+	// enableSELinux configures whether SELinux support is enable or not.
+	enableSELinux bool
 }
 
 // TargetMetadata returns metadata about the server.
@@ -324,6 +326,12 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 		return &srv.HostSudoersNotImplemented{}
 	}
 	return s.sudoers
+}
+
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func (s *Server) GetSELinuxEnabled() bool {
+	return s.enableSELinux
 }
 
 // ServerOption is a functional option passed to the server
@@ -664,7 +672,7 @@ func SetAllowFileCopying(allow bool) ServerOption {
 }
 
 // SetConnectedProxyGetter sets the ConnectedProxyGetter.
-func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
+func SetConnectedProxyGetter(getter reversetunnelclient.ConnectedProxyGetter) ServerOption {
 	return func(s *Server) error {
 		s.connectedProxyGetter = getter
 		return nil
@@ -709,6 +717,15 @@ func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 func SetStableUNIXUsers(stableUNIXUsers stableunixusersv1.StableUNIXUsersServiceClient) ServerOption {
 	return func(s *Server) error {
 		s.stableUnixUsers = stableUNIXUsers
+		return nil
+	}
+}
+
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func SetSELinuxEnabled(enabled bool) ServerOption {
+	return func(s *Server) error {
+		s.enableSELinux = enabled
 		return nil
 	}
 }
@@ -788,7 +805,7 @@ func New(
 	}
 
 	if s.connectedProxyGetter == nil {
-		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+		return nil, trace.BadParameter("setup valid ConnectedProxyGetter parameter using SetConnectedProxyGetter")
 	}
 
 	if s.tracerProvider == nil {
@@ -920,7 +937,7 @@ func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelc
 		return nil, trace.Wrap(err)
 	}
 
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
 }
 
 // startAuthorizedKeysManager starts the authorized keys manager.
@@ -1058,9 +1075,7 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 // getAllLabels return a combination of static and dynamic labels.
 func (s *Server) getAllLabels() map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.getStaticLabels() {
-		lmap[key] = value
-	}
+	maps.Copy(lmap, s.getStaticLabels())
 	for key, cmd := range s.getDynamicLabels() {
 		lmap[key] = cmd.Result
 	}
@@ -1381,7 +1396,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.AccessChecker.MaxSessions(); max != 0 {
+		if max := identityContext.AccessPermit.MaxSessions; max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
@@ -2389,11 +2404,11 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 		}
 	}
 
-	switch {
+	switch r.Name {
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case r.Name == teleport.GetHomeDirSubsystem:
+	case teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == teleport.SFTPSubsystem:
+	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {
 			s.emitAuditEventWithLog(context.Background(), &apievents.SFTP{

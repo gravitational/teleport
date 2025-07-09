@@ -97,6 +97,29 @@ attestors:
     # supported. This field is required and there is no default value. See the
     # Podman section below for more information.
     addr: unix:///run/podman/podman.sock
+  # sigstore is configuration for the Sigstore Workload attestor. See the
+  # Sigstore Workload Attestation page for more information.
+  sigstore:
+    # enabled specifies whether tbot will discover Sigstore signatures for the
+    # workload's container image. If unspecified, this defaults to false.
+    enabled: true
+    # additional_registries optionally configures the OCI registries that will
+    # be searched for signatures in addition to the workload container image's
+    # source registry.
+    additional_registries:
+      -
+        # host of the OCI registry.
+        host: ghcr.io
+    # credentials_path is the path to a Docker or Podman configuration file
+    # containing per-registry credentials.
+    credentials_path: /path/to/docker/config.json
+    # allowed_private_network_prefixes are the private IP address prefixes (CIDR
+    # blocks) that the Sigstore attestor is allowed to connect to. By default,
+    # tbot will only connect to registries at publicly-routable IP addresses to
+    # reduce the surface area for SSRF attacks.
+    allowed_private_network_prefixes:
+      - "192.168.1.42/32"
+      - "fd12:3456:789a:1::1/128"
   # systemd is configuration for the Systemd Workload attestor. See the Systemd
   # section below for more information.
   systemd:
@@ -490,6 +513,14 @@ not set, will default to connecting via a Unix domain socket located at
 If connecting using this socket fails, `tbot` will attempt to use the socket
 located at `/run/systemd/private` instead, but this is typically only accessible
 by root.
+
+## Sigstore
+
+The Sigstore Workload Attestor allows you to restrict the issuance of workload
+identities to only workloads running signed container images, reducing the scope
+for supply chain attacks.
+
+See [Sigstore Workload Attestation](sigstore-attestation.mdx) for more information.
 
 ## Envoy SDS
 

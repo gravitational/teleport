@@ -120,6 +120,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentRelay is the component name for the relay service.
+	ComponentRelay = "relay"
+
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
 
@@ -297,6 +300,12 @@ const (
 
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
+
+	// ComponentMCP represents the MCP server handler.
+	ComponentMCP = "mcp"
+
+	// ComponentRecordingEncryption represents recording encryption
+	ComponentRecordingEncryption = "recording-encryption"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -520,6 +529,9 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionJoinToken is the name of the join token used to join this
+	// bot, if any.
+	CertExtensionJoinToken = "join-token@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -654,6 +666,10 @@ const (
 	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
 	// organizations for GitHub integrations.
 	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
+
+	// TraitInternalMCPTools is the variable used to store allowed MCP tools for
+	// MCP servers.
+	TraitInternalMCPTools = "{{internal.mcp_tools}}"
 )
 
 // SCP is Secure Copy.
@@ -964,6 +980,13 @@ const (
 
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
+
+	// XTeleportUsernameHeader is the name of the X-Teleport-Username header
+	// used to pass the username to the Access Graph service.
+	// This header is used to identify the user that is making the request
+	// so that the Access Graph service can store information about the
+	// user's preferences.
+	XTeleportUsernameHeader = "X-Teleport-Username"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

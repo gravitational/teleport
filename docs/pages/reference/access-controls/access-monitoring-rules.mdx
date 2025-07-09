@@ -1,0 +1,286 @@
+---
+title: Access Monitoring Rule Reference
+description: An explanation and overview of Access Monitoring Rules.
+---
+
+Access Monitoring Rules allow administrators to monitor Access Requests and apply
+notification routing rules or automatic review rules based on specific conditions.
+
+An Access Monitoring Rule can configure both a notification routing rule and an
+automatic review rule, or it can contain only one.
+
+## YAML specification
+
+An Access Monitoring Rule is a dynamic Teleport resource with a structure
+similar to the following:
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: example_rule
+spec:
+  # subjects specifies the kinds of subjects to monitor.
+  # Possible values: "access_request"
+  subjects:
+  - access_request
+
+  # condition specifies the conditions that should be met to apply the access
+  # monitoring rule. The condition accepts a predicate expression which must
+  # evaluate to a boolean value.
+  #
+  # This condition would be satisfied by an Access Request if all requested roles
+  # are either `access` or `editor`, and if the requester user has the `team: dev`
+  # or `team: stage" user trait.
+  condition: |-
+    contains_all(set("access", "editor"), access_request.spec.roles) &&
+    contains_any(user.traits["team"], set("dev", "stage"))
+
+  # Optional: desired_state specifies the desired reconciled state of the Access
+  # Request after the rule is applied. This field must be set to "reviewed" to
+  # enable automatic reviews.
+  # Possible values: "reviewed".
+  desired_state: reviewed
+
+  # Optional: automatic_review configures the automatic review rules.
+  automatic_review:
+    # integration specifies the name of an external integration source used to
+    # help determine if a requesting user satisfies the rule conditions.
+    # Use "builtin" to specify no external integration.
+    # Possible values: "builtin"
+    integration: builtin
+
+    # decision determines whether to automatically approve or deny the
+    # Access Request.
+    # Possible values: "APPROVED" or "DENIED"
+    decision: APPROVED
+
+  # Optional: notification configures notification routing rules.
+  notification:
+    # name specifies the external integration to which the notifications should
+    # be routed.
+    # Possible values: "email", "discord", "slack", "pagerduty", "jira",
+    # "mattermost", "msteams", "opsgenie", "servicenow", "datadog"
+    name: email
+
+    # recipients specifies the list of recipients to be notified when the
+    # access monitoring rule is applied.
+    recipients:
+    - example@goteleport.com
+```
+
+## Notification routing rules
+
+Administrators can use Access Monitoring Rules to route notifications to an external
+notification system.
+
+### Hosted integrations
+
+To list the names of available hosted integrations you can use the following
+command:
+```code
+$ tctl get plugins
+Name          Status
+------------- -----------
+datadog       RUNNING
+email         RUNNING
+slack-default RUNNING
+```
+
+If no integrations are listed, enroll a plugin first.
+For a step by step guide on how to enroll a plugin see
+[Access Request Plugins](../../identity-governance/access-request-plugins/access-request-plugins.mdx).
+
+### Recipients
+
+The accepted values for the `recipients` field depend on the selected
+notification system.
+
+| Notification System | Recipients                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| Datadog             | Email: `user@example.com`<br/>Team: `example-datadog-team`                            |
+| Discord             | Channel ID: `...1234`                                                                 |
+| Email               | Email: `user@example.com`                                                             |
+| Jira                | -                                                                                     |
+| Mattermost          | Email: `user@example.com`<br/>Team/Channel: `example-team/example-channel`            |
+| Microsoft Teams     | Email: `user@example.com`<br/>Channel: `https://teams.microsoft.com/l/channel/...`    |
+| Opsgenie            | Schedule: `example-schedule`                                                          |
+| PagerDuty           | Service: `example-service`                                                            |
+| ServiceNow          | Schedule ID: `example-schedule-id`                                                    |
+| Slack               | Email: `user@example.com`<br/>Channel: `example-channel`                              |
+
+### Example notification routing rule
+
+If the following rule is configured, then any time an Access Request for the
+`access` role is created, a notification will be sent to the `#teleport-access`
+Slack channel.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: slack-notifications
+spec:
+  subjects:
+  - access_request
+  condition: contains_any(access_request.spec.roles, set("access"))
+  notification:
+    name: slack-default
+    recipients:
+    - teleport-access
+```
+
+## Automatic review rules
+
+Administrators can configure Access Monitoring Rules to automatically review an Access
+Request when conditions are met.
+
+To enable automatic reviews, set `spec.desired_state` to `reviewed` and define
+`automatic_review`.
+
+### Review decision
+
+The `automatic_review.decision` option can be either `APPROVED` or `DENIED`.
+
+Automatic reviews behave like regular reviews. They do not directly change the
+state of the request and respect the required review thresholds.
+
+If multiple automatic review rules match an Access Request, `DENIED` rules take
+precedence.
+
+### Example automatic review rule
+
+If the following rule is configured, then any time an Access Request for the
+`access` role is created by a user with the `team: sre` trait, it will be
+automatically approved.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: sre-automatic-approval
+spec:
+  subjects:
+  - access_request
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    contains_any(user.traits["team"], set("sre"))
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+```
+
+## Condition
+
+The `condition` field is a predicate expression that evaluates to a boolean value
+and determines which Access Requests the rule applies to.
+
+Accepted fields within the condition predicate expression:
+| Field                                   | Description                                    |
+| --------------------------------------- | ---------------------------------------------- |
+| access_request.spec.roles               | The set of roles requested.                    |
+| access_request.spec.suggested_reviewers | The set of reviewers specified in the request. |
+| access_request.spec.system_annotations  | A map of system annotations on the request.    |
+| access_request.spec.user                | The requesting user.                           |
+| access_request.spec.request_reason      | The request reason.                            |
+| access_request.spec.creation_time       | The creation time of the request.              |
+| access_request.spec.expiry              | The expiry time of the request.                |
+| user.traits                             | A map of traits of the requesting user.        |
+
+Examples:
+
+```yaml
+# Applies if the request contains at least one role.
+condition: !is_empty(access_request.spec.roles)
+
+# Applies if created by "example_user"
+condition: access_request.spec.user == "example_user"
+
+# Applies if the "example_role" role is requested.
+condition: access_request.spec.roles.contains("example_role")
+
+# Applies if all requested roles are either "role_1" or "role_2".
+condition: set("role_1", "role_2").contains_all(access_request.spec.roles)
+
+# Applies if the user has trait "team: dev" or "team: stage".
+condition: contains_any(user.traits["team"], set("dev". "stage"))
+```
+
+See [Predicate Language](../predicate-language.mdx) for more details.
+
+## SSO users and IdP attributes
+
+Access Monitoring Rules can be used with SSO users and attributes provided
+by the IdP.
+
+For example, if the following GitHub SSO configuration is used, GitHub users in
+team `example-team` will be mapped to Teleport users with trait `github_teams: example-team`.
+
+```yaml
+# github.yaml
+kind: github
+version: v3
+metadata:
+  name: github
+spec:
+  teams_to_roles:
+  - organization: example-org
+    roles:
+    - demo-access-request
+    team: example-team
+...
+```
+
+You can now create an Access Monitoring Rule that applies automatic reviews
+based on the `github_teams` trait:
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: dev-automatic-approval
+spec:
+  subjects:
+  - access_request
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    contains_any(user.traits["github_teams"], set("example-team"))
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+```
+
+Trait mapping depends on the SSO provider. For configuration instructions, see:
+[Configure Single Sign-On](../../admin-guides/access-controls/sso/sso.mdx)
+
+## Access Monitoring Rule with infrastructure as code
+
+Access Monitoring Rules can be managed as infrastructure as code using Terraform.
+Here's an example resource definition:
+
+```hcl
+resource "teleport_access_monitoring_rule" "example_rule" {
+  version = "v1"
+  metadata = {
+    name = "example_rule"
+  }
+  spec = {
+    subjects      = ["access_request"]
+    condition     = "access_request.spec.roles.contains(\"example-role\")"
+    desired_state = "reviewed"
+    notification = {
+      name       = "slack"
+      recipients = ["example-channel"]
+    }
+    automatic_review = {
+      integration = "builtin"
+      decision    = "APPROVED"
+    }
+  }
+}
+```
+
+See [Terraform Provider](../terraform-provider/resources/access_monitoring_rule.mdx)
+for more details.

@@ -51,7 +51,8 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	}
 
 	cfg, err := LoadConfigWithMutators(&GlobalArgs{
-		Debug: true,
+		Debug:          true,
+		debugSetByUser: true,
 	}, legacy)
 	require.NoError(t, err)
 

@@ -18,7 +18,7 @@ security auditors on a regular basis to identify and correct any gaps, while als
 continuing to iterate on improvements to fortify the platform for the most strict of
 compliance use-cases.
 
-The Teleport Enterprise Cloud environment is protected from network and transport layer DDoS attacks 
+The Teleport Enterprise Cloud environment is protected from network and transport layer DDoS attacks
 that may target Teleport tenants by leveraging [AWS Shield](https://aws.amazon.com/shield/).
 
 ## Compliance
@@ -53,6 +53,7 @@ Teleport Enterprise Cloud can run in one of the following AWS regions:
 - ap-south-1
 - ap-southeast-1
 - sa-east-1
+- ap-southeast-2
 
 ### Proxies
 The Teleport [Proxy Service](proxy.mdx) is deployed to multiple AWS regions around the world for low-latency access to distributed infrastructure.
@@ -63,6 +64,11 @@ The Teleport [Proxy Service](proxy.mdx) is deployed to multiple AWS regions arou
 - ap-south-1
 - ap-southeast-1
 - sa-east-1
+- ap-southeast-2
+
+<Admonition type="note">
+  Proxy Service in the ap-southeast-2 region is available upon request or when the Auth Service is deployed to the region.
+</Admonition>
 
 ## Releases
 

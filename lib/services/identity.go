@@ -65,8 +65,6 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities
@@ -301,8 +299,6 @@ type Identity interface {
 	AppSession
 	// SnowflakeSession defines Snowflake session features.
 	SnowflakeSession
-	// SAMLIdPSession defines SAML IdP session features.
-	SAMLIdPSession
 }
 
 // AppSession defines application session features.
@@ -333,22 +329,6 @@ type SnowflakeSession interface {
 	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 	DeleteAllSnowflakeSessions(context.Context) error
-}
-
-// SAMLIdPSession defines SAML IdP session features.
-type SAMLIdPSession interface {
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
-	// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-	ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
-	// UpsertSAMLIdPSession upserts a SAML IdP session.
-	UpsertSAMLIdPSession(context.Context, types.WebSession) error
-	// DeleteSAMLIdPSession removes a SAML IdP session.
-	DeleteSAMLIdPSession(context.Context, types.DeleteSAMLIdPSessionRequest) error
-	// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-	DeleteAllSAMLIdPSessions(context.Context) error
-	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
-	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
 }
 
 // HeadlessAuthenticationService is responsible for headless authentication resource management

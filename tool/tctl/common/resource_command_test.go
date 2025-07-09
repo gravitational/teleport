@@ -281,7 +281,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := 0; i < totalDBServices; i++ {
+	for i := range totalDBServices {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -362,7 +362,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalIntegrations; i++ {
+		for i := range totalIntegrations {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -476,7 +476,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalDiscoveryConfigs; i++ {
+		for i := range totalDiscoveryConfigs {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -1344,8 +1344,8 @@ func TestFormatAmbiguousDeleteMessage(t *testing.T) {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected interface{}) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+func requireEqual(expected any) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual any, msgAndArgs ...any) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -1821,8 +1821,8 @@ version: v1
 	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
@@ -2106,8 +2106,8 @@ version: v1
 	var expected databaseobject.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
@@ -2174,6 +2174,7 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
+  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
@@ -2229,7 +2230,7 @@ spec:
   acs: test
   audience: test
   issuer: test
-  sso: test
+  sso: https://example.com
   service_provider_issuer: test
   display: SAML
   attributes_to_roles:
@@ -2250,8 +2251,8 @@ spec:
         </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>` + "\n"
 
@@ -2637,6 +2638,66 @@ func TestPluginResourceWrapper(t *testing.T) {
 								StatusCode: types.AWSICGroupImportStatusCode_DONE,
 							},
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "entra_id",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "entra_id",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_EntraId{
+						EntraId: &types.PluginEntraIDSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_EntraId{
+						EntraId: &types.PluginEntraIDStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "gitlab",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "gitlab",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Gitlab{
+						Gitlab: &types.PluginGitlabSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "net_iq",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "net_iq",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_NetIq{
+						NetIq: &types.PluginNetIQSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_NetIq{
+						NetIq: &types.PluginNetIQStatusV1{},
 					},
 				},
 			},

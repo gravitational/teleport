@@ -36,9 +36,9 @@ service ClientApplicationService {
   // Ping is used by the admin process to regularly poll that the client
   // application is still running.
   rpc Ping(PingRequest) returns (PingResponse);
-  // ResolveAppInfo returns info for the given app fqdn, or an error if the app
-  // is not present in any logged-in cluster.
-  rpc ResolveAppInfo(ResolveAppInfoRequest) returns (ResolveAppInfoResponse);
+  // ResolveFQDN is called during DNS resolution to resolve a fully-qualified
+  // domain name to a target.
+  rpc ResolveFQDN(ResolveFQDNRequest) returns (ResolveFQDNResponse);
   // ReissueAppCert issues a new app cert.
   rpc ReissueAppCert(ReissueAppCertRequest) returns (ReissueAppCertResponse);
   // SignForApp issues a signature with the private key associated with an x509
@@ -53,6 +53,18 @@ service ClientApplicationService {
   rpc OnInvalidLocalPort(OnInvalidLocalPortRequest) returns (OnInvalidLocalPortResponse);
   // GetTargetOSConfiguration gets the target OS configuration.
   rpc GetTargetOSConfiguration(GetTargetOSConfigurationRequest) returns (GetTargetOSConfigurationResponse);
+  // UserTLSCert returns the user TLS certificate for a specific profile.
+  rpc UserTLSCert(UserTLSCertRequest) returns (UserTLSCertResponse);
+  // SignForUserTLS signs a digest with the user TLS private key.
+  rpc SignForUserTLS(SignForUserTLSRequest) returns (SignForUserTLSResponse);
+  // SessionSSHConfig returns the user SSH configuration for an SSH session.
+  rpc SessionSSHConfig(SessionSSHConfigRequest) returns (SessionSSHConfigResponse);
+  // SignForSSHSession signs a digest with the SSH private key associated with the
+  // session from a previous call to SessionSSHConfig.
+  rpc SignForSSHSession(SignForSSHSessionRequest) returns (SignForSSHSessionResponse);
+  // ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
+  // returns the user public key.
+  rpc ExchangeSSHKeys(ExchangeSSHKeysRequest) returns (ExchangeSSHKeysResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -94,16 +106,51 @@ message PingRequest {}
 // PingResponse is a response for the Ping rpc.
 message PingResponse {}
 
-// ResolveAppInfoRequest is a request for ResolveAppInfo.
-message ResolveAppInfoRequest {
-  // Fqdn is the fully-qualified domain name of the app.
+// ResolveFQDNRequest is a request for ResolveFQDN.
+message ResolveFQDNRequest {
+  // Fqdn is the fully-qualified domain name queried.
   string fqdn = 1;
 }
 
-// ResolveAppInfoResponse is a response for ResolveAppInfo.
-message ResolveAppInfoResponse {
+// ResolveFQDNReponse is a response for ResolveFQDN.
+message ResolveFQDNResponse {
+  oneof match {
+    // MatchedTcpApp will be set when the query matched a TCP app.
+    MatchedTCPApp matched_tcp_app = 1;
+    // MatchedWebApp will be set when the query matched a web app.
+    MatchedWebApp matched_web_app = 2;
+    // MatchedCluster will be set when the query did not match any app, but did
+    // match a subdomain of a proxy address. VNet will resolve the DNS query to
+    // a handler that may later resolve the FQDN to an app or SSH server.
+    MatchedCluster matched_cluster = 3;
+  }
+}
+
+// MatchedTCPApp holds info about a TCP app that matched a query.
+message MatchedTCPApp {
   // AppInfo holds all necessary info for making connections to the resolved app.
   AppInfo app_info = 1;
+}
+
+// MatchedTCPApp is a placeholder to signify that the query matched a web app.
+message MatchedWebApp {}
+
+// MatchedCluster holds info about a cluster that a query matched.
+message MatchedCluster {
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be assigned
+  // based on this cluster's vnet_config.
+  string ipv4_cidr_range = 1;
+  // WebProxyAddr is the web proxy address of the root cluster that matched the
+  // query.
+  string web_proxy_addr = 2;
+  // Profile is the profile the matched cluster was found in.
+  string profile = 3;
+  // RootCluster will always be set to the name of the root cluster that matched
+  // the query.
+  string root_cluster = 4;
+  // LeafCluster will be set only when the query matched a leaf cluster of
+  // RootCluster, or else it will be empty.
+  string leaf_cluster = 5;
 }
 
 // AppInfo holds all necessary info for making connections to VNet TCP apps.
@@ -116,7 +163,7 @@ message AppInfo {
   string cluster = 2;
   // App is the app spec.
   types.AppV3 app = 3;
-  // Ipv4Cidr_range is the CIDR range from which an IPv4 address should be
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
   // assigned to the app.
   string ipv4_cidr_range = 4;
   // DialOptions holds options that should be used when dialing the root cluster
@@ -145,15 +192,17 @@ message DialOptions {
   string sni = 3;
   // InsecureSkipVerify turns off verification for x509 upstream ALPN proxy service certificate.
   bool insecure_skip_verify = 4;
-  // RootClusterCaCertPool overrides the x509 certificate pool used to verify the server.
-  // It is a PEM-encoded X509 certificate pool.
+  // RootClusterCaCertPool is the host CA TLS certificate pool for the root
+  // cluster. It is a PEM-encoded X509 certificate pool. It should be used when
+  // dialing the proxy and AlpnConnUpgradeRequired is true or when dialing the
+  // transport service.
   bytes root_cluster_ca_cert_pool = 5;
 }
 
 // ReissueAppCertRequest is a request for ReissueAppCert.
 message ReissueAppCertRequest {
   // AppInfo contains info about the app, every ReissueAppCertRequest must
-  // include an app_info as returned from ResolveAppInfo.
+  // include an app_info as returned from ResolveFQDN.
   AppInfo app_info = 1;
   // TargetPort is the TCP port to issue the cert for.
   uint32 target_port = 2;
@@ -171,6 +220,8 @@ message ReissueAppCertResponse {
 // ReissueAppCert. The private key used for the signature will match the subject
 // public key of the issued x509 certificate.
 message SignForAppRequest {
+  reserved 3, 4, 5;
+  reserved "digest", "hash", "pss_salt_length";
   // AppKey uniquely identifies a TCP app, it must match the key of an app from
   // a previous successful call to ReissueAppCert.
   AppKey app_key = 1;
@@ -178,13 +229,19 @@ message SignForAppRequest {
   // TargetPort of a previous successful call to ReissueAppCert for an app
   // matching AppKey.
   uint32 target_port = 2;
+  // Sign holds signature request details.
+  SignRequest sign = 6;
+}
+
+// SignRequest holds signature request details.
+message SignRequest {
   // Digest is the bytes to sign.
-  bytes digest = 3;
+  bytes digest = 1;
   // Hash is the hash function used to compute digest.
-  Hash hash = 4;
+  Hash hash = 2;
   // PssSaltLength specifies the length of the salt added to the digest before a
   // signature. Only used and required for RSA PSS signatures.
-  optional int32 pss_salt_length = 5;
+  optional int32 pss_salt_length = 3;
 }
 
 // Hash specifies a cryptographic hash function.
@@ -250,4 +307,90 @@ message TargetOSConfiguration {
   // is logged in to, and if any cluster does not configure a custom range it
   // should also include the default range.
   repeated string ipv4_cidr_ranges = 2;
+}
+
+// UserTLSCertRequest is a request for UserTLSCert.
+message UserTLSCertRequest {
+  // Profile is the profile to retrieve the certificate for.
+  string profile = 1;
+}
+
+// UserTLSCertResponse is a response for UserTLSCert.
+message UserTLSCertResponse {
+  // Cert is the user TLS certificate in X.509 ASN.1 DER format.
+  bytes cert = 1;
+  // DialOptions holds options that should be used when dialing the root cluster
+  // proxy.
+  DialOptions dial_options = 2;
+}
+
+// SignForUserTLSRequest is a request for SignForUserTLS.
+message SignForUserTLSRequest {
+  // Profile is the user profile to sign for.
+  string profile = 1;
+  // Sign holds signature request details.
+  SignRequest sign = 2;
+}
+
+// SignForUserTLSResponse is a response for SignForUserTLS.
+message SignForUserTLSResponse {
+  // Signature is the signature.
+  bytes signature = 1;
+}
+
+// SessionSSHConfigRequest is a request for SessionSSHConfig.
+message SessionSSHConfigRequest {
+  // Profile is the profile in which the SSH server is found.
+  string profile = 1;
+  // RootCluster is the cluster in which the SSH server is found.
+  string root_cluster = 2;
+  // LeafCluster is the leaf cluster in which the SSH server is found.
+  // If empty, the SSH server is in the root cluster.
+  string leaf_cluster = 3;
+  // Address is the address of the SSH server.
+  string address = 4;
+  // User is the SSH user the session is for.
+  string user = 5;
+}
+
+// SessionSSHConfigResponse is a response for SessionSSHConfig.
+message SessionSSHConfigResponse {
+  // SessionId is an opaque identifier for the session, it should be passed to
+  // SignForSSHSession to issue signatures with the private key associated with
+  // the session.
+  string session_id = 1;
+  // Cert is the session SSH certificate in SSH wire format.
+  bytes cert = 2;
+  // TrustedCas is a list of trusted SSH certificate authorities in SSH wire
+  // format.
+  repeated bytes trusted_cas = 3;
+}
+
+// SignForSSHSessionRequest is a request for SignForSSHSession.
+message SignForSSHSessionRequest {
+  // SessionId is an opaque identifier for the session returned from a previous
+  // call to SessionSSHConfig.
+  string session_id = 1;
+  // Sign holds signature request details.
+  SignRequest sign = 2;
+}
+
+// SignForSSHSessionResponse is a response for SignForSSHSession.
+message SignForSSHSessionResponse {
+  // Signature is the signature.
+  bytes signature = 1;
+}
+
+// ExchangeSSHKeysRequest is a request to exchange SSH keys for VNet SSH.
+message ExchangeSSHKeysRequest {
+  // HostPublicKey is the host key that should be trusted by clients connecting
+  // to VNet SSH addresses. It is encoded in OpenSSH wire format.
+  bytes host_public_key = 1;
+}
+
+// ExchangeSSHKeysResponse is a response for ExchangeSSHKeys.
+message ExchangeSSHKeysResponse {
+  // UserPublicKey is the user key that should be trusted by VNet for incoming
+  // connections from SSH clients. It is encoded in OpenSSH wire format.
+  bytes user_public_key = 1;
 }

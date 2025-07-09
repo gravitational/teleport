@@ -276,7 +276,6 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -298,7 +297,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 
 			result, err := fetcher.Get(context.Background())
 			require.NoError(t, err)
-			require.Equal(t, len(tt.expected), len(result))
+			require.Len(t, tt.expected, len(result))
 			slices.SortFunc(result, func(a, b types.ResourceWithLabels) int {
 				return strings.Compare(a.GetName(), b.GetName())
 			})

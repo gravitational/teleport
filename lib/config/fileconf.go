@@ -66,6 +66,7 @@ type FileConfig struct {
 	Auth    Auth  `yaml:"auth_service,omitempty"`
 	SSH     SSH   `yaml:"ssh_service,omitempty"`
 	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Relay   Relay `yaml:"relay_service,omitempty"`
 	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
@@ -143,7 +144,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
-		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing the config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 	if err := fc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
@@ -551,7 +552,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -731,6 +732,9 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
+	// SessionRecordingEncryption enables or disables encryption of session recordings.
+	SessionRecordingEncryption *types.BoolOption `yaml:"session_recording_encryption,omitempty"`
+
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
@@ -832,6 +836,16 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig `yaml:"audit_log"`
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool `yaml:"enabled"`
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -862,7 +876,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
+		a.SessionRecordingEncryption != empty.SessionRecordingEncryption
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -922,10 +937,7 @@ type AWSKMS struct {
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion struct {
-		// Enabled configures new keys to be multi-region.
-		Enabled bool
-	} `yaml:"multi_region,omitempty"`
+	MultiRegion servicecfg.MultiRegionKeyStore `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
@@ -1508,11 +1520,7 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
-
-		if cfg.DisplayOffset > x11.MaxDisplayNumber {
-			cfg.DisplayOffset = x11.MaxDisplayNumber
-		}
+		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1593,6 +1601,15 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
+// AccessGraphAWSSyncCloudTrailLogs represents the configuration for the SQS queue
+// to poll for CloudTrail notifications.
+type AccessGraphAWSSyncCloudTrailLogs struct {
+	// QueueURL is the URL of the SQS queue to poll for AWS resources.
+	QueueURL string `yaml:"queue_url,omitempty"`
+	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
+	QueueRegion string `yaml:"queue_region,omitempty"`
+}
+
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1602,6 +1619,9 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// CloudTrailLogs is the configuration for the SQS queue to poll for
+	// CloudTrail logs.
+	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1935,6 +1955,10 @@ type DatabaseAD struct {
 	LDAPCert string `yaml:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName string `yaml:"kdc_host_name,omitempty"`
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -2120,6 +2144,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
+
+	// MCP contains MCP server-related configurations.
+	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2176,6 +2203,17 @@ type PortRange struct {
 	// greater than Port and less than or equal to 65535. When describing a single port, it must be
 	// set to 0.
 	EndPort int `yaml:"end_port,omitempty"`
+}
+
+// MCP contains MCP server-related configurations.
+type MCP struct {
+	// Command to launch stdio-based MCP servers.
+	Command string `yaml:"command,omitempty"`
+	// Args to execute with the command.
+	Args []string `yaml:"args,omitempty"`
+	// RunAsHostUser is the host user account under which the command will be
+	// executed. Required for stdio-based MCP servers.
+	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2490,7 +2528,12 @@ type WindowsDesktopService struct {
 	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
+	// New usages should prever DiscoveryConfigs instead, which allows for multiple searches.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	// DiscoveryConfigs configures desktop discovery via LDAP.
+	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
+	// DiscoveryInterval controls how frequently the discovery process runs.
+	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2590,6 +2633,9 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.
@@ -2824,4 +2870,18 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
+}
+
+// Relay is the relay_service section of the Teleport config file.
+type Relay struct {
+	// Enabled is set if the relay service is enabled, defaults to false.
+	Enabled bool `yaml:"enabled"`
+
+	// RelayGroup is the Relay group name, required if the relay service is
+	// enabled.
+	RelayGroup string `yaml:"relay_group"`
+
+	// APIPublicHostnames is the list of DNS names and IP addresses that the
+	// Relay service credentials should be authoritative for.
+	APIPublicHostnames []string `yaml:"api_public_hostnames"`
 }

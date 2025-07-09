@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -115,8 +116,7 @@ func (r *mockHostResolver) LookupHost(ctx context.Context, host string) (addrs [
 func TestRouteScoring(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up various servers with overlapping IPs and hostnames
 	servers := createServers([]server{
@@ -394,7 +394,7 @@ func TestGetServers(t *testing.T) {
 			name: "no matches for uuid",
 			site: testSite{cfg: &mostRecentCfg},
 			host: uuid.NewString(),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -405,7 +405,7 @@ func TestGetServers(t *testing.T) {
 			name: "no matches for ec2 id",
 			site: testSite{cfg: &unambiguousCfg},
 			host: "123456789012-i-1234567890abcdef0",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -416,7 +416,7 @@ func TestGetServers(t *testing.T) {
 			name: "ambiguous match fails",
 			site: testSite{cfg: &unambiguousCfg, nodes: servers},
 			host: "sheep",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -488,7 +488,7 @@ func TestGetServers(t *testing.T) {
 			name: "case-insensitive ambiguous",
 			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host: "platypus",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -521,7 +521,7 @@ func TestGetServers(t *testing.T) {
 			name: "git server not found",
 			site: testSite{cfg: &unambiguousCfg, gitServers: gitServers},
 			host: "org-not-found.teleport-github-org",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -657,6 +657,10 @@ func (r testRemoteSite) DialAuthServer(reversetunnelclient.DialParams) (net.Conn
 }
 
 func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
+	return nil, nil
+}
+
+func (r testRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return nil, nil
 }
 
@@ -930,6 +934,70 @@ func TestRouter_DialSite(t *testing.T) {
 			}
 
 			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
+			tt.assertion(t, conn, err)
+		})
+	}
+}
+
+func TestRouter_DialWindowsDesktop(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		router    Router
+		assertion func(t *testing.T, conn net.Conn, err error)
+	}{
+		{
+			name: "failure looking up cluster",
+			router: Router{
+				clusterName: "leaf",
+				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
+				tracer:      tracing.NoopTracer("test"),
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+				require.Nil(t, conn)
+			},
+		},
+		{
+			name: "failure connecting to desktop service",
+			router: Router{
+				clusterName: "test",
+				tracer:      tracing.NoopTracer("test"),
+				localSite:   &testRemoteSite{},
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return nil, "", trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
+				},
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsConnectionProblem(err))
+				require.Nil(t, conn)
+			},
+		},
+		{
+			name: "dial success",
+			router: Router{
+				clusterName: "test",
+				localSite:   &testRemoteSite{conn: fakeConn{}},
+				tracer:      tracing.NoopTracer("test"),
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return fakeConn{}, "18.0.0", nil
+				},
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, conn)
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, err := tt.router.DialWindowsDesktop(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "test", nil)
 			tt.assertion(t, conn, err)
 		})
 	}

@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -608,7 +609,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -641,8 +642,8 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	}
 
 	httplib.SetScriptHeaders(w.Header())
+	_, err = w.Write([]byte(script))
 
-	_, err = fmt.Fprint(w, script)
 	return nil, trace.Wrap(err)
 }
 
@@ -712,8 +713,8 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 	}
 
 	httplib.SetScriptHeaders(w.Header())
+	_, err = w.Write([]byte(script))
 
-	_, err = fmt.Fprint(w, script)
 	return nil, trace.Wrap(err)
 }
 
@@ -753,7 +754,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -1260,7 +1261,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -1301,7 +1302,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -1338,6 +1339,31 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
+
+	if sqsURL := queryParams.Get("sqsUrl"); sqsURL != "" {
+		if !awsoidc.IsValidSQSURL(sqsURL) {
+			return nil, trace.BadParameter("invalid sqsUrl %q", sqsURL)
+		}
+		argsList = append(argsList, fmt.Sprintf("--sqs-queue-url=%s", shsprintf.EscapeDefaultContext(sqsURL)))
+	}
+
+	if s3Bucket := queryParams.Get("cloudTrailS3Bucket"); s3Bucket != "" {
+		if _, err := arn.Parse(s3Bucket); err != nil {
+			return nil, trace.BadParameter("invalid cloudTrailS3Bucket %q", s3Bucket)
+		}
+
+		argsList = append(argsList, fmt.Sprintf("--cloud-trail-bucket=%s", shsprintf.EscapeDefaultContext(s3Bucket)))
+	}
+
+	if kmsKeysARNs := queryParams["kmsKeysARNs"]; len(kmsKeysARNs) > 0 {
+		for _, keyARN := range kmsKeysARNs {
+			if _, err := arn.Parse(keyARN); err != nil {
+				return nil, trace.BadParameter("invalid kmsKeysARNs %q", keyARN)
+			}
+			argsList = append(argsList, fmt.Sprintf("--kms-key=%s", shsprintf.EscapeDefaultContext(keyARN)))
+		}
+	}
+
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Access Graph AWS Sync enrollment.",
@@ -1347,7 +1373,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }

@@ -30,7 +30,7 @@ import (
 )
 
 const defaultInstallerSnapshot = `#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 
 
 INSTALL_SCRIPT_URL="https://teleport.example.com:443/scripts/install.sh"

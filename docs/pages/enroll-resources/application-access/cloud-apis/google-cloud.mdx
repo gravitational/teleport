@@ -8,17 +8,18 @@ Cloud's APIs. This lets you control access to your infrastructure's management
 APIs using the same RBAC system that you use to protect your infrastructure
 itself.
 
+## How it works
+
 The Teleport Application Service manages access to Google Cloud's APIs by
 proxying requests from CLI applications. The Application Service authenticates
 these requests using tokens retrieved from Google Cloud. This enables Teleport
 operators to control the service accounts that users can assume in order to
 interact with Google Cloud APIs.
 
-{/* TODO: Add a mermaidjs graph here when available*/}
-
 The Teleport Application Service connects to the Teleport Proxy Service over a
 reverse tunnel, so you can run the Application Service in a private network and
-prevent unauthorized access to your organization's Google Cloud service accounts.
+prevent unauthorized access to your organization's Google Cloud service
+accounts.
 
 ## Prerequisites
 
@@ -335,7 +336,7 @@ service accounts you have assigned to the user.
 
 Assign the target service account we created earlier (or another service
 account) to your Teleport user by running the following command, setting 
-<Var name ="teleport-user" /> to the name of your Teleport user:
+<Var name="teleport-user" /> to the name of your Teleport user:
 
 ```code
 $ tctl users update <Var name="teleport-user" /> \
@@ -642,8 +643,8 @@ command.
   ensure that your Teleport users can only manage Google Cloud resources
   temporarily, with no longstanding admin roles for attackers to hijack. View
   our documentation on [Role Access
-  Requests](../../../admin-guides/access-controls/access-requests/role-requests.mdx) and [Access
-  Request plugins](../../../admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx).
+  Requests](../../../identity-governance/access-requests/role-requests.mdx) and [Access
+  Request plugins](../../../identity-governance/access-request-plugins/access-request-plugins.mdx).
 - You can proxy any `gcloud` or `gsutil` command via Teleport. For a full
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and

@@ -81,19 +81,23 @@ export const SectionBox = ({
   tooltip,
   children,
   removable,
-  isProcessing,
+  isProcessing = false,
   validation,
   onRemove,
+  initiallyCollapsed = false,
 }: React.PropsWithChildren<{
   titleSegments: string[];
   tooltip?: string;
   removable?: boolean;
-  isProcessing: boolean;
+  isProcessing?: boolean;
   validation?: ValidationResult;
   onRemove?(): void;
+  initiallyCollapsed?: boolean;
 }>) => {
   const theme = useTheme();
-  const [expansionState, setExpansionState] = useState(ExpansionState.Expanded);
+  const [expansionState, setExpansionState] = useState(
+    initiallyCollapsed ? ExpansionState.Collapsed : ExpansionState.Expanded
+  );
   const expandTooltip =
     expansionState === ExpansionState.Collapsed ? 'Collapse' : 'Expand';
   const validator = useValidation();
