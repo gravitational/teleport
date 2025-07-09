@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -606,9 +605,6 @@ func TestCreateTokenExpiry(t *testing.T) {
 			Cloud: false,
 		},
 	})
-
-	// TODO: Remove this once bound keypair experiment flag is removed.
-	boundkeypairexperiment.SetEnabled(true)
 
 	ctx := context.Background()
 	username := "test-user@example.com"
