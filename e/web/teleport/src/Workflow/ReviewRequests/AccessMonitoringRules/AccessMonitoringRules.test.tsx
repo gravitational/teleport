@@ -90,7 +90,7 @@ describe('AccessMonitoringRulesDialog', () => {
     await screen.findAllByText(/plugin-name/i);
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create access monitoring rule/i })
+      screen.getByRole('button', { name: /create new access automation rule/i })
     );
 
     await userEvent.click(
@@ -138,7 +138,7 @@ describe('AccessMonitoringRulesDialog', () => {
     expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(2);
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create access monitoring rule/i })
+      screen.getByRole('button', { name: /create new access automation rule/i })
     );
 
     await userEvent.click(
@@ -160,7 +160,7 @@ describe('AccessMonitoringRulesDialog', () => {
     await waitForAllAsyncCalls();
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create access monitoring rule/i })
+      screen.getByRole('button', { name: /create new access automation rule/i })
     );
 
     await userEvent.click(

@@ -194,7 +194,7 @@ export const AccessMonitoringRulesDialog = forwardRef<
                   <Cross size="medium" />
                 </ButtonIcon>
               </HoverTooltip>
-              <Text typography="h1">Access Monitoring Rules</Text>
+              <Text typography="h1">Access Automation Rules</Text>
             </Flex>
             {fetchPluginsAttempt.status === 'success' && (
               <HoverTooltip
@@ -209,9 +209,9 @@ export const AccessMonitoringRulesDialog = forwardRef<
               >
                 <MenuButton
                   menuProps={{ menuListCss }}
-                  buttonText="Create Access Monitoring Rule"
+                  buttonText="Create New Access Automation Rule"
                   buttonProps={{
-                    width: 240,
+                    width: 280,
                     padding: 0,
                     size: 'medium',
                     intent: 'primary',
@@ -295,7 +295,7 @@ export const AccessMonitoringRulesDialog = forwardRef<
 });
 
 const menuListCss = () => `
-  width: 240px;
+  width: 280px;
 `;
 
 const fullScreenDialogCss = (theme: Theme) => {

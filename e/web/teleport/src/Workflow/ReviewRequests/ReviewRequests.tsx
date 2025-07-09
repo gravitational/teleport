@@ -53,7 +53,7 @@ export default function Workflow() {
       onClick={() => setShowRoutingRuleDialog(true)}
       disabled={!hasReadRulesAccess}
     >
-      View Access Monitoring Rules
+      Set Up Access Automation
     </ButtonBorder>
   );
   const transitionRef = useRef<HTMLDivElement>(null);
