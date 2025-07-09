@@ -560,6 +560,10 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 		return nil
 	}
 
+	// without this check creating the lock may fail with "special characters are not allowed in resource names"
+	if member.Spec.AccessList == "" {
+		return nil, trace.BadParameter("access_list_member %s: spec.access_list field empty", member.GetName())
+	}
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, action)
 	})
@@ -569,6 +573,10 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 // UpdateAccessListMember conditionally updates an access list member resource.
 func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	var updated *accesslist.AccessListMember
+	// without this check creating the lock may fail with "special characters are not allowed in resource names"
+	if member.Spec.AccessList == "" {
+		return nil, trace.BadParameter("access_list_member %s: spec.access_list field empty", member.GetName())
+	}
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			memberList, err := a.service.GetResource(ctx, member.Spec.AccessList)

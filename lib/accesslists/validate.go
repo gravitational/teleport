@@ -113,73 +113,83 @@ func validateAccessListUpdate(existingAccessList, accessList *accesslist.AccessL
 // 10) requirement and don't create cycles.
 func validateAccessListNesting(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
 	for _, owner := range accessList.Spec.Owners {
-		if owner.MembershipKind != accesslist.MembershipKindList {
-			continue
-		}
-		ownerList, err := g.GetAccessList(ctx, owner.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := validateAddition(ctx, accessList, ownerList, RelationshipKindOwner, g); err != nil {
+		if err := validateAccessListOwner(ctx, accessList, owner, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for _, member := range members {
-		if member.Spec.MembershipKind != accesslist.MembershipKindList {
-			continue
-		}
-		memberList, err := g.GetAccessList(ctx, member.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := validateAddition(ctx, accessList, memberList, RelationshipKindMember, g); err != nil {
+		if err := ValidateAccessListMember(ctx, accessList, member, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-// ValidateAccessListMember validates a new or existing AccessListMember for an Access List.
+// ValidateAccessListMember validates AccessListMember. That includes nested AccessList members
+// validation.
 func ValidateAccessListMember(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	member *accesslist.AccessListMember,
 	g AccessListAndMembersGetter,
 ) error {
-	if member.Spec.MembershipKind != accesslist.MembershipKindList {
-		return nil
+	if err := validateAccessListMemberBasic(member); err != nil {
+		return trace.Wrap(err)
 	}
-	return validateAccessListMemberOrOwner(ctx, parentList, member.GetName(), RelationshipKindMember, g)
+	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, member.GetName(), RelationshipKindMember, member.Spec.MembershipKind, g); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
-// ValidateAccessListOwner validates a new or existing AccessListOwner for an Access List.
-func ValidateAccessListOwner(
+// validateAccessListMemberBasic performs basic fields validation for AccessListMember.
+func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
+	if member.Spec.AccessList == "" {
+		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
+	}
+	if member.Spec.Name != member.Metadata.Name {
+		return trace.BadParameter("member metadata name = %q and spec name = %q must be equal", member.Metadata.Name, member.Spec.Name)
+	}
+	if member.Spec.Joined.IsZero() || member.Spec.Joined.Unix() == 0 {
+		return trace.BadParameter("member %s: joined field empty or missing", member.Metadata.Name)
+	}
+	if member.Spec.AddedBy == "" {
+		return trace.BadParameter("member %s: added_by field is empty", member.Metadata.Name)
+	}
+	return nil
+}
+
+// validateAccessListOwner Owner for an AccessList. That includes nested AccessList owners
+// validation.
+func validateAccessListOwner(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
-	owner *accesslist.Owner,
+	owner accesslist.Owner,
 	g AccessListAndMembersGetter,
 ) error {
-	if owner.MembershipKind != accesslist.MembershipKindList {
-		return nil
+	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, owner.Name, RelationshipKindOwner, owner.MembershipKind, g); err != nil {
+		return trace.Wrap(err)
 	}
-	return validateAccessListMemberOrOwner(ctx, parentList, owner.Name, RelationshipKindOwner, g)
+	return nil
 }
 
-func validateAccessListMemberOrOwner(
+func validateAccessListMemberOrOwnerNesting(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	memberOrOwnerName string,
-	kind RelationshipKind,
+	relationshipKind RelationshipKind,
+	membershipKind string,
 	g AccessListAndMembersGetter,
 ) error {
-	// Ensure member or owner list exists
+	if membershipKind != accesslist.MembershipKindList {
+		return nil
+	}
+	// If it is a AccessList member/owner then the referenced AccessList must exist.
 	memberOrOwnerList, err := g.GetAccessList(ctx, memberOrOwnerName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Validate addition
-	if err := validateAddition(ctx, parentList, memberOrOwnerList, kind, g); err != nil {
+	if err := validateAddition(ctx, parentList, memberOrOwnerList, relationshipKind, g); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
