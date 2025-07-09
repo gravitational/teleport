@@ -550,6 +550,8 @@ func TestService_GetAccessListsToReview(t *testing.T) {
 			},
 		},
 	})
+	nonReviewable1 := newAccessList(t, "8", c.clock, withType(accesslist.Static))
+	nonReviewable2 := newAccessList(t, "9", c.clock, withType(accesslist.SCIM))
 	// Since ownership is inherited by members of sub-lists, add ownerCtx as member of a7.
 	a7m1 := newAccessListMember(t, a7.GetName(), ownerUser, accesslist.MembershipKindUser, c.clock)
 
@@ -560,7 +562,7 @@ func TestService_GetAccessListsToReview(t *testing.T) {
 	a5.Spec.Audit.NextAuditDate = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
 
 	// Provide a7 before a6 since a6 depends on a7 for ownership relationship.
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1, a2, a3, a4, a5, a7, a6}, []*accesslist.AccessListMember{a7m1})
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1, a2, a3, a4, a5, a7, a6, nonReviewable1, nonReviewable2}, []*accesslist.AccessListMember{a7m1})
 
 	c.setDate(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
 
@@ -2949,9 +2951,27 @@ func genUserContext(ctx context.Context, username string, groups []string, trait
 	})
 }
 
-func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
+type accessListOptions struct {
+	typ accesslist.Type
+}
+
+type accessListOpt func(*accessListOptions)
+
+func withType(typ accesslist.Type) accessListOpt {
+	return func(o *accessListOptions) {
+		o.typ = typ
+	}
+}
+
+func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...accessListOpt) *accesslist.AccessList {
+	options := accessListOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
 	// Default to an access list with the next audit date 1 year in the future and ownership/membership requirements.
 	return newAccessListWithPartialSpec(t, name, clock.Now().Add(time.Hour*24*365), accesslist.Spec{
+		Type: options.typ,
 		Owners: []accesslist.Owner{
 			{Name: ownerUser, Description: "owner user", MembershipKind: accesslist.MembershipKindUser},
 			{Name: ownerUser2, Description: "owner user 2", MembershipKind: accesslist.MembershipKindUser},

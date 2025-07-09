@@ -471,6 +471,9 @@ func (s *Service) GetAccessListsToReview(ctx context.Context, req *accesslistv1.
 	}
 
 	for _, accessList := range accessLists {
+		if !accessList.IsReviewable() {
+			continue
+		}
 		if s.needsReviewBy(ctx, authCtx.User, accessList, now) {
 			resp.AccessLists = append(resp.AccessLists, conv.ToProto(accessList))
 		}
