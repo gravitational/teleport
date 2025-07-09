@@ -144,12 +144,10 @@ func TestEvaluateCondition(t *testing.T) {
 			match: false,
 		},
 		{
-			description: "single resource has label",
+			description: "(union) single resource has label",
 			condition: `
-				access_request.spec.requested_resources.all_has_labels("env", "test") &&
-				all_has_labels(access_request.spec.requested_resources, "env", "test") &&
-				access_request.spec.requested_resources.some_has_labels("env", "test") &&
-				some_has_labels(access_request.spec.requested_resources, "env", "test")`,
+				access_request.spec.resource_labels_union["env"].
+					contains("test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -162,37 +160,10 @@ func TestEvaluateCondition(t *testing.T) {
 			match: true,
 		},
 		{
-			description: "multiple resources have label",
+			description: "(union) multiple resources have label",
 			condition: `
-				access_request.spec.requested_resources.all_has_labels("env", "test") &&
-				all_has_labels(access_request.spec.requested_resources, "env", "test")`,
-			env: AccessRequestExpressionEnv{
-				RequestedResources: []types.ResourceWithLabels{
-					&types.ServerV2{
-						Metadata: types.Metadata{
-							Labels: map[string]string{
-								"env": "test",
-								"os":  "mac",
-							},
-						},
-					},
-					&types.ServerV2{
-						Metadata: types.Metadata{
-							Labels: map[string]string{
-								"env": "test",
-								"os":  "linux",
-							},
-						},
-					},
-				},
-			},
-			match: true,
-		},
-		{
-			description: "some resources do not have label",
-			condition: `
-				access_request.spec.requested_resources.all_has_labels("env", "test") &&
-				all_has_labels(access_request.spec.requested_resources, "env", "test")`,
+				access_request.spec.resource_labels_union["env"].
+					contains_all(set("test", "dev"))`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -202,41 +173,70 @@ func TestEvaluateCondition(t *testing.T) {
 					},
 					&types.ServerV2{
 						Metadata: types.Metadata{
-							Labels: map[string]string{"env": "prod"},
+							Labels: map[string]string{"env": "dev"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(intersection) single resource has label",
+			condition: `
+				access_request.spec.resource_labels_intersection["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(intersection) multiple resources have label",
+			condition: `
+				access_request.spec.resource_labels_intersection["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(intersection) multiple resource labels do not intersect",
+			condition: `
+				access_request.spec.resource_labels_intersection["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "dev"},
 						},
 					},
 				},
 			},
 			match: false,
-		},
-		{
-			description: "some resources have label",
-			condition: `
-				access_request.spec.requested_resources.some_has_labels("env", "test") &&
-				some_has_labels(access_request.spec.requested_resources, "env", "test")`,
-			env: AccessRequestExpressionEnv{
-				RequestedResources: []types.ResourceWithLabels{
-					&types.ServerV2{
-						Metadata: types.Metadata{
-							Labels: map[string]string{"env": "test"},
-						},
-					},
-					&types.ServerV2{
-						Metadata: types.Metadata{
-							Labels: map[string]string{"env": "prod"},
-						},
-					},
-				},
-			},
-			match: true,
-		},
-		{
-			description: "requested_resources is empty",
-			condition:   `access_request.spec.requested_resources.length == 0`,
-			env: AccessRequestExpressionEnv{
-				RequestedResources: []types.ResourceWithLabels{},
-			},
-			match: true,
 		},
 	}
 
