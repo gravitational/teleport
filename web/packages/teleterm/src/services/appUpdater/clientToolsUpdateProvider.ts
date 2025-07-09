@@ -33,7 +33,12 @@ const CHECKSUM_FETCH_TIMEOUT = 5_000;
 // Example: 60ce9fcaa4104c5746e31b576814b38f376136c08ea73dd5fe943f09725a00cf  Teleport Connect-17.5.4-mac.zip
 const CHECKSUM_FORMAT = /^.+\s+.+$/;
 
-/** Implements electron-updater's `Provider` with client tools updates. */
+/**
+ * Implements electron-updater's `Provider` with client tools updates.
+ * The official docs does not provide examples for creating custom providers.
+ * This implementation is inspired by existing built-in providers, such as `GenericProvider`.
+ * https://github.com/electron-userland/electron-builder/blob/065c6a456e34e7f8c13cba483d433502b9325168/packages/electron-updater/src/providers/GenericProvider.ts
+ * */
 export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
   constructor(
     private getClientToolsVersion: ClientToolsVersionGetter,
@@ -43,6 +48,10 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     super(runtimeOptions);
   }
 
+  /**
+   * Fetches metadata about the latest available update.
+   * This method is called during the check for updates.
+   */
   override async getLatestVersion(): Promise<UpdateInfo> {
     const clientTools = await this.getClientToolsVersion();
 
@@ -79,6 +88,11 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     };
   }
 
+  /**
+   * Resolves file information before downloading.
+   * Since full URLs are already constructed in `getLatestVersion`,
+   * the files are returned without modification.
+   */
   override resolveFiles(updateInfo: UpdateInfo): ResolvedUpdateFileInfo[] {
     return updateInfo.files.map(fileInfo => ({
       url: new URL(fileInfo.url),

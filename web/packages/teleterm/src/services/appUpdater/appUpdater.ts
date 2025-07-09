@@ -48,8 +48,9 @@ export class AppUpdater {
     autoUpdater.autoDownload = true;
     autoUpdater.allowDowngrade = true;
     autoUpdater.autoInstallOnAppQuit = true;
-    // Allows update checks during dev mode.
-    // Installing updates will not work.
+    // Enables checking for updates and downloading them in dev mode.
+    // It makes testing this feature easier.
+    // Only installing updates requires the packaged app.
     // Downloads are saved to the path specified in dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = true;
   }
