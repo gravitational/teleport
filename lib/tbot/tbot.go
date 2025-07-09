@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/carotation"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/internal/heartbeat"
+	internalidentity "github.com/gravitational/teleport/lib/tbot/internal/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -92,7 +93,7 @@ type Bot struct {
 
 	mu             sync.Mutex
 	started        bool
-	botIdentitySvc *identityService
+	botIdentitySvc *internalidentity.Service
 }
 
 func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
@@ -240,16 +241,30 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	statusRegistry := readyz.NewRegistry()
 
-	b.mu.Lock()
-	b.botIdentitySvc = &identityService{
-		cfg:               b.cfg,
-		reloadBroadcaster: reloadBroadcaster,
-		clientBuilder:     clientBuilder,
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
+	identityReloadCh, unsubscribeIdentityReload := reloadBroadcaster.Subscribe()
+	defer unsubscribeIdentityReload()
+
+	idSvc, err := internalidentity.NewService(internalidentity.Config{
+		Connection:      connCfg,
+		Onboarding:      b.cfg.Onboarding,
+		Destination:     b.cfg.Storage.Destination,
+		TTL:             b.cfg.CredentialLifetime.TTL,
+		RenewalInterval: b.cfg.CredentialLifetime.RenewalInterval,
+		FIPS:            b.cfg.FIPS,
+		ReloadCh:        identityReloadCh,
+		ClientBuilder:   clientBuilder,
+		Logger: b.log.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "identity"),
 		),
-		statusReporter: statusRegistry.AddService("identity"),
+		StatusReporter: statusRegistry.AddService("identity"),
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	b.mu.Lock()
+	b.botIdentitySvc = idSvc
 	b.mu.Unlock()
 
 	// Initialize bot's own identity. This will load from disk, or fetch a new
