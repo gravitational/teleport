@@ -36,11 +36,11 @@ import {
   APP_GROUP_SYNC_CONFIG,
   OktaIntegrationStepType,
   OktaSetupStepComplete,
-  StyledBox,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import type { OktaIntegrationStepFormProps } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/props';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { StyledBox } from 'e-teleport/Integrations/Shared';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';

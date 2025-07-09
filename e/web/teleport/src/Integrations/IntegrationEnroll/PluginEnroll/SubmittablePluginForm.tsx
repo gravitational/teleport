@@ -156,8 +156,8 @@ export function SubmittablePluginForm({
 
   const isPartOfMultiStep = setFormData && !setStaticPluginResponse;
 
-  // Okta integration has its own layout and setup.
-  if (plugin.type === 'okta' && plugin.Setup) {
+  // Integrations with their own layout & setup.
+  if (plugin.customSetup && plugin.Setup) {
     return <plugin.Setup />;
   }
 

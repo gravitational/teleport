@@ -83,6 +83,12 @@ export type CloudHostablePlugin = PluginBase & {
   /** selfHostable is true for cloud plugins that can be self hosted as well. */
   selfHostable: boolean;
 
+  /**
+   * customSetup describes whether the plugin has a custom setup
+   * component.
+   */
+  customSetup?: boolean;
+
   // For each hosted plugin, these describe additional elements in the enroll page.
   fullName: string;
   Description?: () => JSX.Element;
@@ -91,7 +97,16 @@ export type CloudHostablePlugin = PluginBase & {
   NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
   disabledIfNoMdmSupport?: boolean;
-};
+} & (
+    | {
+        Setup: () => JSX.Element;
+        customSetup?: boolean;
+      }
+    | {
+        Setup?: never;
+        customSetup?: never;
+      }
+  );
 
 // EnrollSuccessResponse contains the necessary data to guide the user
 // after the plugin is connected (in `NextSteps` component).

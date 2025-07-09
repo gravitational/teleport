@@ -3,6 +3,7 @@ import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
 import {
   Plugin,
+  PluginCredentials,
   PluginKind,
   PluginNameToDetails,
   PluginNameToSpec,
@@ -160,7 +161,7 @@ export function makePlugins(json: any): Plugin[] {
 
 function makePlugin(json: any): Plugin {
   json = json || {};
-  const { name, details, statusCode, type, spec, status } = json;
+  const { name, details, statusCode, type, spec, status, credentials } = json;
 
   let madeStatus: PluginStatus;
   if (status) {
@@ -177,6 +178,14 @@ function makePlugin(json: any): Plugin {
     }
   }
 
+  let oAuthCreds: PluginCredentials['OAuthCredentials'] | undefined = undefined;
+  if (credentials?.oauth_creds) {
+    oAuthCreds = {
+      clientId: credentials.oauth_creds.client_id,
+      clientSecret: credentials.oauth_creds.client_secret,
+    };
+  }
+
   return {
     resourceType: 'plugin',
     name,
@@ -185,6 +194,7 @@ function makePlugin(json: any): Plugin {
     kind: type,
     statusCode,
     status: madeStatus,
+    credentials: oAuthCreds ? { OAuthCredentials: oAuthCreds } : undefined,
   };
 }
 

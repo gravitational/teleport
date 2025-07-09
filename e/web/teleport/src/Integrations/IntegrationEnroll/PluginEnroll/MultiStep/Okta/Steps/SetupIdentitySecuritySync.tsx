@@ -13,11 +13,11 @@ import {
   ListItem,
   OktaIntegrationStepType,
   OktaSetupStepComplete,
-  StyledBox,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import type { OktaIntegrationStepFormProps } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/props';
 import { RequiredPermissionItem } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { StyledBox } from 'e-teleport/Integrations/Shared';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';

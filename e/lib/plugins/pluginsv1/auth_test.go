@@ -364,5 +364,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeGithub,
 		},
+		{
+			Type: types.PluginTypeSCIM,
+		},
 	}, resp.PluginTypes)
 }

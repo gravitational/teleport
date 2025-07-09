@@ -53,6 +53,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeAWSIdentityCenter,
 		types.PluginTypeMSTeams,
 		types.PluginTypeEmail,
+		types.PluginTypeSCIM,
 	}
 }
 

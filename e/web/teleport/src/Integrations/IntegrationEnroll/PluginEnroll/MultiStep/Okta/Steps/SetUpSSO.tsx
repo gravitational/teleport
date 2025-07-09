@@ -26,10 +26,10 @@ import {
   createOktaPlugin,
   OktaSetupStepComplete,
   SSO_CONFIG,
-  StyledBox,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { StyledBox } from 'e-teleport/Integrations/Shared';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import useTeleportE from 'e-teleport/useTeleportE';

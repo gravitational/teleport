@@ -30,7 +30,6 @@ import {
   getOktaIntegrationSteps,
   OktaIntegrationStepType,
   OktaLevelProductRequirement,
-  StyledBox,
   UpsellBulletList,
   type OktaIntegrationLevelStep,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
@@ -39,6 +38,7 @@ import { SetupIdentitySecuritySync } from 'e-teleport/Integrations/IntegrationEn
 import { SetUpScim } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpScim';
 import { SetUpSSO } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpSSO';
 import { SetUpUserSync } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
+import { StyledBox } from 'e-teleport/Integrations/Shared';
 import {
   createCheckPluginRequiresCleanupQuery,
   useCheckPluginRequiresCleanup,

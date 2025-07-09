@@ -15,6 +15,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import cfg from 'e-teleport/config';
 import { OktaIntegrationSetUp } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUp';
+import { SCIMIntegrationSetUp } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/SCIM/SetUp';
 import type {
   CloudHostablePlugin,
   SelfHostedPlugin,
@@ -145,8 +146,20 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     url: 'https://goteleport.com/docs/enroll-resources/application-access/okta/',
     cloudHostable: true,
     selfHostable: true,
+    customSetup: true,
     fullName: 'Okta Integration',
-    Setup: () => <OktaIntegrationSetUp />,
+    Setup: OktaIntegrationSetUp,
+  },
+  {
+    type: 'scim',
+    name: 'SCIM',
+    icon: 'scim',
+    url: 'https://goteleport.com/docs/enroll-resources/application-access/scim',
+    cloudHostable: true,
+    selfHostable: true,
+    customSetup: true,
+    fullName: 'SCIM Integration',
+    Setup: SCIMIntegrationSetUp,
   },
   {
     type: 'opsgenie',

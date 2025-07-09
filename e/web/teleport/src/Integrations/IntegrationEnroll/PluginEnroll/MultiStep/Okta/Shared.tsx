@@ -405,41 +405,6 @@ export const ListItem = ({
   </li>
 );
 
-const StyledBoxComponent = styled(Flex)`
-  position: relative;
-  background-color: ${props => props.theme.colors.levels.surface};
-  box-shadow:
-    0 2px 1px -1px rgba(0, 0, 0, 0.2),
-    0 1px 1px 0 rgba(0, 0, 0, 0.14),
-    0 1px 3px 0 rgba(0, 0, 0, 0.12);
-`;
-
-export const StyledBox = ({
-  header,
-  children,
-  ...props
-}: PropsWithChildren<
-  {
-    header?: string | ReactNode;
-  } & ComponentProps<typeof StyledBoxComponent>
->) => (
-  <StyledBoxComponent
-    p={4}
-    gap={3}
-    borderRadius={3}
-    flexDirection="column"
-    maxWidth="800px"
-    {...props}
-  >
-    {typeof header === 'string' ? (
-      <H2 mt={-1}>{header}</H2>
-    ) : typeof header !== 'undefined' ? (
-      <Box mt={-1}>{header}</Box>
-    ) : null}
-    {children}
-  </StyledBoxComponent>
-);
-
 export const UpsellBulletList = ({
   bullets,
   color = 'text.muted',
