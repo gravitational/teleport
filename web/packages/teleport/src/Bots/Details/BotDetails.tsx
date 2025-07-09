@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useHistory, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
@@ -31,7 +31,6 @@ import { Question } from 'design/Icon/Icons/Question';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Outline } from 'design/Label/Label';
 import Text from 'design/Text';
-import { fontWeights } from 'design/theme/typography';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
@@ -50,9 +49,6 @@ import { formatDuration } from '../formatDuration';
 import { useGetBot } from '../hooks';
 import { InfoGuide } from '../InfoGuide';
 import { Panel } from './Panel';
-
-const botNameLabel = 'Bot name';
-const maxSessionDurationLabel = 'Max session duration';
 
 export function BotDetails() {
   const ctx = useTeleport();
@@ -145,29 +141,19 @@ export function BotDetails() {
             <Divider />
 
             <Panel title="Metadata" isSubPanel>
-              <TransposedTable>
-                <tbody>
-                  <tr>
-                    <th scope="row">{botNameLabel}</th>
-                    <td>
-                      <Flex inline alignItems={'center'} gap={1} mr={0}>
-                        <MonoText>{data.name}</MonoText>
-                        <CopyButton name={data.name} />
-                      </Flex>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">{maxSessionDurationLabel}</th>
-                    <td>
-                      {data.max_session_ttl
-                        ? formatDuration(data.max_session_ttl, {
-                            separator: ' ',
-                          })
-                        : '-'}
-                    </td>
-                  </tr>
-                </tbody>
-              </TransposedTable>
+              <Grid>
+                <GridLabel>Botname</GridLabel>
+                <Flex inline alignItems={'center'} gap={1} mr={0}>
+                  <MonoText>{data.name}</MonoText>
+                  <CopyButton name={data.name} />
+                </Flex>
+                <GridLabel>Max session duration</GridLabel>
+                {data.max_session_ttl
+                  ? formatDuration(data.max_session_ttl, {
+                      separator: ' ',
+                    })
+                  : '-'}
+              </Grid>
             </Panel>
 
             <PaddedDivider />
@@ -190,28 +176,26 @@ export function BotDetails() {
 
             <Panel title="Traits" isSubPanel>
               {data.traits.length ? (
-                <TransposedTable>
-                  <tbody>
-                    {data.traits
-                      .toSorted((a, b) => a.name.localeCompare(b.name))
-                      .map(r => (
-                        <tr key={r.name}>
-                          <th scope="row">
-                            <Trait traitName={r.name} />
-                          </th>
-                          <td>
-                            {r.values.length > 0
-                              ? r.values.toSorted().map(v => (
-                                  <Outline mr="1" key={v}>
-                                    {v}
-                                  </Outline>
-                                ))
-                              : 'no values'}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </TransposedTable>
+                <Grid>
+                  {data.traits
+                    .toSorted((a, b) => a.name.localeCompare(b.name))
+                    .map(r => (
+                      <React.Fragment key={r.name}>
+                        <GridLabel>
+                          <Trait traitName={r.name} />
+                        </GridLabel>
+                        <div>
+                          {r.values.length > 0
+                            ? r.values.toSorted().map(v => (
+                                <Outline mr="1" key={v}>
+                                  {v}
+                                </Outline>
+                              ))
+                            : 'no values'}
+                        </div>
+                      </React.Fragment>
+                    ))}
+                </Grid>
               ) : (
                 'No traits set'
               )}
@@ -257,14 +241,14 @@ const PaddedDivider = styled(Divider)`
   margin-right: ${props => props.theme.space[3]}px;
 `;
 
-const TransposedTable = styled.table`
-  th {
-    text-align: start;
-    padding-right: ${props => props.theme.space[3]}px;
-    width: 1%; // Minimum width to fit content
-    color: ${({ theme }) => theme.colors.text.muted};
-    font-weight: ${fontWeights.regular};
-  }
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+`;
+
+const GridLabel = styled(Text)`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-weight: ${({ theme }) => theme.fontWeights.regular};
 `;
 
 const MonoText = styled(Text)`
