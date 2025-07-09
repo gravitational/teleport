@@ -254,7 +254,7 @@ func TestServer_ChangePassword(t *testing.T) {
 		name             string
 		oldPass          string
 		newPass          string
-		device           *authtest.TestDevice
+		device           *authtest.Device
 		challengeRequest *proto.CreateAuthenticateChallengeRequest
 	}{
 		{
@@ -383,7 +383,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 	tests := []struct {
 		name                     string
 		oldPass                  string
-		device                   *authtest.TestDevice
+		device                   *authtest.Device
 		challengeRequest         *proto.CreateAuthenticateChallengeRequest
 		createChallengeAssertion require.ErrorAssertionFunc
 	}{

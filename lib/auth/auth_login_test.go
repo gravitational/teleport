@@ -1714,7 +1714,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
 		name    string
-		dev     *authtest.TestDevice
+		dev     *authtest.Device
 		wantErr string
 	}{
 		{
@@ -1897,7 +1897,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 type configureMFAResp struct {
 	User, Password  string
-	TOTPDev, WebDev *authtest.TestDevice
+	TOTPDev, WebDev *authtest.Device
 }
 
 func configureForMFA(t *testing.T, srv *authtest.TestTLSServer) *configureMFAResp {
