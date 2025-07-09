@@ -937,7 +937,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	proxyClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err, "NewClient")
 
-	authenticateSSH := func(dev *authtest.TestDevice) (*authclient.SSHLoginResponse, error) {
+	authenticateSSH := func(dev *authtest.Device) (*authclient.SSHLoginResponse, error) {
 		chal, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 				UserCredentials: &proto.UserCredentials{
@@ -3151,7 +3151,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	// Insert devices for deletion.
 	deviceOpts := []authtest.TestDeviceOpt{authtest.WithTestDeviceClock(testServer.Clock())}
-	registerDevice := func(t *testing.T, deviceName string, deviceType proto.DeviceType) *authtest.TestDevice {
+	registerDevice := func(t *testing.T, deviceName string, deviceType proto.DeviceType) *authtest.Device {
 		t.Helper()
 		testDev, err := authtest.RegisterTestDevice(
 			ctx, userClient, deviceName, deviceType, webDev1 /* authenticator */, deviceOpts...)
@@ -3177,7 +3177,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		}
 	}
 
-	deleteReqUsingChallenge := func(authenticator *authtest.TestDevice) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+	deleteReqUsingChallenge := func(authenticator *authtest.Device) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 			authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -3422,7 +3422,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		require.NoError(t, err, "UpsertAuthPreference")
 	}
 
-	deleteDevice := func(userClient *authclient.Client, testDev *authtest.TestDevice) error {
+	deleteDevice := func(userClient *authclient.Client, testDev *authtest.Device) error {
 		// Issue and solve authn challenge.
 		authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -3446,7 +3446,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		})
 	}
 
-	makeTest := func(sf constants.SecondFactorType, deviceToDelete *authtest.TestDevice) func(t *testing.T) {
+	makeTest := func(sf constants.SecondFactorType, deviceToDelete *authtest.Device) func(t *testing.T) {
 		return func(t *testing.T) {
 			t.Helper()
 
@@ -3526,7 +3526,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 		tokenType string,
 		deviceType proto.DeviceType,
 		deviceUsage proto.DeviceUsage,
-	) (token string, testDev *authtest.TestDevice, registerSolved *proto.MFARegisterResponse) {
+	) (token string, testDev *authtest.Device, registerSolved *proto.MFARegisterResponse) {
 		privilegeToken, err := auth.CreatePrivilegeToken(ctx, authServer, u.username, tokenType)
 		require.NoError(t, err, "createPrivilegeToken")
 		token = privilegeToken.GetName()
@@ -3547,7 +3547,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 		t *testing.T,
 		deviceType proto.DeviceType,
 		deviceUsage proto.DeviceUsage,
-	) (*authtest.TestDevice, *proto.MFARegisterResponse) {
+	) (*authtest.Device, *proto.MFARegisterResponse) {
 		// Create and solve a registration challenge.
 		authChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{

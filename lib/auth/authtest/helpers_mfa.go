@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-// TestDevice is a test MFA device.
-type TestDevice struct {
+// Device is a test MFA device.
+type Device struct {
 	MFA        *types.MFADevice
 	TOTPSecret string
 	Key        *mocku2f.Key
@@ -48,22 +48,22 @@ type TestDevice struct {
 }
 
 // TestDeviceOpt is a creation option for TestDevice.
-type TestDeviceOpt func(d *TestDevice)
+type TestDeviceOpt func(d *Device)
 
 func WithTestDeviceClock(clock clockwork.Clock) TestDeviceOpt {
-	return func(d *TestDevice) {
+	return func(d *Device) {
 		d.clock = clock
 	}
 }
 
 func WithPasswordless() TestDeviceOpt {
-	return func(d *TestDevice) {
+	return func(d *Device) {
 		d.passwordless = true
 	}
 }
 
-func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDeviceOpt) (*TestDevice, *proto.MFARegisterResponse, error) {
-	dev := &TestDevice{}
+func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDeviceOpt) (*Device, *proto.MFARegisterResponse, error) {
+	dev := &Device{}
 	for _, opt := range opts {
 		opt(dev)
 	}
@@ -79,9 +79,9 @@ func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDevic
 // RegisterTestDevice creates and registers a TestDevice.
 // TOTP devices require a clock option.
 func RegisterTestDevice(
-	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt,
-) (*TestDevice, error) {
-	dev := &TestDevice{} // Remaining parameters set during registration
+	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *Device, opts ...TestDeviceOpt,
+) (*Device, error) {
+	dev := &Device{} // Remaining parameters set during registration
 	for _, opt := range opts {
 		opt(dev)
 	}
@@ -91,7 +91,7 @@ func RegisterTestDevice(
 	return dev, dev.registerDevice(ctx, clt, devName, devType, authenticator)
 }
 
-func (d *TestDevice) Origin() string {
+func (d *Device) Origin() string {
 	if d.origin == "" {
 		return "https://localhost"
 	}
@@ -104,7 +104,7 @@ type authClientI interface {
 	AddMFADeviceSync(context.Context, *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 }
 
-func (d *TestDevice) registerDevice(ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
+func (d *Device) registerDevice(ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *Device) error {
 	mfaCeremony := &mfa.Ceremony{
 		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -155,7 +155,7 @@ func (d *TestDevice) registerDevice(ctx context.Context, authClient authClientI,
 	return nil
 }
 
-func (d *TestDevice) SolveAuthn(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+func (d *Device) SolveAuthn(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	switch {
 	case c.TOTP == nil && c.WebauthnChallenge == nil:
 		return &proto.MFAAuthenticateResponse{}, nil // no challenge
@@ -168,7 +168,7 @@ func (d *TestDevice) SolveAuthn(c *proto.MFAAuthenticateChallenge) (*proto.MFAAu
 	}
 }
 
-func (d *TestDevice) solveAuthnKey(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+func (d *Device) solveAuthnKey(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if c.WebauthnChallenge == nil {
 		return nil, trace.BadParameter("key-based challenge not present")
 	}
@@ -183,7 +183,7 @@ func (d *TestDevice) solveAuthnKey(c *proto.MFAAuthenticateChallenge) (*proto.MF
 	}, nil
 }
 
-func (d *TestDevice) solveAuthnTOTP(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+func (d *Device) solveAuthnTOTP(c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if c.TOTP == nil {
 		return nil, trace.BadParameter("TOTP challenge not present")
 	}
@@ -206,7 +206,7 @@ func (d *TestDevice) solveAuthnTOTP(c *proto.MFAAuthenticateChallenge) (*proto.M
 	}, nil
 }
 
-func (d *TestDevice) solveRegister(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
+func (d *Device) solveRegister(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
 	switch {
 	case c.GetWebauthn() != nil:
 		return d.solveRegisterWebauthn(c)
@@ -217,7 +217,7 @@ func (d *TestDevice) solveRegister(c *proto.MFARegisterChallenge) (*proto.MFAReg
 	}
 }
 
-func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
+func (d *Device) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
 	var err error
 	d.Key, err = mocku2f.Create()
 	if err != nil {
@@ -240,7 +240,7 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 	}, nil
 }
 
-func (d *TestDevice) solveRegisterTOTP(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
+func (d *Device) solveRegisterTOTP(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
 	if d.clock == nil {
 		return nil, trace.BadParameter("clock not set")
 	}

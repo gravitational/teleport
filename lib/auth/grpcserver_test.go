@@ -577,12 +577,12 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		setup    func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice)
+		setup    func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device)
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
 			name:  "NOK no other MFA device",
-			setup: func(*testing.T, string, *authclient.Client, *authtest.TestDevice) {},
+			setup: func(*testing.T, string, *authclient.Client, *authtest.Device) {},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
 					err,
@@ -593,7 +593,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "OK extra passwordless device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				_, err := authtest.RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, authtest.WithPasswordless())
 				require.NoError(t, err, "RegisterTestDevice failed")
 			},
@@ -601,7 +601,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "OK password set with other WebAuthn device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 				_, err = authtest.RegisterTestDevice(
@@ -612,7 +612,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "OK password set with other TOTP device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 				_, err = authtest.RegisterTestDevice(
@@ -623,7 +623,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "OK SSO user with other device",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				user, err := authServer.GetUser(ctx, username, false)
 				require.NoError(t, err, "GetUser")
 				user.SetCreatedBy(types.CreatedBy{
@@ -639,7 +639,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "NOK password set but no other MFAs",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 			},
@@ -653,7 +653,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "NOK other MFAs, but no password set",
-			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				_, err := authtest.RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, authtest.WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
@@ -668,7 +668,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		},
 		{
 			name: "NOK other MFAs, but no password set, passwordless is off",
-			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *authtest.TestDevice) {
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *authtest.Device) {
 				// Register a non-passwordless device without adding a password.
 				_, err := authtest.RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, authtest.WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
@@ -751,10 +751,10 @@ type mfaDevices struct {
 	webOrigin string
 
 	TOTPName string
-	TOTPDev  *authtest.TestDevice
+	TOTPDev  *authtest.Device
 
 	WebName string
-	WebDev  *authtest.TestDevice
+	WebDev  *authtest.Device
 }
 
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {

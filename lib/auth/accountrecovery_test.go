@@ -1265,7 +1265,7 @@ type userAuthCreds struct {
 	username      string
 	password      []byte
 
-	totpDev, webDev *authtest.TestDevice
+	totpDev, webDev *authtest.Device
 }
 
 func createUserWithSecondFactors(testServer *authtest.TestTLSServer) (*userAuthCreds, error) {
