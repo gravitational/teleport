@@ -114,7 +114,7 @@ type mockALPNConnTester struct {
 	isALPNUpgradeRequired bool
 }
 
-func (p *mockALPNConnTester) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
+func (p *mockALPNConnTester) IsUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
 	return p.isALPNUpgradeRequired, nil
 }
 
