@@ -346,14 +346,9 @@ spec:
   ...
   claims_to_roles:
     - claim: "teams"
-      value: "okta"
-      roles: ["okta"]
-    - claim: "teams"
-      value: "auth0"
-      roles: ["auth0"]
-    - claim: "teams"
-      value: "github"
-      roles: ["github"]
+      value: "^(okta|auth0|github)$"
+      # evaluates to ["okta", "auth0"]
+      roles: ["$1"]
 ```
 
 We can now create the `okta` and `auth0` roles with templating to
