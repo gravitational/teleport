@@ -30,6 +30,8 @@ import {
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
 const CHECKSUM_FETCH_TIMEOUT = 5_000;
+// Example: 60ce9fcaa4104c5746e31b576814b38f376136c08ea73dd5fe943f09725a00cf  Teleport Connect-17.5.4-mac.zip
+const CHECKSUM_FORMAT = /^.+\s+.+$/;
 
 /** Implements electron-updater's `Provider` with client tools updates. */
 export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
@@ -119,7 +121,9 @@ async function fetchChecksum(fileUrl: string): Promise<string> {
     signal: AbortSignal.timeout(CHECKSUM_FETCH_TIMEOUT),
   });
   const checksumText = await checksum.text();
-  // Extracts a checksum from text in the following format:
-  // 60ce9fcaa4104c5746e31b576814b38f376136c08ea73dd5fe943f09725a00cf  Teleport Connect-17.5.4-mac.zip
+  if (!CHECKSUM_FORMAT.test(checksumText)) {
+    throw new Error(`Invalid checksum format ${checksumText}`);
+  }
+
   return checksumText.split(' ').at(0);
 }
