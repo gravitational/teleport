@@ -26,6 +26,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -48,23 +50,8 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			var out []*workloadidentityv1pb.WorkloadIdentity
-			var nextToken string
-			for {
-				var page []*workloadidentityv1pb.WorkloadIdentity
-				var err error
-
-				const defaultPageSize = 0
-				page, nextToken, err = upstream.ListWorkloadIdentities(ctx, defaultPageSize, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListWorkloadIdentities))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
 			return &workloadidentityv1pb.WorkloadIdentity{

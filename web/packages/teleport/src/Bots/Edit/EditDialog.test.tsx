@@ -308,9 +308,11 @@ async function inputRole(role: string) {
 }
 
 async function inputTrait(name: string, values: string[]) {
-  await selectEvent.select(screen.getAllByLabelText('Key').at(-1)!, [name]);
+  await selectEvent.select(screen.getAllByLabelText('trait-key').at(-1)!, [
+    name,
+  ]);
 
-  const traitValue = screen.getAllByLabelText('Values');
+  const traitValue = screen.getAllByLabelText('trait-values');
 
   for (const value of values) {
     fireEvent.change(traitValue.at(-1)!, {

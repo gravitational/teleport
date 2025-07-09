@@ -32,11 +32,11 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -50,8 +50,9 @@ type SSHHostOutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
-	resolver           reversetunnelclient.Resolver
 	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
 }
 
 func (s *SSHHostOutputService) String() string {
@@ -103,39 +104,24 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	var err error
-	roles := s.cfg.Roles
-	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-		if err != nil {
-			return trace.Wrap(err, "fetching default roles")
-		}
-	}
-
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		effectiveLifetime.TTL,
-		nil,
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithRoles(s.cfg.Roles),
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
-
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer impersonatedClient.Close()
-	clusterName := facade.Get().ClusterName
+	clusterName := id.Get().ClusterName
 
 	// generate a keypair
 	key, err := cryptosuites.GenerateKey(ctx,
@@ -163,7 +149,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing := &client.KeyRing{
+	keyRing := &libclient.KeyRing{
 		SSHPrivateKey: privKey,
 		Cert:          res.SshCertificate,
 	}

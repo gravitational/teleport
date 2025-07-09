@@ -210,32 +210,31 @@ export function EditDialog(props: {
                     noOptionsMessage={() => 'No roles found'}
                     elevated={true}
                   />
-                  <TraitsEditor
-                    css={css`
-                      padding-bottom: 16px;
-                    `}
-                    configuredTraits={
-                      selectedTraits ??
-                      data.traits
-                        .toSorted((a, b) => a.name.localeCompare(b.name))
-                        .map(t => ({
-                          traitKey: {
-                            value: t.name,
-                            label: t.name,
-                          },
-                          traitValues: t.values.toSorted().map(v => ({
-                            value: v,
-                            label: v,
-                          })),
-                        }))
-                    }
-                    setConfiguredTraits={setSelectedTraits}
-                    isLoading={false}
-                    label="Traits"
-                    addActionLabel="Add trait"
-                    addActionSubsequentLabel="Add another trait"
-                    autoFocus={false}
-                  />
+                  <Box mb={3}>
+                    <TraitsEditor
+                      configuredTraits={
+                        selectedTraits ??
+                        data.traits
+                          .toSorted((a, b) => a.name.localeCompare(b.name))
+                          .map(t => ({
+                            traitKey: {
+                              value: t.name,
+                              label: t.name,
+                            },
+                            traitValues: t.values.toSorted().map(v => ({
+                              value: v,
+                              label: v,
+                            })),
+                          }))
+                      }
+                      setConfiguredTraits={setSelectedTraits}
+                      isLoading={false}
+                      label="Traits"
+                      addActionLabel="Add trait"
+                      addActionSubsequentLabel="Add another trait"
+                      autoFocus={false}
+                    />
+                  </Box>
                   <FieldInput
                     label="Max session duration"
                     rule={requiredField('Max session duration is required')}
