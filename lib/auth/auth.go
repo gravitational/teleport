@@ -2151,7 +2151,7 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
-// SetClock sets clock, used in tests
+// SetBcryptCost sets bcryptCostOverride, used in tests
 func (a *Server) SetBcryptCost(cost int) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -2610,11 +2610,12 @@ type GenerateUserTestCertsRequest struct {
 	Usage                   []string
 }
 
+// GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
 }
 
-// GenerateUserTestCerts is used to generate user certificate, used internally for tests
+// GenerateUserTestCertsWithContext is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
