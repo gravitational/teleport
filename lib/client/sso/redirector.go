@@ -544,7 +544,7 @@ const (
 // "http" and "https" schema are allowed if the hostname is an IP address that is contained in a
 // specified CIDR range on any port.
 func ValidateClientRedirect(clientRedirect string, ceremonyType CeremonyType, settings *types.SSOClientRedirectSettings) error {
-	// Warning to developers and reviewers: this validation function is critical to sso security
+	// Warning to developers and reviewers: this validation function is critical to SSO security
 	// and any changes to it should be carefully considered from a vulnerability point of view.
 
 	if clientRedirect == "" {
