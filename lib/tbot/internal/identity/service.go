@@ -724,7 +724,7 @@ func botIdentityFromToken(
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
-		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
+		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
 
 		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
 		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
