@@ -222,11 +222,14 @@ export function BotDetails() {
   );
 }
 
-const Container = styled(Flex).attrs({ gap: 3 })``;
+const Container = styled(Flex).attrs({ gap: 3 })`
+  flex-wrap: wrap;
+`;
 
 const ColumnContainer = styled(Flex)`
   flex: 1;
   flex-direction: column;
+  min-width: 300px;
   background-color: ${p => p.theme.colors.levels.surface};
   border-radius: ${props => props.theme.space[1]}px;
 `;
