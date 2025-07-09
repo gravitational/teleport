@@ -36,38 +36,37 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// SummarizationInferenceModel resource specifies a session summarization
-// inference model configuration. It tells Teleport how to use a specific
-// provider and model to summarize sessions.
-type SummarizationInferenceModel struct {
+// InferenceModel resource specifies a session summarization inference model
+// configuration. It tells Teleport how to use a specific provider and model to
+// summarize sessions.
+type InferenceModel struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Kind is the resource kind. Should always be set to
-	// "summarization_inference_model".
+	// Kind is the resource kind. Should always be set to "inference_model".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind. Should be empty.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version. Should be set to "v1".
-	Version       string                           `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Metadata      *v1.Metadata                     `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Spec          *SummarizationInferenceModelSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Version       string              `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata      *v1.Metadata        `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Spec          *InferenceModelSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SummarizationInferenceModel) Reset() {
-	*x = SummarizationInferenceModel{}
+func (x *InferenceModel) Reset() {
+	*x = InferenceModel{}
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SummarizationInferenceModel) String() string {
+func (x *InferenceModel) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SummarizationInferenceModel) ProtoMessage() {}
+func (*InferenceModel) ProtoMessage() {}
 
-func (x *SummarizationInferenceModel) ProtoReflect() protoreflect.Message {
+func (x *InferenceModel) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -79,72 +78,72 @@ func (x *SummarizationInferenceModel) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummarizationInferenceModel.ProtoReflect.Descriptor instead.
-func (*SummarizationInferenceModel) Descriptor() ([]byte, []int) {
+// Deprecated: Use InferenceModel.ProtoReflect.Descriptor instead.
+func (*InferenceModel) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *SummarizationInferenceModel) GetKind() string {
+func (x *InferenceModel) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *SummarizationInferenceModel) GetSubKind() string {
+func (x *InferenceModel) GetSubKind() string {
 	if x != nil {
 		return x.SubKind
 	}
 	return ""
 }
 
-func (x *SummarizationInferenceModel) GetVersion() string {
+func (x *InferenceModel) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *SummarizationInferenceModel) GetMetadata() *v1.Metadata {
+func (x *InferenceModel) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *SummarizationInferenceModel) GetSpec() *SummarizationInferenceModelSpec {
+func (x *InferenceModel) GetSpec() *InferenceModelSpec {
 	if x != nil {
 		return x.Spec
 	}
 	return nil
 }
 
-// SummarizationInferenceModelSpec specifies the inference provider and
-// provider-specific parameters.
-type SummarizationInferenceModelSpec struct {
+// InferenceModelSpec specifies the inference provider and provider-specific
+// parameters.
+type InferenceModelSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Provider:
 	//
-	//	*SummarizationInferenceModelSpec_Openai
-	Provider      isSummarizationInferenceModelSpec_Provider `protobuf_oneof:"provider"`
+	//	*InferenceModelSpec_Openai
+	Provider      isInferenceModelSpec_Provider `protobuf_oneof:"provider"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SummarizationInferenceModelSpec) Reset() {
-	*x = SummarizationInferenceModelSpec{}
+func (x *InferenceModelSpec) Reset() {
+	*x = InferenceModelSpec{}
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SummarizationInferenceModelSpec) String() string {
+func (x *InferenceModelSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SummarizationInferenceModelSpec) ProtoMessage() {}
+func (*InferenceModelSpec) ProtoMessage() {}
 
-func (x *SummarizationInferenceModelSpec) ProtoReflect() protoreflect.Message {
+func (x *InferenceModelSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -156,38 +155,38 @@ func (x *SummarizationInferenceModelSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummarizationInferenceModelSpec.ProtoReflect.Descriptor instead.
-func (*SummarizationInferenceModelSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use InferenceModelSpec.ProtoReflect.Descriptor instead.
+func (*InferenceModelSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *SummarizationInferenceModelSpec) GetProvider() isSummarizationInferenceModelSpec_Provider {
+func (x *InferenceModelSpec) GetProvider() isInferenceModelSpec_Provider {
 	if x != nil {
 		return x.Provider
 	}
 	return nil
 }
 
-func (x *SummarizationInferenceModelSpec) GetOpenai() *OpenAIProvider {
+func (x *InferenceModelSpec) GetOpenai() *OpenAIProvider {
 	if x != nil {
-		if x, ok := x.Provider.(*SummarizationInferenceModelSpec_Openai); ok {
+		if x, ok := x.Provider.(*InferenceModelSpec_Openai); ok {
 			return x.Openai
 		}
 	}
 	return nil
 }
 
-type isSummarizationInferenceModelSpec_Provider interface {
-	isSummarizationInferenceModelSpec_Provider()
+type isInferenceModelSpec_Provider interface {
+	isInferenceModelSpec_Provider()
 }
 
-type SummarizationInferenceModelSpec_Openai struct {
+type InferenceModelSpec_Openai struct {
 	// Openai indicates that this model uses OpenAI as the inference provider
 	// and specifies OpenAI-specific parameters.
 	Openai *OpenAIProvider `protobuf:"bytes,1,opt,name=openai,proto3,oneof"`
 }
 
-func (*SummarizationInferenceModelSpec_Openai) isSummarizationInferenceModelSpec_Provider() {}
+func (*InferenceModelSpec_Openai) isInferenceModelSpec_Provider() {}
 
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
 // configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
@@ -197,8 +196,8 @@ type OpenAIProvider struct {
 	OpenaiModelId string `protobuf:"bytes,1,opt,name=openai_model_id,json=openaiModelId,proto3" json:"openai_model_id,omitempty"`
 	// Temperature controls the randomness of the model's output.
 	Temperature float64 `protobuf:"fixed64,2,opt,name=temperature,proto3" json:"temperature,omitempty"`
-	// ApiKeySecretRef is a reference to an SummarizationInferenceSecret that
-	// contains the OpenAI API key.
+	// ApiKeySecretRef is a reference to an InferenceSecret that contains the
+	// OpenAI API key.
 	ApiKeySecretRef string `protobuf:"bytes,3,opt,name=api_key_secret_ref,json=apiKeySecretRef,proto3" json:"api_key_secret_ref,omitempty"`
 	// BaseUrl is the OpenAI API base URL. Optional, defaults to the public
 	// OpenAI API URL. May be used to point to a custom OpenAI-compatible API,
@@ -267,13 +266,12 @@ func (x *OpenAIProvider) GetBaseUrl() string {
 	return ""
 }
 
-// SummarizationInferenceSecret resource stores session summarization inference
-// provider secrets, such as API keys. They need to be referenced by
-// appropriate provider configuration inside `SummarizationInferenceModelSpec`.
-type SummarizationInferenceSecret struct {
+// InferenceSecret resource stores session summarization inference provider
+// secrets, such as API keys. They need to be referenced by appropriate
+// provider configuration inside `InferenceModelSpec`.
+type InferenceSecret struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Kind is the resource kind. Should always be set to
-	// "summarization_inference_secret".
+	// Kind is the resource kind. Should always be set to "inference_secret".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind. Should be empty.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
@@ -282,25 +280,25 @@ type SummarizationInferenceSecret struct {
 	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Spec contains the secret value. Once set, it can only be read by Teleport
 	// itself; it will not be returned in API responses.
-	Spec          *SummarizationInferenceSecretSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec          *InferenceSecretSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SummarizationInferenceSecret) Reset() {
-	*x = SummarizationInferenceSecret{}
+func (x *InferenceSecret) Reset() {
+	*x = InferenceSecret{}
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SummarizationInferenceSecret) String() string {
+func (x *InferenceSecret) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SummarizationInferenceSecret) ProtoMessage() {}
+func (*InferenceSecret) ProtoMessage() {}
 
-func (x *SummarizationInferenceSecret) ProtoReflect() protoreflect.Message {
+func (x *InferenceSecret) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -312,49 +310,48 @@ func (x *SummarizationInferenceSecret) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummarizationInferenceSecret.ProtoReflect.Descriptor instead.
-func (*SummarizationInferenceSecret) Descriptor() ([]byte, []int) {
+// Deprecated: Use InferenceSecret.ProtoReflect.Descriptor instead.
+func (*InferenceSecret) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *SummarizationInferenceSecret) GetKind() string {
+func (x *InferenceSecret) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *SummarizationInferenceSecret) GetSubKind() string {
+func (x *InferenceSecret) GetSubKind() string {
 	if x != nil {
 		return x.SubKind
 	}
 	return ""
 }
 
-func (x *SummarizationInferenceSecret) GetVersion() string {
+func (x *InferenceSecret) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *SummarizationInferenceSecret) GetMetadata() *v1.Metadata {
+func (x *InferenceSecret) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *SummarizationInferenceSecret) GetSpec() *SummarizationInferenceSecretSpec {
+func (x *InferenceSecret) GetSpec() *InferenceSecretSpec {
 	if x != nil {
 		return x.Spec
 	}
 	return nil
 }
 
-// SummarizationInferenceSecretSpec defines the secret value for the inference
-// model.
-type SummarizationInferenceSecretSpec struct {
+// InferenceSecretSpec defines the secret value for the inference model.
+type InferenceSecretSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Value is the secret value, such as an API key.
 	Value         string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
@@ -362,20 +359,20 @@ type SummarizationInferenceSecretSpec struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SummarizationInferenceSecretSpec) Reset() {
-	*x = SummarizationInferenceSecretSpec{}
+func (x *InferenceSecretSpec) Reset() {
+	*x = InferenceSecretSpec{}
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SummarizationInferenceSecretSpec) String() string {
+func (x *InferenceSecretSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SummarizationInferenceSecretSpec) ProtoMessage() {}
+func (*InferenceSecretSpec) ProtoMessage() {}
 
-func (x *SummarizationInferenceSecretSpec) ProtoReflect() protoreflect.Message {
+func (x *InferenceSecretSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -387,48 +384,47 @@ func (x *SummarizationInferenceSecretSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummarizationInferenceSecretSpec.ProtoReflect.Descriptor instead.
-func (*SummarizationInferenceSecretSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use InferenceSecretSpec.ProtoReflect.Descriptor instead.
+func (*InferenceSecretSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SummarizationInferenceSecretSpec) GetValue() string {
+func (x *InferenceSecretSpec) GetValue() string {
 	if x != nil {
 		return x.Value
 	}
 	return ""
 }
 
-// SummarizationInferencePolicy resource maps sessions to summarization models.
-type SummarizationInferencePolicy struct {
+// InferencePolicy resource maps sessions to summarization models.
+type InferencePolicy struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Kind is the resource kind. Should always be set to
-	// "summarization_inference_policy".
+	// Kind is the resource kind. Should always be set to "inference_policy".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind. Should be empty.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version. Should be set to "v1".
-	Version       string                            `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Metadata      *v1.Metadata                      `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Spec          *SummarizationInferencePolicySpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Version       string               `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata      *v1.Metadata         `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Spec          *InferencePolicySpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SummarizationInferencePolicy) Reset() {
-	*x = SummarizationInferencePolicy{}
+func (x *InferencePolicy) Reset() {
+	*x = InferencePolicy{}
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SummarizationInferencePolicy) String() string {
+func (x *InferencePolicy) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SummarizationInferencePolicy) ProtoMessage() {}
+func (*InferencePolicy) ProtoMessage() {}
 
-func (x *SummarizationInferencePolicy) ProtoReflect() protoreflect.Message {
+func (x *InferencePolicy) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -440,54 +436,53 @@ func (x *SummarizationInferencePolicy) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummarizationInferencePolicy.ProtoReflect.Descriptor instead.
-func (*SummarizationInferencePolicy) Descriptor() ([]byte, []int) {
+// Deprecated: Use InferencePolicy.ProtoReflect.Descriptor instead.
+func (*InferencePolicy) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *SummarizationInferencePolicy) GetKind() string {
+func (x *InferencePolicy) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *SummarizationInferencePolicy) GetSubKind() string {
+func (x *InferencePolicy) GetSubKind() string {
 	if x != nil {
 		return x.SubKind
 	}
 	return ""
 }
 
-func (x *SummarizationInferencePolicy) GetVersion() string {
+func (x *InferencePolicy) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *SummarizationInferencePolicy) GetMetadata() *v1.Metadata {
+func (x *InferencePolicy) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *SummarizationInferencePolicy) GetSpec() *SummarizationInferencePolicySpec {
+func (x *InferencePolicy) GetSpec() *InferencePolicySpec {
 	if x != nil {
 		return x.Spec
 	}
 	return nil
 }
 
-// SummarizationInferencePolicySpec maps sessions to summarization models using
-// a filter.
-type SummarizationInferencePolicySpec struct {
+// InferencePolicySpec maps sessions to summarization models using a filter.
+type InferencePolicySpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Kinds are session kinds matched by this policy, e.g., "ssh", "k8s", "db"
 	Kinds []string `protobuf:"bytes,1,rep,name=kinds,proto3" json:"kinds,omitempty"`
-	// Model is the name of the `SummarizationInferenceModel` resource to be used
-	// for summarization.
+	// Model is the name of the `InferenceModel` resource to be used for
+	// summarization.
 	Model string `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
 	// Filter is an optional filter expression using Teleport Predicate Language
 	// to select sessions for summarization. If it's empty, all sessions that
@@ -497,20 +492,20 @@ type SummarizationInferencePolicySpec struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SummarizationInferencePolicySpec) Reset() {
-	*x = SummarizationInferencePolicySpec{}
+func (x *InferencePolicySpec) Reset() {
+	*x = InferencePolicySpec{}
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SummarizationInferencePolicySpec) String() string {
+func (x *InferencePolicySpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SummarizationInferencePolicySpec) ProtoMessage() {}
+func (*InferencePolicySpec) ProtoMessage() {}
 
-func (x *SummarizationInferencePolicySpec) ProtoReflect() protoreflect.Message {
+func (x *InferencePolicySpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -522,26 +517,26 @@ func (x *SummarizationInferencePolicySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummarizationInferencePolicySpec.ProtoReflect.Descriptor instead.
-func (*SummarizationInferencePolicySpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use InferencePolicySpec.ProtoReflect.Descriptor instead.
+func (*InferencePolicySpec) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *SummarizationInferencePolicySpec) GetKinds() []string {
+func (x *InferencePolicySpec) GetKinds() []string {
 	if x != nil {
 		return x.Kinds
 	}
 	return nil
 }
 
-func (x *SummarizationInferencePolicySpec) GetModel() string {
+func (x *InferencePolicySpec) GetModel() string {
 	if x != nil {
 		return x.Model
 	}
 	return ""
 }
 
-func (x *SummarizationInferencePolicySpec) GetFilter() string {
+func (x *InferencePolicySpec) GetFilter() string {
 	if x != nil {
 		return x.Filter
 	}
@@ -552,14 +547,14 @@ var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a!teleport/header/v1/metadata.proto\"\xed\x01\n" +
-	"\x1bSummarizationInferenceModel\x12\x12\n" +
+	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
+	"\x0eInferenceModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12K\n" +
-	"\x04spec\x18\x05 \x01(\v27.teleport.summarizer.v1.SummarizationInferenceModelSpecR\x04spec\"o\n" +
-	"\x1fSummarizationInferenceModelSpec\x12@\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"b\n" +
+	"\x12InferenceModelSpec\x12@\n" +
 	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openaiB\n" +
 	"\n" +
 	"\bprovider\"\xa2\x01\n" +
@@ -567,22 +562,22 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x0fopenai_model_id\x18\x01 \x01(\tR\ropenaiModelId\x12 \n" +
 	"\vtemperature\x18\x02 \x01(\x01R\vtemperature\x12+\n" +
 	"\x12api_key_secret_ref\x18\x03 \x01(\tR\x0fapiKeySecretRef\x12\x19\n" +
-	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\"\xef\x01\n" +
-	"\x1cSummarizationInferenceSecret\x12\x12\n" +
+	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\"\xd5\x01\n" +
+	"\x0fInferenceSecret\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
-	"\x04spec\x18\x05 \x01(\v28.teleport.summarizer.v1.SummarizationInferenceSecretSpecR\x04spec\"8\n" +
-	" SummarizationInferenceSecretSpec\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value\"\xef\x01\n" +
-	"\x1cSummarizationInferencePolicy\x12\x12\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12?\n" +
+	"\x04spec\x18\x05 \x01(\v2+.teleport.summarizer.v1.InferenceSecretSpecR\x04spec\"+\n" +
+	"\x13InferenceSecretSpec\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\"\xd5\x01\n" +
+	"\x0fInferencePolicy\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
-	"\x04spec\x18\x05 \x01(\v28.teleport.summarizer.v1.SummarizationInferencePolicySpecR\x04spec\"f\n" +
-	" SummarizationInferencePolicySpec\x12\x14\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12?\n" +
+	"\x04spec\x18\x05 \x01(\v2+.teleport.summarizer.v1.InferencePolicySpecR\x04spec\"Y\n" +
+	"\x13InferencePolicySpec\x12\x14\n" +
 	"\x05kinds\x18\x01 \x03(\tR\x05kinds\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12\x16\n" +
 	"\x06filter\x18\x03 \x01(\tR\x06filterBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
@@ -601,23 +596,23 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 
 var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
-	(*SummarizationInferenceModel)(nil),      // 0: teleport.summarizer.v1.SummarizationInferenceModel
-	(*SummarizationInferenceModelSpec)(nil),  // 1: teleport.summarizer.v1.SummarizationInferenceModelSpec
-	(*OpenAIProvider)(nil),                   // 2: teleport.summarizer.v1.OpenAIProvider
-	(*SummarizationInferenceSecret)(nil),     // 3: teleport.summarizer.v1.SummarizationInferenceSecret
-	(*SummarizationInferenceSecretSpec)(nil), // 4: teleport.summarizer.v1.SummarizationInferenceSecretSpec
-	(*SummarizationInferencePolicy)(nil),     // 5: teleport.summarizer.v1.SummarizationInferencePolicy
-	(*SummarizationInferencePolicySpec)(nil), // 6: teleport.summarizer.v1.SummarizationInferencePolicySpec
-	(*v1.Metadata)(nil),                      // 7: teleport.header.v1.Metadata
+	(*InferenceModel)(nil),      // 0: teleport.summarizer.v1.InferenceModel
+	(*InferenceModelSpec)(nil),  // 1: teleport.summarizer.v1.InferenceModelSpec
+	(*OpenAIProvider)(nil),      // 2: teleport.summarizer.v1.OpenAIProvider
+	(*InferenceSecret)(nil),     // 3: teleport.summarizer.v1.InferenceSecret
+	(*InferenceSecretSpec)(nil), // 4: teleport.summarizer.v1.InferenceSecretSpec
+	(*InferencePolicy)(nil),     // 5: teleport.summarizer.v1.InferencePolicy
+	(*InferencePolicySpec)(nil), // 6: teleport.summarizer.v1.InferencePolicySpec
+	(*v1.Metadata)(nil),         // 7: teleport.header.v1.Metadata
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	7, // 0: teleport.summarizer.v1.SummarizationInferenceModel.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 1: teleport.summarizer.v1.SummarizationInferenceModel.spec:type_name -> teleport.summarizer.v1.SummarizationInferenceModelSpec
-	2, // 2: teleport.summarizer.v1.SummarizationInferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	7, // 3: teleport.summarizer.v1.SummarizationInferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
-	4, // 4: teleport.summarizer.v1.SummarizationInferenceSecret.spec:type_name -> teleport.summarizer.v1.SummarizationInferenceSecretSpec
-	7, // 5: teleport.summarizer.v1.SummarizationInferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
-	6, // 6: teleport.summarizer.v1.SummarizationInferencePolicy.spec:type_name -> teleport.summarizer.v1.SummarizationInferencePolicySpec
+	7, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	1, // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	2, // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	7, // 3: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	4, // 4: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	7, // 5: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	6, // 6: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
 	7, // [7:7] is the sub-list for method output_type
 	7, // [7:7] is the sub-list for method input_type
 	7, // [7:7] is the sub-list for extension type_name
@@ -631,7 +626,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		return
 	}
 	file_teleport_summarizer_v1_summarizer_proto_msgTypes[1].OneofWrappers = []any{
-		(*SummarizationInferenceModelSpec_Openai)(nil),
+		(*InferenceModelSpec_Openai)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
