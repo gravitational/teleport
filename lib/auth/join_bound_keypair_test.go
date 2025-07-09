@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -100,10 +99,9 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	_, correctPublicKey := testBoundKeypair(t)
 	_, rotatedPublicKey := testBoundKeypair(t)
@@ -939,10 +937,9 @@ func testExtractBotParamsFromCerts(t *testing.T, certs *proto.Certs) (string, ui
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -1120,10 +1117,9 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)

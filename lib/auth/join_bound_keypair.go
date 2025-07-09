@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -53,13 +52,6 @@ type createBoundKeypairValidator func(subject string, clusterName string, public
 // validateBoundKeypairTokenSpec performs some basic validation checks on a
 // bound_keypair-type join token.
 func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair) error {
-	// Various constant checks, shared between creation and update. Many of
-	// these checks are temporary and will be removed alongside the experiment
-	// flag.
-	if !boundkeypairexperiment.Enabled() {
-		return trace.BadParameter("bound keypair joining experiment is not enabled")
-	}
-
 	if spec.Recovery == nil {
 		return trace.BadParameter("spec.bound_keypair.recovery: field is required")
 	}
