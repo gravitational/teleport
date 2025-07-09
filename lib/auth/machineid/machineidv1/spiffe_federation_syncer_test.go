@@ -89,6 +89,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv1.Close)
 	testSrv2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, err := federation.NewHandler(td2, bundle2)
 		if !assert.NoError(t, err) {
@@ -96,6 +97,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv2.Close)
 
 	caPool := x509.NewCertPool()
 	caPool.AddCert(testSrv1.Certificate())
@@ -222,6 +224,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv.Close)
 	caPool := x509.NewCertPool()
 	caPool.AddCert(testSrv.Certificate())
 
