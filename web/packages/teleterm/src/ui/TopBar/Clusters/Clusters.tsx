@@ -31,7 +31,7 @@ import { ClustersFilterableList } from './ClustersFilterableList/ClustersFiltera
 import { useClusters } from './useClusters';
 
 export function Clusters() {
-  const iconRef = useRef(undefined);
+  const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const clusters = useClusters();
 

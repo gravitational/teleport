@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -32,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -53,9 +53,9 @@ const (
 	// under ~/.tsh
 	keyFilePerms os.FileMode = 0600
 
-	// tshConfigDirName is the name of the directory containing the
+	// tshConfigFileName is the name of the directory containing the
 	// tsh config file.
-	tshConfigDirName = "config"
+	tshConfigFileName = "config"
 
 	// tshAzureDirName is the name of the directory containing the
 	// az cli app-specific profiles.
@@ -96,7 +96,7 @@ type KeyStore interface {
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSKeyStore struct {
 	// log holds the structured logger.
-	log *slog.Logger
+	log logrus.FieldLogger
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
@@ -108,7 +108,7 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:    logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
 }
@@ -216,7 +216,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
 		if err != nil {
-			fs.log.DebugContext(context.Background(), "Cannot convert private key to PPK-formatted keypair", "error", err)
+			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
 				return trace.Wrap(err)
@@ -344,10 +344,7 @@ func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() e
 		case err == nil:
 			return func() {
 				if err := unlock(); err != nil {
-					log.ErrorContext(ctx, "failed to unlock TLS credential",
-						"credential_path", path,
-						"error", err,
-					)
+					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
 				}
 			}, nil
 		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
@@ -441,7 +438,7 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	// And try to delete kube credentials lockfile in case it exists
 	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		log.DebugContext(context.Background(), "Could not remove kube credentials file", "error", err)
+		log.Debugf("Could not remove kube credentials file: %v", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -474,21 +471,19 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	ignoreDirs := map[string]struct{}{tshConfigFileName: {}, tshAzureDirName: {}, tshBin: {}}
 	for _, file := range files {
+		// Don't delete 'config', 'azure' and 'bin' directories.
+		// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
+		if _, ok := ignoreDirs[file.Name()]; ok && file.IsDir() {
+			continue
+		}
 		if file.IsDir() {
-			switch file.Name() {
-			case tshConfigDirName, tshAzureDirName, tshBin:
-				// Don't delete 'config', 'azure' and 'bin' directories.
-				// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
-				continue
+			err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
+			if err != nil {
+				return trace.ConvertSystemError(err)
 			}
-		} else {
-			switch file.Name() {
-			case keypaths.VNetClientSSHKey, keypaths.VNetClientSSHKeyPub:
-				// Don't delete VNet client SSH keys on logout in case a user wants to
-				// set these to their own key compatible with their third-party SSH client.
-				continue
-			}
+			continue
 		}
 		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 		if err != nil {

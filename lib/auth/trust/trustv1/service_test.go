@@ -41,7 +41,7 @@ import (
 )
 
 type testPack struct {
-	clock *clockwork.FakeClock
+	clock clockwork.FakeClock
 	mem   *memory.Memory
 }
 
@@ -87,7 +87,7 @@ type fakeAuthServer struct {
 	rotateCertAuthorityData map[string]error
 }
 
-func (f *fakeAuthServer) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (f *fakeAuthServer) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return f.clusterName, nil
 }
 

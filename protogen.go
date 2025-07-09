@@ -27,7 +27,6 @@ package teleport
 
 import (
 	_ "connectrpc.com/connect/cmd/protoc-gen-connect-go"
-	_ "github.com/gogo/protobuf/protoc-gen-gogofast"
 	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
 	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
 )

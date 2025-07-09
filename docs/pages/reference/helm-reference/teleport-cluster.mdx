@@ -1,6 +1,5 @@
 ---
 title: teleport-cluster Chart Reference
-sidebar_label: teleport-cluster
 description: Values that can be set using the teleport-cluster Helm chart
 ---
 
@@ -72,7 +71,7 @@ You will need to manually add a DNS A record pointing `teleport.example.com` to
 the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
 
 <details>
-<summary>Enrolling applications with Teleport?</summary>
+<summary>Using Application Access?</summary>
 
 (!docs/pages/includes/dns-app-access.mdx!)
 
@@ -304,12 +303,12 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 ### `authentication.secondFactor`
 
 <Admonition type="warning">
-Deprecated, you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
+Deprecated, after upgrading your Teleport cluster to v17.0.0 or higher you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
 </Admonition>
 
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
 |----------|---------------|-----------|---------------------------------------------|
-| `string` | none          | Yes       | `auth_service.authentication.second_factor` |
+| `string` | `on`          | Yes       | `auth_service.authentication.second_factor` |
 
 `authentication.secondFactor` configures multi-factor authentication for local users.
 Possible values supported by this chart are `on`, `otp`, and `webauthn`.
@@ -339,7 +338,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 | Type    | Default value         | Required? | `teleport.yaml` equivalent                   |
 |---------|-----------------------|-----------|----------------------------------------------|
-| `array` | `["otp", "webauthn"]` | No        | `auth_service.authentication.second_factors` |
+| `array` | none                  | No        | `auth_service.authentication.second_factors` |
 
 `authentication.secondFactors` configures multi-factor authentication types.
 Supported item values are `otp`, `sso`, and `webauthn`.
@@ -669,6 +668,27 @@ By using this value you will update the Kubernetes volume specification to mount
   licenseSecretName: enterprise-license
   ```
 
+## `installCRDs`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
+
+CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
+`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
+
+If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
+release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
+the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
+
+`values.yaml` example:
+
+  ```yaml
+  installCRDs: true
+  ```
+
 ## `operator`
 
 ### `operator.annotations.deployment`
@@ -738,7 +758,7 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
 If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
-[`installCRDs`](#operatorinstallcrds).
+[`installCRDs`](#installCRDs).
 
 `values.yaml` example:
 
@@ -746,22 +766,6 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
   operator:
     enabled: true
   ```
-### `operator.installCRDs`
-
-| Type | Default |
-|------|---------|
-| `string` | `"dynamic"` |
-
-`operator.installCRDs` controls if the chart should install the CRDs.
-There are 3 possible values: dynamic, always, never.
-
-- "dynamic" means the CRDs are installed if the operator is enabled or if
-the CRDs are already present in the cluster. The presence check is here to
-avoid all CRDs to be removed if you temporarily disable the operator.
-Removing CRDs triggers a cascading deletion, which removes CRs, and all the
-related resources in Teleport.
-- "always" means the CRDs are always installed
-- "never" means the CRDs are never installed
 
 ### `operator.image`
 
@@ -881,7 +885,7 @@ If you want to run Teleport version `X.Y.Z`, you should use
 `helm --version X.Y.Z` instead.
 </Admonition>
 
-See our [installation guide](../../installation.mdx#docker) for information on
+See our [installation guide](../../installation/docker.mdx) for information on
 Docker image versions.
 
 `values.yaml` example:

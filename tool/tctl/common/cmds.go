@@ -72,6 +72,5 @@ func Commands() []CLICommand {
 		&AutoUpdateCommand{},
 		&stableunixusers.Command{},
 		&decision.Command{},
-		&BoundKeypairCommand{},
 	}
 }

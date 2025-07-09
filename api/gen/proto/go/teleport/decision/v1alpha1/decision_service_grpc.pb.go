@@ -34,7 +34,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	DecisionService_EvaluateSSHAccess_FullMethodName      = "/teleport.decision.v1alpha1.DecisionService/EvaluateSSHAccess"
-	DecisionService_EvaluateSSHJoin_FullMethodName        = "/teleport.decision.v1alpha1.DecisionService/EvaluateSSHJoin"
 	DecisionService_EvaluateDatabaseAccess_FullMethodName = "/teleport.decision.v1alpha1.DecisionService/EvaluateDatabaseAccess"
 )
 
@@ -55,8 +54,6 @@ const (
 type DecisionServiceClient interface {
 	// EvaluateSSHAccess evaluates an SSH access attempt.
 	EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*EvaluateSSHAccessResponse, error)
-	// EvaluateSSHJoin evaluates an SSH session-joining attempt.
-	EvaluateSSHJoin(ctx context.Context, in *EvaluateSSHJoinRequest, opts ...grpc.CallOption) (*EvaluateSSHJoinResponse, error)
 	// EvaluateDatabaseAccess evaluate a database access attempt.
 	EvaluateDatabaseAccess(ctx context.Context, in *EvaluateDatabaseAccessRequest, opts ...grpc.CallOption) (*EvaluateDatabaseAccessResponse, error)
 }
@@ -73,16 +70,6 @@ func (c *decisionServiceClient) EvaluateSSHAccess(ctx context.Context, in *Evalu
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EvaluateSSHAccessResponse)
 	err := c.cc.Invoke(ctx, DecisionService_EvaluateSSHAccess_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *decisionServiceClient) EvaluateSSHJoin(ctx context.Context, in *EvaluateSSHJoinRequest, opts ...grpc.CallOption) (*EvaluateSSHJoinResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EvaluateSSHJoinResponse)
-	err := c.cc.Invoke(ctx, DecisionService_EvaluateSSHJoin_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +103,6 @@ func (c *decisionServiceClient) EvaluateDatabaseAccess(ctx context.Context, in *
 type DecisionServiceServer interface {
 	// EvaluateSSHAccess evaluates an SSH access attempt.
 	EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*EvaluateSSHAccessResponse, error)
-	// EvaluateSSHJoin evaluates an SSH session-joining attempt.
-	EvaluateSSHJoin(context.Context, *EvaluateSSHJoinRequest) (*EvaluateSSHJoinResponse, error)
 	// EvaluateDatabaseAccess evaluate a database access attempt.
 	EvaluateDatabaseAccess(context.Context, *EvaluateDatabaseAccessRequest) (*EvaluateDatabaseAccessResponse, error)
 	mustEmbedUnimplementedDecisionServiceServer()
@@ -132,9 +117,6 @@ type UnimplementedDecisionServiceServer struct{}
 
 func (UnimplementedDecisionServiceServer) EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*EvaluateSSHAccessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EvaluateSSHAccess not implemented")
-}
-func (UnimplementedDecisionServiceServer) EvaluateSSHJoin(context.Context, *EvaluateSSHJoinRequest) (*EvaluateSSHJoinResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method EvaluateSSHJoin not implemented")
 }
 func (UnimplementedDecisionServiceServer) EvaluateDatabaseAccess(context.Context, *EvaluateDatabaseAccessRequest) (*EvaluateDatabaseAccessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EvaluateDatabaseAccess not implemented")
@@ -178,24 +160,6 @@ func _DecisionService_EvaluateSSHAccess_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DecisionService_EvaluateSSHJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EvaluateSSHJoinRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DecisionServiceServer).EvaluateSSHJoin(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DecisionService_EvaluateSSHJoin_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DecisionServiceServer).EvaluateSSHJoin(ctx, req.(*EvaluateSSHJoinRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _DecisionService_EvaluateDatabaseAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EvaluateDatabaseAccessRequest)
 	if err := dec(in); err != nil {
@@ -224,10 +188,6 @@ var DecisionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EvaluateSSHAccess",
 			Handler:    _DecisionService_EvaluateSSHAccess_Handler,
-		},
-		{
-			MethodName: "EvaluateSSHJoin",
-			Handler:    _DecisionService_EvaluateSSHJoin_Handler,
 		},
 		{
 			MethodName: "EvaluateDatabaseAccess",

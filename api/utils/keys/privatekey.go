@@ -55,7 +55,6 @@ type cryptoPublicKeyI interface {
 // custom implementation for a non-standard private key, such as a hardware key.
 type PrivateKey struct {
 	crypto.Signer
-
 	// sshPub is the public key in ssh.PublicKey form.
 	sshPub ssh.PublicKey
 	// keyPEM is PEM-encoded private key data which can be parsed with ParsePrivateKey.
@@ -64,7 +63,8 @@ type PrivateKey struct {
 
 // NewPrivateKey returns a new PrivateKey for a crypto.Signer.
 // [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey.
-func NewPrivateKey(signer crypto.Signer) (*PrivateKey, error) {
+// TODO(Joerger): Remove the variadic argument once /e is updated to not provide it.
+func NewPrivateKey(signer crypto.Signer, _ ...[]byte) (*PrivateKey, error) {
 	keyPEM, err := MarshalPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -389,21 +389,6 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 		privPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  pivYubiKeyPrivateKeyType,
 			Bytes: encodedKey,
-		})
-		return privPEM, nil
-	default:
-		return nil, trace.BadParameter("unsupported private key type %T", key)
-	}
-}
-
-// MarshalDecrypter will return a PEM encoded crypto.Decrypter.
-// [key] must be an *rsa.PrivateKey
-func MarshalDecrypter(key crypto.Decrypter) ([]byte, error) {
-	switch privateKey := key.(type) {
-	case *rsa.PrivateKey:
-		privPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  PKCS1PrivateKeyType,
-			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 		})
 		return privPEM, nil
 	default:

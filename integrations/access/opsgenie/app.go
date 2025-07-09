@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -117,7 +115,7 @@ func (a *App) run(ctx context.Context) error {
 	var err error
 
 	log := logger.Get(ctx)
-	log.InfoContext(ctx, "Starting Teleport Access Opsgenie Plugin")
+	log.Infof("Starting Teleport Access Opsgenie Plugin")
 
 	if err = a.init(ctx); err != nil {
 		return trace.Wrap(err)
@@ -149,9 +147,9 @@ func (a *App) run(ctx context.Context) error {
 
 	a.mainJob.SetReady(ok)
 	if ok {
-		log.InfoContext(ctx, "Plugin is ready")
+		log.Info("Plugin is ready")
 	} else {
-		log.ErrorContext(ctx, "Plugin is not ready")
+		log.Error("Plugin is not ready")
 	}
 
 	<-watcherJob.Done()
@@ -179,24 +177,24 @@ func (a *App) init(ctx context.Context) error {
 	}
 
 	log := logger.Get(ctx)
-	log.DebugContext(ctx, "Starting API health check")
+	log.Debug("Starting API health check...")
 	if err = a.opsgenie.CheckHealth(ctx); err != nil {
 		return trace.Wrap(err, "API health check failed")
 	}
-	log.DebugContext(ctx, "API health check finished ok")
+	log.Debug("API health check finished ok")
 	return nil
 }
 
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
-	log.DebugContext(ctx, "Checking Teleport server version")
+	log.Debug("Checking Teleport server version")
 
 	pong, err := a.teleport.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
 		}
-		log.ErrorContext(ctx, "Unable to get Teleport server version")
+		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
 	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
@@ -221,16 +219,16 @@ func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 	}
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.With(ctx, "request_id", reqID)
+	ctx, _ = logger.WithField(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.With(ctx, "request_op", "put")
+		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
+		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
 
 		var err error
 		switch {
@@ -239,29 +237,21 @@ func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WarnContext(ctx, "Unknown request state",
-				slog.Group("event",
-					slog.Any("type", logutils.StringerAttr(event.Type)),
-					slog.Group("resource",
-						"kind", event.Resource.GetKind(),
-						"name", event.Resource.GetName(),
-					),
-				),
-			)
+			log.WithField("event", event).Warn("Unknown request state")
 			return nil
 		}
 
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to process request", "error", err)
+			log.WithError(err).Error("Failed to process request")
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.With(ctx, "request_op", "delete")
+		ctx, log := logger.WithField(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
+			log.WithError(err).Error("Failed to process deleted request")
 			return trace.Wrap(err)
 		}
 		return nil
@@ -320,13 +310,13 @@ func (a *App) getNotifySchedulesAndTeams(ctx context.Context, req types.AccessRe
 	scheduleAnnotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	schedules, err = common.GetNamesFromAnnotations(req, scheduleAnnotationKey)
 	if err != nil {
-		log.DebugContext(ctx, "No schedules to notify", "schedule", scheduleAnnotationKey)
+		log.Debugf("No schedules to notify in %s", scheduleAnnotationKey)
 	}
 
 	teamAnnotationKey := types.TeleportNamespace + types.ReqAnnotationTeamsLabel
 	teams, err = common.GetNamesFromAnnotations(req, teamAnnotationKey)
 	if err != nil {
-		log.DebugContext(ctx, "No teams to notify", "teams", teamAnnotationKey)
+		log.Debugf("No teams to notify in %s", teamAnnotationKey)
 	}
 
 	if len(schedules) == 0 && len(teams) == 0 {
@@ -346,7 +336,7 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 
 	recipientSchedules, recipientTeams, err := a.getMessageRecipients(ctx, req)
 	if err != nil {
-		log.DebugContext(ctx, "Skipping notification", "error", err)
+		log.Debugf("Skipping the notification: %s", err)
 		return false, trace.Wrap(errMissingAnnotation)
 	}
 
@@ -444,8 +434,8 @@ func (a *App) createAlert(ctx context.Context, reqID string, reqData RequestData
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, log := logger.With(ctx, "opsgenie_alert_id", data.AlertID)
-	log.InfoContext(ctx, "Successfully created Opsgenie alert")
+	ctx, log := logger.WithField(ctx, "opsgenie_alert_id", data.AlertID)
+	log.Info("Successfully created Opsgenie alert")
 
 	// Save opsgenie alert info in plugin data.
 	_, err = a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
@@ -489,10 +479,10 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).DebugContext(ctx, "Failed to post the note: plugin data is missing")
+		logger.Get(ctx).Debug("Failed to post the note: plugin data is missing")
 		return nil
 	}
-	ctx, _ = logger.With(ctx, "opsgenie_alert_id", data.AlertID)
+	ctx, _ = logger.WithField(ctx, "opsgenie_alert_id", data.AlertID)
 
 	slice := reqReviews[oldCount:]
 	if len(slice) == 0 {
@@ -514,7 +504,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 
 	serviceNames, err := a.getOnCallServiceNames(req)
 	if err != nil {
-		logger.Get(ctx).DebugContext(ctx, "Skipping approval", "error", err)
+		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
 	}
 
@@ -547,14 +537,14 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 			},
 		}); err != nil {
 			if strings.HasSuffix(err.Error(), "has already reviewed this request") {
-				log.DebugContext(ctx, "Already reviewed the request")
+				log.Debug("Already reviewed the request")
 				return nil
 			}
 			return trace.Wrap(err, "submitting access request")
 		}
 
 	}
-	log.InfoContext(ctx, "Successfully submitted a request approval")
+	log.Info("Successfully submitted a request approval")
 	return nil
 }
 
@@ -586,15 +576,15 @@ func (a *App) resolveAlert(ctx context.Context, reqID string, resolution Resolut
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).DebugContext(ctx, "Failed to resolve the alert: plugin data is missing")
+		logger.Get(ctx).Debug("Failed to resolve the alert: plugin data is missing")
 		return nil
 	}
 
-	ctx, log := logger.With(ctx, "opsgenie_alert_id", alertID)
+	ctx, log := logger.WithField(ctx, "opsgenie_alert_id", alertID)
 	if err := a.opsgenie.ResolveAlert(ctx, alertID, resolution); err != nil {
 		return trace.Wrap(err)
 	}
-	log.InfoContext(ctx, "Successfully resolved the alert")
+	log.Info("Successfully resolved the alert")
 
 	return nil
 }

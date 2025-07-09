@@ -153,7 +153,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "valid connection without session control",
 			conf: TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &Middleware{ClusterName: "test"},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: true},
 			errAssertion:       require.NoError,
@@ -172,7 +172,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "valid connection with authorization but no connection limiting",
 			conf: TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: true},
@@ -189,7 +189,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "valid connection with full session control",
 			conf: TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer: &fakeAuthorizer{
 					checker: &fakeChecker{maxConnections: 1},
 				},
@@ -209,7 +209,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "not authorized",
 			conf: TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{authorizeError: unauthorized},
 			},
 			clientTLSConf: &tls.Config{InsecureSkipVerify: true},
@@ -225,7 +225,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "connection limits exceeded",
 			conf: TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{checker: &fakeChecker{maxConnections: 1}},
 				Enforcer:             &fakeEnforcer{err: tooManyConnections},
 			},
@@ -242,7 +242,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "tls handshake failure",
 			conf: TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &Middleware{ClusterName: "test"},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: false},
 			handshakeAssertion: require.Error,
@@ -324,7 +324,7 @@ type fakeUserGetter struct {
 	identity authz.IdentityGetter
 }
 
-func (f fakeUserGetter) GetUser(context.Context, tls.ConnectionState) (authz.IdentityGetter, error) {
+func (f fakeUserGetter) GetUser(tls.ConnectionState) (authz.IdentityGetter, error) {
 	return f.identity, nil
 }
 

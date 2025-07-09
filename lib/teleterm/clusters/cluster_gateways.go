@@ -106,7 +106,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Logger:                        c.Logger,
+		Log:                           c.Log,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -146,7 +146,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Logger:                        c.Logger,
+		Log:                           c.Log,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -196,7 +196,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		Protocol:                      app.GetProtocol(),
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Logger:                        c.Logger,
+		Log:                           c.Log,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -239,7 +239,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		if g.TargetSubresourceName() != "" {
 			targetPort, err := parseTargetPort(g.TargetSubresourceName())
 			if err != nil {
-				return tls.Certificate{}, trace.BadParameter("%s", err)
+				return tls.Certificate{}, trace.BadParameter(err.Error())
 			}
 			routeToApp.TargetPort = targetPort
 		}
@@ -255,7 +255,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 func parseTargetPort(rawTargetPort string) (uint32, error) {
 	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 32)
 	if err != nil {
-		return 0, trace.BadParameter("%s", err)
+		return 0, trace.BadParameter(err.Error())
 	}
 	return uint32(targetPort), nil
 }

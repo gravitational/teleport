@@ -422,7 +422,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
@@ -481,7 +481,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
+			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -653,9 +653,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().WarnContext(s.closeContext,
-				"Failed to close the new gateway after failing to close the old gateway",
-				"error", newGatewayCloseErr,
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -665,11 +665,31 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
 	return newGateway, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination.
+func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
@@ -880,7 +900,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			s.cfg.Log.Error("Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
 		}
 		kubeGw.ClearCerts()
 	}
@@ -924,27 +944,6 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	return resources, trace.Wrap(err)
 }
 
-// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
-func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
-	clusterURI, err := uri.Parse(req.GetClusterUri())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, _, err := s.ResolveClusterURI(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
-	return response, trace.Wrap(err)
-}
-
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
 	if err != nil {
@@ -959,7 +958,7 @@ func (s *Service) Stop() {
 	s.gatewaysMu.RLock()
 	defer s.gatewaysMu.RUnlock()
 
-	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
+	s.cfg.Log.Info("Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -968,14 +967,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
+		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of

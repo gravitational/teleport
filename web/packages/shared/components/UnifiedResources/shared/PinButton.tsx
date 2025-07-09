@@ -59,7 +59,7 @@ export function PinButton({
     <ButtonIcon
       data-testid="pin-button"
       disabled={shouldDisableButton}
-      ref={copyAnchorEl}
+      setRef={copyAnchorEl}
       size={0}
       onClick={e => {
         // This ButtonIcon can be used within another element that also has a
@@ -82,6 +82,7 @@ export function PinButton({
       ) : (
         $content
       )}
+      <HoverTooltip tipContent={tipContent}></HoverTooltip>
     </ButtonIcon>
   );
 }

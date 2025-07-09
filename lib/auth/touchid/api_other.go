@@ -1,4 +1,5 @@
 //go:build !touchid
+// +build !touchid
 
 /*
  * Teleport

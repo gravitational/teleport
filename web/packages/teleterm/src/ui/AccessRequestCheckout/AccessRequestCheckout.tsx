@@ -107,7 +107,7 @@ export function AccessRequestCheckout() {
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
-  const transitionRef = useRef<HTMLDivElement>(null);
+  const transitionRef = useRef<HTMLDivElement>();
 
   function closeCheckout() {
     setShowCheckout(false);

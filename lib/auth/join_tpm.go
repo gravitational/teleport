@@ -45,7 +45,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, joinFailureMetadata, initReq.JoinRequest,
+				err, provisionToken, joinFailureMetadata, initReq.JoinRequest,
 			)
 		}
 	}()
@@ -112,7 +112,7 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
+		certs, err := a.generateCertsBot(
 			ctx,
 			ptv2,
 			initReq.JoinRequest,

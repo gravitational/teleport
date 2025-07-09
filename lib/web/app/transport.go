@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -62,7 +62,7 @@ type transportConfig struct {
 	servers      []types.AppServer
 	ws           types.WebSession
 	clusterName  string
-	log          *slog.Logger
+	log          logrus.FieldLogger
 	clock        clockwork.Clock
 
 	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
@@ -97,7 +97,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("integration app handler missing")
 	}
 	if c.log == nil {
-		c.log = slog.Default()
+		c.log = logrus.New()
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -265,7 +265,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 				// Service should fail to parse the JWT and reject the request,
 				// but rejecting here could cause forward compatibility issues,
 				// if for example we add new types of JWT tokens.
-				t.c.log.DebugContext(r.Context(), "failed to re-sign azure JWT", "error", err)
+				t.c.log.WithError(err).Debug("failed to re-sign azure JWT")
 			}
 
 			break
@@ -287,10 +287,8 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 
 	// Create a new jwt key using the client public key to verify and parse the token.
 	clientJWTKey, err := jwt.New(&jwt.Config{
-		Clock:     t.c.clock,
-		PublicKey: r.TLS.PeerCertificates[0].PublicKey,
-		// TODO(gabrielcorado): use the cluster name. This value must match the
-		// one used by the proxy.
+		Clock:       t.c.clock,
+		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -303,10 +301,8 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 		return trace.Wrap(err)
 	}
 	wsJWTKey, err := jwt.New(&jwt.Config{
-		Clock:      t.c.clock,
-		PrivateKey: wsPrivateKey,
-		// TODO(gabrielcorado): use the cluster name. This value must match the
-		// one used by the proxy.
+		Clock:       t.c.clock,
+		PrivateKey:  wsPrivateKey,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -367,7 +363,8 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
-			t.c.log.WarnContext(ctx, "Failed to connect to application server", "app_server", appServer.GetName(), "error", err)
+			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
+				Warnf("Failed to connect to application server: %v", err)
 			// Continue to the next server if there is an issue
 			// establishing a connection because the tunnel is not
 			// healthy. Reset the error to avoid returning it if

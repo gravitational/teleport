@@ -22,12 +22,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -35,9 +36,9 @@ import (
 func TestOpenSearchFetcher(t *testing.T) {
 	t.Parallel()
 
-	tags := map[string][]opensearchtypes.Tag{}
+	tags := map[string][]*opensearchservice.Tag{}
 	prod, prodDBs := makeOpenSearchDomain(t, tags, "os1", "us-east-1", "prod")
-	prodDisabled, _ := makeOpenSearchDomain(t, tags, "os2", "us-east-1", "prod", func(status *opensearchtypes.DomainStatus) {
+	prodDisabled, _ := makeOpenSearchDomain(t, tags, "os2", "us-east-1", "prod", func(status *opensearchservice.DomainStatus) {
 		status.Created = aws.Bool(false)
 	})
 
@@ -55,12 +56,10 @@ func TestOpenSearchFetcher(t *testing.T) {
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, test, os6, os7, os8, os9},
-						TagsByARN: tags,
-					},
+			inputClients: &cloud.TestCloudClients{
+				OpenSearch: &mocks.OpenSearchMock{
+					Domains:   []*opensearchservice.DomainStatus{prod, test, os6, os7, os8, os9},
+					TagsByARN: tags,
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
@@ -68,12 +67,10 @@ func TestOpenSearchFetcher(t *testing.T) {
 		},
 		{
 			name: "fetch prod",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, test},
-						TagsByARN: tags,
-					},
+			inputClients: &cloud.TestCloudClients{
+				OpenSearch: &mocks.OpenSearchMock{
+					Domains:   []*opensearchservice.DomainStatus{prod, test},
+					TagsByARN: tags,
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", envProdLabels),
@@ -81,12 +78,10 @@ func TestOpenSearchFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, prodDisabled},
-						TagsByARN: tags,
-					},
+			inputClients: &cloud.TestCloudClients{
+				OpenSearch: &mocks.OpenSearchMock{
+					Domains:   []*opensearchservice.DomainStatus{prod, prodDisabled},
+					TagsByARN: tags,
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", wildcardLabels),
@@ -94,12 +89,10 @@ func TestOpenSearchFetcher(t *testing.T) {
 		},
 		{
 			name: "prod default",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, prodVPC, prodCustom},
-						TagsByARN: tags,
-					},
+			inputClients: &cloud.TestCloudClients{
+				OpenSearch: &mocks.OpenSearchMock{
+					Domains:   []*opensearchservice.DomainStatus{prod, prodVPC, prodCustom},
+					TagsByARN: tags,
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchDefaultEndpoint}),
@@ -107,12 +100,10 @@ func TestOpenSearchFetcher(t *testing.T) {
 		},
 		{
 			name: "prod custom",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, prodVPC, prodCustom},
-						TagsByARN: tags,
-					},
+			inputClients: &cloud.TestCloudClients{
+				OpenSearch: &mocks.OpenSearchMock{
+					Domains:   []*opensearchservice.DomainStatus{prod, prodVPC, prodCustom},
+					TagsByARN: tags,
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchCustomEndpoint}),
@@ -120,12 +111,10 @@ func TestOpenSearchFetcher(t *testing.T) {
 		},
 		{
 			name: "prod vpc",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					openSearchClient: &mocks.OpenSearchClient{
-						Domains:   []opensearchtypes.DomainStatus{prod, prodVPC, prodCustom},
-						TagsByARN: tags,
-					},
+			inputClients: &cloud.TestCloudClients{
+				OpenSearch: &mocks.OpenSearchMock{
+					Domains:   []*opensearchservice.DomainStatus{prod, prodVPC, prodCustom},
+					TagsByARN: tags,
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherOpenSearch, "us-east-1", map[string]string{"endpoint-type": apiawsutils.OpenSearchVPCEndpoint}),
@@ -135,15 +124,15 @@ func TestOpenSearchFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeOpenSearchDomain(t *testing.T, tagMap map[string][]opensearchtypes.Tag, name, region, env string, opts ...func(status *opensearchtypes.DomainStatus)) (opensearchtypes.DomainStatus, types.Databases) {
+func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.Tag, name, region, env string, opts ...func(status *opensearchservice.DomainStatus)) (*opensearchservice.DomainStatus, types.Databases) {
 	domain := mocks.OpenSearchDomain(name, region, opts...)
 
-	tags := []opensearchtypes.Tag{{
+	tags := []*opensearchservice.Tag{{
 		Key:   aws.String("env"),
 		Value: aws.String(env),
 	}}
 
-	tagMap[aws.ToString(domain.ARN)] = tags
+	tagMap[aws.StringValue(domain.ARN)] = tags
 
 	databases, err := common.NewDatabasesFromOpenSearchDomain(domain, tags)
 	require.NoError(t, err)
@@ -151,5 +140,5 @@ func makeOpenSearchDomain(t *testing.T, tagMap map[string][]opensearchtypes.Tag,
 	for _, db := range databases {
 		common.ApplyAWSDatabaseNameSuffix(db, types.AWSMatcherOpenSearch)
 	}
-	return *domain, databases
+	return domain, databases
 }

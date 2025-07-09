@@ -141,6 +141,9 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
+	// KindSAMLIdPSession represents a SAML IdP session.
+	KindSAMLIdPSession = "saml_idp_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -180,13 +183,12 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
-	// SubKindMCP represents an MCP server as a subkind of app.
-	SubKindMCP = KindMCP
-
-	// KindMCP is an MCP server resource.
-	// Currently, MCP servers are accessed through apps.
-	// In the future, they may become a standalone resource kind.
-	KindMCP = "mcp"
+	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
+	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
+	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	//
+	// DEPRECATED: Use KindAppServer and KindSAMLIdPServiceProvider individually.
+	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -242,9 +244,6 @@ const (
 
 	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
 	KindKubeReplicaSet = "replicaset"
-
-	// KindKubeReplicationController is a Kubernetes ReplicationController resource type.
-	KindKubeReplicationController = "replicationcontroller"
 
 	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
 	KindKubeStatefulset = "statefulset"
@@ -311,16 +310,9 @@ const (
 	// KindSessionRecordingConfig is the resource for session recording configuration.
 	KindSessionRecordingConfig = "session_recording_config"
 
-	// KindRecordingEncryption is the collection of active session recording encryption keys.
-	KindRecordingEncryption = "recording_encryption"
-
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
-
-	// MetaNameRecordingEncryption is the exact name of the singleton resource for
-	// session recording configuration.
-	MetaNameRecordingEncryption = "recording-encryption"
 
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
@@ -346,9 +338,6 @@ const (
 
 	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
 	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
-
-	// KindAutoUpdateAgentReport is the resource that tracks connected agents.
-	KindAutoUpdateAgentReport = "autoupdate_agent_report"
 
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
@@ -509,9 +498,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindHealthCheckConfig is the resource for health check configuration.
-	KindHealthCheckConfig = "health_check_config"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -655,15 +641,6 @@ const (
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
-	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
-	MetaNameVnetConfig = "vnet-config"
-
-	// KindRelayServer is the resource kind for a Relay service heartbeat.
-	KindRelayServer = "relay_server"
-
-	// V8 is the eighth version of resources.
-	V8 = "v8"
-
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -691,7 +668,7 @@ const (
 var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -777,10 +754,6 @@ const (
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
-
-	// OriginIntegrationAWSRolesAnywhere is an origin value indicating that the resource was
-	// created from the AWS IAM Roles Anywhere Integration.
-	OriginIntegrationAWSRolesAnywhere = common.OriginIntegrationAWSRolesAnywhere
 
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
@@ -914,11 +887,6 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
-	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
-	SchemaMCPStdio = "mcp+stdio://"
-	// MCPTransportStdio indicates the MCP server uses stdio transport.
-	MCPTransportStdio = "stdio"
-
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.
@@ -934,8 +902,6 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
-	// TeleportAzureIdentityEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
-	TeleportAzureIdentityEndpoint = "azure-identity." + TeleportNamespace
 
 	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
 	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
@@ -1405,7 +1371,6 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
-	KindGitServer,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
@@ -1438,72 +1403,6 @@ var KubernetesResourcesKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
-}
-
-// KubernetesResourceSelfSubjectAccessReview is a Kubernetes resource that
-// represents a self-subject access review. This gets injected in the allow section in the roles.
-var KubernetesResourceSelfSubjectAccessReview = KubernetesResource{
-	Kind:     "selfsubjectaccessreviews",
-	Name:     Wildcard,
-	Verbs:    []string{"create"},
-	APIGroup: "authorization.k8s.io",
-}
-
-// KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
-// to their kubernetes group.
-// Used for validation in role >=v8 to check whether an older value has
-// been accidentally used.
-var KubernetesResourcesV7KindGroups = map[string]string{
-	KindKubePod:                       "",
-	KindKubeSecret:                    "",
-	KindKubeConfigmap:                 "",
-	KindKubeNamespace:                 "",
-	KindKubeService:                   "",
-	KindKubeServiceAccount:            "",
-	KindKubeNode:                      "",
-	KindKubePersistentVolume:          "",
-	KindKubePersistentVolumeClaim:     "",
-	KindKubeDeployment:                "apps",
-	KindKubeReplicaSet:                "apps",
-	KindKubeStatefulset:               "apps",
-	KindKubeDaemonSet:                 "apps",
-	KindKubeClusterRole:               "rbac.authorization.k8s.io",
-	KindKubeRole:                      "rbac.authorization.k8s.io",
-	KindKubeClusterRoleBinding:        "rbac.authorization.k8s.io",
-	KindKubeRoleBinding:               "rbac.authorization.k8s.io",
-	KindKubeCronjob:                   "batch",
-	KindKubeJob:                       "batch",
-	KindKubeCertificateSigningRequest: "certificates.k8s.io",
-	KindKubeIngress:                   "networking.k8s.io",
-}
-
-// KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
-// to their kubernetes name.
-// Used to upgrade roles <=v7 as well as to support existing access request
-// format.
-// NOTE: Namespace having a different behavior between versions, it is omitted from this map.
-var KubernetesResourcesKindsPlurals = map[string]string{
-	KindKubePod:                       "pods",
-	KindKubeSecret:                    "secrets",
-	KindKubeConfigmap:                 "configmaps",
-	KindKubeService:                   "services",
-	KindKubeServiceAccount:            "serviceaccounts",
-	KindKubeNode:                      "nodes",
-	KindKubePersistentVolume:          "persistentvolumes",
-	KindKubePersistentVolumeClaim:     "persistentvolumeclaims",
-	KindKubeDeployment:                "deployments",
-	KindKubeReplicaSet:                "replicasets",
-	KindKubeReplicationController:     "replicationcontrollers",
-	KindKubeStatefulset:               "statefulsets",
-	KindKubeDaemonSet:                 "daemonsets",
-	KindKubeClusterRole:               "clusterroles",
-	KindKubeRole:                      "roles",
-	KindKubeClusterRoleBinding:        "clusterrolebindings",
-	KindKubeRoleBinding:               "rolebindings",
-	KindKubeCronjob:                   "cronjobs",
-	KindKubeJob:                       "jobs",
-	KindKubeCertificateSigningRequest: "certificatesigningrequests",
-	KindKubeIngress:                   "ingresses",
 }
 
 const (
@@ -1551,7 +1450,6 @@ var KubernetesVerbs = []string{
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
-// Needed to maintain backward compatibility.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
@@ -1559,78 +1457,6 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeClusterRole,
 	KindKubeClusterRoleBinding,
 	KindKubeCertificateSigningRequest,
-}
-
-type groupKind = struct{ apiGroup, kind string }
-
-// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
-// that are namespaced.
-// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
-// (added .core to core resources.)
-// The format is "<plural>.<apigroup>".
-//
-// Only used in role >=v8 to attempt to validate the api_group field.
-// If we have a match, we know we need a namespaced value, if we don't
-// have a match, we don't know we don't. Best effort basis.
-var kubernetesNamespacedResourceKinds = map[groupKind]struct{}{
-	{"", "bindings"}:                                      {},
-	{"", "configmaps"}:                                    {},
-	{"apps", "controllerrevisions"}:                       {},
-	{"batch", "cronjobs"}:                                 {},
-	{"storage.k8s.io", "csistoragecapacities"}:            {},
-	{"apps", "daemonsets"}:                                {},
-	{"apps", "deployments"}:                               {},
-	{"", "endpoints"}:                                     {},
-	{"discovery.k8s.io", "endpointslices"}:                {},
-	{"events.k8s.io", "events"}:                           {},
-	{"", "events"}:                                        {},
-	{"autoscaling", "horizontalpodautoscalers"}:           {},
-	{"networking.k8s.io", "ingresses"}:                    {},
-	{"batch", "jobs"}:                                     {},
-	{"coordination.k8s.io", "leases"}:                     {},
-	{"", "limitranges"}:                                   {},
-	{"authorization.k8s.io", "localsubjectaccessreviews"}: {},
-	{"networking.k8s.io", "networkpolicies"}:              {},
-	{"", "persistentvolumeclaims"}:                        {},
-	{"policy", "poddisruptionbudgets"}:                    {},
-	{"", "pods"}:                                          {},
-	{"", "podtemplates"}:                                  {},
-	{"apps", "replicasets"}:                               {},
-	{"", "replicationcontrollers"}:                        {},
-	{"", "resourcequotas"}:                                {},
-	{"rbac.authorization.k8s.io", "rolebindings"}:         {},
-	{"rbac.authorization.k8s.io", "roles"}:                {},
-	{"", "secrets"}:                                       {},
-	{"", "serviceaccounts"}:                               {},
-	{"", "services"}:                                      {},
-	{"apps", "statefulsets"}:                              {},
-}
-
-// List of "" (core / legacy) resources.
-//
-// Used to validate the api_group field.
-//
-// Generated with:
-//
-//	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
-var KubernetesCoreResourceKinds = map[string]struct{}{
-	"bindings":               {},
-	"componentstatuses":      {},
-	"configmaps":             {},
-	"endpoints":              {},
-	"events":                 {},
-	"limitranges":            {},
-	"namespaces":             {},
-	"nodes":                  {},
-	"persistentvolumeclaims": {},
-	"persistentvolumes":      {},
-	"pods":                   {},
-	"podtemplates":           {},
-	"replicationcontrollers": {},
-	"resourcequotas":         {},
-	"secrets":                {},
-	"serviceaccounts":        {},
-	"services":               {},
 }
 
 const (
@@ -1737,17 +1563,3 @@ const (
 	// types.Server to indicate the GitHub organization of a Git server.
 	GitHubOrgServerDomain = "teleport-github-org"
 )
-
-// AccessMonitoringRuleState specifies the desired state of an access monitoring
-// rule subject.
-type AccessMonitoringRuleState string
-
-const (
-	// AccessMonitoringRuleStateReviewed indicates that the access monitoring
-	// rule subject should be reviewed.
-	AccessMonitoringRuleStateReviewed = "reviewed"
-)
-
-// BuiltInAutomaticReview is used within access monitoring rules and indicates
-// that the automatic_review rule should be monitored by Teleport.
-const BuiltInAutomaticReview = "builtin"

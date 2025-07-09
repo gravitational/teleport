@@ -22,10 +22,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
@@ -65,8 +65,7 @@ type actionMessage struct {
 // ReceivePlaybackActions handles logic for receiving playbackAction messages
 // over the websocket and updating the player state accordingly.
 func ReceivePlaybackActions(
-	ctx context.Context,
-	logger *slog.Logger,
+	log logrus.FieldLogger,
 	ws *websocket.Conn,
 	player *player.Player) {
 	// playback always starts in a playing state
@@ -79,7 +78,7 @@ func ReceivePlaybackActions(
 			// Connection close errors are expected if the user closes the tab.
 			// Only log unexpected errors to avoid cluttering the logs.
 			if !utils.IsOKNetworkError(err) {
-				logger.WarnContext(ctx, "websocket read error", "error", err)
+				log.Warnf("websocket read error: %v", err)
 			}
 			return
 		}
@@ -99,7 +98,7 @@ func ReceivePlaybackActions(
 		case actionSeek:
 			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
 		default:
-			slog.WarnContext(ctx, "invalid desktop playback action", "action", action.Action)
+			log.Warnf("invalid desktop playback action: %v", action.Action)
 			return
 		}
 	}
@@ -109,7 +108,7 @@ func ReceivePlaybackActions(
 // over a websocket.
 func PlayRecording(
 	ctx context.Context,
-	log *slog.Logger,
+	log logrus.FieldLogger,
 	ws *websocket.Conn,
 	player *player.Player) {
 	player.Play()
@@ -123,18 +122,18 @@ func PlayRecording(
 					// Attempt to JSONify the error (escaping any quotes)
 					msg, err := json.Marshal(playerErr.Error())
 					if err != nil {
-						log.WarnContext(ctx, "failed to marshal player error message", "error", err)
+						log.Warnf("failed to marshal player error message: %v", err)
 						msg = []byte(`"internal server error"`)
 					}
 					//lint:ignore QF1012 this write needs to happen in a single operation
-					bytes := fmt.Appendf(nil, `{"message":"error", "errorText":%s}`, string(msg))
+					bytes := []byte(fmt.Sprintf(`{"message":"error", "errorText":%s}`, string(msg)))
 					if err := ws.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
-						log.ErrorContext(ctx, "failed to write error message", "error", err)
+						log.Errorf("failed to write error message: %v", err)
 					}
 					return
 				}
 				if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"end"}`)); err != nil {
-					log.ErrorContext(ctx, "failed to write end message", "error", err)
+					log.Errorf("failed to write end message: %v", err)
 				}
 				return
 			}
@@ -146,7 +145,7 @@ func PlayRecording(
 			}
 			msg, err := utils.FastMarshal(evt)
 			if err != nil {
-				log.ErrorContext(ctx, "failed to marshal desktop event", "error", err)
+				log.Errorf("failed to marshal desktop event: %v", err)
 				ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error","errorText":"server error"}`))
 				return
 			}
@@ -154,7 +153,7 @@ func PlayRecording(
 				// Connection close errors are expected if the user closes the tab.
 				// Only log unexpected errors to avoid cluttering the logs.
 				if !utils.IsOKNetworkError(err) {
-					log.WarnContext(ctx, "websocket write error", "error", err)
+					log.Warnf("websocket write error: %v", err)
 				}
 				return
 			}

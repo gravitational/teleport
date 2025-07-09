@@ -17,26 +17,15 @@
 package vnet
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
-func newNetworkStackConfig(ctx context.Context, tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
-	clock := clockwork.NewRealClock()
-	sshProvider, err := newSSHProvider(ctx, sshProviderConfig{
-		clt:   clt,
-		clock: clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:         clt,
 		appProvider: newAppProvider(clt),
-		sshProvider: sshProvider,
-		clock:       clock,
+		clock:       clockwork.NewRealClock(),
 	})
 	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {

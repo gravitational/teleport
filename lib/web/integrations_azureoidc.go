@@ -74,7 +74,7 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = w.Write([]byte(script))
+	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
 }

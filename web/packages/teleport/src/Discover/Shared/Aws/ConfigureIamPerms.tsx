@@ -51,7 +51,44 @@ export function ConfigureIamPerms({
 
   switch (kind) {
     case 'ec2': {
-      // TODO(marco): should we remove `ec2` from the AwsResourceKind?
+      iamPolicyName = 'EC2InstanceConnectEndpoint';
+      msg = 'We were unable to list your EC2 instances.';
+      scriptUrl = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
+        region,
+        iamRoleName,
+        accountID,
+      });
+
+      const json = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceConnectEndpoints",
+        "ec2:DescribeSecurityGroups",
+        "ec2:CreateInstanceConnectEndpoint",
+        "ec2:CreateTags",
+        "ec2:CreateNetworkInterface",
+        "iam:CreateServiceLinkedRole",
+        "ec2-instance-connect:SendSSHPublicKey",
+        "ec2-instance-connect:OpenTunnel"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`;
+
+      editor = (
+        <EditorWrapper $height={345}>
+          <TextEditor
+            readOnly={true}
+            data={[{ content: json, type: 'json' }]}
+            bg="levels.deep"
+          />
+        </EditorWrapper>
+      );
       break;
     }
     case 'eks': {

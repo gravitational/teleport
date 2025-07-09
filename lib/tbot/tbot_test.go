@@ -1189,6 +1189,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		"server01.root:0|root\x00", // New style target with cluster
 	}
 	for _, target := range targets {
+		target := target
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
 

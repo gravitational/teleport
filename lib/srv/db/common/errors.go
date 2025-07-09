@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -65,7 +65,7 @@ func ConvertError(err error) error {
 	}
 
 	var googleAPIErr *googleapi.Error
-	var awsRequestFailureErr *awshttp.ResponseError
+	var awsRequestFailureErr awserr.RequestFailure
 	var azResponseErr *azcore.ResponseError
 	var pgError *pgconn.PgError
 	var myError *mysql.MyError
@@ -88,9 +88,9 @@ func ConvertError(err error) error {
 func convertGCPError(err *googleapi.Error) error {
 	switch err.Code {
 	case http.StatusForbidden:
-		return trace.AccessDenied("%s", err)
+		return trace.AccessDenied(err.Error())
 	case http.StatusConflict:
-		return trace.CompareFailed("%s", err)
+		return trace.CompareFailed(err.Error())
 	}
 	return err // Return unmodified.
 }
@@ -99,7 +99,7 @@ func convertGCPError(err *googleapi.Error) error {
 func convertPostgresError(err *pgconn.PgError) error {
 	switch err.Code {
 	case pgerrcode.InvalidAuthorizationSpecification, pgerrcode.InvalidPassword:
-		return trace.AccessDenied("%s", err)
+		return trace.AccessDenied(err.Error())
 	}
 	return err // Return unmodified.
 }
@@ -108,7 +108,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
 	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
-		return trace.AccessDenied("%s", fmtEscape(err))
+		return trace.AccessDenied(fmtEscape(err))
 	}
 	return err // Return unmodified.
 }

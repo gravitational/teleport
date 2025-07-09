@@ -154,9 +154,8 @@ var (
 		TypeName:               "AuthPreferenceV2",
 		VarName:                "authPreference",
 		GetMethod:              "GetAuthPreference",
-		CreateMethod:           "UpsertAuthPreference",
-		UpdateMethod:           "UpsertAuthPreference",
-		UpsertMethodArity:      2,
+		CreateMethod:           "SetAuthPreference",
+		UpdateMethod:           "SetAuthPreference",
 		DeleteMethod:           "ResetAuthPreference",
 		ID:                     `"auth_preference"`,
 		Kind:                   "cluster_auth_preference",
@@ -187,9 +186,8 @@ var (
 		TypeName:               "ClusterNetworkingConfigV2",
 		VarName:                "clusterNetworkingConfig",
 		GetMethod:              "GetClusterNetworkingConfig",
-		CreateMethod:           "UpsertClusterNetworkingConfig",
-		UpdateMethod:           "UpsertClusterNetworkingConfig",
-		UpsertMethodArity:      2,
+		CreateMethod:           "SetClusterNetworkingConfig",
+		UpdateMethod:           "SetClusterNetworkingConfig",
 		DeleteMethod:           "ResetClusterNetworkingConfig",
 		ID:                     `"cluster_networking_config"`,
 		Kind:                   "cluster_networking_config",
@@ -294,6 +292,7 @@ var (
 		Kind:                   "token",
 		HasStaticID:            false,
 		SchemaPackage:          "token",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",
 		HasCheckAndSetDefaults: true,
 	}
@@ -319,9 +318,8 @@ var (
 		TypeName:               "SessionRecordingConfigV2",
 		VarName:                "sessionRecordingConfig",
 		GetMethod:              "GetSessionRecordingConfig",
-		CreateMethod:           "UpsertSessionRecordingConfig",
-		UpdateMethod:           "UpsertSessionRecordingConfig",
-		UpsertMethodArity:      2,
+		CreateMethod:           "SetSessionRecordingConfig",
+		UpdateMethod:           "SetSessionRecordingConfig",
 		DeleteMethod:           "ResetSessionRecordingConfig",
 		ID:                     `"session_recording_config"`,
 		Kind:                   "session_recording_config",
@@ -604,32 +602,6 @@ var (
 		ForceSetKind: "apitypes.KindAutoUpdateConfig",
 		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
 	}
-
-	healthCheckConfig = payload{
-		Name:                  "HealthCheckConfig",
-		TypeName:              "HealthCheckConfig",
-		VarName:               "healthCheckConfig",
-		GetMethod:             "GetHealthCheckConfig",
-		CreateMethod:          "CreateHealthCheckConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertHealthCheckConfig",
-		DeleteMethod:          "DeleteHealthCheckConfig",
-		ID:                    "healthCheckConfig.Metadata.Name",
-		Kind:                  "health_check_config",
-		HasStaticID:           false,
-		ProtoPackage:          "healthcheckconfigv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/healthcheckconfig/v1",
-		TerraformResourceType: "teleport_health_check_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindHealthCheckConfig",
-	}
 )
 
 func main() {
@@ -687,8 +659,6 @@ func genTFSchema() {
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
 	generateDataSource(autoUpdateConfig, singularDataSource)
-	generateResource(healthCheckConfig, pluralResource)
-	generateDataSource(healthCheckConfig, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {

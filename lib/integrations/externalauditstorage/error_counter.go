@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -37,7 +38,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -53,7 +53,7 @@ const (
 	syncInterval = 30 * time.Second
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "ExternalAuditStorage")
+var log = logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage")
 
 // ClusterAlertService abstracts a service providing Upsert and Delete
 // operations for cluster alerts.
@@ -189,25 +189,16 @@ func (c *ErrorCounter) sync(ctx context.Context) {
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertVerbPermit, "external_audit_storage:create"))
 		if err != nil {
-			log.InfoContext(ctx, "ErrorCounter failed to create cluster alert",
-				"alert_name", newAlert.name,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to create cluster alert %s: %s", newAlert.name, err)
 			continue
 		}
 		if err := c.alertService.UpsertClusterAlert(ctx, alert); err != nil {
-			log.InfoContext(ctx, "ErrorCounter failed to upsert cluster alert",
-				"alert_name", newAlert.name,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to upsert cluster alert %s: %s", newAlert.name, err)
 		}
 	}
 	for _, alertToClear := range allAlertActions.clearAlerts {
 		if err := c.alertService.DeleteClusterAlert(ctx, alertToClear); err != nil && !trace.IsNotFound(err) {
-			log.InfoContext(ctx, "ErrorCounter failed to delete cluster alert",
-				"alert_name", alertToClear,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to delete cluster alert %s: %s", alertToClear, err)
 		}
 	}
 }
@@ -323,12 +314,6 @@ func (c *ErrorCountingLogger) EmitAuditEvent(ctx context.Context, e apievents.Au
 // success.
 func (c *ErrorCountingLogger) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	events, key, err := c.wrapped.SearchEvents(ctx, req)
-	c.searches.observe(err)
-	return events, key, err
-}
-
-func (c *ErrorCountingLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	events, key, err := c.wrapped.SearchUnstructuredEvents(ctx, req)
 	c.searches.observe(err)
 	return events, key, err
 }

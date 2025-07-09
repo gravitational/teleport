@@ -125,7 +125,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 					defer cancel()
 
 					if err := statusSink.Emit(ctx, status); err != nil {
-						log.ErrorContext(ctx, "Error while emitting Jira plugin status", "error", err)
+						log.WithError(err).Errorf("Error while emitting Jira plugin status: %v", err)
 					}
 				}
 
@@ -199,7 +199,7 @@ func (j *Jira) HealthCheck(ctx context.Context) error {
 		}
 	}
 
-	log.DebugContext(ctx, "Checking out Jira project")
+	log.Debug("Checking out Jira project...")
 	var project Project
 	_, err = j.client.NewRequest().
 		SetContext(ctx).
@@ -209,12 +209,9 @@ func (j *Jira) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.DebugContext(ctx, "Found Jira project",
-		"project", project.Key,
-		"project_name", project.Name,
-	)
+	log.Debugf("Found project %q named %q", project.Key, project.Name)
 
-	log.DebugContext(ctx, "Checking out Jira project permissions")
+	log.Debug("Checking out Jira project permissions...")
 	queryOptions, err := query.Values(GetMyPermissionsQueryOptions{
 		ProjectKey:  j.project,
 		Permissions: jiraRequiredPermissions,
@@ -436,7 +433,7 @@ func (j *Jira) ResolveIssue(ctx context.Context, issueID string, resolution Reso
 	if err2 := trace.Wrap(j.TransitionIssue(ctx, issue.ID, transition.ID)); err2 != nil {
 		return trace.NewAggregate(err1, err2)
 	}
-	logger.Get(ctx).DebugContext(ctx, "Successfully moved the issue to the target status", "target_status", toStatus)
+	logger.Get(ctx).Debugf("Successfully moved the issue to the status %q", toStatus)
 
 	return trace.Wrap(err1)
 }
@@ -460,7 +457,7 @@ func (j *Jira) AddResolutionComment(ctx context.Context, id string, resolution R
 		SetBody(CommentInput{Body: builder.String()}).
 		Post("rest/api/2/issue/{issueID}/comment")
 	if err == nil {
-		logger.Get(ctx).DebugContext(ctx, "Successfully added a resolution comment to the issue")
+		logger.Get(ctx).Debug("Successfully added a resolution comment to the issue")
 	}
 	return trace.Wrap(err)
 }

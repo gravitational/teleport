@@ -77,11 +77,6 @@ export interface DesktopSessionProps {
    */
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
-  /**
-   * Keyboard layout identifier for desired layout on remote session
-   * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-   */
-  keyboardLayout?: number;
 }
 
 export function DesktopSession({
@@ -91,7 +86,6 @@ export function DesktopSession({
   desktop,
   hasAnotherSession,
   customConnectionState,
-  keyboardLayout = 0,
   browserSupportsSharing,
 }: DesktopSessionProps) {
   const {
@@ -143,19 +137,20 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleFatalError = useCallback(
-    (error: Error) => {
+  const handleConnectionClose = useCallback(
+    (error?: Error) => {
       clearSharing();
       setTdpConnectionStatus({
         status: 'disconnected',
         fromTdpError: error instanceof TdpError,
-        message: error.message,
+        message: error?.message || '',
       });
       initialTdpConnectionSucceeded.current = false;
     },
     [clearSharing]
   );
-  useListener(client.onError, handleFatalError);
+  useListener(client.onError, handleConnectionClose);
+  useListener(client.onTransportClose, handleConnectionClose);
 
   const addWarning = useCallback(
     (warning: string) => {
@@ -182,19 +177,6 @@ export function DesktopSession({
     )
   );
 
-  useListener(
-    client.onTransportClose,
-    useCallback(
-      error => {
-        setTdpConnectionStatus({
-          status: 'disconnected',
-          message: error?.message,
-        });
-        initialTdpConnectionSucceeded.current = false;
-      },
-      [setTdpConnectionStatus]
-    )
-  );
   useListener(
     client.onTransportOpen,
     useCallback(() => {
@@ -245,14 +227,11 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect({
-      keyboardLayout,
-      screenSpec: canvasRendererRef.current.getSize(),
-    });
+    void client.connect(canvasRendererRef.current.getSize());
     return () => {
       client.shutdown();
     };
-  }, [client, shouldConnect, keyboardLayout]);
+  }, [client, shouldConnect]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     keyboardHandler.current.handleKeyboardEvent({
@@ -361,7 +340,6 @@ export function DesktopSession({
       <TopBar
         isConnected={screenState.state === 'canvas-visible'}
         onDisconnect={() => {
-          clearSharing();
           client.shutdown();
         }}
         userHost={`${username} on ${desktop}`}

@@ -20,10 +20,8 @@ package srv
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -32,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
@@ -202,10 +201,9 @@ func (u *HostSudoersProvisioningBackend) RemoveSudoersFile(username string) erro
 	fileUsername := sanitizeSudoersName(username)
 	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {
-		slog.DebugContext(context.Background(), "No sudoers file present to remove",
-			"user", username,
-			"sudoers_path", sudoersFilePath,
-		)
+		log.Debugf("User %q, did not have sudoers file as it did not exist at path %q",
+			username,
+			sudoersFilePath)
 		return nil
 	}
 	return trace.Wrap(os.Remove(sudoersFilePath))

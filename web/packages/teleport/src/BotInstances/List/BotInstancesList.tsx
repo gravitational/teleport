@@ -142,9 +142,11 @@ export function BotInstancesList({
           isSortable: false,
           render: ({ activeAtDisplay, activeAtLocal }) => (
             <Cell>
-              <HoverTooltip tipContent={activeAtLocal}>
-                <span>{activeAtDisplay}</span>
-              </HoverTooltip>
+              <Flex>
+                <HoverTooltip tipContent={activeAtLocal}>
+                  {activeAtDisplay}
+                </HoverTooltip>
+              </Flex>
             </Cell>
           ),
         },

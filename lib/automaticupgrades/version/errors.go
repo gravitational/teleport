@@ -18,17 +18,13 @@
 
 package version
 
-import (
-	"fmt"
-
-	"github.com/coreos/go-semver/semver"
-)
+import "fmt"
 
 // NoNewVersionError indicates that no new version was found and the controller did not reconcile.
 type NoNewVersionError struct {
-	Message        string          `json:"message"`
-	CurrentVersion *semver.Version `json:"currentVersion"`
-	NextVersion    *semver.Version `json:"nextVersion"`
+	Message        string `json:"message"`
+	CurrentVersion string `json:"currentVersion"`
+	NextVersion    string `json:"nextVersion"`
 }
 
 // Error returns log friendly description of an error

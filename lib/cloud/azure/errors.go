@@ -41,14 +41,14 @@ func ConvertResponseError(err error) error {
 	case errors.As(err, &responseErr):
 		switch responseErr.StatusCode {
 		case http.StatusForbidden:
-			return trace.AccessDenied("%s", responseErr)
+			return trace.AccessDenied(responseErr.Error())
 		case http.StatusConflict:
-			return trace.AlreadyExists("%s", responseErr)
+			return trace.AlreadyExists(responseErr.Error())
 		case http.StatusNotFound:
-			return trace.NotFound("%s", responseErr)
+			return trace.NotFound(responseErr.Error())
 		}
 	case errors.As(err, &authenticationFailedErr):
-		return trace.AccessDenied("%s", authenticationFailedErr)
+		return trace.AccessDenied(authenticationFailedErr.Error())
 	}
 	return err // Return unmodified.
 }

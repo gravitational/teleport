@@ -57,7 +57,7 @@ We have implemented Teleport as a single Go binary that integrates with multiple
 
 * [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
 * [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
 * [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
 * [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
@@ -69,7 +69,7 @@ Teleport focuses on best practices for infrastructure security:
 - No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
 - Two-factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Microsoft Entra ID.
+- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
 - Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
 
 Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
@@ -87,7 +87,7 @@ Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully c
 ## Installing and Running
 
 To set up a single-instance Teleport cluster, follow our [getting started
-guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo/). You can then register your
+guide](https://goteleport.com/docs/get-started). You can then register your
 servers, Kubernetes clusters, and other infrastructure with your Teleport
 cluster.
 
@@ -359,7 +359,7 @@ We had a choice, either start a security consulting business or build a solution
 
 * [Teleport Getting Started](https://goteleport.com/docs/get-started/)
 * [Teleport
-  Architecture](https://goteleport.com/docs/reference/architecture/)
+  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
 * [Reference](https://goteleport.com/docs/reference/)
 * [FAQ](https://goteleport.com/docs/faq)
 

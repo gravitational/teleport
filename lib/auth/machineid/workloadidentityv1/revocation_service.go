@@ -490,14 +490,22 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	handleEvent := func(e types.Event) (bool, error) {
 		switch e.Type {
 		case types.OpPut:
-			unwrapper, ok := e.Resource.(types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentityX509Revocation])
+			unwrapper, ok := e.Resource.(types.Resource153Unwrapper)
 			if !ok {
 				return false, trace.BadParameter(
 					"expected event resource (%s) to implement Resource153Wrapper",
 					e.Resource.GetName(),
 				)
 			}
-			revocation := unwrapper.UnwrapT()
+			unwrapped := unwrapper.Unwrap()
+			revocation, ok := unwrapped.(*workloadidentityv1pb.WorkloadIdentityX509Revocation)
+			if !ok {
+				return false, trace.BadParameter(
+					"expected event resource (%s) to be a WorkloadIdentityX509Revocation, but it was %T",
+					e.Resource.GetName(),
+					unwrapped,
+				)
+			}
 			revocationsMap[revocation.Metadata.Name] = revocation
 			return true, nil
 		case types.OpDelete:

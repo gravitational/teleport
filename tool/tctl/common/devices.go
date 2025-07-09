@@ -21,13 +21,13 @@ package common
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -490,11 +490,10 @@ func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
 
 	c.osType = cdd.OsType
 	c.assetTag = cdd.SerialNumber
-	slog.DebugContext(
-		context.Background(),
-		"Running device command against current device",
-		"asset_tag", c.assetTag,
-		"os_type", devicetrust.FriendlyOSType(c.osType),
+	log.Debugf(
+		"Running device command against current device: %q/%v",
+		c.assetTag,
+		devicetrust.FriendlyOSType(c.osType),
 	)
 	return true, nil
 }

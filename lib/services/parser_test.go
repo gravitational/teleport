@@ -186,7 +186,6 @@ func TestNewResourceExpression(t *testing.T) {
 			`!equals(labels.env, "_")`,
 			`!equals(labels.undefined, "prod")`,
 			`equals(resource.spec.hostname, "test-hostname")`,
-			`equals(health.status, "")`,
 			// Test search.
 			`search("mac")`,
 			`search("os", "mac", "prod")`,
@@ -207,12 +206,11 @@ func TestNewResourceExpression(t *testing.T) {
 			`labels["env"] == "prod"`,
 			`labels["env"] != "_"`,
 			`name == "test-hostname"`,
-			`health.status == ""`,
 			// Test combos.
 			`labels.os == "mac" && name == "test-hostname" && search("v8")`,
 			`exists(labels.env) && labels["env"] != "qa"`,
 			`search("does", "not", "exist") || resource.spec.addr == "_" || labels.version == "v8"`,
-			`hasPrefix(labels.os, "m") && !hasPrefix(labels.env, "dev") && name == "test-hostname" && health.status != "healthy"`,
+			`hasPrefix(labels.os, "m") && !hasPrefix(labels.env, "dev") && name == "test-hostname"`,
 			// Test operator precedence
 			`exists(labels.env) || (exists(labels.os) && labels.os != "mac")`,
 			`exists(labels.env) || exists(labels.os) && labels.os != "mac"`,
@@ -239,7 +237,6 @@ func TestNewResourceExpression(t *testing.T) {
 			`!equals(labels.env, "prod")`,
 			`equals(resource.metadata.labels["undefined"], "prod")`,
 			`name == "test"`,
-			`health.status == "healthy"`,
 			`equals(labels["env"], "wrong-value")`,
 			`equals(resource.metadata.labels["env"], "wrong-value")`,
 			`equals(resource.spec.hostname, "wrong-value")`,
@@ -406,7 +403,9 @@ func BenchmarkContains(b *testing.B) {
 	expression, err := NewResourceExpression(`contains(split(labels["ip"], "|"), "1.2.3.1")`)
 	require.NoError(b, err)
 
-	for b.Loop() {
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
 		match, err := expression.Evaluate(server)
 		require.NoError(b, err)
 		require.True(b, match)

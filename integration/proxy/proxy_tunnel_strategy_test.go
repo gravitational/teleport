@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -62,6 +63,8 @@ type proxyTunnelStrategy struct {
 	db           *helpers.TeleInstance
 	dbAuthClient *authclient.Client
 	postgresDB   *postgres.TestServer
+
+	log *logrus.Logger
 }
 
 func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.TunnelStrategyV1) *proxyTunnelStrategy {
@@ -69,6 +72,7 @@ func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.Tunnel
 		cluster:  cluster,
 		username: helpers.MustGetCurrentUser(t).Username,
 		strategy: strategy,
+		log:      utils.NewLoggerForTests(),
 	}
 
 	lib.SetInsecureDevMode(true)
@@ -299,14 +303,14 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		NodeName:    helpers.Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	auth.AddUser(p.username, []string{p.username})
 
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
-	conf.Logger = auth.Log
+	conf.Log = auth.Log
 
 	conf.Auth.Enabled = true
 	conf.Auth.NetworkingConfig.SetTunnelStrategy(p.strategy)
@@ -321,13 +325,13 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 }
 
 // makeProxy bootstraps a new teleport proxy instance.
-// Its public address points to a load balancer.
+// It's public address points to a load balancer.
 func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	proxy := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	authAddr := utils.MustParseAddr(p.auth.Auth)
@@ -336,7 +340,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
-	conf.Logger = proxy.Log
+	conf.Log = proxy.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
@@ -374,14 +378,14 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
-	conf.Logger = node.Log
+	conf.Log = node.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
@@ -419,14 +423,14 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
-	conf.Logger = db.Log
+	conf.Log = db.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
@@ -550,15 +554,20 @@ func (p *proxyTunnelStrategy) waitForResource(t *testing.T, role string, check f
 		for _, proxy := range p.proxies {
 			ok, err := check(proxy, availability)
 			if err != nil {
+				p.log.Debugf("check for %s availability error: %+v", role, trace.Wrap(err))
 				return false
 			}
 			if !ok {
+				p.log.Debugf("%s not found", role)
 				return false
 			}
 			propagated++
 		}
-
-		return len(p.proxies) == propagated
+		if len(p.proxies) != propagated {
+			p.log.Debugf("%s not available", role)
+			return false
+		}
+		return true
 	},
 		30*time.Second,
 		time.Second,

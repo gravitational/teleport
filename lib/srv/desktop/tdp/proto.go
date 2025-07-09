@@ -85,7 +85,6 @@ const (
 	TypeSharedDirectoryTruncateResponse = MessageType(34)
 	TypeLatencyStats                    = MessageType(35)
 	TypePing                            = MessageType(36)
-	TypeClientKeyboardLayout            = MessageType(37)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -188,8 +187,6 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryTruncateResponse(in)
 	case TypePing:
 		return decodePing(in)
-	case TypeClientKeyboardLayout:
-		return decodeClientKeyboardLayout(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -1675,37 +1672,6 @@ func decodePing(in io.Reader) (Ping, error) {
 		return ping, trace.Wrap(err)
 	}
 	return ping, nil
-}
-
-// ClientKeyboardLayout is the client keyboard layout.
-// | messsage type (37) | length uint32 | keyboard_layout uint32 |
-type ClientKeyboardLayout struct {
-	KeyboardLayout uint32
-}
-
-func (c ClientKeyboardLayout) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeClientKeyboardLayout))
-	writeUint32(buf, 4) // length of uint32
-	writeUint32(buf, c.KeyboardLayout)
-	return buf.Bytes(), nil
-}
-
-func decodeClientKeyboardLayout(in io.Reader) (ClientKeyboardLayout, error) {
-	var payloadLength uint32
-	if err := binary.Read(in, binary.BigEndian, &payloadLength); err != nil {
-		return ClientKeyboardLayout{}, trace.Wrap(err)
-	}
-
-	const expectedPayloadLength = 4
-	if payloadLength != expectedPayloadLength {
-		_, _ = io.CopyN(io.Discard, in, int64(payloadLength))
-		return ClientKeyboardLayout{}, trace.BadParameter("expected payload length of 4, got %v", payloadLength)
-	}
-
-	var c ClientKeyboardLayout
-	err := binary.Read(in, binary.BigEndian, &c)
-	return c, trace.Wrap(err)
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

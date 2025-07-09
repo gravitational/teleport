@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -41,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func (process *TeleportProcess) initWindowsDesktopService() {
@@ -159,7 +159,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			// Ignore the global device_trust.mode toggle, but allow role-based
 			// settings to be applied.
@@ -228,15 +228,16 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		ShowDesktopWallpaper: cfg.WindowsDesktop.ShowDesktopWallpaper,
-		LDAPConfig:           winpki.LDAPConfig(cfg.WindowsDesktop.LDAP),
-		KDCAddr:              cfg.WindowsDesktop.KDCAddr,
-		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
-		Discovery:            cfg.WindowsDesktop.Discovery,
-		DiscoveryInterval:    cfg.WindowsDesktop.DiscoveryInterval,
-		Hostname:             cfg.Hostname,
-		ConnectedProxyGetter: proxyGetter,
-		ResourceMatchers:     cfg.WindowsDesktop.ResourceMatchers,
+		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
+		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		KDCAddr:                      cfg.WindowsDesktop.KDCAddr,
+		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
+		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
+		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
+		Hostname:                     cfg.Hostname,
+		ConnectedProxyGetter:         proxyGetter,
+		ResourceMatchers:             cfg.WindowsDesktop.ResourceMatchers,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -268,7 +269,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				process.logger.ErrorContext(process.ExitContext(), "mux encountered error serving", "mux_id", mux.ID, "error", err)
+				mux.Entry.WithError(err).Error("mux encountered err serving")
 			}
 		}()
 

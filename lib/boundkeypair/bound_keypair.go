@@ -67,20 +67,6 @@ func RecoveryModes() []RecoveryMode {
 	}
 }
 
-// ParseRecoveryMode parses a recovery mode from its string form.
-func ParseRecoveryMode(s string) (RecoveryMode, error) {
-	switch s {
-	case RecoveryModeInsecure:
-		return RecoveryModeInsecure, nil
-	case RecoveryModeRelaxed:
-		return RecoveryModeRelaxed, nil
-	case "", string(RecoveryModeStandard):
-		return RecoveryModeStandard, nil
-	default:
-		return "", trace.BadParameter("invalid recovery mode: %s", s)
-	}
-}
-
 // ChallengeDocument is a bound keypair challenge document. These documents are
 // sent in JSON form to clients attempting to authenticate, and are expected to
 // be sent back signed with the private counterpart of a known public key.
@@ -122,7 +108,6 @@ func NewChallengeValidator(
 	}, nil
 }
 
-// IssueChallenge generates a new challenge document using the configured clock.
 func (v *ChallengeValidator) IssueChallenge() (*ChallengeDocument, error) {
 	// Implementation note: these challenges are only ever sent to a single
 	// client once, and we expect a valid reply as the next exchange in the

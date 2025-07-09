@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -32,14 +31,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -2037,54 +2034,6 @@ func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) 
 	return trace.Wrap(err)
 }
 
-type autoUpdateAgentReportCollection struct {
-	reports []*autoupdatev1pb.AutoUpdateAgentReport
-}
-
-func (c *autoUpdateAgentReportCollection) resources() []types.Resource {
-	resources := make([]types.Resource, len(c.reports))
-	for i, report := range c.reports {
-		resources[i] = types.ProtoResource153ToLegacy(report)
-	}
-	return resources
-}
-
-func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) error {
-	groupSet := make(map[string]any)
-	versionsSet := make(map[string]any)
-	for _, report := range c.reports {
-		for groupName, group := range report.GetSpec().GetGroups() {
-			groupSet[groupName] = struct{}{}
-			for versionName := range group.GetVersions() {
-				versionsSet[versionName] = struct{}{}
-			}
-		}
-	}
-
-	groupNames := slices.Collect(maps.Keys(groupSet))
-	versionNames := slices.Collect(maps.Keys(versionsSet))
-	slices.Sort(groupNames)
-	slices.Sort(versionNames)
-
-	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
-	for _, report := range c.reports {
-		for i, versionName := range versionNames {
-			row := make([]string, len(groupNames)+2)
-			if i == 0 {
-				row[0] = report.GetMetadata().GetName()
-			}
-			row[1] = versionName
-			for j, groupName := range groupNames {
-				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
-			}
-			t.AddRow(row)
-		}
-		t.AddRow(make([]string, len(versionNames)+2))
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type accessMonitoringRuleCollection struct {
 	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
 }
@@ -2107,47 +2056,6 @@ func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) er
 	}
 	headers := []string{"Name", "Labels"}
 	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type healthCheckConfigCollection struct {
-	items []*healthcheckconfigv1.HealthCheckConfig
-}
-
-func (c *healthCheckConfigCollection) resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.ProtoResource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *healthCheckConfigCollection) writeText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "Interval", "Timeout", "Healthy Threshold", "Unhealthy Threshold", "DB Labels", "DB Expression"}
-	var rows [][]string
-	for _, item := range c.items {
-		meta := item.GetMetadata()
-		spec := item.GetSpec()
-		rows = append(rows, []string{
-			meta.GetName(),
-			common.FormatDefault(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
-			common.FormatDefault(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
-			common.FormatDefault(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
-			common.FormatDefault(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
-			common.FormatMultiValueLabels(label.ToMap(spec.GetMatch().GetDbLabels()), verbose),
-			spec.GetMatch().GetDbLabelsExpression(),
-		})
-	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "DB Labels")
-	}
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)

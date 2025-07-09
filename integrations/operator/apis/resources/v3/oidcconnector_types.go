@@ -41,10 +41,10 @@ type TeleportOIDCConnectorSpec types.OIDCConnectorSpecV3
 // TeleportOIDCConnector is the Schema for the OIDCConnector API
 type TeleportOIDCConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportOIDCConnectorSpec `json:"spec"`
-	Status resources.Status          `json:"status"`
+	Spec   TeleportOIDCConnectorSpec `json:"spec,omitempty"`
+	Status resources.Status          `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -52,7 +52,7 @@ type TeleportOIDCConnector struct {
 // TeleportOIDCConnectorList contains a list of TeleportOIDCConnector
 type TeleportOIDCConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportOIDCConnector `json:"items"`
 }
 

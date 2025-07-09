@@ -281,7 +281,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := range totalDBServices {
+	for i := 0; i < totalDBServices; i++ {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -362,7 +362,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalIntegrations {
+		for i := 0; i < totalIntegrations; i++ {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -476,7 +476,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalDiscoveryConfigs {
+		for i := 0; i < totalDiscoveryConfigs; i++ {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -1344,8 +1344,8 @@ func TestFormatAmbiguousDeleteMessage(t *testing.T) {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -1461,13 +1461,6 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
-		},
-		{
-			kind:   types.KindHealthCheckConfig,
-			create: testCreateHealthCheckConfig,
-			getAllCheck: func(t *testing.T, s string) {
-				assert.Contains(t, s, "kind: health_check_config")
-			},
 		},
 	}
 
@@ -2174,7 +2167,6 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
-  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`

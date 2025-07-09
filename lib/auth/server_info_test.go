@@ -34,7 +34,7 @@ import (
 )
 
 type mockServerInfoAccessPoint struct {
-	clock         *clockwork.FakeClock
+	clock         clockwork.FakeClock
 	nodes         []types.Server
 	nodesErr      error
 	serverInfos   map[string]types.ServerInfo
@@ -68,8 +68,8 @@ func (m *mockServerInfoAccessPoint) GetServerInfo(_ context.Context, name string
 	return si, nil
 }
 
-func (m *mockServerInfoAccessPoint) UpdateLabels(_ context.Context, req *proto.InventoryUpdateLabelsRequest) error {
-	m.updatedLabels[req.GetServerID()] = req.Labels
+func (m *mockServerInfoAccessPoint) UpdateLabels(_ context.Context, req proto.InventoryUpdateLabelsRequest) error {
+	m.updatedLabels[req.ServerID] = req.Labels
 	return nil
 }
 

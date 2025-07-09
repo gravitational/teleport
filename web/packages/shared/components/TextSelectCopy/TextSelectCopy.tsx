@@ -34,8 +34,8 @@ export function TextSelectCopy({
   ...styles
 }: Props) {
   const font = fontFamily || useTheme().fonts.mono;
-  const ref = useRef(undefined);
-  const abortControllerRef = useRef<AbortController>(undefined);
+  const ref = useRef();
+  const abortControllerRef = useRef<AbortController>();
   const [copyCmd, setCopyCmd] = useState(() => 'Copy');
   const [isObfuscated, setIsObfuscated] = useState(false);
 

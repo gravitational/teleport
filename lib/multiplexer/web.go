@@ -23,18 +23,17 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // WebListenerConfig is the web listener configuration.
@@ -68,7 +67,7 @@ func NewWebListener(cfg WebListenerConfig) (*WebListener, error) {
 	}
 	context, cancel := context.WithCancel(context.Background())
 	return &WebListener{
-		log:         slog.With(teleport.ComponentKey, "mxweb"),
+		log:         logrus.WithField(teleport.ComponentKey, "mxweb"),
 		cfg:         cfg,
 		webListener: newListener(context, cfg.Listener.Addr()),
 		dbListener:  newListener(context, cfg.Listener.Addr()),
@@ -80,7 +79,7 @@ func NewWebListener(cfg WebListenerConfig) (*WebListener, error) {
 // WebListener multiplexes tls connections between web and database listeners
 // based on the client certificate.
 type WebListener struct {
-	log         *slog.Logger
+	log         logrus.FieldLogger
 	cfg         WebListenerConfig
 	webListener *Listener
 	dbListener  *Listener
@@ -111,20 +110,17 @@ func (l *WebListener) Serve() error {
 			case <-l.context.Done():
 				return trace.Wrap(net.ErrClosed, "listener is closed")
 			case <-time.After(5 * time.Second):
-				l.log.LogAttrs(l.context, slog.LevelWarn, "Backoff on accept error",
-					slog.Any("error", err),
-				)
+				l.log.WithError(err).Warn("Backoff on accept error.")
 			}
 			continue
 		}
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if !ok {
-			l.log.LogAttrs(l.context, slog.LevelError, "Received a non-TLS connection",
-				slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
-				slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
-				slog.Any("conn_type", logutils.TypeAttr(conn)),
-			)
+			l.log.WithFields(logrus.Fields{
+				"src_addr": conn.RemoteAddr(),
+				"dst_addr": conn.LocalAddr(),
+			}).Errorf("Expected *tls.Conn, got %T.", conn)
 			conn.Close()
 			continue
 		}
@@ -136,20 +132,17 @@ func (l *WebListener) Serve() error {
 func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	err := conn.SetReadDeadline(l.cfg.Clock.Now().Add(l.cfg.ReadDeadline))
 	if err != nil {
-		l.log.LogAttrs(l.context, slog.LevelWarn, "Failed to set connection read deadline",
-			slog.Any("error", err),
-		)
+		l.log.WithError(err).Warn("Failed to set connection read deadline.")
 		conn.Close()
 		return
 	}
 
 	if err := conn.HandshakeContext(l.context); err != nil {
 		if !errors.Is(trace.Unwrap(err), io.EOF) {
-			l.log.LogAttrs(l.context, slog.LevelWarn, "Handshake failed",
-				slog.Any("error", err),
-				slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
-				slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
-			)
+			l.log.WithFields(logrus.Fields{
+				"src_addr": conn.RemoteAddr(),
+				"dst_addr": conn.LocalAddr(),
+			}).WithError(err).Warn("Handshake failed.")
 		}
 		conn.Close()
 		return
@@ -157,7 +150,7 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 
 	err = conn.SetReadDeadline(time.Time{})
 	if err != nil {
-		l.log.WarnContext(l.context, "Failed to reset connection read deadline", "error", err)
+		l.log.WithError(err).Warn("Failed to reset connection read deadline")
 		conn.Close()
 		return
 	}
@@ -168,11 +161,10 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	// tls listener.
 	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(conn.ConnectionState())
 	if err != nil {
-		l.log.LogAttrs(l.context, slog.LevelDebug, "Failed to check if connection is database connection",
-			slog.Any("error", err),
-			slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
-			slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
-		)
+		l.log.WithFields(logrus.Fields{
+			"src_addr": conn.RemoteAddr(),
+			"dst_addr": conn.LocalAddr(),
+		}).WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
 		l.dbListener.HandleConnection(l.context, conn)

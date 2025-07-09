@@ -19,7 +19,6 @@
 package helpers
 
 import (
-	"log/slog"
 	"os"
 	"os/user"
 	"testing"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -44,7 +44,7 @@ type Fixture struct {
 	Pub  []byte
 
 	// Log defines the test-specific logger
-	Log *slog.Logger
+	Log utils.Logger
 }
 
 func NewFixture(t *testing.T) *Fixture {
@@ -112,7 +112,7 @@ func (s *Fixture) DefaultInstanceConfig(t *testing.T) InstanceConfig {
 		NodeName:    Host,
 		Priv:        s.Priv,
 		Pub:         s.Pub,
-		Logger:      s.Log,
+		Log:         s.Log,
 	}
 	cfg.Listeners = StandardListenerSetup(t, &cfg.Fds)
 	return cfg

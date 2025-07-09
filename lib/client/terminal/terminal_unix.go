@@ -1,4 +1,5 @@
 //go:build !windows
+// +build !windows
 
 /*
  * Teleport
@@ -21,10 +22,9 @@
 package terminal
 
 import (
-	"context"
+	"bytes"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -79,6 +80,26 @@ func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 	return &term, nil
 }
 
+// addCRFormatter is a formatter which adds carriage return (CR) to the output of a base formatter.
+// This is needed in case the logger output is fed into terminal in raw mode.
+type addCRFormatter struct {
+	BaseFmt logrus.Formatter
+}
+
+func (r addCRFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	out, err := r.BaseFmt.Format(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	replaced := bytes.ReplaceAll(out, []byte("\n"), []byte("\r\n"))
+	return replaced, nil
+}
+
+func newCRFormatter(baseFmt logrus.Formatter) *addCRFormatter {
+	return &addCRFormatter{BaseFmt: baseFmt}
+}
+
 // InitRaw puts the terminal into raw mode. On Unix, no special input handling
 // is required beyond simply reading from stdin, so `input` has no effect.
 // Note that some implementations may replace one or more streams (particularly
@@ -86,18 +107,17 @@ func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 func (t *Terminal) InitRaw(input bool) error {
 	// Put the terminal into raw mode.
 	ts, err := term.SetRawTerminal(0)
-
-	originalHandler := slog.Default().Handler()
-	slog.SetDefault(slog.New(slog.DiscardHandler))
+	fmtNew := newCRFormatter(logrus.StandardLogger().Formatter)
+	logrus.StandardLogger().Formatter = fmtNew
 	if err != nil {
-		log.WarnContext(context.Background(), "Could not put terminal into raw mode", "error", err)
+		log.Warnf("Could not put terminal into raw mode: %v", err)
 	} else {
 		// Ensure the terminal is reset on exit.
 		t.closeWait.Add(1)
 		go func() {
 			<-t.closer.C
 			term.RestoreTerminal(0, ts)
-			slog.SetDefault(slog.New(originalHandler))
+			logrus.StandardLogger().Formatter = fmtNew.BaseFmt
 			t.closeWait.Done()
 		}()
 	}

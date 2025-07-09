@@ -20,14 +20,6 @@ spec:
     # domain should be the domain of your GitLab instance. If you are using
     # GitLab's cloud hosted offering, omit this field entirely.
     domain: gitlab.example.com
-    # static_jwks allows the JSON Web Key Set (JWKS) used to verify the token
-    # issued by GitLab to be overridden. This can be used in scenarios
-    # where the Teleport Auth Service is unable to reach a GitLab server.
-    #
-    # This field is optional. When unspecified, the JWKS will be fetched
-    # automatically using the value from the domain field and OIDC.
-    static_jwks: |
-      {"keys":[--snip--]}
     # allow is an array of rule configurations for what GitLab CI jobs should be
     # allowed to join. All options configured within one allow entry
     # must be satisfied for the GitLab CI run to be allowed to join. Where

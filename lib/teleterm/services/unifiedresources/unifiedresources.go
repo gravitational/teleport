@@ -77,9 +77,8 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			db := r.GetDatabase()
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:          cluster.URI.AppendDB(db.GetName()),
-					Database:     db,
-					TargetHealth: r.GetTargetHealth(),
+					URI:      cluster.URI.AppendDB(db.GetName()),
+					Database: db,
 				},
 				RequiresRequest: requiresRequest,
 			})

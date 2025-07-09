@@ -446,15 +446,6 @@ func TestConfigReading(t *testing.T) {
 					StaticLabels:  Labels,
 					DynamicLabels: CommandLabels,
 				},
-				{
-					Name:         "mcp-everything",
-					StaticLabels: Labels,
-					MCP: &MCP{
-						Command:       "docker",
-						RunAsHostUser: "docker",
-						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
-					},
-				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1652,15 +1643,6 @@ func makeConfigFixture() string {
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
 		},
-		{
-			Name:         "mcp-everything",
-			StaticLabels: Labels,
-			MCP: &MCP{
-				Command:       "docker",
-				Args:          []string{"run", "-i", "--rm", "mcp/everything"},
-				RunAsHostUser: "docker",
-			},
-		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2369,22 +2351,6 @@ func TestWindowsDesktopService(t *testing.T) {
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
 					BaseDN: "",
-				}
-				fc.WindowsDesktop.LDAP = LDAPConfig{
-					Addr: "something",
-				}
-			},
-		},
-		{
-			desc:        "NOK - legacy discovery and new discovery_configs both specified",
-			expectError: require.Error,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
-					BaseDN: "*",
-				}
-				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
-					{BaseDN: "OU=stage,DC=example,DC=com"},
-					{BaseDN: "OU=prod,DC=example,DC=com"},
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
@@ -4025,7 +3991,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_endpoint is specified"))
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_endpoint is specified`))
 			},
 		},
 		{
@@ -4051,7 +4017,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `http://`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no host"))
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
 			},
 		},
 		{
@@ -4064,7 +4030,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `//hostname`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no scheme"))
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
 			},
 		},
 		{
@@ -4076,7 +4042,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: "https://test-endpoint",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_token_path is specified"))
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_token_path is specified`))
 			},
 		},
 		{
@@ -4089,7 +4055,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APITokenPath: "/non-existent/path",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("error trying to find file %s", i...))
+				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
 			},
 		},
 		{

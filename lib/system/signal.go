@@ -38,10 +38,7 @@ int resetInterruptSignalHandler() {
 */
 import "C"
 
-import (
-	"context"
-	"log/slog"
-)
+import log "github.com/sirupsen/logrus"
 
 // ResetInterruptSignal will reset the handler for SIGINT back to the default
 // handler. We need to do this because when sysvinit launches Teleport on some
@@ -53,6 +50,6 @@ import (
 func ResetInterruptSignalHandler() {
 	_, err := C.resetInterruptSignalHandler()
 	if err != nil {
-		slog.WarnContext(context.Background(), "Failed to reset interrupt signal handler", "error", err)
+		log.Warnf("Failed to reset interrupt signal handler: %v.", err)
 	}
 }

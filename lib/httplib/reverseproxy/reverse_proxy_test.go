@@ -21,7 +21,6 @@ package reverseproxy
 import (
 	"context"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -31,6 +30,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestRequestCancelWithoutPanic tests that canceling a request does not
@@ -41,6 +42,9 @@ import (
 // frontend doesn't panic, the backend handler receives the cancelation,
 // and all resources are cleaned up properly.
 func TestRequestCancelWithoutPanic(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel) // Ensure the context is canceled after the test.
+
 	var numberOfActiveRequests atomic.Int64
 
 	wg := &sync.WaitGroup{}
@@ -63,7 +67,7 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 			case <-r.Context().Done():
 				// Request was canceled, do nothing.
 				return
-			case <-t.Context().Done():
+			case <-ctx.Done():
 				// Test context was canceled. At this point, the test failed
 				panic("test context canceled before request completed")
 			}
@@ -88,8 +92,8 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 		}),
 	)
 
-	ctx, cancel := context.WithCancel(t.Context())
-	getReq, _ := http.NewRequestWithContext(ctx, http.MethodGet, frontend.URL, nil)
+	reqCtx, reqCancel := context.WithCancel(ctx)
+	getReq, _ := http.NewRequestWithContext(reqCtx, http.MethodGet, frontend.URL, nil)
 
 	frontendClient := frontend.Client()
 	res, err := frontendClient.Do(getReq)
@@ -109,8 +113,8 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 
 	require.Equal(t, int64(2), numberOfActiveRequests.Load(), "There should two active handlers at this point.")
 
-	cancel()  // Cancel the request to simulate client disconnect.
-	wg.Wait() // Wait for the backend handler to finish.
+	reqCancel() // Cancel the request to simulate client disconnect.
+	wg.Wait()   // Wait for the backend handler to finish.
 
 	require.Equal(t, int64(0), numberOfActiveRequests.Load(), "There should be no active handlers after the request is canceled.")
 
@@ -119,7 +123,7 @@ func TestRequestCancelWithoutPanic(t *testing.T) {
 func newSingleHostReverseProxy(target *url.URL) *Forwarder {
 	return &Forwarder{
 		ReverseProxy: httputil.NewSingleHostReverseProxy(target),
-		logger:       slog.Default(),
+		log:          utils.NewLogger(),
 	}
 
 }

@@ -170,7 +170,7 @@ const Passwordless = ({
           fill="filled"
           intent={primary ? 'primary' : 'neutral'}
           size="extra-large"
-          ref={ref}
+          setRef={ref}
           disabled={attempt.isProcessing}
           onClick={() => onLoginWithWebauthn()}
         >

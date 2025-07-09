@@ -103,3 +103,7 @@ func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) e
 	})
 	return trace.Wrap(err)
 }
+
+func (c *Client) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
+	return trace.NotImplemented("DeleteAllDynamicWindowsDesktops is not supported in the gRPC client")
+}

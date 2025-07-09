@@ -23,11 +23,17 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
+
+// providerTimeout is the maximum time allowed to fetch provider metadata before
+// giving up.
+const providerTimeout = 15 * time.Second
 
 // audience is the static value that Azure DevOps uses for the `aud` claim in
 // issued ID Tokens. Unfortunately, this cannot be changed.
@@ -69,13 +75,30 @@ func NewIDTokenValidator() *IDTokenValidator {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, organizationID, token string,
 ) (*IDTokenClaims, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
+	defer cancel()
+
 	issuer := issuerURL(
 		organizationID, id.overrideDiscoveryHost, id.insecureDiscovery,
 	)
-
-	claims, err := oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(timeoutCtx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err, "validating token")
+		return nil, trace.Wrap(err, "discovering oidc document")
+	}
+
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
+
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](timeoutCtx, token, verifier)
+	if err != nil {
+		return nil, trace.Wrap(err, "verifying token")
 	}
 
 	parsed, err := parseSubClaim(claims.Sub)

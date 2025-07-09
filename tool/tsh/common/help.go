@@ -76,15 +76,4 @@ Examples:
 
   Run commands in parallel, and save outputs to files:
   $ tsh db exec "select 1" --db-user mysql --labels env=dev --parallel=5 --output-dir=exec-outputs`
-
-	mcpConfigHelp = `
-Examples:
-  Print sample configuration for a MCP server app
-  $ tsh mcp config my-mcp-server-app
-
-  Add all MCP servers to Claude Desktop
-  $ tsh mcp config --all --client-config=claude
-
-  Search MCP servers with labels and add to the specified JSON file
-  $ tsh mcp config --labels env=dev --client-config=my-config.json`
 )

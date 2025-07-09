@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
@@ -118,7 +119,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 				services = append(services, service)
 			}
 		} else {
-			mock.objects.Range(func(key, value any) bool {
+			mock.objects.Range(func(key, value interface{}) bool {
 				if key, ok := key.(string); !ok || !strings.HasPrefix(key, "service-") {
 					return true
 				}
@@ -154,7 +155,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 		rw.Header().Add("Content-Type", "application/json")
 
 		extensions := []pagerduty.Extension{}
-		mock.objects.Range(func(key, value any) bool {
+		mock.objects.Range(func(key, value interface{}) bool {
 			if extension, ok := value.(pagerduty.Extension); ok {
 				extensions = append(extensions, extension)
 			}
@@ -213,7 +214,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 		rw.Header().Add("Content-Type", "application/json")
 
 		var users []pagerduty.User
-		mock.objects.Range(func(key, value any) bool {
+		mock.objects.Range(func(key, value interface{}) bool {
 			if key, ok := key.(string); !ok || !strings.HasPrefix(key, "user-") {
 				return true
 			}
@@ -249,7 +250,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 
 		var incidents []pagerduty.Incident
 
-		mock.objects.Range(func(key, value any) bool {
+		mock.objects.Range(func(key, value interface{}) bool {
 			if key, ok := key.(string); !ok || !strings.HasPrefix(key, "incident-") {
 				return true
 			}
@@ -366,7 +367,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 
 		var onCalls []pagerduty.OnCall
 
-		mock.objects.Range(func(key, value any) bool {
+		mock.objects.Range(func(key, value interface{}) bool {
 			if key, ok := key.(string); !ok || !strings.HasPrefix(key, "oncall-") {
 				return true
 			}
@@ -510,7 +511,7 @@ func (s *FakePagerduty) StoreOnCall(onCall pagerduty.OnCall) pagerduty.OnCall {
 
 func (s *FakePagerduty) GetOnCallsByEscalationPolicy(policyID string) []pagerduty.OnCall {
 	var result []pagerduty.OnCall
-	s.objects.Range(func(key, value any) bool {
+	s.objects.Range(func(key, value interface{}) bool {
 		if key, ok := key.(string); !ok || !strings.HasPrefix(key, "oncall-") {
 			return true
 		}
@@ -564,6 +565,6 @@ func (s *FakePagerduty) CheckNewIncidentNote(ctx context.Context) (FakeIncidentN
 
 func panicIf(err error) {
 	if err != nil {
-		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
+		log.Panicf("%v at %v", err, string(debug.Stack()))
 	}
 }

@@ -1,4 +1,5 @@
 //go:build !bpf || 386
+// +build !bpf 386
 
 /*
  * Teleport

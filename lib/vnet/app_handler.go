@@ -49,10 +49,6 @@ type tcpAppHandlerConfig struct {
 	appInfo     *vnetv1.AppInfo
 	appProvider *appProvider
 	clock       clockwork.Clock
-	// alwaysTrustRootClusterCA can be set in tests so that TLS dials to the
-	// proxy always trust the root cluster CA rather than the system cert pool,
-	// even when ALPN conn upgrades are not required.
-	alwaysTrustRootClusterCA bool
 }
 
 func newTCPAppHandler(cfg *tcpAppHandlerConfig) *tcpAppHandler {
@@ -106,13 +102,9 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 		InsecureSkipVerify:      dialOptions.GetInsecureSkipVerify(),
 		Clock:                   h.cfg.clock,
 	}
-	if dialOptions.GetAlpnConnUpgradeRequired() || h.cfg.alwaysTrustRootClusterCA {
-		certPoolPEM := dialOptions.GetRootClusterCaCertPool()
-		if len(certPoolPEM) == 0 {
-			return nil, trace.BadParameter("ALPN conn upgrade required but no root CA cert pool provided")
-		}
+	if certPoolPEM := dialOptions.GetRootClusterCaCertPool(); len(certPoolPEM) > 0 {
 		caPool := x509.NewCertPool()
-		if !caPool.AppendCertsFromPEM(certPoolPEM) {
+		if !caPool.AppendCertsFromPEM(dialOptions.GetRootClusterCaCertPool()) {
 			return nil, trace.Errorf("failed to parse root cluster CA certs")
 		}
 		localProxyConfig.RootCAs = caPool

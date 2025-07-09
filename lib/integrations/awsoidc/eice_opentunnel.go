@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -154,7 +155,7 @@ func (d defaultOpenTunnelEC2Client) Retrieve(ctx context.Context) (aws.Credentia
 }
 
 // NewOpenTunnelEC2Client creates a OpenTunnelEC2Client using AWSClientRequest.
-func newOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (OpenTunnelEC2Client, error) {
+func NewOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (OpenTunnelEC2Client, error) {
 	ec2Client, err := newEC2Client(ctx, clientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -177,7 +178,7 @@ func newOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 	}, nil
 }
 
-// openTunnelEC2 creates a tunnel to an ec2 instance using its private IP.
+// OpenTunnelEC2 creates a tunnel to an ec2 instance using its private IP.
 // Ref:
 // - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-using-eice.html
 // - https://github.com/aws/aws-cli/blob/f6c820e89d8b566ab54ab9d863754ec4b713fd6a/awscli/customizations/ec2instanceconnect/opentunnel.py
@@ -186,7 +187,7 @@ func newOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 // - does a lookup for an EC2 Instance Connect Endpoint available (create-complete state) for the target VPC
 // - connects to it (websockets) and returns the connection
 // - the connection can be used to access the EC2 instance directly (tcp stream)
-func openTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (*OpenTunnelEC2Response, error) {
+func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (*OpenTunnelEC2Response, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -365,11 +366,12 @@ func (i *eicedConn) handleIOError(err error) error {
 	var closeErr *websocket.CloseError
 	if errors.As(err, &closeErr) {
 		return trace.ConnectionProblem(err,
-			"Could not connect to %s via EC2 Instance Connect Endpoint %s. "+
+			fmt.Sprintf("Could not connect to %s via EC2 Instance Connect Endpoint %s. "+
 				"Please ensure the instance's SecurityGroups allow inbound TCP traffic on port 22 from %s",
-			i.ec2InstanceID,
-			i.eiceID,
-			i.subnetID,
+				i.ec2InstanceID,
+				i.eiceID,
+				i.subnetID,
+			),
 		)
 	}
 	return trace.Wrap(err)

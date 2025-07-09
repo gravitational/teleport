@@ -216,7 +216,7 @@ Save this role as `interns.yaml`:
 
 ```yaml
 kind: role
-version: v8
+version: v7
 metadata:
   name: interns
 spec:
@@ -232,8 +232,7 @@ spec:
     kubernetes_labels:
       'env': 'dev'
     kubernetes_resources:
-      - kind: "*"
-        api_group: "*"
+      - kind: *
         namespace: "*"
         name: "*"
         verbs: ["*"]
@@ -248,7 +247,7 @@ spec:
     kubernetes_labels:
       'env': 'prod'
     kubernetes_resources:
-      - kind: "namespaces"
+      - kind: "namespace"
         name: "prod"
     db_labels:
       'env': 'prod'

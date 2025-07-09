@@ -276,8 +276,7 @@ message RegisterUsingBoundKeypairCertificates {
 // RegisterUsingBoundKeypairRotationRequest is the response sent by the server
 // when a keypair rotation is required.
 message RegisterUsingBoundKeypairRotationRequest {
-  // The signature algorithm suite in use by the cluster.
-  types.SignatureAlgorithmSuite signature_algorithm_suite = 1;
+  // This is a marker, no contents at this time.
 }
 
 // RegisterUsingBoundKeypairMethodResponse is a response sent by the server

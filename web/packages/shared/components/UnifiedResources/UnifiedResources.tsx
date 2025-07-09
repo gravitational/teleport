@@ -24,7 +24,6 @@ import React, {
   useLayoutEffect,
   useRef,
   useState,
-  type JSX,
 } from 'react';
 import styled from 'styled-components';
 
@@ -56,21 +55,17 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
 import { CardsView } from './CardsView/CardsView';
 import { FilterPanel } from './FilterPanel';
 import { ListView } from './ListView/ListView';
 import { ResourceTab } from './ResourceTab';
-import { getResourceId } from './shared/StatusInfo';
 import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
   IncludedResourceMode,
   PinningSupport,
   SharedUnifiedResource,
-  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
 } from './types';
@@ -177,12 +172,6 @@ export interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
-
-  /**
-   * When called, slides opens a InfoGuideSidePanel component
-   * with selected resources status info.
-   */
-  onShowStatusInfo(resource: UnifiedResourceDefinition): void;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -200,16 +189,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences,
     ClusterDropdown,
     bulkActions = [],
-    onShowStatusInfo,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>();
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
-
-  const { infoGuideConfig } = useInfoGuide();
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [forceCardView, setForceCardView] = useState(false);
@@ -619,10 +605,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
-                onShowStatusInfo: () => onShowStatusInfo(resource),
-                showingStatusInfo:
-                  infoGuideConfig?.id &&
-                  infoGuideConfig.id === getResourceId(resource),
               }))
             : []
         }
@@ -656,19 +638,6 @@ export function useUnifiedResourcesFetch<T>(props: {
     fetchFunc: props.fetchFunc,
     initialFetchSize: INITIAL_FETCH_SIZE,
     fetchMoreSize: FETCH_MORE_SIZE,
-  });
-}
-
-export function useResourceServersFetch<T>(props: {
-  fetchFunc(
-    paginationParams: { limit: number; startKey: string },
-    signal: AbortSignal
-  ): Promise<ResourcesResponse<T>>;
-}) {
-  return useKeyBasedPagination({
-    fetchFunc: props.fetchFunc,
-    initialFetchSize: 20,
-    fetchMoreSize: 10,
   });
 }
 

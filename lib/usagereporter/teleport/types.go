@@ -61,30 +61,26 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 }
 
 // AccessRequestCreateEvent is emitted when Access Request is created.
-type AccessRequestCreateEvent prehogv1a.AccessRequestCreateEvent
+type AccessRequestCreateEvent prehogv1a.AccessRequestEvent
 
 func (e *AccessRequestCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreate{
-			AccessRequestCreate: &prehogv1a.AccessRequestCreateEvent{
-				UserName:      a.AnonymizeString(e.UserName),
-				ResourceKinds: e.ResourceKinds,
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreateEvent{
+			AccessRequestCreateEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}
 }
 
 // AccessRequestCreateEvent is emitted when Access Request is reviewed.
-type AccessRequestReviewEvent prehogv1a.AccessRequestReviewEvent
+type AccessRequestReviewEvent prehogv1a.AccessRequestEvent
 
 func (e *AccessRequestReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_AccessRequestReview{
-			AccessRequestReview: &prehogv1a.AccessRequestReviewEvent{
-				UserName:      a.AnonymizeString(e.UserName),
-				ResourceKinds: e.ResourceKinds,
-				IsBotReviewed: e.IsBotReviewed,
-				ProposedState: e.ProposedState,
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestReviewEvent{
+			AccessRequestReviewEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}

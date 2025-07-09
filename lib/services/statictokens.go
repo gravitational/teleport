@@ -39,7 +39,7 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (types.StaticTok
 	}
 
 	if err := utils.FastUnmarshal(bytes, &staticTokens); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := staticTokens.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

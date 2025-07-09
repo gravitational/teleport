@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
@@ -101,12 +100,12 @@ func (m mockInfoGetter) GetInfo() types.Server {
 
 type mockHostUsers struct {
 	HostUsers
-	upsertedUsers map[string]*decisionpb.HostUsersInfo
+	upsertedUsers map[string]services.HostUsersInfo
 }
 
-func (m *mockHostUsers) UpsertUser(name string, ui *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error) {
+func (m *mockHostUsers) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
 	if m.upsertedUsers == nil {
-		m.upsertedUsers = make(map[string]*decisionpb.HostUsersInfo)
+		m.upsertedUsers = make(map[string]services.HostUsersInfo)
 	}
 	m.upsertedUsers[name] = ui
 	return nil, nil
@@ -164,9 +163,9 @@ func TestStaticHostUserHandler(t *testing.T) {
 		name             string
 		existingUsers    []*userprovisioningv2.StaticHostUser
 		events           []types.Event
-		onEventsFinished func(ctx context.Context, clock *clockwork.FakeClock)
+		onEventsFinished func(ctx context.Context, clock clockwork.FakeClock)
 		assert           assert.ErrorAssertionFunc
-		wantUsers        map[string]*decisionpb.HostUsersInfo
+		wantUsers        map[string]services.HostUsersInfo
 		wantSudoers      map[string][]string
 	}{
 		{
@@ -186,19 +185,19 @@ func TestStaticHostUserHandler(t *testing.T) {
 				},
 			},
 			assert: assert.NoError,
-			wantUsers: map[string]*decisionpb.HostUsersInfo{
+			wantUsers: map[string]services.HostUsersInfo{
 				"test-1": {
 					Groups: []string{"foo", "bar"},
-					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
-					Uid:    "1234",
-					Gid:    "5678",
+					Mode:   services.HostUserModeStatic,
+					UID:    "1234",
+					GID:    "5678",
 					Shell:  "/bin/bash",
 				},
 				"test-2": {
 					Groups: []string{"baz", "quux"},
-					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
-					Uid:    "1234",
-					Gid:    "5678",
+					Mode:   services.HostUserModeStatic,
+					UID:    "1234",
+					GID:    "5678",
 					Shell:  "/bin/bash",
 				},
 			},
@@ -279,12 +278,12 @@ func TestStaticHostUserHandler(t *testing.T) {
 				},
 			},
 			assert: assert.NoError,
-			wantUsers: map[string]*decisionpb.HostUsersInfo{
+			wantUsers: map[string]services.HostUsersInfo{
 				"test": {
 					Groups: []string{"bar"},
-					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
-					Uid:    "1234",
-					Gid:    "5678",
+					Mode:   services.HostUserModeStatic,
+					UID:    "1234",
+					GID:    "5678",
 					Shell:  "/bin/bash",
 				},
 			},
@@ -306,8 +305,8 @@ func TestStaticHostUserHandler(t *testing.T) {
 		},
 		{
 			name: "error on watcher timeout failure",
-			onEventsFinished: func(ctx context.Context, clock *clockwork.FakeClock) {
-				clock.BlockUntilContext(ctx, 1)
+			onEventsFinished: func(ctx context.Context, clock clockwork.FakeClock) {
+				clock.BlockUntil(1)
 				clock.Advance(staticHostUserWatcherTimeout)
 				// Wait to close the watcher until the test is done.
 				<-ctx.Done()

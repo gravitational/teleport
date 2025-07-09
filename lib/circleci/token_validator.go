@@ -21,15 +21,43 @@ package circleci
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/coreos/go-oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 func ValidateToken(
 	ctx context.Context,
+	clock clockwork.Clock,
 	issuerURLTemplate string,
 	organizationID string,
 	token string,
 ) (*IDTokenClaims, error) {
 	issuer := issuerURL(issuerURLTemplate, organizationID)
-	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, organizationID, token)
+	// We can't cache the provider as the issuer changes for every circleci
+	// organization - we should build a provider that can support a global
+	// cache.
+	p, err := oidc.NewProvider(
+		ctx,
+		issuer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	verifier := p.Verifier(&oidc.Config{
+		ClientID: organizationID,
+		Now:      clock.Now,
+	})
+
+	idToken, err := verifier.Verify(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims := IDTokenClaims{}
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &claims, nil
 }

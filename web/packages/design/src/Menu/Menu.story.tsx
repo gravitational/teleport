@@ -170,7 +170,7 @@ const SimpleMenu = (
 
   return (
     <Box textAlign="center">
-      <ButtonPrimary size="small" ref={anchorElRef} onClick={open}>
+      <ButtonPrimary size="small" setRef={anchorElRef} onClick={open}>
         {text}
       </ButtonPrimary>
       <Menu

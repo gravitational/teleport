@@ -1,41 +1,42 @@
-# E2E Testing with Playwright
+## Teleport E2E Tests
 
-This directory contains the configuration and tests for end-to-end testing against a real Teleport instance using Playwright.
+This directory contains end-to-end tests for Teleport. These tests are
+designed to be run against a live cluster. They are written in TS and use
+[Playwright](https://playwright.dev/) to interact with the browser.
+Docker compose is used to spin up a cluster for testing and to run the tests.
 
-E2E tests should be run by a corresponding Go test in `web-e2e_test.go` and run
-using `make test-web-e2e`. To run only the Playwright test directly, you'll need a Teleport instance running locally.
-
-Any test that involves an authenticated user should be run with a `START_URL` env variable that contains an invite link for the test user, this should be generated and provided by the corresponding Go test.
-
-### Setup
-
-Before being able to run any tests, you'll need to install the playwright package and the chromium browser.
+### Running the tests
+```bash
+# Make all removes the existing docker volumes to ensure a clean state
+# and rebuild the containers
+make all 
+```
+or
 
 ```bash
-# Install packages
-pnpm install
-
-# Install the Chromium browser
-pnpm exec playwright install chromium
+# Only run tests
+make test
 ```
 
-## Running Tests
+### MacOS building notes
 
-### Basic Commands
+Before running the tests on MacOS in Docker, you need to build Linux compatible binaries.
+Binaries are build using our Docker images inside `build.assets` directory. You can also
+build them manually using `make build-binaries` command.
 
-```bash
-# Run a test  with the default START_URL (https://localhost:3080/web/login)
-pnpm test signup.spec.ts
+### Running tests for development
 
-# Run a test with a specific START_URL.
-START_URL=https://teleport.dev pnpm test signup.spec.ts
+Docker compose setup is designed to run tests in CI and create the same environment
+locally, so debugging potential issues is easier. E2E tests make changes to the cluster,
+so the order of the tests is important. To run tests for development, you can use
+`yarn test` command to run the test against the existing cluster.
+`yarn codegen` starts the Playwright codegen tool that allows to record the test
+and generate the code for it. This improves the development speed as most code can be generated.
 
-# Run tests with the Playwright UI, useful for debugging.
-pnpm test --ui
+### Common issues
 
-# Start the Playwright codegen to generate tests by recording your browser interactions.
-pnpm exec playwright codegen
+`Cannot run macOS (Mach-O) executable in Docker: Exec format error`  
 
-# View past test reports.
-pnpm report
-```
+This error means that you are trying to run MacOS binary on Linux. You need to build
+Linux compatible binaries to run them in Docker. You can rebuild them using `make build-binaries`
+or just remove existing binaries in `../build` as they will be rebuilt automatically.

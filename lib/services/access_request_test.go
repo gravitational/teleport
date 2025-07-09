@@ -142,7 +142,7 @@ func (m *mockGetter) ListResources(ctx context.Context, req proto.ListResourcesR
 	return resp, nil
 }
 
-func (m *mockGetter) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: m.clusterName,
 		ClusterID:   "testid",
@@ -2478,7 +2478,7 @@ type mockClusterGetter struct {
 	remoteClusters map[string]types.RemoteCluster
 }
 
-func (mcg mockClusterGetter) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
 	return mcg.localCluster, nil
 }
 
@@ -2935,7 +2935,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: "*", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: "*", Namespace: "*", Name: "*", Verbs: []string{"*"}},
 				},
 			},
 		},
@@ -2948,7 +2948,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: "*", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: types.KindNamespace, Namespace: "*", Name: "*", Verbs: []string{"*"}},
 				},
 			},
 		},
@@ -2958,7 +2958,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: "pods", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{"*"}},
 				},
 			},
 		},
@@ -2968,7 +2968,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: "deployments", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: types.KindKubeDeployment, Namespace: "*", Name: "*", Verbs: []string{"*"}},
 				},
 			},
 		},

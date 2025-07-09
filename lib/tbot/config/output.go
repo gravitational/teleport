@@ -19,8 +19,6 @@
 package config
 
 import (
-	"slices"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
@@ -44,7 +42,7 @@ func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
 				return nil, trace.Wrap(err)
 			}
 			// Remove key and contents from root node
-			node.Content = slices.Delete(node.Content, i, i+2)
+			node.Content = append(node.Content[:i], node.Content[i+2:]...)
 			return dest, nil
 		}
 	}

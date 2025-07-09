@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
+import React, { PropsWithChildren, ReactNode } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';

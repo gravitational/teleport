@@ -20,10 +20,10 @@ package daemon
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -52,8 +52,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage Storage
-	// Logger is a component logger
-	Logger *slog.Logger
+	// Log is a component logger
+	Log *logrus.Entry
 	// PrehogAddr is the URL where prehog events should be submitted.
 	PrehogAddr string
 	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
@@ -124,8 +124,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
 	}
 
-	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "daemon")
+	if c.Log == nil {
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "daemon")
 	}
 
 	if c.ConnectMyComputerRoleSetup == nil {
@@ -175,7 +175,7 @@ func (c *Config) CheckAndSetDefaults() error {
 				return clusters.AddMetadataToRetryableError(ctx, fn)
 			}
 			return clientcache.New(clientcache.Config{
-				Logger:               c.Logger,
+				Log:                  c.Log,
 				NewClientFunc:        newClientFunc,
 				RetryWithReloginFunc: clientcache.RetryWithReloginFunc(retryWithRelogin),
 			})

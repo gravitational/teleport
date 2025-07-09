@@ -67,6 +67,8 @@ type AccessLists interface {
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
+	// DeleteAllAccessLists removes all access lists.
+	DeleteAllAccessLists(context.Context) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
@@ -105,7 +107,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	}
 	var accessList accesslist.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -172,6 +174,8 @@ type AccessListMembers interface {
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
+	// DeleteAllAccessListMembers hard deletes all access list members.
+	DeleteAllAccessListMembers(ctx context.Context) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.
@@ -204,7 +208,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	var member accesslist.AccessListMember
 	if err := utils.FastUnmarshal(data, &member); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := member.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -231,6 +235,9 @@ type AccessListReviews interface {
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
+
+	// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
+	DeleteAllAccessListReviews(ctx context.Context) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.
@@ -263,7 +270,7 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	var review accesslist.Review
 	if err := utils.FastUnmarshal(data, &review); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := review.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

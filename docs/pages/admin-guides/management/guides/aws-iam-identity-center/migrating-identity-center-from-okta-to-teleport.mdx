@@ -314,6 +314,11 @@ the editor, `tctl` will replace the existing resource with your updated version.
 This will automatically restart the Identity Center Integration with the new
 filters.
 
+<Admonition type="note">
+Teleport version 17.5.1 and above supports group re-import based on changes to `group_sync_filters` value.
+In an older Teleport version 17.5.0 and below, you will need to uninstall and re-install the plugin 
+in order to apply the updated `group_sync_filters` value. 
+</Admonition>
 
 ## Step 7/7. Retire Okta group provisioning
 

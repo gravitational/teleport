@@ -117,6 +117,9 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 
 	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, s.desktopName(), cert, tlsConfig.RootCAs)
 	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return trace.Wrap(err, "desktop access requires Teleport Proxy 17.5.0 or higher")
+		}
 		return trace.Wrap(err)
 	}
 	defer conn.Close()

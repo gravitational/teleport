@@ -21,27 +21,22 @@ package elasticsearch
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -140,7 +135,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	client := &http.Client{
-		// TODO(gavin): use an http proxy env var respecting transport
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
 		},
@@ -186,14 +180,10 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	copiedReq.RequestURI = ""
 	copiedReq.Body = io.NopCloser(bytes.NewReader(payload))
 
-	// rewrite request URL
-	u, err := parseURI(sessionCtx.Database.GetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	copiedReq.URL.Scheme = u.Scheme
-	copiedReq.URL.Host = u.Host
-	copiedReq.Host = u.Host
+	// force HTTPS, set host URL.
+	copiedReq.URL.Scheme = "https"
+	copiedReq.URL.Host = sessionCtx.Database.GetURI()
+	copiedReq.Host = sessionCtx.Database.GetURI()
 
 	// emit an audit event regardless of failure
 	var responseStatusCode uint32
@@ -297,31 +287,4 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	)
 
 	return trace.Wrap(err)
-}
-
-func parseURI(uri string) (*url.URL, error) {
-	if !strings.Contains(uri, "://") {
-		uri = "https://" + uri
-	}
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// force HTTPS
-	u.Scheme = "https"
-	return u, nil
-}
-
-// NewEndpointsResolver resolves an endpoint from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	dbURL, err := parseURI(db.GetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	host := dbURL.Hostname()
-	port := cmp.Or(dbURL.Port(), "443")
-	hostPort := net.JoinHostPort(host, port)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{hostPort}, nil
-	}), nil
 }

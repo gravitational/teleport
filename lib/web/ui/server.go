@@ -314,16 +314,6 @@ type Database struct {
 	// AutoUsersEnabled is a flag to indicate the database has user auto
 	// provisioning enabled
 	AutoUsersEnabled bool `json:"auto_users_enabled,omitempty"`
-	// TargetHealth describes the health status of network connectivity
-	// reported from an agent (db_service) that is proxying this database.
-	//
-	// This field will be empty if the database was not extracted from
-	// a db_server resource. The following endpoints will set this field
-	// since these endpoints query for db_server under the hood and then
-	// extract db from it:
-	// - webapi/sites/:site/databases/:database (singular)
-	// - webapi/sites/:site/resources (unified resources)
-	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // AWS contains AWS specific fields.
@@ -398,13 +388,6 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		}
 	}
 
-	return db
-}
-
-// MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
-	db.TargetHealth = dbServer.GetTargetHealth()
 	return db
 }
 

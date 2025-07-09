@@ -21,11 +21,11 @@ package regular
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -53,7 +53,7 @@ type proxySubsys struct {
 	proxySubsysRequest
 	router       *proxy.Router
 	ctx          *srv.ServerContext
-	logger       *slog.Logger
+	log          *logrus.Entry
 	closeC       chan error
 	proxySigner  PROXYHeaderSigner
 	localCluster string
@@ -68,8 +68,8 @@ type proxySubsys struct {
 //	"proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
 //	"proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
 //	"proxy:host:22@namespace@clustername"
-func (s *Server) parseProxySubsysRequest(ctx context.Context, request string) (proxySubsysRequest, error) {
-	s.logger.DebugContext(ctx, "parsing proxy subsystem request", "request", request)
+func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
+	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
 		clusterName  string
 		targetHost   string
@@ -79,7 +79,7 @@ func (s *Server) parseProxySubsysRequest(ctx context.Context, request string) (p
 	const prefix = "proxy:"
 	// get rid of 'proxy:' prefix:
 	if strings.Index(request, prefix) != 0 {
-		return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
+		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
 	namespace := apidefaults.Namespace
@@ -88,17 +88,17 @@ func (s *Server) parseProxySubsysRequest(ctx context.Context, request string) (p
 	var err error
 	switch {
 	case len(parts) == 0: // "proxy:"
-		return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
+		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 	case len(parts) == 1: // "proxy:host:22"
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 		if err != nil {
-			return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
+			return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 		}
 	case len(parts) == 2: // "proxy:@clustername" or "proxy:host:22@clustername"
 		if parts[0] != "" {
 			targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 			if err != nil {
-				return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
+				return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 			}
 		}
 		clusterName = parts[1]
@@ -110,7 +110,7 @@ func (s *Server) parseProxySubsysRequest(ctx context.Context, request string) (p
 		namespace = parts[1]
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 		if err != nil {
-			return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
+			return proxySubsysRequest{}, trace.BadParameter(paramMessage)
 		}
 	}
 
@@ -124,12 +124,12 @@ func (s *Server) parseProxySubsysRequest(ctx context.Context, request string) (p
 
 // parseProxySubsys decodes a proxy subsystem request and sets up a proxy subsystem instance.
 // See parseProxySubsysRequest for details on the request format.
-func (s *Server) parseProxySubsys(ctx context.Context, request string, serverContext *srv.ServerContext) (*proxySubsys, error) {
-	req, err := s.parseProxySubsysRequest(ctx, request)
+func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*proxySubsys, error) {
+	req, err := parseProxySubsysRequest(request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	subsys, err := newProxySubsys(ctx, serverContext, s, req)
+	subsys, err := newProxySubsys(ctx, srv, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,17 +163,16 @@ func (p *proxySubsysRequest) SetDefaults() {
 // newProxySubsys is a helper that creates a proxy subsystem from
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
-func newProxySubsys(ctx context.Context, serverContext *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
+func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
 	req.SetDefaults()
-	if req.clusterName == "" && serverContext.Identity.RouteToCluster != "" {
-		srv.logger.DebugContext(ctx, "Proxy subsystem: routing user to cluster based on the route to cluster extension",
-			"user", serverContext.Identity.TeleportUser,
-			"cluster", serverContext.Identity.RouteToCluster,
+	if req.clusterName == "" && ctx.Identity.RouteToCluster != "" {
+		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
+			ctx.Identity.TeleportUser, ctx.Identity.RouteToCluster,
 		)
-		req.clusterName = serverContext.Identity.RouteToCluster
+		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		checker, err := srv.tunnelWithAccessChecker(serverContext)
+		checker, err := srv.tunnelWithAccessChecker(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -182,15 +181,18 @@ func newProxySubsys(ctx context.Context, serverContext *srv.ServerContext, srv *
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
 	}
-	srv.logger.DebugContext(ctx, "successfully created proxy subsystem request", "request", &req)
+	log.Debugf("newProxySubsys(%v).", req)
 	return &proxySubsys{
 		proxySubsysRequest: req,
-		ctx:                serverContext,
-		logger:             slog.With(teleport.ComponentKey, teleport.ComponentSubsystemProxy),
-		closeC:             make(chan error),
-		router:             srv.router,
-		proxySigner:        srv.proxySigner,
-		localCluster:       serverContext.ClusterName,
+		ctx:                ctx,
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey:    teleport.ComponentSubsystemProxy,
+			teleport.ComponentFields: map[string]string{},
+		}),
+		closeC:       make(chan error),
+		router:       srv.router,
+		proxySigner:  srv.proxySigner,
+		localCluster: ctx.ClusterName,
 	}, nil
 }
 
@@ -203,12 +205,15 @@ func (t *proxySubsys) String() string {
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
-	t.logger = t.logger.With(
-		"src", sconn.RemoteAddr().String(),
-		"dst", sconn.LocalAddr().String(),
-		"subsystem", t.String(),
-	)
-	t.logger.DebugContext(ctx, "Starting subsystem")
+	t.log = logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: teleport.ComponentSubsystemProxy,
+		teleport.ComponentFields: map[string]string{
+			"src":       sconn.RemoteAddr().String(),
+			"dst":       sconn.LocalAddr().String(),
+			"subsystem": t.String(),
+		},
+	})
+	t.log.Debugf("Starting subsystem")
 
 	clientAddr := sconn.RemoteAddr()
 
@@ -224,13 +229,13 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 // proxyToSite establishes a proxy connection from the connected SSH client to the
 // auth server of the requested remote site
 func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterName string, clientSrcAddr, clientDstAddr net.Addr) error {
-	t.logger.DebugContext(ctx, "attempting to proxy connection to auth server", "local_cluster", t.localCluster, "proxied_cluster", clusterName)
+	t.log.Debugf("Connecting from cluster %q to site: %q", t.localCluster, clusterName)
 
 	conn, err := t.router.DialSite(ctx, clusterName, clientSrcAddr, clientDstAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.logger.InfoContext(ctx, "Connected to cluster", "cluster", clusterName, "address", conn.RemoteAddr())
+	t.log.Infof("Connected to cluster %v at %v", clusterName, conn.RemoteAddr())
 
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
@@ -241,7 +246,7 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrcAddr, clientDstAddr net.Addr) error {
-	t.logger.DebugContext(ctx, "proxying connection to target host", "host", t.host, "port", t.port, "exact_port", t.SpecifiedPort())
+	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, t.SpecifiedPort())
 
 	authClient, err := t.router.GetSiteClient(ctx, t.localCluster)
 	if err != nil {
@@ -252,7 +257,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	signer := agentless.SignerFromSSHIdentity(identity.UnmappedIdentity, authClient, t.clusterName, identity.TeleportUser)
 
 	aGetter := t.ctx.StartAgentChannel
-	conn, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.UnstableClusterAccessChecker, aGetter, signer)
+	conn, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}

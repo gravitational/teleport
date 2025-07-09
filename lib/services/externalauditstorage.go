@@ -36,7 +36,7 @@ func UnmarshalExternalAuditStorage(data []byte, opts ...MarshalOption) (*externa
 	}
 	var out *externalauditstorage.ExternalAuditStorage
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

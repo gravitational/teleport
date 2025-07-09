@@ -680,6 +680,8 @@ type fakeConn struct {
 func TestRouter_DialHost(t *testing.T) {
 	t.Parallel()
 
+	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test")
+
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -737,6 +739,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "failure resolving node",
 			router: Router{
 				clusterName:    "test",
+				log:            logger,
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(nil, teleport.ErrNodeIsAmbiguous),
 			},
@@ -750,6 +753,7 @@ func TestRouter_DialHost(t *testing.T) {
 			router: Router{
 				clusterName: "leaf",
 				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
+				log:         logger,
 				tracer:      tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
@@ -762,6 +766,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial failure",
 			router: Router{
 				clusterName:    "test",
+				log:            logger,
 				localSite:      &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
@@ -776,6 +781,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success",
 			router: Router{
 				clusterName:    "test",
+				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
@@ -794,6 +800,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node",
 			router: Router{
 				clusterName:    "test",
+				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
@@ -814,6 +821,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
 			router: Router{
 				clusterName:    "test",
+				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
@@ -850,6 +858,7 @@ func TestRouter_DialSite(t *testing.T) {
 	t.Parallel()
 
 	const cluster = "test"
+	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, cluster)
 
 	cases := []struct {
 		name      string
@@ -929,6 +938,7 @@ func TestRouter_DialSite(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			router := Router{
 				clusterName: cluster,
+				log:         logger,
 				localSite:   &tt.localSite,
 				siteGetter:  tt.tunnel,
 				tracer:      tracing.NoopTracer(cluster),

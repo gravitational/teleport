@@ -21,6 +21,8 @@ package automaticupgrades
 import (
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,8 +47,15 @@ func TestIsEnabled(t *testing.T) {
 		require.False(t, IsEnabled())
 	})
 
-	t.Run("invalid value returns false", func(t *testing.T) {
+	t.Run("invalid value returns false and logs a warning message", func(t *testing.T) {
+		hook := test.NewGlobal()
+		defer hook.Reset()
+
 		t.Setenv(automaticUpgradesEnvar, "foo")
 		require.False(t, IsEnabled())
+
+		require.Len(t, hook.Entries, 1)
+		require.Equal(t, logrus.WarnLevel, hook.LastEntry().Level)
+		require.Equal(t, `unexpected value for ENV:TELEPORT_AUTOMATIC_UPGRADES: strconv.ParseBool: parsing "foo": invalid syntax`, hook.LastEntry().Message)
 	})
 }

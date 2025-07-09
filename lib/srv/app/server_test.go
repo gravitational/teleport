@@ -36,7 +36,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -57,8 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -66,11 +63,11 @@ import (
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestMain(m *testing.M) {
@@ -81,7 +78,7 @@ func TestMain(m *testing.M) {
 }
 
 type Suite struct {
-	clock        *clockwork.FakeClock
+	clock        clockwork.FakeClock
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
@@ -183,12 +180,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
 
+	recordingMode := types.RecordOff
 	if config.ServerStreamer != nil {
-		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
+		recordingMode = types.RecordAtNodeSync
 	}
+
+	_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: recordingMode},
+	})
+	require.NoError(t, err)
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -355,53 +355,43 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
-		Clock:             s.clock,
-		DataDir:           s.dataDir,
-		Emitter:           s.authClient,
-		Authorizer:        authorizer,
-		HostID:            s.hostUUID,
-		AuthClient:        s.authClient,
-		AccessPoint:       s.authClient,
-		Cloud:             &testCloud{},
-		TLSConfig:         tlsConfig,
-		ConnectionMonitor: fakeConnMonitor{},
-		CipherSuites:      utils.DefaultCipherSuites(),
-		ServiceComponent:  teleport.ComponentApp,
-		AWSConfigOptions: []awsconfig.OptionsFn{
-			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
-				return &mocks.STSClient{}
-			}),
-		},
+		Clock:              s.clock,
+		DataDir:            s.dataDir,
+		Emitter:            s.authClient,
+		Authorizer:         authorizer,
+		HostID:             s.hostUUID,
+		AuthClient:         s.authClient,
+		AccessPoint:        s.authClient,
+		Cloud:              &testCloud{},
+		TLSConfig:          tlsConfig,
+		ConnectionMonitor:  fakeConnMonitor{},
+		CipherSuites:       utils.DefaultCipherSuites(),
+		ServiceComponent:   teleport.ComponentApp,
+		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
 	})
 	require.NoError(t, err)
 
-	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
-		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
-				ServerID: s.hostUUID,
-				Version:  teleport.Version,
-				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
-				Hostname: "test",
-			}, nil
-		})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+	inventoryHandle := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: s.hostUUID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleApp},
+		Hostname: "test",
+	})
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:                s.clock,
-		AccessPoint:          s.authClient,
-		AuthClient:           s.authClient,
-		HostID:               s.hostUUID,
-		Hostname:             "test",
-		GetRotation:          testRotationGetter,
-		Apps:                 apps,
-		OnHeartbeat:          func(err error) {},
-		ResourceMatchers:     config.ResourceMatchers,
-		OnReconcile:          config.OnReconcile,
-		CloudLabels:          config.CloudImporter,
-		ConnectionsHandler:   connectionsHandler,
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		Clock:              s.clock,
+		AccessPoint:        s.authClient,
+		AuthClient:         s.authClient,
+		HostID:             s.hostUUID,
+		Hostname:           "test",
+		GetRotation:        testRotationGetter,
+		Apps:               apps,
+		OnHeartbeat:        func(err error) {},
+		ResourceMatchers:   config.ResourceMatchers,
+		OnReconcile:        config.OnReconcile,
+		CloudLabels:        config.CloudImporter,
+		ConnectionsHandler: connectionsHandler,
+		InventoryHandle:    inventoryHandle,
 	})
 	require.NoError(t, err)
 
@@ -414,7 +404,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		case sender := <-inventoryHandle.Sender():
 			appServer, err := s.appServer.getServerInfo(app)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
 				AppServer: appServer,
 			}))
 		case <-time.After(20 * time.Second):
@@ -585,9 +575,9 @@ func TestShutdown(t *testing.T) {
 			require.NoError(t, s.appServer.Shutdown(ctx))
 
 			// Send a Goodbye to simulate process shutdown.
-			deleteResources := !test.hasForkedChild
-			softReload := test.hasForkedChild
-			require.NoError(t, s.appServer.c.InventoryHandle.SetAndSendGoodbye(ctx, deleteResources, softReload))
+			if !test.hasForkedChild {
+				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
+			}
 			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.

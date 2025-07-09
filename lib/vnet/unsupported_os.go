@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build !darwin && !windows
+// +build !darwin,!windows
 
 package vnet
 
@@ -44,4 +45,5 @@ var (
 	_ = (*osConfigurator).runOSConfigurationLoop
 	_ = runCommand
 	_ = newNetworkStackConfig
+	_ = (*networkStack).addDNSAddress
 )

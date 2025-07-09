@@ -197,10 +197,10 @@ func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (Ge
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
-			logger.Get(ctx).DebugContext(ctx, "Got alert request result", "alert_id", alertRequestResult.Data.AlertID)
+			logger.Get(ctx).Debugf("Got alert request result: %+v", alertRequestResult)
 			return alertRequestResult, nil
 		}
-		logger.Get(ctx).DebugContext(ctx, "Failed to get alert request result", "error", err)
+		logger.Get(ctx).Debug("Failed to get alert request result:", err)
 		if err := backoff.Do(ctx); err != nil {
 			return GetAlertRequestResult{}, trace.Wrap(err)
 		}

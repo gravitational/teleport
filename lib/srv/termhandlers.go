@@ -77,7 +77,7 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.Logger.DebugContext(ctx, "Terminal has been requested", "terminal", ptyRequest.Env, "width", params.W, "height", params.H)
+	scx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
 
 	// get an existing terminal or create a new one
 	term := scx.GetTerm()
@@ -92,14 +92,14 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		scx.ttyName = term.TTYName()
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
-		scx.Logger.ErrorContext(ctx, "Failed setting window size", "error", err)
+		scx.Errorf("Failed setting window size: %v", err)
 	}
 	term.SetTermType(ptyRequest.Env)
 	term.SetTerminalModes(termModes)
 
 	// update the session
 	if err := t.SessionRegistry.NotifyWinChange(ctx, *params, scx); err != nil {
-		scx.Logger.ErrorContext(ctx, "Unable to update session", "error", err)
+		scx.Errorf("Unable to update session: %v", err)
 	}
 
 	return nil

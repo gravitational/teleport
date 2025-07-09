@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"maps"
 	"strings"
 	"text/template"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	staticsign "github.com/sigstore/cosign/v2/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -341,7 +341,7 @@ func makeSignature(ref name.Digest, signer digestedRefSigner, keys ...*cosign.Ke
 // This is used to know under which digest the manifest will be reachable, for
 // example when building a signature referring to the manifest or when building
 // a manifest index.
-func contentSizeAndHash(obj any) ([]byte, int64, v1.Hash, error) {
+func contentSizeAndHash(obj interface{}) ([]byte, int64, v1.Hash, error) {
 	manifestBytes, err := json.Marshal(obj)
 	if err != nil {
 		return manifestBytes, 0, v1.Hash{}, trace.Wrap(err)

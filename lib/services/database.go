@@ -21,7 +21,6 @@ package services
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"net/netip"
 	"net/url"
@@ -29,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
@@ -100,7 +100,7 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	case types.V3:
 		var database types.DatabaseV3
 		if err := utils.FastUnmarshal(data, &database); err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := database.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -280,11 +280,7 @@ func validateMongoDB(db types.Database) error {
 	// DNS errors here by replacing the scheme and then ParseAndValidate again
 	// to validate as much as we can.
 	if isDNSError(err) {
-		slog.WarnContext(context.Background(), "MongoDB database %q (connection string %q) failed validation with DNS error",
-			"database_name", db.GetName(),
-			"database_uri", db.GetURI(),
-			"error", err,
-		)
+		log.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v.", db.GetName(), db.GetURI(), err)
 
 		connString, err = connstring.ParseAndValidate(strings.Replace(
 			db.GetURI(),

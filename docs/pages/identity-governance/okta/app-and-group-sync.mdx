@@ -26,6 +26,13 @@ application:
 - An Access List representing membership to the group/application.
 - Members for the Access List.
 
+All synchronized Okta users are assigned a builtin `okta-requester` role which allows to request
+access to the synchronized resources. This role assignment can be disabled with
+`--no-assign-default-roles` flag when creating the integration with `tctl` or can be disabled with
+`tctl edit plugins/okta` by setting `okta.sync_settings.disable_assign_default_roles: true`.
+Note that unless the connector was created manually, this role is also assigned by default in the
+auth connector role mapping and needs to be updated there for the change to take effect.
+
 It should be noted that the Access List sync waits until the Okta groups and Okta applications
 has finished syncing as Teleport resources, so it may not start synchronizing immediately on startup.
 

@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { JSX } from 'react';
 import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';

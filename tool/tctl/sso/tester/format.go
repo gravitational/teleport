@@ -32,7 +32,7 @@ func FormatString(description string, msg string) string {
 	return fmt.Sprintf("%v:\n%v\n", description, msg)
 }
 
-func FormatYAML(description string, object any) string {
+func FormatYAML(description string, object interface{}) string {
 	output, err := yaml.Marshal(object)
 	if err != nil {
 		return formatError(description, err)
@@ -40,7 +40,7 @@ func FormatYAML(description string, object any) string {
 	return fmt.Sprintf("%v:\n%v", description, string(output))
 }
 
-func FormatJSON(description string, object any) string {
+func FormatJSON(description string, object interface{}) string {
 	output, err := json.MarshalIndent(object, "", "    ")
 	if err != nil {
 		return formatError(description, err)

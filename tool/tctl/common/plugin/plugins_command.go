@@ -58,7 +58,6 @@ type pluginInstallArgs struct {
 	entraID entraArgs
 	netIQ   netIQArgs
 	awsIC   awsICArgs
-	github  githubArgs
 }
 
 type scimArgs struct {
@@ -107,7 +106,6 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallEntra(p.install.cmd)
 	p.initInstallNetIQ(p.install.cmd)
 	p.initInstallAWSIC(p.install.cmd)
-	p.initInstallGithub(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -336,8 +334,6 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallNetIQ
 	case p.install.awsIC.cmd.FullCommand():
 		commandFunc = p.InstallAWSIC
-	case p.install.github.cmd.FullCommand():
-		commandFunc = p.InstallGithub
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	default:

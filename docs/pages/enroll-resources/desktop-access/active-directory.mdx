@@ -8,10 +8,10 @@ tocDepth: 3
 This guide demonstrates how to connect an Active Directory domain and how to log
 into a Windows desktop from the connected domain.
 
-You should note that Teleport requires the Kerberos authentication protocol to
-support certificate-based authentication for Active Directory. Because Microsoft
-Entra ID doesn't use Kerberos, you can't use the Teleport Windows Desktop
-Service for Microsoft Entra ID.
+You should note that Teleport requires the Kerberos authentication protocol to support
+certificate-based authentication for Active Directory. Because Azure Active Directory
+doesn't use Kerberos, you can't use the Teleport Windows Desktop Service for
+Azure Active Directory.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ To complete the steps in this guide, verify your environment meets the following
   ```
 
   You can download these tools by following the appropriate [Installation
-  instructions](../../installation.mdx#linux) for the Teleport
+  instructions](../../installation/linux.mdx) for the Teleport
   edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
@@ -607,8 +607,8 @@ To configure Teleport to protect access to Windows desktops:
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
        der_ca_file: "path/to/exported/cert"
-     discovery_configs:
-       - base_dn: "*"
+     discovery:
+       base_dn: "*"
    auth_service:
      enabled: false
    proxy_service:
@@ -682,22 +682,16 @@ To connect to a Windows desktop:
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
-via LDAP. LDAP discovery is enabled by adding one or more discovery configs to
-the `discovery_configs` field in the Teleport Windows Desktop Service
-configuration. You can set `base_dn` to a wildcard `'*` to search from the root
-of the domain, or you can specify an alternate base distinguished name to search
-from.
-
-By default, all hosts discovered via LDAP will be registered with a port of 3389.
-You can override the RDP port for each discovery configuration.
+via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
+the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
+wildcard `'*'` to search from the root of the domain, or you can specify an alternate
+base distinguished name to search from.
 
 ```yaml
 windows_desktop_service:
   enabled: true
-  discovery_configs:
-    - base_dn: 'OU=prod,DC=example,DC=com'
-    - base_dn: 'OU=staging,DC=example,DC=com'
-      rdp_port: 9989
+  discovery:
+    base_dn: '*'
 ```
 
 ### Filters
@@ -710,27 +704,28 @@ compute a logical AND of all filters specified.
 ```yaml
 windows_desktop_service:
   enabled: true
-  discovery_configs:
-    - base_dn: '*'
-      filters:
-        - '(location=Oakland)'
-        - '(!(primaryGroupID=516))'
+  discovery:
+    base_dn: '*'
+    filters:
+    - '(location=Oakland)'
+    - '(!(primaryGroupID=516))'
 ```
 
 ### Labeling
 
 It is often necessary to apply labels to discovered hosts to control access. You
 can configure Teleport to convert LDAP attributes to Teleport labels by setting
-the `label_attributes` field in the discovery configuration.
+the `discovery.label_attributes` field in the Teleport Windows Desktop Service
+configuration.
 
 ```yaml
 windows_desktop_service:
   enabled: true
-  discovery_configs:
-    - base_dn: '*'
-      label_attributes:
-        - 'location'
-        - 'department'
+  discovery:
+    base_dn: '*'
+    label_attributes:
+      - 'location'
+      - 'department'
 ```
 
 Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.

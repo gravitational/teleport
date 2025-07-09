@@ -118,18 +118,9 @@ const (
 	// like GitHub.
 	GitClient
 
-	// AWSRACATLS represents the TLS key for the AWS IAM Roles Anywhere CA.
-	AWSRACATLS
-
 	// BoundKeypairJoining represents a key used for the bound keypair joining
 	// identity.
 	BoundKeypairJoining
-
-	// BoundKeypairCAJWT represents the JWT key for the bound_keypair CA.
-	BoundKeypairCAJWT
-
-	// RecordingKeyWrapping is a key used for wrapping session recording decryption keys.
-	RecordingKeyWrapping
 
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
@@ -174,10 +165,7 @@ type suite map[KeyPurpose]Algorithm
 var (
 	// legacy is the original algorithm suite, which exclusively uses RSA2048
 	// for features developed before ECDSA and Ed25519 support were added. New
-	// features should always use the new algorithms, and new CAs should use the
-	// algorithms in `fipsV1` for compatibility with FIPS mode clusters and
-	// HSMs. See also:
-	// https://github.com/gravitational/teleport/blob/master/rfd/0136-modern-signature-algorithms.md#legacy-suite
+	// features should always use the new algorithms.
 	legacy = suite{
 		UserCATLS:               RSA2048,
 		UserCASSH:               RSA2048,
@@ -207,12 +195,9 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect:   Ed25519,
-		GitClient:            Ed25519,
-		AWSRACATLS:           ECDSAP256,
-		BoundKeypairJoining:  Ed25519,
-		BoundKeypairCAJWT:    ECDSAP256,
-		RecordingKeyWrapping: RSA2048,
+		EC2InstanceConnect:  Ed25519,
+		GitClient:           Ed25519,
+		BoundKeypairJoining: Ed25519,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -244,10 +229,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
-		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
-		BoundKeypairCAJWT:       Ed25519,
-		RecordingKeyWrapping:    RSA2048,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -280,10 +262,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      ECDSAP256,
 		GitClient:               ECDSAP256,
-		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     ECDSAP256,
-		BoundKeypairCAJWT:       ECDSAP256,
-		RecordingKeyWrapping:    RSA2048,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -318,10 +297,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
-		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
-		BoundKeypairCAJWT:       ECDSAP256,
-		RecordingKeyWrapping:    RSA2048,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{
@@ -474,16 +450,6 @@ func GenerateKeyWithAlgorithm(alg Algorithm) (crypto.Signer, error) {
 		return generateECDSAP256()
 	case Ed25519:
 		return generateEd25519()
-	default:
-		return nil, trace.BadParameter("unsupported key algorithm %v", alg)
-	}
-}
-
-// GenerateDecrypterWithAlgorithm generates a new cryptographic keypair with the given algorithm meant for decryption.
-func GenerateDecrypterWithAlgorithm(alg Algorithm) (crypto.Decrypter, error) {
-	switch alg {
-	case RSA2048:
-		return generateRSA2048()
 	default:
 		return nil, trace.BadParameter("unsupported key algorithm %v", alg)
 	}

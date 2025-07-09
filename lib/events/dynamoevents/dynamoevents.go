@@ -42,12 +42,13 @@ import (
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	legacydynamo "github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/smithy-go"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -308,12 +309,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dynamoOpts := []func(*dynamodb.Options){
-		dynamodb.WithEndpointResolverV2(resolver),
-		func(o *dynamodb.Options) {
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		},
-	}
+	dynamoOpts := []func(*dynamodb.Options){dynamodb.WithEndpointResolverV2(resolver)}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
@@ -339,6 +335,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
@@ -541,10 +539,10 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 
 	se, ok := trimEventSize(in)
 	if !ok {
-		return trace.BadParameter("%s", err)
+		return trace.BadParameter(err.Error())
 	}
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
-		return trace.BadParameter("%s", err)
+		return trace.BadParameter(err.Error())
 	}
 	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
@@ -724,7 +722,7 @@ type legacyCheckpointKey struct {
 	Date string `json:"date,omitempty"`
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
-	Iterator map[string]*LegacyAttributeValue `json:"iterator,omitempty"`
+	Iterator map[string]*legacydynamo.AttributeValue `json:"iterator,omitempty"`
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
@@ -740,46 +738,30 @@ type legacyCheckpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]events.EventFields, string, error) {
+func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
 	rawEvents, lastKey, err := l.searchEventsRaw(ctx, fromUTC, toUTC, namespace, limit, order, startKey, filter, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	eventArr := make([]events.EventFields, 0, len(rawEvents))
+	eventArr := make([]apievents.AuditEvent, 0, len(rawEvents))
 	for _, rawEvent := range rawEvents {
-		eventArr = append(eventArr, rawEvent.FieldsMap)
+		event, err := events.FromEventFields(rawEvent.FieldsMap)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
 	}
 
 	var toSort sort.Interface
 	switch order {
 	case types.EventOrderAscending:
-		toSort = events.ByTimeAndIndex(eventArr)
+		toSort = byTimeAndIndex(eventArr)
 	case types.EventOrderDescending:
-		toSort = sort.Reverse(events.ByTimeAndIndex(eventArr))
+		toSort = sort.Reverse(byTimeAndIndex(eventArr))
 	default:
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
@@ -794,6 +776,27 @@ func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.Expo
 
 func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
 	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
+// ByTimeAndIndex sorts events by time
+// and if there are several session events with the same session by event index.
+type byTimeAndIndex []apievents.AuditEvent
+
+func (f byTimeAndIndex) Len() int {
+	return len(f)
+}
+
+func (f byTimeAndIndex) Less(i, j int) bool {
+	itime := f[i].GetTime()
+	jtime := f[j].GetTime()
+	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
+		return f[i].GetIndex() < f[j].GetIndex()
+	}
+	return itime.Before(jtime)
+}
+
+func (f byTimeAndIndex) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
 }
 
 // eventFilterList constructs a string of the form
@@ -978,7 +981,7 @@ func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	if startKey == "" {
 		return checkpoint, nil
 	}
-	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
+	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
 	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
 		// attempt to decode as legacy format.
 		if checkpoint, err = getCheckpointFromLegacyStartKey(startKey); err == nil {
@@ -1004,14 +1007,9 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 
-	convertedAttrMap, err := convertLegacyAttributesMap(checkpoint.Iterator)
-	if err != nil {
-		return checkpointKey{}, trace.Wrap(err)
-	}
-
 	// decode the dynamo attrs into the go map repr common to the old and new formats.
 	m := make(map[string]any)
-	if err := attributevalue.UnmarshalMap(convertedAttrMap, &m); err != nil {
+	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &m); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 
@@ -1067,15 +1065,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		filter.condExpr = expr
 		filter.condParams = params
 	}
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 }
 
 type searchEventsFilter struct {
@@ -1329,27 +1319,27 @@ func convertError(err error) error {
 
 	var conditionalCheckFailedError *dynamodbtypes.ConditionalCheckFailedException
 	if errors.As(err, &conditionalCheckFailedError) {
-		return trace.AlreadyExists("%s", conditionalCheckFailedError.ErrorMessage())
+		return trace.AlreadyExists(conditionalCheckFailedError.ErrorMessage())
 	}
 
 	var throughputExceededError *dynamodbtypes.ProvisionedThroughputExceededException
 	if errors.As(err, &throughputExceededError) {
-		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
+		return trace.ConnectionProblem(throughputExceededError, throughputExceededError.ErrorMessage())
 	}
 
 	var notFoundError *dynamodbtypes.ResourceNotFoundException
 	if errors.As(err, &notFoundError) {
-		return trace.NotFound("%s", notFoundError.ErrorMessage())
+		return trace.NotFound(notFoundError.ErrorMessage())
 	}
 
 	var collectionLimitExceededError *dynamodbtypes.ItemCollectionSizeLimitExceededException
 	if errors.As(err, &notFoundError) {
-		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
+		return trace.BadParameter(collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *dynamodbtypes.InternalServerError
 	if errors.As(err, &internalError) {
-		return trace.BadParameter("%s", internalError.ErrorMessage())
+		return trace.BadParameter(internalError.ErrorMessage())
 	}
 
 	var ae smithy.APIError

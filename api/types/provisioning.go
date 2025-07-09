@@ -83,9 +83,6 @@ const (
 	// JoinMethodAzureDevops indicates that the node will join using the Azure
 	// Devops join method.
 	JoinMethodAzureDevops JoinMethod = "azure_devops"
-	// JoinMethodBoundKeypair indicates the node will join using the Bound
-	// Keypair join method. See lib/boundkeypair for more.
-	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
@@ -104,7 +101,6 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
-	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -171,8 +167,6 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
-	// Clone creates a copy of the token.
-	Clone() ProvisionToken
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -197,26 +191,6 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	return t, nil
 }
 
-// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
-func NewProvisionTokenFromSpecAndStatus(
-	token string, expires time.Time,
-	spec ProvisionTokenSpecV2,
-	status *ProvisionTokenStatusV2,
-) (ProvisionToken, error) {
-	t := &ProvisionTokenV2{
-		Metadata: Metadata{
-			Name:    token,
-			Expires: &expires,
-		},
-		Spec:   spec,
-		Status: status,
-	}
-	if err := t.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return t, nil
-}
-
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in tests
 func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
@@ -225,10 +199,6 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 		panic(err)
 	}
 	return t
-}
-
-func (p *ProvisionTokenV2) Clone() ProvisionToken {
-	return utils.CloneProtoMsg(p)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -439,14 +409,6 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.azure_devops: failed validation")
-		}
-	case JoinMethodBoundKeypair:
-		if p.Spec.BoundKeypair == nil {
-			p.Spec.BoundKeypair = &ProvisionTokenSpecV2BoundKeypair{}
-		}
-
-		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -1024,26 +986,5 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 			)
 		}
 	}
-	return nil
-}
-
-func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
-	if a.Onboarding == nil {
-		a.Onboarding = &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
-	}
-
-	if a.Recovery == nil {
-		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
-	}
-
-	// Limit must be >= 1 for the token to be useful. If zero, assume it's unset
-	// and provide a sane default.
-	if a.Recovery.Limit == 0 {
-		a.Recovery.Limit = 1
-	}
-
-	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
-	// ("") is mapped to RecoveryModeStandard.
-
 	return nil
 }

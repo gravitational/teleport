@@ -77,7 +77,7 @@ func PutRolePolicy(
 		RunnerFn: func(ctx context.Context) error {
 			_, err = clt.PutRolePolicy(ctx, input)
 			if err != nil {
-				if trace.IsNotFound(awslib.ConvertIAMError(err)) {
+				if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
 					return trace.NotFound("role %q not found.", roleName)
 				}
 				return trace.Wrap(err)

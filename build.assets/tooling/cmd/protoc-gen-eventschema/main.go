@@ -19,23 +19,21 @@
 package main
 
 import (
-	"context"
-	"log/slog"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	slog.SetDefault(logger)
-
-	ctx := context.Background()
+	log.SetLevel(log.DebugLevel)
+	log.SetOutput(os.Stderr)
 	req, err := readRequest()
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to read request", "error", err)
+		log.WithError(err).Error("Failed to read request")
 		os.Exit(-1)
 	}
 	if err := handleRequest(req); err != nil {
-		logger.ErrorContext(ctx, "Failed to generate schema", "error", err)
+		log.WithError(err).Error("Failed to generate schema")
 		os.Exit(-1)
 	}
 }

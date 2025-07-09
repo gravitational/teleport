@@ -333,7 +333,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	lw := NewMuxListenerWrapper(l, suite.serverListener)
 
-	mustStartHTTPServer(lw)
+	mustStartHTTPServer(t, lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -364,7 +364,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	// Create a HTTP server and register the listener to ALPN server.
 	lw := NewMuxListenerWrapper(nil, suite.serverListener)
-	mustStartHTTPServer(lw)
+	mustStartHTTPServer(t, lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{

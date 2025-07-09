@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/digitorus/pkcs7"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -78,7 +79,7 @@ func renewBotCerts(
 	botUser string,
 	key crypto.Signer,
 ) (*authclient.Client, *proto.Certs, error) {
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(key)
 	if err != nil {
@@ -118,7 +119,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -227,8 +228,6 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 // Whilst this specifically tests the Kubernetes join method, it tests by proxy
 // the implementation for most of the join methods.
 func TestBotJoinAttrs_Kubernetes(t *testing.T) {
-	t.Parallel()
-
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -933,14 +932,16 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		}),
 	}
 
-	t.Setenv("AWS_ACCESS_KEY_ID", "FAKE_ID")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "FAKE_KEY")
-	t.Setenv("AWS_SESSION_TOKEN", "FAKE_TOKEN")
+	nodeCredentials, err := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN").Get()
+	require.NoError(t, err)
+	t.Setenv("AWS_ACCESS_KEY_ID", nodeCredentials.AccessKeyID)
+	t.Setenv("AWS_SECRET_ACCESS_KEY", nodeCredentials.SecretAccessKey)
+	t.Setenv("AWS_SESSION_TOKEN", nodeCredentials.SessionToken)
 	t.Setenv("AWS_REGION", "us-west-2")
 
 	// Create a bot
 	roleName := "test-role"
-	_, err := CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	botName := "bot"

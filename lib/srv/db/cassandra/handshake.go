@@ -28,7 +28,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -190,8 +190,8 @@ func sendAuthenticationErrorMessage(authErr error, clientConn *protocol.Conn, in
 
 // authHandler is a handler that performs the Cassandra authentication flow.
 type authAWSSigV4Auth struct {
-	ses       *common.Session
-	awsConfig awsconfig.Provider
+	ses          *common.Session
+	cloudClients cloud.Clients
 }
 
 func (a *authAWSSigV4Auth) getSigV4Authenticator(ctx context.Context) (gocql.Authenticator, error) {
@@ -200,22 +200,25 @@ func (a *authAWSSigV4Auth) getSigV4Authenticator(ctx context.Context) (gocql.Aut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// ExternalID should only be used in one of the assumed roles. If the
-	// configuration doesn't specify the AssumeRoleARN, it should be used for
-	// the database role.
-	var dbRoleExternalID string
-	if meta.AssumeRoleARN == "" {
-		dbRoleExternalID = meta.ExternalID
-	}
-	awsCfg, err := a.awsConfig.GetConfig(ctx, meta.Region,
-		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
-		awsconfig.WithAssumeRole(roleARN, dbRoleExternalID),
-		awsconfig.WithAmbientCredentials(),
+	baseSession, err := a.cloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cred, err := awsCfg.Credentials.Retrieve(ctx)
+	var externalID string
+	if meta.AssumeRoleARN == "" {
+		externalID = meta.ExternalID
+	}
+	session, err := a.cloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID),
+		cloud.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cred, err := session.Config.Credentials.GetWithContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

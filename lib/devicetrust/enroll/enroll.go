@@ -22,9 +22,9 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/trail"
@@ -94,7 +94,8 @@ func (c *Ceremony) RunAdmin(
 
 	rewordAccessDenied := func(err error, action string) error {
 		if trace.IsAccessDenied(trail.FromGRPC(err)) {
-			slog.DebugContext(ctx, "Device Trust: Redacting access denied error with user-friendly message", "error", err)
+			log.WithError(err).Debug(
+				"Device Trust: Redacting access denied error with user-friendly message")
 			return trace.AccessDenied(
 				"User does not have permissions to %s. Contact your cluster device administrator.",
 				action,
@@ -114,12 +115,9 @@ func (c *Ceremony) RunAdmin(
 	for _, dev := range findResp.Devices {
 		if dev.OsType == osType {
 			currentDev = dev
-			slog.DebugContext(ctx, "Device Trust: Found device",
-				slog.Group("device",
-					slog.String("asset_tag", currentDev.AssetTag),
-					slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
-					slog.String("id", currentDev.Id),
-				),
+			log.Debugf(
+				"Device Trust: Found device %q/%v, id=%q",
+				currentDev.AssetTag, devicetrust.FriendlyOSType(currentDev.OsType), currentDev.Id,
 			)
 			break
 		}
@@ -150,13 +148,10 @@ func (c *Ceremony) RunAdmin(
 		if err != nil {
 			return currentDev, outcome, trace.Wrap(rewordAccessDenied(err, "create device enrollment tokens"))
 		}
-		slog.DebugContext(ctx, "Device Trust: Created enrollment token for device",
-			slog.Group("device",
-				slog.String("asset_tag", currentDev.AssetTag),
-				slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
-				slog.String("id", currentDev.Id),
-			),
-		)
+		log.Debugf(
+			"Device Trust: Created enrollment token for device %q/%s",
+			currentDev.AssetTag,
+			devicetrust.FriendlyOSType(currentDev.OsType))
 	}
 	token := currentDev.EnrollToken.GetToken()
 

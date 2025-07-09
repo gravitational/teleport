@@ -19,14 +19,14 @@
 package services
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
+	"io"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
 
@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -245,41 +244,34 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 // NewLogActionFn creates logger functions
 func NewLogActionFn(ctx RuleContext) interface{} {
 	l := &LogAction{ctx: ctx}
-
+	writer, ok := ctx.(io.Writer)
+	if ok && writer != nil {
+		l.writer = writer
+	}
 	return l.Log
 }
 
 // LogAction represents action that will emit log entry
 // when specified in the actions of a matched rule
 type LogAction struct {
-	ctx RuleContext
+	ctx    RuleContext
+	writer io.Writer
 }
 
-// Log logs with specified level and message string and attributes
-func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate {
+// Log logs with specified level and formatting string with arguments
+func (l *LogAction) Log(level, format string, args ...interface{}) predicate.BoolPredicate {
 	return func() bool {
-		slevel := slog.LevelDebug
-		switch strings.ToLower(level) {
-		case "error":
-			slevel = slog.LevelError
-		case "warn", "warning":
-			slevel = slog.LevelWarn
-		case "info":
-			slevel = slog.LevelInfo
-		case "debug":
-			slevel = slog.LevelDebug
-		case "trace":
-			slevel = logutils.TraceLevel
+		ilevel, err := log.ParseLevel(level)
+		if err != nil {
+			ilevel = log.DebugLevel
 		}
-
-		ctx := context.Background()
-		// Expicitly check whether logging is enabled for the level
-		// to avoid formatting the message if the log won't be sampled.
-		if !slog.Default().Handler().Enabled(ctx, slevel) {
-			//nolint:sloglint // msg cannot be constant
-			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
+		var writer io.Writer
+		if l.writer != nil {
+			writer = l.writer
+		} else {
+			writer = log.StandardLogger().WriterLevel(ilevel)
 		}
-
+		fmt.Fprintf(writer, format, args...)
 		return true
 	}
 }
@@ -762,12 +754,6 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 				}
 
 				return r.GetName(), nil
-			}),
-			"health.status": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
-				if r, ok := r.(types.TargetHealthStatusGetter); ok {
-					return string(r.GetTargetHealthStatus()), nil
-				}
-				return "", nil
 			}),
 		},
 		Functions: map[string]typical.Function{

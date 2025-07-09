@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 // Testing requires a local psql backend to be set up, and for params to be passed via env. Ex:
@@ -38,7 +37,7 @@ import (
 
 // newAtomicWriteTestBackend builds a backend suitable for the atomic write test suite. Once all backends implement AtomicWrite,
 // it will be integrated into the main backend interface and we can get rid of this separate helper.
-func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 	testCfg, err := test.ApplyOptions(options)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -163,7 +163,10 @@ export enum DiscoverEvent {
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
+  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
+  EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateApplicationServer = 'tp.ui.discover.createAppServer',
+  CreateNode = 'tp.ui.discover.createNode',
   CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
@@ -306,6 +309,7 @@ export enum DiscoverServiceDeployType {
 export enum DiscoverDiscoveryConfigMethod {
   Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
   AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsEc2Eice = 'CONFIG_METHOD_AWS_EC2_EICE',
   AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
   AwsEks = 'CONFIG_METHOD_AWS_EKS',
 }
@@ -325,7 +329,6 @@ export enum CtaEvent {
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
   CTA_OKTA_SCIM = 13,
-  CTA_IDENTITY_SECURITY = 14,
 }
 
 export type CtaEventRequest = UserEventWithData<

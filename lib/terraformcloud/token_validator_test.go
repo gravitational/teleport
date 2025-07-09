@@ -29,10 +29,8 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -295,6 +293,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			}
 
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
+				Clock:                  clockwork.NewRealClock(),
 				insecure:               true,
 				issuerHostnameOverride: hostnameOverride,
 			})
@@ -306,9 +305,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }

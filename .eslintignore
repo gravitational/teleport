@@ -1,0 +1,7 @@
+**/*_pb.*
+.eslintrc.js
+
+# Ignore WASM generated files:
+**/ironrdp/pkg/**
+
+web/packages/teleterm/build

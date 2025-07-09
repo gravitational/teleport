@@ -272,6 +272,7 @@ func testRDS(t *testing.T) {
 						},
 					},
 				} {
+					test := test
 					t.Run(name, func(t *testing.T) {
 						t.Parallel()
 						t.Run("connect", func(t *testing.T) {
@@ -378,6 +379,7 @@ func testRDS(t *testing.T) {
 				},
 			},
 		} {
+			test := test
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				route := tlsca.RouteToDatabase{
@@ -504,6 +506,7 @@ func testRDS(t *testing.T) {
 				},
 			},
 		} {
+			test := test
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				route := tlsca.RouteToDatabase{
@@ -545,7 +548,7 @@ type mySQLConn struct {
 	conn *mysqlclient.Conn
 }
 
-func (c *mySQLConn) Execute(command string, args ...any) (*mysql.Result, error) {
+func (c *mySQLConn) Execute(command string, args ...interface{}) (*mysql.Result, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn.Execute(command, args...)

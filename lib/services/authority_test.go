@@ -397,13 +397,13 @@ func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
 	require.NoError(b, err)
 
 	b.Run("true", func(b *testing.B) {
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
 			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
 		}
 	})
 
 	b.Run("false", func(b *testing.B) {
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
 			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
 		}
 	})

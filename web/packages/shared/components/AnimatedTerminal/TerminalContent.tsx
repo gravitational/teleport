@@ -65,13 +65,13 @@ const Lines = styled.div`
 `;
 
 export function TerminalContent(props: TerminalContentProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>();
 
   useLayoutEffect(() => {
     ref.current.scrollTop = ref.current.scrollHeight;
   }, [props.counter]);
 
-  const renderedLines = useRef<HTMLDivElement>(null);
+  const renderedLines = useRef<HTMLDivElement>();
 
   useEffect(() => {
     if (!props.selectedLines) {

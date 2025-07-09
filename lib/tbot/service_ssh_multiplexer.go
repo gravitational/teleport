@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
@@ -105,6 +106,7 @@ type SSHMultiplexerService struct {
 	proxyPingCache     *proxyPingCache
 	reloadBroadcaster  *channelBroadcaster
 	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
@@ -545,7 +547,6 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 				s.agentMu.Unlock()
 
 				s.log.DebugContext(egCtx, "Serving agent connection")
-				//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
 				err := agent.ServeAgent(currentAgent, conn)
 				if err != nil && !utils.IsOKNetworkError(err) {
 					s.log.WarnContext(
@@ -564,7 +565,16 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 		return s.identityRenewalLoop(egCtx, proxyHost, authClient)
 	})
 
-	return eg.Wait()
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+	s.statusReporter.Report(readyz.Healthy)
+
+	if err := eg.Wait(); err != nil {
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *SSHMultiplexerService) handleConn(
@@ -797,7 +807,10 @@ func (s *SSHMultiplexerService) handleConn(
 }
 
 func (s *SSHMultiplexerService) String() string {
-	return config.SSHMultiplexerServiceType
+	return cmp.Or(
+		s.cfg.Name,
+		config.SSHMultiplexerServiceType,
+	)
 }
 
 type hostDialer interface {

@@ -21,13 +21,11 @@ import (
 	"crypto/subtle"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -54,14 +52,11 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		chal.RequestId = resp.ID
 		chal.RedirectUrl = resp.RedirectURL
 	case constants.OIDC:
-		codeVerifier := oauth2.GenerateVerifier()
-
 		resp, err := a.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
 			ConnectorID:       sso.ConnectorId,
 			Type:              sso.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
 			ProxyAddress:      proxyAddress,
-			PkceVerifier:      codeVerifier,
 			CheckUser:         true,
 		})
 		if err != nil {
@@ -91,14 +86,14 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	const notFoundErrMsg = "mfa sso session data not found"
 	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
+		return nil, trace.AccessDenied(notFoundErrMsg)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify the user's name and sso device matches.
 	if mfaSess.Username != username {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
+		return nil, trace.AccessDenied(notFoundErrMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.
@@ -146,14 +141,11 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 // sessionID, connector details, and challenge extensions.
 func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
 	err := a.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
-		Username:      user,
-		RequestID:     sessionID,
-		ConnectorID:   connectorID,
-		ConnectorType: connectorType,
-		ChallengeExtensions: &mfatypes.ChallengeExtensions{
-			Scope:      ext.Scope,
-			AllowReuse: ext.AllowReuse,
-		},
+		Username:            user,
+		RequestID:           sessionID,
+		ConnectorID:         connectorID,
+		ConnectorType:       connectorType,
+		ChallengeExtensions: ext,
 	})
 	return trace.Wrap(err)
 }

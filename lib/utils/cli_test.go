@@ -29,6 +29,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestUserMessageFromError(t *testing.T) {
@@ -37,7 +39,7 @@ func TestUserMessageFromError(t *testing.T) {
 
 	var leveler slog.LevelVar
 	leveler.Set(slog.LevelInfo)
-	slog.SetDefault(slog.New(slog.DiscardHandler))
+	slog.SetDefault(slog.New(logutils.DiscardHandler{}))
 	t.Cleanup(func() {
 		slog.SetDefault(defaultLogger)
 	})

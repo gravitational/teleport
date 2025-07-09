@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
@@ -185,13 +184,16 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 			if event.Type != types.OpPut {
 				continue
 			}
-			r, ok := event.Resource.(types.Resource153UnwrapperT[*userprovisioningv2.StaticHostUser])
+			r, ok := event.Resource.(types.Resource153Unwrapper)
 			if !ok {
 				slog.WarnContext(ctx, "Unexpected resource type.", "resource", event.Resource)
 				continue
 			}
-			hostUser := r.UnwrapT()
-
+			hostUser, ok := r.Unwrap().(*userprovisioningv2.StaticHostUser)
+			if !ok {
+				slog.WarnContext(ctx, "Unexpected resource type.", "resource", event.Resource)
+				continue
+			}
 			if err := s.handleNewHostUser(ctx, hostUser); err != nil {
 				// Log the error so we don't stop the handler.
 				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().Name)
@@ -242,7 +244,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 				slog.Group("first_match", "labels", createUser.NodeLabels, "expression", createUser.NodeLabelsExpression),
 				slog.Group("second_match", "labels", matcher.NodeLabels, "expression", matcher.NodeLabelsExpression),
 			)
-			return trace.BadParameter("%s", msg)
+			return trace.BadParameter(msg)
 		}
 		createUser = matcher
 	}
@@ -252,18 +254,19 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 	}
 
 	slog.DebugContext(ctx, "Attempt to update matched static host user.", "login", login)
-	ui := decisionpb.HostUsersInfo{
-		Groups: createUser.Groups,
-		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
-		Shell:  createUser.DefaultShell,
+	ui := services.HostUsersInfo{
+		Groups:        createUser.Groups,
+		Mode:          services.HostUserModeStatic,
+		Shell:         createUser.DefaultShell,
+		TakeOwnership: createUser.TakeOwnershipIfUserExists,
 	}
 	if createUser.Uid != 0 {
-		ui.Uid = strconv.Itoa(int(createUser.Uid))
+		ui.UID = strconv.Itoa(int(createUser.Uid))
 	}
 	if createUser.Gid != 0 {
-		ui.Gid = strconv.Itoa(int(createUser.Gid))
+		ui.GID = strconv.Itoa(int(createUser.Gid))
 	}
-	if _, err := s.users.UpsertUser(login, &ui, TakeOwnershipIfUserExists(createUser.TakeOwnershipIfUserExists)); err != nil {
+	if _, err := s.users.UpsertUser(login, ui); err != nil {
 		return trace.Wrap(err)
 	}
 	if s.sudoers != nil && len(createUser.Sudoers) != 0 {

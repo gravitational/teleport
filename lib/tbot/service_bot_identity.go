@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/join"
-	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -59,6 +59,7 @@ type identityService struct {
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
+	statusReporter    readyz.Reporter
 
 	mu              sync.Mutex
 	client          *apiclient.Client
@@ -292,10 +293,13 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.mu.Lock()
 	s.client = c
 	s.facade = facade
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
 	s.mu.Unlock()
 
 	s.unblockWaiters()
-
+	s.statusReporter.Report(readyz.Healthy)
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
 }
@@ -372,6 +376,7 @@ func (s *identityService) Run(ctx context.Context) error {
 		log:                s.log,
 		reloadCh:           reloadCh,
 		waitBeforeFirstRun: true,
+		statusReporter:     s.statusReporter,
 	})
 	return trace.Wrap(err)
 }
@@ -580,9 +585,6 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
-	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairState *boundkeypair.ClientState
-
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
 		params.AzureParams = join.AzureParams{
@@ -594,41 +596,11 @@ func botIdentityFromToken(
 		params.GitlabParams = join.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
-	case types.JoinMethodBoundKeypair:
-		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
-
-		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
-		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
-		if trace.IsNotFound(err) && joinSecret != "" {
-			log.InfoContext(ctx, "No existing client state found, will attempt "+
-				"to join with provided registration secret")
-			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
-		} else if err != nil {
-			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
-				"no local credentials are available and no registration secret "+
-				"was provided. To continue, either generate a keypair with "+
-				"`tbot keypair create` and register it with Teleport, or "+
-				"generate a registration secret on Teleport and provide it with"+
-				"the `--registration-secret` flag.")
-			return nil, trace.Wrap(err, "loading bound keypair client state")
-		}
-
-		params.BoundKeypairParams = boundKeypairState.ToJoinParams(joinSecret)
 	}
 
 	result, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if boundKeypairState != nil {
-		if err := boundKeypairState.UpdateFromRegisterResult(result); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := boundKeypairState.Store(ctx); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)

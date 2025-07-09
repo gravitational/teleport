@@ -29,7 +29,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -50,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -308,9 +307,15 @@ func (p *Pack) initWebSession(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
 
-	// Set Content-Type header, otherwise Teleport's CSRF protection will
-	// reject the request.
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{
@@ -756,12 +761,15 @@ func (p *Pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 }
 
 func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
+	log := utils.NewLoggerForTests()
+
 	configs := make([]*servicecfg.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
-		raConf.Logger = utils.NewSlogLoggerForTests()
+		raConf.Console = nil
+		raConf.Log = log
 		raConf.DataDir = t.TempDir()
 		raConf.SetToken("static-token-value")
 		raConf.SetAuthServerAddress(utils.NetAddr{
@@ -925,12 +933,14 @@ func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name stri
 }
 
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
+	log := utils.NewLoggerForTests()
 	configs := make([]*servicecfg.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
-		laConf.Logger = utils.NewSlogLoggerForTests()
+		laConf.Console = nil
+		laConf.Log = log
 		laConf.DataDir = t.TempDir()
 		laConf.SetToken("static-token-value")
 		laConf.SetAuthServerAddress(utils.NetAddr{
@@ -1064,12 +1074,6 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 }
 
 func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
-	if os.Getenv(libmcp.InMemoryServerEnvVar) == "true" {
-		cfgApps = append(cfgApps, servicecfg.App{
-			Name: libmcp.InMemoryServerName,
-		})
-	}
-
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		site, err := tunnel.GetSite(clusterName)
 		assert.NoError(t, err)

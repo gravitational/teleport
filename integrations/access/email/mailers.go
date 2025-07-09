@@ -114,7 +114,7 @@ func (m *SMTPMailer) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if err := client.Close(); err != nil {
-		log.DebugContext(ctx, "Failed to close client connection after health check")
+		log.Debug("Failed to close client connection after health check")
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func (m *SMTPMailer) emitStatus(ctx context.Context, statusErr error) {
 		code = http.StatusInternalServerError
 	}
 	if err := m.sink.Emit(ctx, common.StatusFromStatusCode(code)); err != nil {
-		log.ErrorContext(ctx, "Error while emitting Email plugin status", "error", err)
+		log.WithError(err).Error("Error while emitting Email plugin status")
 	}
 }
 
@@ -200,7 +200,7 @@ func (m *MailgunMailer) CheckHealth(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, mailgunHTTPTimeout)
 	defer cancel()
 
-	msg := mailgun.NewMessage(m.sender, "Health Check", "Testing Mailgun API connection...", m.fallbackRecipients...)
+	msg := m.mailgun.NewMessage(m.sender, "Health Check", "Testing Mailgun API connection...", m.fallbackRecipients...)
 	msg.SetRequireTLS(true)
 	msg.EnableTestMode() // Test message submission without delivering to recipients.
 	_, _, err := m.mailgun.Send(ctx, msg)
@@ -212,7 +212,7 @@ func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, reference
 	subject := fmt.Sprintf("%v Role Request %v", m.clusterName, id)
 	refHeader := fmt.Sprintf("<%v>", references)
 
-	msg := mailgun.NewMessage(m.sender, subject, body, recipient)
+	msg := m.mailgun.NewMessage(m.sender, subject, body, recipient)
 	msg.SetRequireTLS(true)
 
 	if references != "" {
@@ -252,7 +252,7 @@ func (t *statusSinkTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 		status := common.StatusFromStatusCode(resp.StatusCode)
 		if err := t.sink.Emit(ctx, status); err != nil {
-			log.ErrorContext(ctx, "Error while emitting Email plugin status", "error", err)
+			log.WithError(err).Error("Error while emitting Email plugin status")
 		}
 	}
 	return resp, nil

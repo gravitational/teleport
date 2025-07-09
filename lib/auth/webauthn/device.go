@@ -19,7 +19,6 @@
 package webauthn
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -51,7 +51,7 @@ func deviceToCredential(
 			var err error
 			pubKeyCBOR, err = u2fDERKeyToCBOR(dev.U2F.PubKey)
 			if err != nil {
-				log.WarnContext(context.Background(), "failed to convert U2F device key to CBOR", "error", err)
+				log.Warnf("WebAuthn: failed to convert U2F device key to CBOR: %v", err)
 				return wan.Credential{}, false
 			}
 		}

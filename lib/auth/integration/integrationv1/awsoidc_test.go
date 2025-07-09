@@ -241,6 +241,18 @@ func TestRBAC(t *testing.T) {
 
 		for _, tt := range []endpointSubtest{
 			{
+				name: "ListEICE",
+				fn: func() error {
+					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcIds:      []string{"vpc-123"},
+						NextToken:   "",
+					})
+					return err
+				},
+			},
+			{
 				name: "ListDatabases",
 				fn: func() error {
 					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
@@ -335,6 +347,18 @@ func TestRBAC(t *testing.T) {
 		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
+			{
+				name: "ListEICE",
+				fn: func() error {
+					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcIds:      []string{"vpc-123"},
+						NextToken:   "",
+					})
+					return err
+				},
+			},
 			{
 				name: "ListDatabases",
 				fn: func() error {

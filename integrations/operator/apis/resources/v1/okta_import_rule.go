@@ -19,12 +19,11 @@
 package v1
 
 import (
-	"maps"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func init() {
@@ -37,10 +36,10 @@ func init() {
 // TeleportOktaImportRule holds the kubernetes custom resources for okta import rules.
 type TeleportOktaImportRule struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportOktaImportRuleSpec `json:"spec"`
-	Status resources.Status           `json:"status"`
+	Spec   TeleportOktaImportRuleSpec `json:"spec,omitempty"`
+	Status resources.Status           `json:"status,omitempty"`
 }
 
 // TeleportOktaImportRuleSpec matches the JSON of generated CRD spec
@@ -68,7 +67,7 @@ type TeleportOktaImportRuleMatch struct {
 // TeleportOktaImportRuleList contains a list of TeleportOktaImportRule
 type TeleportOktaImportRuleList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportOktaImportRule `json:"items"`
 }
 
@@ -103,7 +102,7 @@ func (o TeleportOktaImportRule) ToTeleport() types.OktaImportRule {
 		}
 		importRule.Spec.Mappings[i] = &types.OktaImportRuleMappingV1{
 			Match:     matches,
-			AddLabels: maps.Clone(mapping.AddLabels),
+			AddLabels: utils.CopyStringsMap(mapping.AddLabels),
 		}
 	}
 	return importRule

@@ -2083,29 +2083,6 @@ export const formatters: Formatters = {
       return `Stable UNIX user for username [${username}] was created`;
     },
   },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
-    type: 'aws_identity_center.resource_sync.success',
-    desc: 'AWS IAM Identity Center Resource Sync Completed',
-    format: ({
-      total_user_groups,
-      total_accounts,
-      total_account_assignments,
-      total_permission_sets,
-    }) => {
-      // user groups only imported once.
-      if (total_user_groups > 0) {
-        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
-      }
-      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
-    type: 'aws_identity_center.resource_sync.failed',
-    desc: 'AWS IAM Identity Center Resource Sync Failed',
-    format: ({ message }) => {
-      return message;
-    },
-  },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
     desc: 'Automatic Update Config Created',
@@ -2146,91 +2123,6 @@ export const formatters: Formatters = {
     desc: 'Automatic Update Version Deleted',
     format: ({ user }) => {
       return `User ${user} deleted the Automatic Update Version`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
-    type: 'health_check_config.create',
-    desc: 'Health Check Config Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
-    type: 'health_check_config.update',
-    desc: 'Health Check Config Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
-    type: 'health_check_config.delete',
-    desc: 'Health Check Config Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a health check config [${name}]`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
-    type: 'auto_update_agent_rollout.trigger',
-    desc: 'Automatic Update Agent Rollout Triggered',
-    format: ({ user, groups }) => {
-      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
-    type: 'auto_update_agent_rollout.force_done',
-    desc: 'Automatic Update Agent Rollout Forced Done.',
-    format: ({ user, groups }) => {
-      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
-    type: 'auto_update_agent_rollout.rollback',
-    desc: 'Automatic Update Agent Rollout Rollback',
-    format: ({ user, groups }) => {
-      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.MCP_SESSION_START]: {
-    type: 'mcp.session.start',
-    desc: 'MCP Session Started',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has connected to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_END]: {
-    type: 'mcp.session.end',
-    desc: 'MCP Session Ended',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has disconnected from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request Failure',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] was denied access to an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] was denied access to an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_NOTIFICATION]: {
-    type: 'mcp.session.notification',
-    desc: 'MCP Session Notification',
-    format: ({ user, app_name, message }) => {
-      return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
     },
   },
 };

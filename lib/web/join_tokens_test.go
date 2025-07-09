@@ -47,8 +47,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -481,9 +479,6 @@ func TestCreateTokenExpiry(t *testing.T) {
 		},
 	})
 
-	// TODO: Remove this once bound keypair experiment flag is removed.
-	boundkeypairexperiment.SetEnabled(true)
-
 	ctx := context.Background()
 	username := "test-user@example.com"
 	env := newWebPack(t, 1)
@@ -626,15 +621,6 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				{
 					ProjectName: "my-project",
 				},
-			},
-		}
-	case types.JoinMethodBoundKeypair:
-		spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{
-			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
-				InitialPublicKey: "abcd",
-			},
-			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
-				Mode: boundkeypair.RecoveryModeInsecure,
 			},
 		}
 	}
@@ -1431,6 +1417,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {

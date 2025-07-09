@@ -300,17 +300,22 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		dialCtx,
 		cfg.ProxyAddress,
 		append([]grpc.DialOption{
-			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: creds, clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
+					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
+					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
 					interceptors.GRPCClientUnaryErrorInterceptor,
 				)...,
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
+					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
+					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
 					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,

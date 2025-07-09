@@ -34,7 +34,6 @@ test('extracting params from URL with simple search and sort params', () => {
     },
     query: null,
     kinds: null,
-    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -60,7 +59,6 @@ test('extracting params from URL with advanced search and sort params', () => {
     },
     search: null,
     kinds: null,
-    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -82,7 +80,6 @@ test('extracting params from URL with simple search param but no sort param', ()
     sort: initialSort,
     query: null,
     kinds: null,
-    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -103,7 +100,6 @@ test('extracting params from URL with no search param and with sort param with u
     search: null,
     query: null,
     kinds: null,
-    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -117,15 +113,13 @@ test('extracting params from URL with no search param and with sort param with u
   expect(result.current.params).toEqual(expected);
 });
 
-test('extracting params from URL with resource kinds and statuses', () => {
-  const url =
-    '/test?kinds=node&status=unknown&kinds=db&status=healthy&status=random-word';
+test('extracting params from URL with resource kinds', () => {
+  const url = '/test?kinds=node&kinds=db';
   const expected = {
     kinds: ['node', 'db'],
     search: null,
     sort: initialSort,
     query: null,
-    statuses: ['unknown', 'healthy'],
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });

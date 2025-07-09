@@ -30,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -80,7 +81,7 @@ func TestServerKeyAuth(t *testing.T) {
 	leafUserCA, leafUserCASigner := newCAAndSigner(t, types.UserCA, "leaf")
 
 	s := &server{
-		logger: utils.NewSlogLoggerForTests(),
+		log:    utils.NewLoggerForTests(),
 		Config: Config{Clock: clockwork.NewRealClock(), ClusterName: "root"},
 		localAccessPoint: mockAccessPoint{
 			cas: []types.CertAuthority{hostCA, userCA, leafHostCA, leafUserCA},
@@ -346,8 +347,8 @@ func TestOnlyAuthDial(t *testing.T) {
 	badListenerAddr := acceptAndCloseListener(t, true)
 
 	srv := &server{
-		logger: utils.NewSlogLoggerForTests(),
-		ctx:    ctx,
+		log: logrus.StandardLogger(),
+		ctx: ctx,
 		Config: Config{
 			LocalAuthAddresses: []string{goodListenerAddr},
 		},

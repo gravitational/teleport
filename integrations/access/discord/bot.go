@@ -94,7 +94,8 @@ func emitStatusUpdate(resp *resty.Response, statusSink common.StatusSink) {
 
 	if err := statusSink.Emit(ctx, status); err != nil {
 		logger.Get(resp.Request.Context()).
-			ErrorContext(ctx, "Error while emitting Discord plugin status", "error", err)
+			WithError(err).
+			Errorf("Error while emitting Discord plugin status: %v", err)
 	}
 }
 

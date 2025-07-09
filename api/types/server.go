@@ -650,9 +650,7 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	switch s.Kind {
-	case KindNode, KindGitServer:
-	default:
+	if s.GetKind() != KindNode {
 		return false
 	}
 Outer:

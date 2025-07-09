@@ -20,21 +20,60 @@ package bitbucket
 
 import (
 	"context"
+	"time"
 
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
+// providerTimeout is the maximum time allowed to fetch provider metadata before
+// giving up.
+const providerTimeout = 15 * time.Second
+
 // IDTokenValidator validates a Bitbucket issued ID Token.
-type IDTokenValidator struct{}
+type IDTokenValidator struct {
+	// clock is used by the validator when checking expiry and issuer times of
+	// tokens. If omitted, a real clock will be used.
+	clock clockwork.Clock
+}
 
 // NewIDTokenValidator returns an initialized IDTokenValidator
-func NewIDTokenValidator() *IDTokenValidator {
-	return &IDTokenValidator{}
+func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
+	return &IDTokenValidator{
+		clock: clock,
+	}
 }
 
 // Validate validates a Bitbucket issued ID token.
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, issuerURL, audience, token string,
 ) (*IDTokenClaims, error) {
-	return oidc.ValidateToken[*IDTokenClaims](ctx, issuerURL, audience, token)
+	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
+	defer cancel()
+
+	p, err := oidc.NewProvider(timeoutCtx, issuerURL)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating oidc provider")
+	}
+
+	verifier := p.Verifier(&oidc.Config{
+		ClientID: audience,
+		Now:      id.clock.Now,
+	})
+
+	idToken, err := verifier.Verify(timeoutCtx, token)
+	if err != nil {
+		return nil, trace.Wrap(err, "verifying token")
+	}
+
+	var claims IDTokenClaims
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &claims, nil
 }

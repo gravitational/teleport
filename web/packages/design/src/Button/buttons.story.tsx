@@ -186,7 +186,7 @@ export const Buttons = () => {
         <ButtonText>Button Text</ButtonText>
       </Flex>
       <Flex gap={3} flexDirection="column" alignItems="flex-start">
-        {([2, 1, 0] as const).map(size => (
+        {[2, 1, 0].map(size => (
           <Flex gap={3} key={`size-${size}`}>
             <ButtonIcon size={size}>
               <icons.AddUsers />

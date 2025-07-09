@@ -19,10 +19,9 @@ package vnet
 import (
 	"cmp"
 	"context"
-	"errors"
 	"log/slog"
 	"os"
-	"strconv"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -31,9 +30,6 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
-
-	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -126,17 +122,13 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 
 // ServiceMain runs the Windows VNet admin service.
 func ServiceMain() error {
-	closeFn, err := setupServiceLogger()
-	if err != nil {
+	if err := setupServiceLogger(); err != nil {
 		return trace.Wrap(err, "setting up logger for service")
 	}
-
 	if err := svc.Run(serviceName, &windowsService{}); err != nil {
-		closeFn()
 		return trace.Wrap(err, "running Windows service")
 	}
-
-	return trace.Wrap(closeFn(), "closing logger")
+	return nil
 }
 
 // windowsService implements [svc.Handler].
@@ -154,7 +146,6 @@ type windowsService struct{}
 // "no error". You can also indicate if exit code, if any, is service specific
 // or not by using svcSpecificEC parameter.
 func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
-	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
 	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
@@ -176,7 +167,7 @@ loop:
 				}
 				status <- svc.Status{State: state, Accepts: cmdsAccepted}
 			case svc.Stop:
-				logger.InfoContext(ctx, "Received stop command, shutting down service")
+				slog.InfoContext(ctx, "Received stop command, shutting down service")
 				// Cancel the context passed to s.run to terminate the
 				// networking stack.
 				cancel()
@@ -184,15 +175,13 @@ loop:
 				status <- svc.Status{State: svc.StopPending}
 			}
 		case <-terminateTimedOut:
-			logger.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+			slog.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
 				slog.Duration("timeout", terminateTimeout))
 			exitCode = 1
 			break loop
 		case err := <-errCh:
-			if err == nil || errors.Is(err, context.Canceled) {
-				logger.InfoContext(ctx, "Service terminated")
-			} else {
-				logger.ErrorContext(ctx, "Service terminated", "error", err)
+			slog.ErrorContext(ctx, "Windows VNet service terminated", "error", err)
+			if err != nil {
 				exitCode = 1
 			}
 			break loop
@@ -222,22 +211,27 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	return nil
 }
 
-func setupServiceLogger() (func() error, error) {
-	level := slog.LevelInfo
-	if envVar := os.Getenv(teleport.VerboseLogsEnvVar); envVar != "" {
-		isDebug, err := strconv.ParseBool(envVar)
-		if err != nil {
-			return nil, trace.Wrap(err, "parsing %s", teleport.VerboseLogsEnvVar)
-		}
-		if isDebug {
-			level = slog.LevelDebug
-		}
-	}
-
-	handler, close, err := logutils.NewSlogEventLogHandler("vnet", level)
+func setupServiceLogger() error {
+	logFile, err := serviceLogFile()
 	if err != nil {
-		return nil, trace.Wrap(err, "initializing log handler")
+		return trace.Wrap(err, "creating log file for service")
 	}
-	slog.SetDefault(slog.New(handler))
-	return close, nil
+	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	return nil
+}
+
+func serviceLogFile() (*os.File, error) {
+	// TODO(nklaassen): find a better path for Windows service logs.
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting current executable path")
+	}
+	dir := filepath.Dir(exePath)
+	logFile, err := os.Create(filepath.Join(dir, "logs.txt"))
+	if err != nil {
+		return nil, trace.Wrap(err, "creating log file")
+	}
+	return logFile, nil
 }

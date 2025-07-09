@@ -137,7 +137,7 @@ func (r *trustedClusterV2TestingPrimitives) setupTest(t *testing.T, clusterName 
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 	r.remoteCluster = remoteCluster
 

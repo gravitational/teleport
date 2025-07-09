@@ -24,7 +24,8 @@ import {
   Document,
   DocumentGateway,
   DocumentGatewayKube,
-  DocumentTshNode,
+  DocumentTshNodeWithLoginHost,
+  DocumentTshNodeWithServerId,
   WorkspacesService,
 } from '../workspacesService';
 import { getEmptyPendingAccessRequest } from '../workspacesService/accessRequestsService';
@@ -142,7 +143,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
 });
 
 it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
-  const document: DocumentTshNode = {
+  const document: DocumentTshNodeWithServerId = {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/123',
     title: '',
@@ -170,6 +171,25 @@ it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
     serverUri: document.serverUri,
     connected: false,
   });
+});
+
+it('ignores doc.terminal_tsh_node docs with no serverUri', () => {
+  const document: DocumentTshNodeWithLoginHost = {
+    kind: 'doc.terminal_tsh_node',
+    uri: '/docs/123',
+    title: '',
+    status: '',
+    loginHost: 'user@foo',
+    rootClusterId: 'test',
+    leafClusterId: undefined,
+    origin: 'resource_table',
+  };
+
+  const { connectionTrackerService } = getTestSetupWithMockedDocuments([
+    document,
+  ]);
+
+  expect(connectionTrackerService.getConnections()).toEqual([]);
 });
 
 it('creates a kube connection for doc.gateway_kube', () => {

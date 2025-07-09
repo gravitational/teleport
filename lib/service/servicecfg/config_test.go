@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -68,7 +69,6 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.ElementsMatch(t, config.KEXAlgorithms, []string{
-		"mlkem768x25519-sha256",
 		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
@@ -651,34 +651,44 @@ func TestWebPublicAddr(t *testing.T) {
 
 func TestSetLogLevel(t *testing.T) {
 	for _, test := range []struct {
-		logLevel slog.Level
+		logLevel            slog.Level
+		expectedLogrusLevel logrus.Level
 	}{
 		{
-			logLevel: logutils.TraceLevel,
+			logLevel:            logutils.TraceLevel,
+			expectedLogrusLevel: logrus.TraceLevel,
 		},
 		{
-			logLevel: slog.LevelDebug,
+			logLevel:            slog.LevelDebug,
+			expectedLogrusLevel: logrus.DebugLevel,
 		},
 		{
-			logLevel: slog.LevelInfo,
+			logLevel:            slog.LevelInfo,
+			expectedLogrusLevel: logrus.InfoLevel,
 		},
 		{
-			logLevel: slog.LevelWarn,
+			logLevel:            slog.LevelWarn,
+			expectedLogrusLevel: logrus.WarnLevel,
 		},
 		{
-			logLevel: slog.LevelError,
+			logLevel:            slog.LevelError,
+			expectedLogrusLevel: logrus.ErrorLevel,
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
 			// Create a configuration with local loggers to avoid modifying the
 			// global instances.
 			c := &Config{
+				Log:    logrus.New(),
 				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			}
 			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
+			require.IsType(t, &logrus.Logger{}, c.Log)
+			l, _ := c.Log.(*logrus.Logger)
+			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
 	}
 }

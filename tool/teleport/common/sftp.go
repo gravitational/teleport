@@ -21,12 +21,10 @@ package common
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/user"
 	"path"
@@ -37,6 +35,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
@@ -45,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type compositeCh struct {
@@ -71,7 +71,7 @@ type allowedOps struct {
 
 // sftpHandler provides handlers for a SFTP server.
 type sftpHandler struct {
-	logger  *slog.Logger
+	logger  *log.Entry
 	allowed *allowedOps
 
 	// mtx protects files
@@ -81,7 +81,7 @@ type sftpHandler struct {
 	events chan<- apievents.AuditEvent
 }
 
-func newSFTPHandler(logger *slog.Logger, req *srv.FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
+func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
@@ -234,15 +234,15 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		s.logger.WarnContext(req.Context(), "Failed to get working dir", "error", err)
+		s.logger.Warnf("Unknown SFTP request %q", req.Method)
 		// Emit event without working directory.
 	}
 	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {
-		s.logger.WarnContext(req.Context(), "Unknown SFTP request", "request", req.Method)
+		s.logger.Warnf("Unknown SFTP request %q", req.Method)
 		return
 	} else if reqErr != nil {
-		s.logger.DebugContext(req.Context(), "failed handling SFTP request", "request", req.Method, "error", reqErr)
+		s.logger.WithError(reqErr).Debugf("failed handling SFTP request %q", req.Method)
 	}
 	s.events <- event
 }
@@ -265,7 +265,8 @@ func onSFTP() error {
 	defer auditFile.Close()
 
 	// Ensure the parent process will receive log messages from us
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
+	l := utils.NewLogger()
+	logger := l.WithField(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
 	if err != nil {
@@ -312,7 +313,6 @@ func onSFTP() error {
 	}
 	sftpSrv := sftp.NewRequestServer(ch, handler, sftp.WithStartDirectory(currentUser.HomeDir))
 
-	ctx := context.TODO()
 	// Start a goroutine to marshal and send audit events to the parent
 	// process to avoid blocking the SFTP connection on event handling
 	done := make(chan struct{})
@@ -322,13 +322,13 @@ func onSFTP() error {
 		for event := range sftpEvents {
 			oneOfEvent, err := apievents.ToOneOf(event)
 			if err != nil {
-				logger.WarnContext(ctx, "Failed to convert SFTP event to OneOf", "error", err)
+				logger.WithError(err).Warn("Failed to convert SFTP event to OneOf.")
 				continue
 			}
 
 			buf.Reset()
 			if err := m.Marshal(&buf, oneOfEvent); err != nil {
-				logger.WarnContext(ctx, "Failed to marshal SFTP event", "error", err)
+				logger.WithError(err).Warn("Failed to marshal SFTP event.")
 				continue
 			}
 
@@ -337,7 +337,7 @@ func onSFTP() error {
 			buf.WriteByte(0x0)
 			_, err = io.Copy(auditFile, &buf)
 			if err != nil {
-				logger.WarnContext(ctx, "Failed to send SFTP event to parent", "error", err)
+				logger.WithError(err).Warn("Failed to send SFTP event to parent.")
 			}
 		}
 

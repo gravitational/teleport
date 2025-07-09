@@ -19,7 +19,6 @@
 package tlsca
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
@@ -46,10 +46,11 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuthority)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentAuthority,
+})
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
 func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
@@ -247,11 +248,6 @@ type RouteToApp struct {
 	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
 	// RouteToApp is not used as the source of truth for routing.
 	TargetPort int
-
-	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
-	// This is a JSON string that conforms with
-	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
-	AWSCredentialProcessCredentials string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -487,11 +483,6 @@ var (
 	// target port into a certificate.
 	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
 
-	// AppAWSCredentialProcessCredentialsASN1ExtensionOID is an extension that encodes the credentials to access AWS APIs.
-	// This is a JSON string that conforms with
-	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
-	AppAWSCredentialProcessCredentialsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 22}
-
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -702,13 +693,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AWSRoleARNsASN1ExtensionOID,
 				Value: id.AWSRoleARNs[i],
-			})
-	}
-	if id.RouteToApp.AWSCredentialProcessCredentials != "" {
-		subject.ExtraNames = append(subject.ExtraNames,
-			pkix.AttributeTypeAndValue{
-				Type:  AppAWSCredentialProcessCredentialsASN1ExtensionOID,
-				Value: id.RouteToApp.AWSCredentialProcessCredentials,
 			})
 	}
 	if id.RouteToApp.AzureIdentity != "" {
@@ -1048,11 +1032,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
 			}
-		case attr.Type.Equal(AppAWSCredentialProcessCredentialsASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToApp.AWSCredentialProcessCredentials = val
-			}
 		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1244,9 +1223,15 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		}
 	}
 
-	userKind := events.UserKind_USER_KIND_HUMAN
-	if id.BotName != "" {
+	_, systemRoleCheckErr := types.NewTeleportRoles(id.Groups)
+	var userKind events.UserKind
+	switch {
+	case id.BotName != "":
 		userKind = events.UserKind_USER_KIND_BOT
+	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil && len(id.Groups) > 0:
+		userKind = events.UserKind_USER_KIND_SYSTEM
+	default:
+		userKind = events.UserKind_USER_KIND_HUMAN
 	}
 
 	return events.UserMetadata{
@@ -1340,12 +1325,12 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(context.TODO(), "Generating TLS certificate",
-		"not_after", req.NotAfter,
-		"dns_names", req.DNSNames,
-		"key_usage", req.KeyUsage,
-		"common_name", req.Subject.CommonName,
-	)
+	log.WithFields(logrus.Fields{
+		"not_after":   req.NotAfter,
+		"dns_names":   req.DNSNames,
+		"key_usage":   req.KeyUsage,
+		"common_name": req.Subject.CommonName,
+	}).Debug("Generating TLS certificate")
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -84,7 +85,7 @@ func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Co
 
 // UpdateAccessMonitoringRule updates an existing AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	updated, err := s.svc.UnconditionalUpdateResource(ctx, amr)
+	updated, err := s.svc.UpdateResource(ctx, amr)
 	return updated, trace.Wrap(err)
 }
 
@@ -105,13 +106,29 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 }
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
-func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(),
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken,
 		func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-			return services.MatchAccessMonitoringRule(resource, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())
+			return match(resource, subjects, notificationName)
 		})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	return resources, nextKey, nil
+}
+
+func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
+	if notificationName != "" {
+		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
+			return false
+		}
+	}
+	for _, subject := range subjects {
+		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
+			return s == subject
+		}); !ok {
+			return false
+		}
+	}
+	return true
 }

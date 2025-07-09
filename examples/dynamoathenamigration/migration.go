@@ -24,8 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
-	"maps"
 	"os"
 	"path"
 	"slices"
@@ -45,6 +43,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -97,7 +97,7 @@ type Config struct {
 	// LargePayloadPrefix is s3 prefix configured for large payloads in athena logger.
 	LargePayloadPrefix string
 
-	Logger *slog.Logger
+	Logger log.FieldLogger
 }
 
 const (
@@ -138,7 +138,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.Default()
+		cfg.Logger = log.New()
 	}
 	return nil
 }
@@ -214,7 +214,7 @@ func MigrateWithAWS(ctx context.Context, cfg Config, awsCfg aws.Config) error {
 		return trace.Wrap(err)
 	}
 
-	t.Logger.InfoContext(ctx, "Migration finished")
+	t.Logger.Info("Migration finished")
 	return nil
 }
 
@@ -235,7 +235,7 @@ func (t *task) GetOrStartExportAndWaitForResults(ctx context.Context) (*exportIn
 		return nil, trace.Wrap(err)
 	}
 
-	t.Logger.DebugContext(ctx, "Using export manifest", "manifext", manifest)
+	t.Logger.Debugf("Using export manifest %s", manifest)
 	dataObjectsInfo, err := t.getDataObjectsInfo(ctx, manifest)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -291,7 +291,7 @@ func (t *task) waitForCompletedExport(ctx context.Context, exportARN string) (ex
 			case <-ctx.Done():
 				return "", trace.Wrap(ctx.Err())
 			case <-time.After(30 * time.Second):
-				t.Logger.DebugContext(ctx, "Export job still in progress")
+				t.Logger.Debug("Export job still in progress...")
 			}
 		default:
 			return "", trace.Errorf("dynamo DescribeExport returned unexpected status: %v", exportStatus)
@@ -316,7 +316,7 @@ func (t *task) startExportJob(ctx context.Context) (arn string, err error) {
 	}
 
 	exportArn := aws.ToString(exportOutput.ExportDescription.ExportArn)
-	t.Logger.InfoContext(ctx, "Started export", "export_arn", exportArn)
+	t.Logger.Infof("Started export %s", exportArn)
 	return exportArn, nil
 }
 
@@ -373,14 +373,14 @@ func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInf
 				return trace.Wrap(err)
 			}
 			if reuse {
-				t.Logger.InfoContext(ctx, "Resuming emitting from checkpoint")
+				t.Logger.Info("Resuming emitting from checkpoint")
 			} else {
 				// selected not reuse
 				checkpoint = nil
 			}
 		} else {
 			// migration completed without any error, no sense of reusing checkpoint.
-			t.Logger.InfoContext(ctx, "Skipping checkpoint because previous migration finished without error")
+			t.Logger.Info("Skipping checkpoint because previous migration finished without error")
 			checkpoint = nil
 		}
 	}
@@ -389,7 +389,7 @@ func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInf
 	// if checkpoint was reached.
 	var afterCheckpoint bool
 	for _, dataObj := range exportInfo.DataObjectsInfo {
-		t.Logger.DebugContext(ctx, "Downloading object", "object", dataObj.DataFileS3Key)
+		t.Logger.Debugf("Downloading %s", dataObj.DataFileS3Key)
 		afterCheckpoint, err = t.fromS3ToChan(ctx, dataObj, eventsC, checkpoint, afterCheckpoint)
 		if err != nil {
 			return trace.Wrap(err)
@@ -408,7 +408,7 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 	checkpointValues := checkpoint.checkpointValues()
 	afterCheckpoint := afterCheckpointIn
 
-	t.Logger.DebugContext(ctx, "Scanning events", "event_count", dataObj.ItemCount)
+	t.Logger.Debugf("Scanning %d events", dataObj.ItemCount)
 	count := 0
 	decoder := json.NewDecoder(sortedExportFile)
 	for decoder.More() {
@@ -437,7 +437,7 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 				// skipping because was processed in previous run.
 				continue
 			} else {
-				t.Logger.DebugContext(ctx, "Event is last checkpoint, will start emitting from next event on the list", "event_id", ev.GetID())
+				t.Logger.Debugf("Event %s is last checkpoint, will start emitting from next event on the list", ev.GetID())
 				// id is on list of valid checkpoints
 				afterCheckpoint = true
 				// This was last completed, skip it and from next iteration emit everything.
@@ -452,11 +452,7 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 		}
 
 		if count%1000 == 0 && !t.DryRun {
-			t.Logger.DebugContext(ctx, "Sent on buffer events for object",
-				"sent_count", count,
-				"total_count", dataObj.ItemCount,
-				"object", dataObj.DataFileS3Key,
-			)
+			t.Logger.Debugf("Sent on buffer %d/%d events from %s", count, dataObj.ItemCount, dataObj.DataFileS3Key)
 		}
 	}
 
@@ -662,12 +658,12 @@ func (pq *priorityQueue) Swap(i, j int) {
 	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
 }
 
-func (pq *priorityQueue) Push(x any) {
+func (pq *priorityQueue) Push(x interface{}) {
 	item := x.(*fileLine)
 	*pq = append(*pq, item)
 }
 
-func (pq *priorityQueue) Pop() any {
+func (pq *priorityQueue) Pop() interface{} {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -755,7 +751,7 @@ func (c *checkpointData) checkpointValues() []string {
 	if c == nil {
 		return nil
 	}
-	return slices.Collect(maps.Values(c.Checkpoints))
+	return maps.Values(c.Checkpoints)
 }
 
 func (t *task) storeEmitterCheckpoint(in checkpointData) error {
@@ -820,20 +816,11 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 		}
 		if len(invalidEvents) > 0 {
 			for _, eventWithErr := range invalidEvents {
-				t.Logger.DebugContext(ctx, "Event is invalid",
-					"event_type", eventWithErr.event.GetType(),
-					"event_id", eventWithErr.event.GetID(),
-					"event_time", eventWithErr.event.GetTime().Format(time.RFC3339),
-					"error", eventWithErr.err,
-				)
+				t.Logger.Debugf("Event %q %q %v is invalid: %v", eventWithErr.event.GetType(), eventWithErr.event.GetID(), eventWithErr.event.GetTime().Format(time.RFC3339), eventWithErr.err)
 			}
 			return trace.Errorf("there are %d invalid items", len(invalidEvents))
 		}
-		t.Logger.InfoContext(ctx, "Dry run: found valid events",
-			"event_count", count,
-			"oldest_time", oldest.GetTime(),
-			"newest_time", newest.GetTime(),
-		)
+		t.Logger.Infof("Dry run: there are %d events from %v to %v", count, oldest.GetTime(), newest.GetTime())
 		return nil
 	}
 	// mu protects checkpointsPerWorker.
@@ -842,7 +829,8 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 
 	errG, workerCtx := errgroup.WithContext(ctx)
 
-	for i := range t.NoOfEmitWorkers {
+	for i := 0; i < t.NoOfEmitWorkers; i++ {
+		i := i
 		errG.Go(func() error {
 			for {
 				select {
@@ -871,10 +859,7 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 	// does not have any valid checkpoint to store. Without any valid checkpoint
 	// we won't be able to calculate min checkpoint, so does not store checkpoint at all.
 	if len(checkpointsPerWorker) < t.NoOfEmitWorkers {
-		t.Logger.WarnContext(ctx, "Not enough checkpoints from workers",
-			"checkpoints_received", len(checkpointsPerWorker),
-			"checkpoints_expected", t.NoOfEmitWorkers,
-		)
+		t.Logger.Warnf("Not enough checkpoints from workers, got %d, expected %d", len(checkpointsPerWorker), t.NoOfEmitWorkers)
 		return trace.Wrap(workersErr)
 	}
 
@@ -884,7 +869,7 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 		Checkpoints:       checkpointsPerWorker,
 	}
 	if err := t.storeEmitterCheckpoint(checkpoint); err != nil {
-		t.Logger.ErrorContext(ctx, "Failed to store checkpoint", "error", err)
+		t.Logger.Errorf("Failed to store checkpoint: %v", err)
 	}
 	return trace.Wrap(workersErr)
 }

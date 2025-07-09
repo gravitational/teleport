@@ -165,7 +165,7 @@ func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 
 	pos := 0
 
-	// If last known id is not empty, let's try to find its pos
+	// If last known id is not empty, let's try to find it's pos
 	if t.id != "" {
 		for i, e := range t.batch {
 			if e.ID == t.id {

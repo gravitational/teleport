@@ -22,8 +22,8 @@ discovery_service:
       # 'rdsproxy' - Amazon RDS Proxy databases.
       # 'redshift' - Amazon Redshift databases.
       # 'redshift-serverless' - Amazon Redshift Serverless databases.
-      # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
-      # 'memorydb' - Amazon MemoryDB databases.
+      # 'elasticache' - Amazon ElastiCache Redis databases.
+      # 'memorydb' - Amazon MemoryDB Redis databases.
       # 'opensearch' - Amazon OpenSearch Redis databases.
     - types: ["ec2"]
       # AWS regions to search for resources from

@@ -19,8 +19,6 @@
 package regular
 
 import (
-	"context"
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,13 +40,12 @@ func FuzzParseProxySubsys(f *testing.F) {
 		server := &Server{
 			hostname:  "redhorse",
 			proxyMode: true,
-			logger:    slog.New(slog.DiscardHandler),
 		}
 
 		ctx := &srv.ServerContext{}
 
 		require.NotPanics(t, func() {
-			server.parseProxySubsys(context.Background(), request, ctx)
+			parseProxySubsys(request, server, ctx)
 		})
 	})
 }

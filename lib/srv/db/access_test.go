@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
@@ -60,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -71,17 +73,15 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/testing"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -90,12 +90,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	redis "github.com/gravitational/teleport/lib/srv/db/redis/testing"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/testing"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
-	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -107,7 +107,9 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
+	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
+	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
 }
 
@@ -747,8 +749,7 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 // TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
 // databases with an ephemeral client certificate.
 func TestGCPRequireSSL(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := context.Background()
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -1507,7 +1508,7 @@ type testContext struct {
 	spanner map[string]testSpannerDB
 
 	// clock to override clock in tests.
-	clock *clockwork.FakeClock
+	clock clockwork.FakeClock
 }
 
 // testPostgres represents a single proxied Postgres database.
@@ -2264,12 +2265,10 @@ func (c *testContext) Close() error {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	SetShuffleFunc(dbconnect.ShuffleSort)
+	SetShuffleFunc(ShuffleSort)
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
-	ctx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2398,7 +2397,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2440,16 +2439,16 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
+	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
+	ElastiCache *mocks.ElastiCacheMock
+	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
+	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
 	CADownloader CADownloader
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
-	// AWSDatabaseFetcherFactory provides AWS database fetchers
-	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
@@ -2459,8 +2458,6 @@ type agentParams struct {
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 	// Recorder is the recorder used on sessions.
 	Recorder libevents.SessionRecorder
-	// GetEngineFn can be used to override the engine created in tests.
-	GetEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 	// DatabaseObjects is used to override the db object importer in tests.
 	DatabaseObjects objects.Objects
 }
@@ -2480,6 +2477,12 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
+	if p.ElastiCache == nil {
+		p.ElastiCache = &mocks.ElastiCacheMock{}
+	}
+	if p.MemoryDB == nil {
+		p.MemoryDB = &mocks.MemoryDBMock{}
+	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2488,11 +2491,16 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			GCPSQL: p.GCPSQL,
+			STS:                &mocks.STSMock{},
+			RDS:                &mocks.RDSMock{},
+			Redshift:           &mocks.RedshiftMock{},
+			RedshiftServerless: &mocks.RedshiftServerlessMock{},
+			ElastiCache:        p.ElastiCache,
+			MemoryDB:           p.MemoryDB,
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &mocks.IAMMock{},
+			GCPSQL:             p.GCPSQL,
 		}
-	}
-	if p.AWSConfigProvider == nil {
-		p.AWSConfigProvider = &mocks.AWSConfigProvider{Err: trace.AccessDenied("AWS SDK clients are disabled for tests by default")}
 	}
 
 	if p.DiscoveryResourceChecker == nil {
@@ -2506,8 +2514,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 }
 
 func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p agentParams) *Server {
-	ctx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
 	p.setDefaults(c)
 
 	// Database service credentials.
@@ -2533,11 +2539,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient:        c.authClient,
-		AccessPoint:       c.authClient,
-		Clients:           &clients.TestCloudClients{},
-		Clock:             c.clock,
-		AWSConfigProvider: p.AWSConfigProvider,
+		AuthClient:  c.authClient,
+		AccessPoint: c.authClient,
+		Clients:     &clients.TestCloudClients{},
+		Clock:       c.clock,
 	})
 	require.NoError(t, err)
 
@@ -2552,7 +2557,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewSlogLoggerForTests(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2565,17 +2570,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
-		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
-				ServerID: p.HostID,
-				Version:  teleport.Version,
-				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
-				Hostname: "test",
-			}, nil
-		})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: p.HostID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleDatabase},
+		Hostname: "test",
+	})
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
@@ -2607,39 +2607,31 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Clock:    c.clock,
 			})
 		},
-		CADownloader:              p.CADownloader,
-		OnReconcile:               p.OnReconcile,
-		DatabaseObjects:           p.DatabaseObjects,
-		ConnectionMonitor:         connMonitor,
-		CloudClients:              p.CloudClients,
-		AWSConfigProvider:         p.AWSConfigProvider,
-		AWSDatabaseFetcherFactory: p.AWSDatabaseFetcherFactory,
-		AWSMatchers:               p.AWSMatchers,
-		AzureMatchers:             p.AzureMatchers,
-		ShutdownPollPeriod:        100 * time.Millisecond,
-		InventoryHandle:           inventoryHandle,
-		discoveryResourceChecker:  p.DiscoveryResourceChecker,
-		getEngineFn:               p.GetEngineFn,
-		ConnectedProxyGetter:      reversetunnel.NewConnectedProxyGetter(),
+		CADownloader:             p.CADownloader,
+		OnReconcile:              p.OnReconcile,
+		DatabaseObjects:          p.DatabaseObjects,
+		ConnectionMonitor:        connMonitor,
+		CloudClients:             p.CloudClients,
+		AWSMatchers:              p.AWSMatchers,
+		AzureMatchers:            p.AzureMatchers,
+		ShutdownPollPeriod:       100 * time.Millisecond,
+		InventoryHandle:          inventoryHandle,
+		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-
-		// Explicitly send a heartbeat for any statically defined dbs.
-		for _, db := range p.Databases {
-			select {
-			case sender := <-inventoryHandle.Sender():
-				dbServer, err := server.getServerInfo(ctx, db)
-				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
-					DatabaseServer: dbServer,
-				}))
-			case <-time.After(20 * time.Second):
-				t.Fatal("timed out waiting for inventory handle sender")
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			dbServers, err := c.proxyServer.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			if !assert.NoError(t, err) {
+				return
 			}
-		}
+			assert.Subset(t,
+				slices.Collect(types.ResourceNames(dbServers)),
+				slices.Collect(types.ResourceNames(p.Databases)),
+			)
+		}, 20*time.Second, 100*time.Millisecond, "waiting for database servers to become available")
 	}
 
 	return server

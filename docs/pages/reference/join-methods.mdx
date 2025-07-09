@@ -114,20 +114,17 @@ based join methods can allow instances to join based on their Availability Zone,
 service account, or cloud account ID.
 
 Delegated join methods are:
+- [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
 - [`azure_devops`](#azure-devops-azure_devops)
-- [`bitbucket`](#bitbucket-pipelines-bitbucket)
-- [`circleci`](#circleci-circleci)
-- [`ec2`](#aws-ec2-identity-document-ec2)
 - [`gcp`](#gcp-service-account-gcp)
+- [`ec2`](#aws-ec2-identity-document-ec2)
 - [`github`](#github-actions-github)
+- [`circleci`](#circleci-circleci)
 - [`gitlab`](#gitlab-gitlab)
-- [`iam`](#aws-iam-role-iam)
 - [`kubernetes`](#kubernetes-kubernetes)
-- [`oracle`](#oracle-cloud-oracle)
-- [`spacelift`](#spacelift-spacelift)
-- [`terraform_cloud`](#terraform-cloud-terraform_cloud)
 - [`tpm`](#trusted-platform-module-tpm)
+- [`terraform_cloud`](#terraform-cloud-terraform_cloud)
 
 ### Renewable vs non-renewable
 
@@ -416,8 +413,6 @@ can be used with any Teleport cluster, including Teleport Cloud.
 This join method works by exporting the public Kubernetes signing keys and using
 them to validate Kubernetes SA token signatures. The signature validation can be
 performed by an Auth Service without access to the Kubernetes.
-
-The Kubernetes JWKS join method is available in Teleport 14+.
 
 (!docs/pages/includes/provision-token/kubernetes-jwks-spec.mdx!)
 

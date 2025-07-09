@@ -20,10 +20,7 @@ import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 
 import { SortType } from 'design/DataTable/types';
-import {
-  IncludedResourceMode,
-  isResourceHealthStatus,
-} from 'shared/components/UnifiedResources';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
@@ -90,7 +87,6 @@ export function useUrlFiltering(
         kinds: newParams.kinds,
         isAdvancedSearch: !!newParams.query,
         pinnedOnly: newParams.pinnedOnly,
-        statuses: newParams.statuses,
       })
     );
   }
@@ -133,9 +129,6 @@ export default function getResourceUrlQueryParams(
   const pinnedOnly = searchParams.get('pinnedOnly');
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
-  const statuses = searchParams.has('status')
-    ? searchParams.getAll('status').filter(isResourceHealthStatus)
-    : undefined;
 
   const sortParam = sort ? sort.split(':') : null;
 
@@ -151,7 +144,6 @@ export default function getResourceUrlQueryParams(
     query,
     search,
     kinds,
-    statuses,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
     // Conditionally adds the pinnedResources field based on whether its true or not

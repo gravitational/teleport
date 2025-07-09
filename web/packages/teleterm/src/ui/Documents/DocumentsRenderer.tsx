@@ -165,6 +165,9 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
       case 'doc.terminal_shell':
       case 'doc.terminal_tsh_node':
         return <DocumentTerminal doc={doc} visible={visible} />;
+      // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+      case 'doc.terminal_tsh_kube':
+        return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':

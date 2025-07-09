@@ -45,7 +45,7 @@ import (
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
@@ -214,7 +214,7 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	return igV1, nil
 }
 
-// CreateIntegration creates a new Integration resource.
+// CreateIntegration creates a new Okta import rule resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -414,10 +414,6 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
 			Organization: ig.GetGitHubIntegrationSpec().Organization,
 		}
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
-			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
-		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}
@@ -443,12 +439,17 @@ func (s *Service) ensureNoAssociatedResources(ctx context.Context, ig types.Inte
 
 func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig types.Integration) error {
 	s.logger.DebugContext(ctx, "Checking GitHub integration associated resources", "integration", ig.GetName())
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
+	for server, err := range clientutils.Resources(ctx, s.backend.ListGitServers) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
 			return trace.BadParameter("git servers associated with integration %s must be deleted first", ig.GetName())
 		}
-		return nil
-	}))
+	}
+
+	return nil
 }
 
 func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
@@ -471,10 +472,15 @@ func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
-		if server.GetGitHub() == nil || server.GetGitHub().Integration != ig.GetName() {
-			return nil
+	for server, err := range clientutils.Resources(ctx, s.backend.ListGitServers) {
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
-	}))
+
+		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
+			return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
+		}
+	}
+
+	return nil
 }

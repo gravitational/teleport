@@ -16,11 +16,7 @@ limitations under the License.
 
 package types
 
-import (
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
-)
+import "github.com/gravitational/trace"
 
 // PluginStaticCredentials are static credentials for plugins.
 type PluginStaticCredentials interface {
@@ -44,13 +40,6 @@ type PluginStaticCredentials interface {
 
 	// GetSSHCertAuthorities will return the attached SSH CA keys.
 	GetSSHCertAuthorities() []*SSHKeyPair
-
-	// GetPrivateKey will return the attached private key. If it is not present, the private key will
-	// be empty.
-	GetPrivateKey() []byte
-
-	// Clone returns a copy of the credentials.
-	Clone() PluginStaticCredentials
 }
 
 // NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
@@ -67,11 +56,6 @@ func NewPluginStaticCredentials(metadata Metadata, spec PluginStaticCredentialsS
 	}
 
 	return p, nil
-}
-
-// Clone returns a copy of the credentials.
-func (p *PluginStaticCredentialsV1) Clone() PluginStaticCredentials {
-	return utils.CloneProtoMsg(p)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
@@ -119,13 +103,6 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 			if err := ca.CheckAndSetDefaults(); err != nil {
 				return trace.Wrap(err, "invalid SSH CA")
 			}
-		}
-	case *PluginStaticCredentialsSpecV1_PrivateKey:
-		if credentials.PrivateKey == nil {
-			return trace.BadParameter("private key object is missing")
-		}
-		if len(credentials.PrivateKey) == 0 {
-			return trace.BadParameter("private key is empty")
 		}
 	default:
 		return trace.BadParameter("credentials are not set or have an unknown type %T", credentials)
@@ -190,17 +167,6 @@ func (p *PluginStaticCredentialsV1) GetSSHCertAuthorities() []*SSHKeyPair {
 		return nil
 	}
 	return credentials.SSHCertAuthorities.CertAuthorities
-}
-
-// GetPrivateKey will return the attached private key. If it is not present, the private key will
-// be empty.
-func (p *PluginStaticCredentialsV1) GetPrivateKey() []byte {
-	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_PrivateKey)
-	if !ok {
-		return nil
-	}
-
-	return credentials.PrivateKey
 }
 
 // MatchSearch is a dummy value as credentials are not searchable.

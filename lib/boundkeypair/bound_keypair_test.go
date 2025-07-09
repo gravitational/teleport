@@ -125,7 +125,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 		name         string
 		key          crypto.Signer
 		assert       require.ErrorAssertionFunc
-		clockFn      func(clock *clockwork.FakeClock)
+		clockFn      func(clock clockwork.FakeClock)
 		manipulateFn func(doc *ChallengeDocument, now time.Time)
 	}{
 		{
@@ -141,7 +141,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 		{
 			name: "waited too long",
 			key:  correctKey,
-			clockFn: func(clock *clockwork.FakeClock) {
+			clockFn: func(clock clockwork.FakeClock) {
 				clock.Advance(challengeExpiration * 10)
 			},
 			assert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -152,7 +152,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 		{
 			name: "too early",
 			key:  correctKey,
-			clockFn: func(clock *clockwork.FakeClock) {
+			clockFn: func(clock clockwork.FakeClock) {
 				clock.Advance(challengeNotBeforeOffset * 10)
 			},
 			assert: func(tt require.TestingT, err error, i ...interface{}) {

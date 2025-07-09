@@ -61,7 +61,7 @@ func Test_runOnInterval(t *testing.T) {
 	}()
 
 	// Wait for three iterations to have been completed.
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		<-taskCh
 		clock.Advance(time.Minute * 11)
 	}

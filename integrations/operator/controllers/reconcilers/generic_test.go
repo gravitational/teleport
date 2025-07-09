@@ -190,7 +190,7 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 		{
 			name:  "delete non-existing Resource",
 			store: map[string]types.Metadata{},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 			resourceExists: false,

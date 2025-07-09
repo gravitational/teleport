@@ -72,38 +72,24 @@ help: ## Display this help.
 
 ##@ Development
 
-
 .PHONY: crd ## Single command to generate anything CRD-related (manifests and docs)
-crd: crd-docs crd-manifests
+crd: crdgen crd-docs
 
-.PHONY: generate
-generate: generate-types crd ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+.PHONY: crdgen
+crdgen: ## Generate CRDs
+	make -C crdgen
 
-generate-types: controller-gen
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
-
-crdgenfiles := $(wildcard crdgen/*.go)
-
-.PHONY: crdgen ## Builds both crd and crd documentation protoc plugins.
-crdgen: crdgen/build/protoc-gen-crd crdgen/build/protoc-gen-crd-docs
-
-crdgen/build/%: crdgen/cmd/%/main.go crdgen/cmd/%/debug.go $(crdgenfiles)
-	mkdir -p crdgen/build
-	go build -o $@ github.com/gravitational/teleport/integrations/operator/crdgen/cmd/$*
-
-# List of protos used for CRD generation.
-# If you are adding a new resource, you will want to add your proto file here.
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto \
 	teleport/machineid/v1/bot.proto \
-	teleport/workloadidentity/v1/resource.proto \
-	teleport/autoupdate/v1/autoupdate.proto
+	teleport/workloadidentity/v1/resource.proto
 
-.PHONY: crd-manifests
-crd-manifests: crdgen ## Generates CRD manifests using crdgen.
-	@echo "## Generating CRD manifests"
+.PHONY: manifests
+manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+# Generate CRDs for apis/resources (custom generation through protoc plugin).
+
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
@@ -120,9 +106,13 @@ crd-manifests: crdgen ## Generates CRD manifests using crdgen.
 	rm -r ../../examples/chart/teleport-cluster/charts/teleport-operator/operator-crds/
 	cp -r ./config/crd/bases/ ../../examples/chart/teleport-cluster/charts/teleport-operator/operator-crds
 
+.PHONY: build-docs-plugin
+build-docs-plugin: ## Build the protoc plugin for generating docs
+	make -C crdgen build-docs
+
 .PHONY: crd-docs
-crd-docs: crdgen/build/protoc-gen-crd-docs ## Generate CRD reference docs.
-	@echo "## Generating CRD documentation"
+crd-docs: build-docs-plugin ## Generate CRD reference docs.
+
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
@@ -136,44 +126,20 @@ crd-docs: crdgen/build/protoc-gen-crd-docs ## Generate CRD reference docs.
 			"$${proto}"; \
 	done
 
-# crd-manifests-diff renders CRDs using crdgen in a temporary directory, then compares the rendered CRDs
-# with the ones from the config/crd/base directory. Any difference causes a non-zero return code.
-.PHONY: crd-manifests-diff
-crd-manifests-diff: crdgen
-	@echo "## Checking if CRD manifests changed"
-	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
-	$(eval CRD_OUT_PATH := $(shell mktemp -d))
+.PHONY: generate
+generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-	for proto in $(PROTOS); do \
-		protoc \
-			-I=../../api/proto/ \
-			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./build/protoc-gen-crd \
-			--crd_out=$(CRD_OUT_PATH) \
-			"$${proto}"; \
-	done
+.PHONY: fmt
+fmt: ## Run go fmt against code.
+	go fmt ./...
 
-	diff config/crd/bases $(CRD_OUT_PATH);\
-	EXIT_CODE=$$?;\
-	rm -rf $(CRD_OUT_PATH) $(CUSTOM_IMPORTS_TMP_DIR);\
-	exit $$EXIT_CODE
-
-# This is a helper to dump a request sent to crdgen.
-# See crdgen/DEBUG.md for instruction on how to use this target to replay crdgen with a debugger attached.
-.PHONY: crdgen-debug-dump-request
-debug-dump-request:
-	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
-	for proto in $(PROTOS); do \
-		protoc \
-			-I=../../../api/proto/ \
-			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./crdgen/hack/protoc-gen-dump \
-			--dump_out="." \
-			"$${proto}"; \
-	done
+.PHONY: vet
+vet: ## Run go vet against code.
+	go vet ./...
 
 .PHONY: test
-test: generate $(ENVTEST) ## Run tests.
+test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
 	go test ./... -coverprofile cover.out
@@ -182,12 +148,19 @@ test:
 echo-kubebuilder-assets:
 	@echo KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 
+.PHONY: crdgen-test
+crdgen-test: ## Run crdgen tests.
+	make -C crdgen test
 
 ##@ Build
 
 .PHONY: build
-build: generate ## Build manager binary.
+build: generate fmt vet ## Build manager binary.
 	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
+
+.PHONY: run
+run: manifests generate fmt vet ## Run a controller from your host.
+	go run ./main.go ./namespace.go
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.

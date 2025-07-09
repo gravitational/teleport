@@ -21,16 +21,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 )
 
 type appMiddleware struct {
 	onExpiredCert func(context.Context) (tls.Certificate, error)
-	logger        *slog.Logger
+	log           *logrus.Entry
 }
 
 // OnNewConnection calls m.onExpiredCert to get a fresh cert if the cert has expired and then sets
@@ -38,7 +38,7 @@ type appMiddleware struct {
 // Other middlewares typically also handle MFA here. App access doesn't support per-session MFA yet,
 // so detecting expired certs is all this middleware can do.
 func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy) error {
-	err := lp.CheckCertExpiry(ctx)
+	err := lp.CheckCertExpiry()
 	if err == nil {
 		return nil
 	}
@@ -48,7 +48,7 @@ func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy
 		return trace.Wrap(err)
 	}
 
-	m.logger.DebugContext(ctx, "Gateway certificates have expired or been removed", "error", err)
+	m.log.WithError(err).Debug("Gateway certificates have expired or been removed")
 
 	cert, err := m.onExpiredCert(ctx)
 	if err != nil {

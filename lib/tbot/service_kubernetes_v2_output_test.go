@@ -148,7 +148,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 					Name: "nonexistent",
 				},
 			},
-			expectError: func(tt require.TestingT, err error, i ...any) {
+			expectError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unable to fetch cluster \"nonexistent\" by name")
 			},
 		},

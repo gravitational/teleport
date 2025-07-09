@@ -17,7 +17,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common_darwin.h"
-#include "../../../lib/utils/darwinbundle/darwinbundle_darwin.h"
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
@@ -30,16 +29,14 @@ const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
 const int VNEAlreadyRunningError = 1;
 const int VNEMissingCodeSigningIdentifiersError = 2;
 
-const char *DaemonLabel(const char *bundlePath) {
-  @autoreleasepool {
-    NSString *daemonLabel = VNEDaemonLabel(@(bundlePath));
-    return VNECopyNSString(daemonLabel);
+NSString *DaemonLabel(NSString *bundlePath) {
+  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
+  if (!main) {
+    return @"";
   }
-}
 
-NSString *VNEDaemonLabel(NSString *bundlePath) {
-  NSString *bundleIdentifier = TELBundleIdentifier(bundlePath);
-  if ([bundleIdentifier length] == 0) {
+  NSString *bundleIdentifier = [main bundleIdentifier];
+  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
     return @"";
   }
 
@@ -47,14 +44,10 @@ NSString *VNEDaemonLabel(NSString *bundlePath) {
 }
 
 const char *VNECopyNSString(NSString *val) {
-  if (!val) {
-    return strdup("");
+  if (val) {
+    return strdup([val UTF8String]);
   }
-  const char *utf8String = [val UTF8String];
-  if (!utf8String) {
-    return strdup("");
-  }
-  return strdup(utf8String);
+  return strdup("");
 }
 
 bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {

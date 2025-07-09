@@ -41,12 +41,11 @@ func TestBotJoinAuth(t *testing.T) {
 	// Configure and start Teleport server
 	clusterName := "root.example.com"
 	ctx := context.Background()
-	logger := utils.NewSlogLoggerForTests()
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      logger,
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
@@ -132,7 +131,7 @@ func TestBotJoinAuth(t *testing.T) {
 		Oneshot: true,
 		Debug:   true,
 	}
-	bot, err := New(botConfig, logger)
+	bot, err := New(botConfig)
 	require.NoError(t, err)
 	pong, err := bot.Preflight(ctx)
 	require.NoError(t, err)

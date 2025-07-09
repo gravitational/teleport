@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"strings"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport"
@@ -81,7 +81,7 @@ type AuthorizerOpts struct {
 	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
-	Logger              *slog.Logger
+	Logger              logrus.FieldLogger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -104,7 +104,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = slog.With(teleport.ComponentKey, "authorizer")
+		logger = logrus.WithFields(logrus.Fields{teleport.ComponentKey: "authorizer"})
 	}
 
 	if opts.ReadOnlyAccessPoint == nil {
@@ -225,7 +225,7 @@ type authorizer struct {
 	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
-	logger              *slog.Logger
+	logger              logrus.FieldLogger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -311,8 +311,8 @@ Loop:
 		// This is a legacy behavior that we need to support for backwards compatibility.
 		case types.RoleNode:
 			lockTargets = append(lockTargets,
-				types.LockTarget{ServerID: r.GetServerID()},
-				types.LockTarget{ServerID: r.Identity.Username},
+				types.LockTarget{Node: r.GetServerID(), ServerID: r.GetServerID()},
+				types.LockTarget{Node: r.Identity.Username, ServerID: r.Identity.Username},
 			)
 		default:
 			lockTargets = append(lockTargets,
@@ -443,7 +443,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 
 	// Device Trust: authorize device extensions.
 	if !a.disableGlobalDeviceMode {
-		if err := dtauthz.VerifyTLSUser(ctx, authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -537,18 +537,17 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		return false, nil
 	}
 
-	ident := authContext.Identity.GetIdentity()
 	// Skip MFA check if the user is a Bot.
-	if user, err := a.accessPoint.GetUser(ctx, ident.Username, false); err == nil && user.IsBot() {
-		a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot identity", "identity", ident)
+	if user, err := a.accessPoint.GetUser(ctx, authContext.Identity.GetIdentity().Username, false); err == nil && user.IsBot() {
+		a.logger.Debugf("Skipping admin action MFA check for bot identity: %v", authContext.Identity.GetIdentity())
 		return false, nil
 	}
 
 	// Skip MFA if the identity is being impersonated by the Bot or Admin built in role.
-	if impersonator := ident.Impersonator; impersonator != "" {
+	if impersonator := authContext.Identity.GetIdentity().Impersonator; impersonator != "" {
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
-			a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot-impersonated identity", "identity", ident)
+			a.logger.Debugf("Skipping admin action MFA check for bot-impersonated identity: %v", authContext.Identity.GetIdentity())
 			return false, nil
 		}
 
@@ -558,7 +557,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 			hostFQDNParts := strings.SplitN(impersonator, ".", 2)
 			if hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
-					a.logger.DebugContext(ctx, "Skipping admin action MFA check for admin-impersonated identity", "identity", ident)
+					a.logger.Debugf("Skipping admin action MFA check for admin-impersonated identity: %v", authContext.Identity.GetIdentity())
 					return false, nil
 				}
 			}
@@ -611,16 +610,17 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
-		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
+		a.logger.Warn(err)
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
-		a.logger.WarnContext(context.Background(), "access denied", "error", err)
+		// don't print stack trace, just log the warning
+		a.logger.Warn(err)
 	case keys.IsPrivateKeyPolicyError(err):
 		// private key policy errors should be returned to the client
 		// unaltered so that they know to reauthenticate with a valid key.
 		return trace.Unwrap(err)
 	default:
-		a.logger.WarnContext(context.Background(), "Suppressing unknown authz error", "error", err)
+		a.logger.WithError(err).Warn("Suppressing unknown authz error.")
 	}
 	return trace.AccessDenied("access denied")
 }
@@ -638,7 +638,7 @@ var ErrIPPinningNotAllowed = &trace.AccessDeniedError{Message: "IP pinning is no
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log *slog.Logger) error {
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
 	if identity.PinnedIP == "" {
 		if pinSourceIP {
 			return trace.Wrap(ErrIPPinningMissing)
@@ -658,10 +658,10 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 
 	if clientIP != identity.PinnedIP {
 		if log != nil {
-			log.DebugContext(ctx, "Pinned IP and client IP mismatch",
-				"client_ip", clientIP,
-				"pinned_ip", identity.PinnedIP,
-			)
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug("Pinned IP and client IP mismatch")
 		}
 		return trace.Wrap(ErrIPPinningMismatch)
 	}
@@ -669,7 +669,11 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
 	if clientPort == "0" {
 		if log != nil {
-			log.DebugContext(ctx, "client address is not allowed to use IP pinning", "client_ip", clientIP, "pinned_ip", identity.PinnedIP, "error", ErrIPPinningNotAllowed.Message)
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+				"error":     ErrIPPinningNotAllowed.Message,
+			}).Debug("client address is not allowed ot use IP pinning")
 		}
 		return trace.Wrap(ErrIPPinningNotAllowed)
 	}
@@ -928,7 +932,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindUserTask, services.RO()),
 				types.NewRule(types.KindGitServer, services.RO()),
 				types.NewRule(types.KindAccessGraphSettings, services.RO()),
-				types.NewRule(types.KindRelayServer, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1083,7 +1086,6 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 						types.NewRule(types.KindDatabaseObject, services.RW()),
-						types.NewRule(types.KindHealthCheckConfig, services.RO()),
 					},
 				},
 			})
@@ -1291,6 +1293,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
+
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())

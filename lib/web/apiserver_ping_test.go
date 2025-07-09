@@ -288,7 +288,8 @@ func TestPing_autoUpdateResources(t *testing.T) {
 	})
 	proxy := env.proxies[0]
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "find"), nil)
 	require.NoError(t, err)

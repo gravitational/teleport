@@ -283,7 +283,7 @@ func (dks *DestinationKubernetesSecret) String() string {
 	return fmt.Sprintf("%s: %s", DestinationKubernetesSecretType, dks.Name)
 }
 
-func (dks *DestinationKubernetesSecret) MarshalYAML() (any, error) {
+func (dks *DestinationKubernetesSecret) MarshalYAML() (interface{}, error) {
 	type raw DestinationKubernetesSecret
 	return withTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
 }

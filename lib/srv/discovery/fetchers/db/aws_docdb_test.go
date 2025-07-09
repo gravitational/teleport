@@ -21,11 +21,12 @@ package db
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -33,16 +34,16 @@ import (
 func TestDocumentDBFetcher(t *testing.T) {
 	t.Parallel()
 
-	docdbEngine := &rdstypes.DBEngineVersion{
+	docdbEngine := &rds.DBEngineVersion{
 		Engine: aws.String("docdb"),
 	}
 
 	clusterProd := mocks.DocumentDBCluster("cluster1", "us-east-1", envProdLabels, mocks.WithDocumentDBClusterReader)
 	clusterDev := mocks.DocumentDBCluster("cluster2", "us-east-1", envDevLabels)
-	clusterNotAvailable := mocks.DocumentDBCluster("cluster3", "us-east-1", envDevLabels, func(cluster *rdstypes.DBCluster) {
+	clusterNotAvailable := mocks.DocumentDBCluster("cluster3", "us-east-1", envDevLabels, func(cluster *rds.DBCluster) {
 		cluster.Status = aws.String("creating")
 	})
-	clusterNotSupported := mocks.DocumentDBCluster("cluster4", "us-east-1", envDevLabels, func(cluster *rdstypes.DBCluster) {
+	clusterNotSupported := mocks.DocumentDBCluster("cluster4", "us-east-1", envDevLabels, func(cluster *rds.DBCluster) {
 		cluster.EngineVersion = aws.String("4.0.0")
 	})
 
@@ -52,12 +53,10 @@ func TestDocumentDBFetcher(t *testing.T) {
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					rdsClient: &mocks.RDSClient{
-						DBClusters:       []rdstypes.DBCluster{*clusterProd, *clusterDev},
-						DBEngineVersions: []rdstypes.DBEngineVersion{*docdbEngine},
-					},
+			inputClients: &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBClusters:       []*rds.DBCluster{clusterProd, clusterDev},
+					DBEngineVersions: []*rds.DBEngineVersion{docdbEngine},
 				},
 			},
 			inputMatchers: []types.AWSMatcher{
@@ -71,12 +70,10 @@ func TestDocumentDBFetcher(t *testing.T) {
 		},
 		{
 			name: "filter by labels",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					rdsClient: &mocks.RDSClient{
-						DBClusters:       []rdstypes.DBCluster{*clusterProd, *clusterDev},
-						DBEngineVersions: []rdstypes.DBEngineVersion{*docdbEngine},
-					},
+			inputClients: &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBClusters:       []*rds.DBCluster{clusterProd, clusterDev},
+					DBEngineVersions: []*rds.DBEngineVersion{docdbEngine},
 				},
 			},
 			inputMatchers: []types.AWSMatcher{
@@ -90,12 +87,10 @@ func TestDocumentDBFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unsupported databases",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					rdsClient: &mocks.RDSClient{
-						DBClusters:       []rdstypes.DBCluster{*clusterProd, *clusterNotSupported},
-						DBEngineVersions: []rdstypes.DBEngineVersion{*docdbEngine},
-					},
+			inputClients: &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBClusters:       []*rds.DBCluster{clusterProd, clusterNotSupported},
+					DBEngineVersions: []*rds.DBEngineVersion{docdbEngine},
 				},
 			},
 			inputMatchers: []types.AWSMatcher{
@@ -109,12 +104,10 @@ func TestDocumentDBFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unavailable databases",
-			fetcherCfg: AWSFetcherFactoryConfig{
-				AWSClients: fakeAWSClients{
-					rdsClient: &mocks.RDSClient{
-						DBClusters:       []rdstypes.DBCluster{*clusterProd, *clusterNotAvailable},
-						DBEngineVersions: []rdstypes.DBEngineVersion{*docdbEngine},
-					},
+			inputClients: &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBClusters:       []*rds.DBCluster{clusterProd, clusterNotAvailable},
+					DBEngineVersions: []*rds.DBEngineVersion{docdbEngine},
 				},
 			},
 			inputMatchers: []types.AWSMatcher{
@@ -130,7 +123,7 @@ func TestDocumentDBFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func mustMakeDocumentDBDatabases(t *testing.T, cluster *rdstypes.DBCluster) types.Databases {
+func mustMakeDocumentDBDatabases(t *testing.T, cluster *rds.DBCluster) types.Databases {
 	t.Helper()
 
 	databases, err := common.NewDatabasesFromDocumentDBCluster(cluster)

@@ -109,7 +109,7 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 
 	var r testResource
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -199,46 +199,6 @@ func TestGenericCRUD(t *testing.T) {
 	allResources, err := service.GetResources(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(paginatedOut, allResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	// Retrieve all resources from the stream
-	var streamedResources []*testResource
-	for r, err := range service.Resources(ctx, "", "") {
-		require.NoError(t, err)
-		streamedResources = append(streamedResources, r)
-	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	// Retrieve all resources from the stream
-	streamedResources = nil
-	for r, err := range service.Resources(ctx, r1.GetName(), r2.GetName()) {
-		require.NoError(t, err)
-		streamedResources = append(streamedResources, r)
-	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	// Retrieve a single resource from the stream
-	streamedResources = nil
-	for r, err := range service.Resources(ctx, r2.GetName(), "") {
-		require.NoError(t, err)
-		streamedResources = append(streamedResources, r)
-	}
-	require.Empty(t, cmp.Diff([]*testResource{r2}, streamedResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	// Retrieve a single resource from the stream
-	streamedResources = nil
-	for r, err := range service.Resources(ctx, "", r1.GetName()) {
-		require.NoError(t, err)
-		streamedResources = append(streamedResources, r)
-	}
-	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 

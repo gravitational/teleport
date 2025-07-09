@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Meta, StoryObj } from '@storybook/react';
+import { Meta } from '@storybook/react';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
@@ -38,31 +38,17 @@ import { VnetSliderStep as Component } from './VnetSliderStep';
 type StoryProps = {
   startVnet: 'success' | 'error' | 'processing';
   autoStart: boolean;
-  appDnsZones: string[];
-  clusters: string[];
-  sshConfigured: boolean;
-  fetchStatus:
+  dnsZones: string[];
+  listDnsZones:
     | 'success'
     | 'error'
     | 'processing'
     | 'processing-with-previous-results';
+  vnetDiag: boolean;
   runDiagnostics: 'success' | 'error' | 'processing';
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
-};
-
-const defaultArgs: StoryProps = {
-  startVnet: 'success',
-  autoStart: true,
-  appDnsZones: ['teleport.example.com', 'company.test'],
-  clusters: ['teleport.example.com'],
-  sshConfigured: false,
-  fetchStatus: 'success',
-  runDiagnostics: 'success',
-  diagReport: 'ok',
-  isWorkspacePresent: true,
-  unexpectedShutdown: false,
 };
 
 const meta: Meta<StoryProps> = {
@@ -82,13 +68,10 @@ const meta: Meta<StoryProps> = {
       control: { type: 'inline-radio' },
       options: ['success', 'error', 'processing'],
     },
-    appDnsZones: {
+    dnsZones: {
       control: { type: 'object' },
     },
-    clusters: {
-      control: { type: 'object' },
-    },
-    fetchStatus: {
+    listDnsZones: {
       control: { type: 'inline-radio' },
       options: [
         'success',
@@ -110,12 +93,24 @@ const meta: Meta<StoryProps> = {
         "If there's no workspace, the button to open the diag report is disabled.",
     },
   },
-  render: props => <VnetSliderStep {...props} />,
+  args: {
+    startVnet: 'success',
+    autoStart: true,
+    dnsZones: ['teleport.example.com', 'company.test'],
+    listDnsZones: 'success',
+    vnetDiag: true,
+    runDiagnostics: 'success',
+    diagReport: 'ok',
+    isWorkspacePresent: true,
+    unexpectedShutdown: false,
+  },
 };
 export default meta;
 
-function VnetSliderStep(props: StoryProps) {
-  const appContext = new MockAppContext();
+export function VnetSliderStep(props: StoryProps) {
+  const appContext = new MockAppContext({
+    platform: props.vnetDiag ? 'darwin' : 'win32',
+  });
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());
@@ -153,30 +148,22 @@ function VnetSliderStep(props: StoryProps) {
     };
   }
 
-  if (props.fetchStatus === 'processing') {
-    appContext.vnet.getServiceInfo = () => pendingPromise;
+  if (props.listDnsZones === 'processing') {
+    appContext.vnet.listDNSZones = () => pendingPromise;
   } else {
     let firstCall = true;
-    appContext.vnet.getServiceInfo = () => {
-      if (props.fetchStatus === 'processing-with-previous-results') {
+    appContext.vnet.listDNSZones = () => {
+      if (props.listDnsZones === 'processing-with-previous-results') {
         if (firstCall) {
           firstCall = false;
-          return new MockedUnaryCall({
-            appDnsZones: props.appDnsZones,
-            clusters: props.clusters,
-            sshConfigured: props.sshConfigured,
-          });
+          return new MockedUnaryCall({ dnsZones: props.dnsZones });
         }
         return pendingPromise;
       }
 
       return new MockedUnaryCall(
-        {
-          appDnsZones: props.appDnsZones,
-          clusters: props.clusters,
-          sshConfigured: props.sshConfigured,
-        },
-        props.fetchStatus === 'error'
+        { dnsZones: props.dnsZones },
+        props.listDnsZones === 'error'
           ? new Error('something went wrong')
           : undefined
       );
@@ -217,8 +204,8 @@ function VnetSliderStep(props: StoryProps) {
     >
       <ConnectionsContextProvider>
         <VnetContextProvider>
-          {props.fetchStatus === 'processing-with-previous-results' && (
-            <RerequestServiceInfo />
+          {props.listDnsZones === 'processing-with-previous-results' && (
+            <RerequestDNSZones />
           )}
           <Component
             refCallback={noop}
@@ -234,73 +221,16 @@ function VnetSliderStep(props: StoryProps) {
   );
 }
 
-const RerequestServiceInfo = () => {
-  const { getServiceInfo, serviceInfoAttempt } = useVnetContext();
+const RerequestDNSZones = () => {
+  const { listDNSZones, listDNSZonesAttempt } = useVnetContext();
 
   useEffect(() => {
-    if (serviceInfoAttempt.status === 'success') {
-      getServiceInfo();
+    if (listDNSZonesAttempt.status === 'success') {
+      listDNSZones();
     }
-  }, [serviceInfoAttempt, getServiceInfo]);
+  }, [listDNSZonesAttempt, listDNSZones]);
 
   return null;
 };
 
 const noop = () => {};
-
-export const CloudCustomer: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    appDnsZones: ['example.teleport.sh'],
-    clusters: ['example.teleport.sh'],
-  },
-};
-
-export const SelfHostedWithDifferentClusterName: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    appDnsZones: ['teleport.example.com'],
-    clusters: ['teleport-example'],
-  },
-};
-
-export const SelfHostedWithEqualNameAndLeaf: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    appDnsZones: ['teleport.example.com', 'leaf.example.com'],
-    clusters: ['teleport.example.com', 'leaf.example.com'],
-  },
-};
-
-export const SelfHostedWithEqualNameAndDifferentLeaf: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    appDnsZones: ['teleport.example.com', 'leaf.example.com'],
-    clusters: ['teleport.example.com', 'teleport-leaf'],
-  },
-};
-
-export const SelfHostedWithEqualNameAndCustomDNSZones: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    appDnsZones: ['teleport.example.com', 'company.com', 'apps.company'],
-    clusters: ['teleport.example.com'],
-  },
-};
-
-export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
-  args: {
-    ...defaultArgs,
-    appDnsZones: [
-      'teleport.example.com',
-      'leaf.example.com',
-      'second-leaf.example.com',
-      'company.com',
-    ],
-    clusters: [
-      'teleport.example.com',
-      'teleport-leaf',
-      'second-leaf.example.com',
-    ],
-  },
-};

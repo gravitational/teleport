@@ -54,16 +54,10 @@ export default function Select<
     closeMenuOnSelect = true,
     components,
     customProps,
-    ref,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect
-      selectSize={size}
-      hasError={hasError}
-      elevated={elevated}
-      ref={ref}
-    >
+    <StyledSelect selectSize={size} hasError={hasError} elevated={elevated}>
       <ReactSelect<Opt, IsMulti, Group>
         components={{ ...defaultComponents, ...components }}
         menuPlacement="auto"
@@ -91,11 +85,10 @@ export function SelectAsync<
     hasError = false,
     components,
     customProps,
-    ref,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect selectSize={size} hasError={hasError} ref={ref}>
+    <StyledSelect selectSize={size} hasError={hasError}>
       <ReactSelectAsync<Opt, IsMulti, Group>
         components={{ ...defaultComponents, ...components }}
         className="react-select-container"
@@ -124,11 +117,10 @@ export function SelectCreatable<
     stylesConfig,
     components,
     customProps,
-    ref,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect selectSize={size} hasError={hasError} ref={ref}>
+    <StyledSelect selectSize={size} hasError={hasError}>
       <CreatableSelect<Opt, IsMulti, Group>
         components={{ ...defaultComponents, ...components }}
         className="react-select-container"
@@ -152,11 +144,10 @@ export function SelectCreatableAsync<
     stylesConfig,
     components,
     customProps,
-    ref,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect selectSize={size} hasError={hasError} ref={ref}>
+    <StyledSelect selectSize={size} hasError={hasError}>
       <ReactSelectCreatableAsync<Opt, IsMulti, Group>
         components={{ ...defaultComponents, ...components }}
         className="react-select-container"

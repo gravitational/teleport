@@ -45,7 +45,7 @@ export function IdentityContainer() {
     refreshCluster,
     changeColor,
   } = useIdentity();
-  const selectorRef = useRef<HTMLButtonElement>(null);
+  const selectorRef = useRef<HTMLButtonElement>();
   const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
   const hasClusters = activeRootCluster || rootClusters.length;

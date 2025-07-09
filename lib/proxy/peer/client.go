@@ -769,7 +769,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
-	expectedPeer := utils.HostFQDN(params.peerID, c.config.ClusterName)
+	expectedPeer := authclient.HostFQDN(params.peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
 		params.peerAddr,
@@ -781,7 +781,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 			Timeout:             peerTimeout,
 			PermitWithoutStream: true,
 		}),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin": {}}]}`),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "Error dialing proxy %q", params.peerID)

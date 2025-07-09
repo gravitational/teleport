@@ -195,33 +195,10 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the raw events to audit events.
-	evts, err := FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 }
 
-func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	l.logger.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the raw events to unstructured.
-	evts, err := FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]EventFields, string, error) {
+func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -266,7 +243,7 @@ func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, or
 	}
 	sort.Sort(toSort)
 
-	events := make([]EventFields, 0, len(dynamicEvents))
+	events := make([]apievents.AuditEvent, 0, len(dynamicEvents))
 
 	// This is used as a flag to check if we have found the startAfter checkpoint or not.
 	foundStart := startAfter == ""
@@ -275,6 +252,12 @@ func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, or
 
 outer:
 	for _, dynamicEvent := range dynamicEvents {
+		// Convert the event from a dynamic representation to a typed representation.
+		event, err := FromEventFields(dynamicEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
 		size, err := estimateEventSize(dynamicEvent)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -283,7 +266,7 @@ outer:
 		// Skip until we've found the start checkpoint and once more
 		// since it was the last key of the previous set.
 		if !foundStart {
-			checkpoint, err := getCheckpointFromEvent(dynamicEvent)
+			checkpoint, err := getCheckpointFromEvent(event)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
@@ -297,11 +280,11 @@ outer:
 		// Skip until we've found the first event within the desired timeframe.
 		switch order {
 		case types.EventOrderAscending:
-			if dynamicEvent.GetTime(EventTime).Before(fromUTC) {
+			if event.GetTime().Before(fromUTC) {
 				continue outer
 			}
 		case types.EventOrderDescending:
-			if dynamicEvent.GetTime(EventTime).After(toUTC) {
+			if event.GetTime().After(toUTC) {
 				continue outer
 			}
 		}
@@ -311,11 +294,11 @@ outer:
 		// to the sort so we just break out here and consider the query as finished.
 		switch order {
 		case types.EventOrderAscending:
-			if dynamicEvent.GetTime(EventTime).After(toUTC) {
+			if event.GetTime().After(toUTC) {
 				break outer
 			}
 		case types.EventOrderDescending:
-			if dynamicEvent.GetTime(EventTime).Before(fromUTC) {
+			if event.GetTime().Before(fromUTC) {
 				break outer
 			}
 		}
@@ -328,7 +311,7 @@ outer:
 			return events, checkpoint, nil
 		}
 
-		events = append(events, dynamicEvent)
+		events = append(events, event)
 		totalSize += size
 
 		// Check if there is a limit and if so, check if we've hit it.
@@ -347,7 +330,7 @@ outer:
 	return events, "", nil
 }
 
-func getCheckpointFromEvent(event EventFields) (string, error) {
+func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	if event.GetID() == "" {
 		data, err := utils.FastMarshal(event)
 		if err != nil {
@@ -376,15 +359,7 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 		filter.condition = condFn
 	}
 	events, lastKey, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the raw events to audit events.
-	evts, err := FromEventFieldsSlice(events)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, lastKey, nil
+	return events, lastKey, trace.Wrap(err)
 }
 
 func (l *FileLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {

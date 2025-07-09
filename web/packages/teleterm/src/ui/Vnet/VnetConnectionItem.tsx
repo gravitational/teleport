@@ -52,7 +52,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -114,6 +114,7 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
+    isDiagSupported,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -258,16 +259,18 @@ const VnetConnectionItemBase = forwardRef<
                 </ButtonIcon>
               )}
 
-              <ButtonIcon
-                title={disabledDiagnosticsReason || 'Run diagnostics'}
-                disabled={!!disabledDiagnosticsReason}
-                onClick={e => {
-                  e.stopPropagation();
-                  props.runDiagnosticsFromVnetPanel();
-                }}
-              >
-                <icons.ListMagnifyingGlass size={18} />
-              </ButtonIcon>
+              {isDiagSupported && (
+                <ButtonIcon
+                  title={disabledDiagnosticsReason || 'Run diagnostics'}
+                  disabled={!!disabledDiagnosticsReason}
+                  onClick={e => {
+                    e.stopPropagation();
+                    props.runDiagnosticsFromVnetPanel();
+                  }}
+                >
+                  <icons.ListMagnifyingGlass size={18} />
+                </ButtonIcon>
+              )}
             </>
           )}
 

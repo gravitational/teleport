@@ -1,6 +1,6 @@
 version: '2'
 run:
-  go: '1.24'
+  go: '1.23'
   timeout: 15m
 linters:
   default: none
@@ -112,27 +112,7 @@ linters:
             - github.com/gravitational/teleport/integrations
           deny:
             - pkg: github.com/gravitational/teleport/integration
-              desc: integration test should not be imported outside of intergation tests
-            - pkg: github.com/gravitational/teleport/lib/srv/db/cassandra/testing
-              desc: testing packages should not be imported outside of _test.go files
-        logging:
-          deny:
-            - pkg: github.com/sirupsen/logrus
-              desc: use "log/slog" instead
-            - pkg: github.com/siddontang/go-log/log
-              desc: use "log/slog" instead
-            - pkg: github.com/siddontang/go/log
-              desc: use "log/slog" instead
-            - pkg: github.com/mailgun/log
-              desc: use "log/slog" instead
-            - pkg: github.com/saferwall/pe/log
-              desc: use "log/slog" instead
-            - pkg: golang.org/x/exp/slog
-              desc: use "log/slog" instead
-            - pkg: github.com/aws/aws-sdk-go/
-              desc: 'use "aws-sdk-go-v2" instead'
-            - pkg: github.com/aws/aws-sdk-go$
-              desc: 'use "aws-sdk-go-v2" instead'
+              desc: integration test should not be imported outside of integration tests
         main:
           deny:
             - pkg: io/ioutil
@@ -145,6 +125,10 @@ linters:
               desc: use "github.com/google/uuid" instead
             - pkg: github.com/pborman/uuid
               desc: use "github.com/google/uuid" instead
+            - pkg: github.com/siddontang/go-log/log
+              desc: use "github.com/sirupsen/logrus" instead
+            - pkg: github.com/siddontang/go/log
+              desc: use "github.com/sirupsen/logrus" instead
             - pkg: github.com/tj/assert
               desc: use "github.com/stretchr/testify/assert" instead
             - pkg: go.uber.org/atomic
@@ -154,19 +138,11 @@ linters:
             - pkg: golang.org/x/exp/slices
               desc: use "slices" instead
             - pkg: github.com/hashicorp/go-version
-              desc: use "coreos/go-semver/semver" instead
-            - pkg: golang.org/x/mod/semver
-              desc: use "coreos/go-semver/semver" instead
+              desc: use golang.org/x/mod/semver or coreos/go-semver/semver instead
             - pkg: github.com/microsoftgraph/msgraph-sdk-go
               desc: use "github.com/gravitational/teleport/lib/msgraph" instead
             - pkg: github.com/cloudflare/cfssl
               desc: use "crypto" or "x/crypto" instead
-        oidc:
-          deny:
-            - pkg: github.com/coreos/go-oidc
-              desc: 'github.com/zitadel/oidc/v3 should be used instead'
-            - pkg: github.com/zitadel/oidc$
-              desc: 'github.com/zitadel/oidc/v3 should be used instead'
         test_packages:
           files:
             - '!$test'
@@ -187,10 +163,6 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/tool/teleport/testenv
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/redis/testing
-              desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/testing
-              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'
@@ -203,9 +175,7 @@ linters:
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
-            - '!**/lib/events/athena/test.go'
             - '!**/lib/events/test/**'
-            - '!**/lib/kube/proxy/utils_testing.go'
             - '!**/lib/services/suite/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
@@ -260,8 +230,6 @@ linters:
             - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
             - '!**/lib/events/test/**'
-            - '!**/lib/events/athena/test.go'
-            - '!**/lib/kube/proxy/utils_testing.go'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'

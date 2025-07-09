@@ -48,7 +48,7 @@ func TestDecorr(t *testing.T) {
 	}
 
 	// Check that exponential growth threshold.
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		dur, err := measure(ctx, clock, func() error { return backoff.Do(ctx) })
 		require.NoError(t, err)
 		require.Greater(t, dur, base)
@@ -56,7 +56,7 @@ func TestDecorr(t *testing.T) {
 	}
 }
 
-func measure(ctx context.Context, clock *clockwork.FakeClock, fn func() error) (time.Duration, error) {
+func measure(ctx context.Context, clock clockwork.FakeClock, fn func() error) (time.Duration, error) {
 	done := make(chan struct{})
 	var dur time.Duration
 	var err error

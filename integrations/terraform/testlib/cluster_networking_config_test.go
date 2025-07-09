@@ -102,7 +102,7 @@ func (s *TerraformSuiteOSS) TestImportClusterNetworkingConfig() {
 	clusterNetworkConfigBefore, err := s.client.GetClusterNetworkingConfig(ctx)
 	require.NoError(s.T(), err)
 
-	_, err = s.client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	err = s.client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {

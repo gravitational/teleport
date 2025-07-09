@@ -38,10 +38,10 @@ type TeleportSAMLConnectorSpec types.SAMLConnectorSpecV2
 // TeleportSAMLConnector is the Schema for the SAMLConnector API
 type TeleportSAMLConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportSAMLConnectorSpec `json:"spec"`
-	Status resources.Status          `json:"status"`
+	Spec   TeleportSAMLConnectorSpec `json:"spec,omitempty"`
+	Status resources.Status          `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportSAMLConnector struct {
 // TeleportSAMLConnectorList contains a list of TeleportSAMLConnector
 type TeleportSAMLConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportSAMLConnector `json:"items"`
 }
 

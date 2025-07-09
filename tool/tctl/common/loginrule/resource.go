@@ -19,8 +19,6 @@
 package loginrule
 
 import (
-	"slices"
-
 	"github.com/gravitational/trace"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -139,7 +137,7 @@ func traitsMapResourceToProto(in map[string][]string) map[string]*wrappers.Strin
 	out := make(map[string]*wrappers.StringValues, len(in))
 	for key, values := range in {
 		out[key] = &wrappers.StringValues{
-			Values: slices.Clone(values),
+			Values: append([]string{}, values...),
 		}
 	}
 	return out
@@ -151,7 +149,7 @@ func traitsMapProtoToResource(in map[string]*wrappers.StringValues) map[string][
 	}
 	out := make(map[string][]string, len(in))
 	for key, values := range in {
-		out[key] = slices.Clone(values.Values)
+		out[key] = append([]string{}, values.Values...)
 	}
 	return out
 }

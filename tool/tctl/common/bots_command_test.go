@@ -91,6 +91,7 @@ func TestUpdateBotLogins(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		const botName = "test"
 
@@ -124,7 +125,7 @@ func TestUpdateBotLogins(t *testing.T) {
 				setLogins: tt.set,
 			}
 
-			err = cmd.updateBotLogins(context.Background(), bot, fieldMask)
+			err = cmd.updateBotLogins(bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
@@ -201,6 +202,7 @@ func TestUpdateBotRoles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		const botName = "test"
 

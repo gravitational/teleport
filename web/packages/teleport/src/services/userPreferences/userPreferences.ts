@@ -45,7 +45,6 @@ export interface BackendUserPreferences {
   clusterPreferences?: BackendClusterUserPreferences;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   discoverResourcePreferences?: DiscoverResourcePreferences;
-  keyboardLayout: number;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
@@ -103,7 +102,6 @@ export function makeDefaultUserPreferences(): UserPreferences {
     clusterPreferences: makeDefaultUserClusterPreferences(),
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
     discoverResourcePreferences: {},
-    keyboardLayout: 0,
   };
 }
 

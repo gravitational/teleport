@@ -514,14 +514,6 @@ If connecting using this socket fails, `tbot` will attempt to use the socket
 located at `/run/systemd/private` instead, but this is typically only accessible
 by root.
 
-## Sigstore
-
-The Sigstore Workload Attestor allows you to restrict the issuance of workload
-identities to only workloads running signed container images, reducing the scope
-for supply chain attacks.
-
-See [Sigstore Workload Attestation](sigstore-attestation.mdx) for more information.
-
 ## Envoy SDS
 
 The `workload-identity-api` service endpoint also implements the Envoy SDS API.

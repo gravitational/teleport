@@ -118,9 +118,6 @@ const (
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
-
-	// ProtocolMCP is TLS ALPN protocol value used to indicate MCP connections.
-	ProtocolMCP Protocol = "teleport-mcp"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -141,7 +138,6 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
-		ProtocolMCP,
 	}, DatabaseProtocols...),
 )
 
@@ -152,18 +148,6 @@ func ProtocolsToString(protocols []Protocol) []string {
 		out = append(out, string(v))
 	}
 	return out
-}
-
-// ProtocolToStringsWithPing converts Protocol to a list of strings, adding the
-// ping version if the protocol supports it.
-func ProtocolToStringsWithPing(protocol Protocol) []string {
-	if HasPingSupport(protocol) {
-		return []string{
-			string(ProtocolWithPing(protocol)),
-			string(protocol),
-		}
-	}
-	return []string{string(protocol)}
 }
 
 // ToALPNProtocol maps provided database protocol to ALPN protocol.
@@ -247,7 +231,6 @@ var DatabaseProtocols = []Protocol{
 var ProtocolsWithPingSupport = append(
 	DatabaseProtocols,
 	ProtocolTCP,
-	ProtocolMCP,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that

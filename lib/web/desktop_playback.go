@@ -39,7 +39,7 @@ func (h *Handler) desktopPlaybackHandle(
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (any, error) {
+) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
@@ -58,7 +58,7 @@ func (h *Handler) desktopPlaybackHandle(
 		Context:   r.Context(),
 	})
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "couldn't create player for session", "session_id", sID, "error", err)
+		h.log.Errorf("couldn't create player for session %v: %v", sID, err)
 		ws.WriteMessage(websocket.BinaryMessage,
 			[]byte(`{"message": "error", "errorText": "Internal server error"}`))
 		return nil, nil
@@ -71,13 +71,13 @@ func (h *Handler) desktopPlaybackHandle(
 
 	go func() {
 		defer cancel()
-		desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
+		desktop.ReceivePlaybackActions(h.log, ws, player)
 	}()
 
 	go func() {
 		defer cancel()
 		defer ws.Close()
-		desktop.PlayRecording(ctx, h.logger, ws, player)
+		desktop.PlayRecording(ctx, h.log, ws, player)
 	}()
 
 	<-ctx.Done()

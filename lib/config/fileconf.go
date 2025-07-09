@@ -20,14 +20,12 @@ package config
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -36,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
@@ -832,16 +831,6 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
-	// AuditLog contains audit log export details.
-	AuditLog AuditLogConfig `yaml:"audit_log"`
-}
-
-// AuditLogConfig specifies the audit log event export setup.
-type AuditLogConfig struct {
-	// Enabled indicates if Audit Log event exporting is enabled.
-	Enabled bool `yaml:"enabled"`
-	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
-	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -1096,7 +1085,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	switch {
 	case a.HardwareKey != nil:
 		if a.PIVSlot != "" {
-			slog.WarnContext(context.Background(), `Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting`)
+			log.Warn(`Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting.`)
 		}
 		h, err = a.HardwareKey.Parse()
 		if err != nil {
@@ -1114,9 +1103,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	if a.SecondFactor != "" && a.SecondFactors != nil {
-		const msg = `second_factor and second_factors are both set. second_factors will take precedence. ` +
-			`second_factor should be unset to remove this warning.`
-		slog.WarnContext(context.Background(), msg)
+		log.Warn(`` +
+			`second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`)
 	}
 
 	stableUNIXUserConfig, err := a.StableUNIXUserConfig.Parse()
@@ -1191,10 +1180,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
 	if w.Disabled {
-		const msg = `The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+		log.Warnf(`` +
+			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
-		slog.WarnContext(context.Background(), msg)
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`)
 	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
@@ -1600,15 +1589,6 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
-// AccessGraphAWSSyncCloudTrailLogs represents the configuration for the SQS queue
-// to poll for CloudTrail notifications.
-type AccessGraphAWSSyncCloudTrailLogs struct {
-	// QueueURL is the URL of the SQS queue to poll for AWS resources.
-	QueueURL string `yaml:"queue_url,omitempty"`
-	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
-	QueueRegion string `yaml:"queue_region,omitempty"`
-}
-
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1618,9 +1598,6 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
-	// CloudTrailLogs is the configuration for the SQS queue to poll for
-	// CloudTrail logs.
-	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -2143,9 +2120,6 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
-
-	// MCP contains MCP server-related configurations.
-	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2202,17 +2176,6 @@ type PortRange struct {
 	// greater than Port and less than or equal to 65535. When describing a single port, it must be
 	// set to 0.
 	EndPort int `yaml:"end_port,omitempty"`
-}
-
-// MCP contains MCP server-related configurations.
-type MCP struct {
-	// Command to launch stdio-based MCP servers.
-	Command string `yaml:"command,omitempty"`
-	// Args to execute with the command.
-	Args []string `yaml:"args,omitempty"`
-	// RunAsHostUser is the host user account under which the command will be
-	// executed. Required for stdio-based MCP servers.
-	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2527,12 +2490,7 @@ type WindowsDesktopService struct {
 	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
-	// New usages should prever DiscoveryConfigs instead, which allows for multiple searches.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// DiscoveryConfigs configures desktop discovery via LDAP.
-	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
-	// DiscoveryInterval controls how frequently the discovery process runs.
-	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2632,9 +2590,6 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
-	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
-	// Optional, defaults to 3389 if unspecified.
-	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.

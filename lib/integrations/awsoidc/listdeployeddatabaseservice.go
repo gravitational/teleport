@@ -139,7 +139,7 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 
 	listServicesOutput, err := clt.ListServices(ctx, listServicesInput)
 	if err != nil {
-		convertedError := awslib.ConvertRequestFailureError(err)
+		convertedError := awslib.ConvertRequestFailureErrorV2(err)
 		if trace.IsNotFound(convertedError) {
 			return &ListDeployedDatabaseServicesResponse{}, nil
 		}

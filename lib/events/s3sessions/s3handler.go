@@ -37,9 +37,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -48,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
-	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
@@ -224,10 +222,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	opts = append(opts,
-		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
-	)
+	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
 
 	resolver, err := endpoint.NewLoggingResolver(
 		s3.NewDefaultEndpointResolverV2(),
@@ -240,12 +235,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	s3Opts := []func(*s3.Options){
-		s3.WithEndpointResolverV2(resolver),
-		func(o *s3.Options) {
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		},
-	}
+	s3Opts := []func(*s3.Options){s3.WithEndpointResolverV2(resolver)}
 
 	if cfg.Endpoint != "" {
 		if _, err := url.Parse(cfg.Endpoint); err != nil {
@@ -269,6 +259,8 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions)
 
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
@@ -411,7 +403,7 @@ func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix st
 	return versions[0].ID, nil
 }
 
-// deleteBucket deletes the bucket and all its contents and is used in tests
+// delete bucket deletes bucket and all it's contents and is used in tests
 func (h *Handler) deleteBucket(ctx context.Context) error {
 	// first, list and delete all the objects in the bucket
 	paginator := s3.NewListObjectVersionsPaginator(h.client, &s3.ListObjectVersionsInput{
@@ -479,7 +471,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
 	}
 	_, err = h.client.CreateBucket(ctx, input)
-	if err := awsutils.ConvertS3Error(err); err != nil {
+	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
+	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
@@ -495,8 +488,9 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 			Status: awstypes.BucketVersioningStatusEnabled,
 		},
 	})
-	if err := awsutils.ConvertS3Error(err); err != nil {
-		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
+	err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Turn on server-side encryption for the bucket.
@@ -513,8 +507,9 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 				},
 			},
 		})
-		if err := awsutils.ConvertS3Error(err); err != nil {
-			return trace.Wrap(err, "failed to set encryption state for bucket %q", h.Bucket)
+		err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set encryption state for bucket %q", h.Bucket))
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	return nil

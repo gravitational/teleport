@@ -22,12 +22,11 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
-	"maps"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 )
 
 func TestCollectProfiles(t *testing.T) {
@@ -116,7 +115,7 @@ func TestCollectProfiles(t *testing.T) {
 			}
 
 			// We should have one file per profile collected.
-			require.ElementsMatch(t, slices.Collect(maps.Keys(test.expectedProfiles)), files)
+			require.ElementsMatch(t, maps.Keys(test.expectedProfiles), files)
 		})
 	}
 }

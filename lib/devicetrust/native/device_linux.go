@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -35,9 +34,9 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/linux"
 )
@@ -105,10 +104,9 @@ func rewriteTPMPermissionError(err error) error {
 	if !errors.As(err, &pathErr) || pathErr.Path != "/dev/tpmrm0" {
 		return err
 	}
-	slog.DebugContext(context.Background(), "Replacing TPM permission error with a more friendly one",
-		teleport.ComponentKey, "TPM",
-		"error", err,
-	)
+	log.
+		WithError(err).
+		Debug("TPM: Replacing TPM permission error with a more friendly one")
 
 	return errors.New("" +
 		"failed to open the TPM device, " +
@@ -142,10 +140,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	go func() {
 		osRelease, err := cddFuncs.parseOSRelease()
 		if err != nil {
-			slog.DebugContext(context.Background(), "Failed to parse /etc/os-release file",
-				teleport.ComponentKey, "TPM",
-				"error", err,
-			)
+			log.WithError(err).Debug("TPM: Failed to parse /etc/os-release file")
 			// err swallowed on purpose.
 
 			osRelease = &linux.OSRelease{}
@@ -191,29 +186,26 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 }
 
 func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
-	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
-
 	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
 	if err == nil {
 		return dmiInfo, nil
 	}
 
-	logger.WarnContext(ctx, "Failed to read device model and/or serial numbers", "error", err)
+	log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
 	if !errors.Is(err, fs.ErrPermission) {
 		return dmiInfo, nil // original info
 	}
 
 	switch mode {
 	case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
-		logger.DebugContext(ctx, "Reading cached DMI info")
+		log.Debug("TPM: Reading cached DMI info")
 
 		dmiCached, err := cddFuncs.readDMIInfoCached()
 		if err == nil {
 			return dmiCached, nil // successful cache hit
 		}
 
-		logger.DebugContext(ctx, "Failed to read cached DMI info", "error", err)
+		log.WithError(err).Debug("TPM: Failed to read cached DMI info")
 		if mode == CollectedDataNeverEscalate {
 			return dmiInfo, nil // original info
 		}
@@ -221,7 +213,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		fallthrough
 
 	case CollectedDataAlwaysEscalate:
-		logger.DebugContext(ctx, "Running escalated `tsh device dmi-info`")
+		log.Debug("TPM: Running escalated `tsh device dmi-info`")
 
 		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
 		if err != nil {
@@ -229,7 +221,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		}
 
 		if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
-			logger.WarnContext(ctx, "Failed to write DMI cache", "error", err)
+			log.WithError(err).Warn("TPM: Failed to write DMI cache")
 			// err swallowed on purpose.
 		}
 	}
@@ -257,7 +249,9 @@ func readDMIInfoCached() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err)
 	}
 	if dec.More() {
-		slog.WarnContext(context.Background(), "DMI cache file contains multiple JSON entries, only one expected", "path", path)
+		log.
+			WithField("Path", path).
+			Warn("DMI cache file contains multiple JSON entries, only one expected")
 		// Warn but keep going.
 	}
 
@@ -327,7 +321,7 @@ func saveDMIInfoToCache(dmiInfo *linux.DMIInfo) error {
 	if err := f.Close(); err != nil {
 		return trace.Wrap(err, "closing dmi.json after write")
 	}
-	slog.DebugContext(context.Background(), "Saved DMI information to local cache", teleport.ComponentKey, "TPM")
+	log.Debug("TPM: Saved DMI information to local cache")
 
 	return nil
 }
@@ -344,16 +338,11 @@ func sudoPath() string {
 		"/run/wrappers/bin/sudo", // NixOS
 	} {
 		if _, err := os.Stat(path); err != nil {
-			slog.DebugContext(
-				context.Background(),
-				"Failed to stat sudo binary",
-				"error", err,
-				"path", path,
-			)
+			log.WithError(err).WithField("path", path).Debug("Failed to stat sudo binary")
 			continue
 		}
 		if i > 0 {
-			slog.DebugContext(context.Background(), "Using alternative sudo path", "path", path)
+			log.WithField("path", path).Debug("Using alternative sudo path")
 		}
 		return path
 	}

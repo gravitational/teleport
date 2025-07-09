@@ -197,6 +197,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			homePath, _ := mustLoginLegacy(t, s, tc.args.teleportCluster)
@@ -275,6 +276,7 @@ func TestShowRequestTable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			captureStdout := new(bytes.Buffer)

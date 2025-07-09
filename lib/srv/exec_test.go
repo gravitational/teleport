@@ -120,7 +120,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "abc", execEvent.ForwardedBy)
 		require.Equal(t, expectedHostname, execEvent.ServerHostname)
 		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
-		require.NotEqual(t, "xxx", execEvent.SessionID)
+		require.Equal(t, "xxx", execEvent.SessionID)
 		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
 		require.NotEmpty(t, events.EventID)
@@ -139,7 +139,7 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := newTestServerContext(t, srv, nil, nil)
+	scx := newTestServerContext(t, srv, nil)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)

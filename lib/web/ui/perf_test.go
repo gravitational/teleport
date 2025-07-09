@@ -68,6 +68,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
+
+			sb.StopTimer() // stop timer while running setup
+
 			// configure the backend instance
 			var bk backend.Backend
 			var err error
@@ -94,7 +97,12 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 					presence: svc,
 				},
 			}
+
+			sb.StartTimer() // restart timer for benchmark operations
+
 			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes)
+
+			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }
@@ -103,10 +111,10 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := range labelCount {
+	for i := 0; i < labelCount; i++ {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for range count {
+	for i := 0; i < count; i++ {
 		name := uuid.New().String()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
@@ -140,7 +148,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cluster, err = GetClusterDetails(ctx, site, opts...)
 		require.NoError(b, err)
 	}

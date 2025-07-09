@@ -177,7 +177,7 @@ function Install-WasmPack {
     begin {
         Write-Host "::group::Installing wasm-pack $WasmPackVersion"
         # TODO(camscale): Don't hard-code wasm-binden-cli version
-        cargo install wasm-bindgen-cli --locked --version 0.2.99
+        cargo install wasm-bindgen-cli --locked --version 0.2.95
         cargo install wasm-pack --locked --version "$WasmPackVersion"
         Write-Host "::endgroup::"
     }
@@ -206,41 +206,6 @@ function Install-Wintun {
         }
         Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
         Move-Item -Force -Path "$InstallDir/wintun/bin/amd64/wintun.dll" -Destination "$InstallDir/wintun.dll"
-        Write-Host "::endgroup::"
-    }
-}
-
-function Compile-Message-File {
-    <#
-    .SYNOPSIS
-        Compiles msgfile.mc into msgfile.dll in the supplied directory.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $MessageFile,
-        [Parameter(Mandatory)]
-        [string] $CompileDir
-    )
-    begin {
-        Write-Host "::group::Compiling msgfile.dll to $CompileDir..."
-        New-Item -Path "$CompileDir" -ItemType Directory -Force | Out-Null
-        $SDKRegistry = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v10.0"
-        $SDKInstallationDir = $(Get-Item $SDKRegistry).GetValue("InstallationFolder")
-        $SDKVersion = $(Get-Item $SDKRegistry).GetValue("ProductVersion")
-        $SDKBinDir = "${SDKInstallationDir}bin\${SDKVersion}.0\x64\"
-
-        # Compile .mc to .rc.
-        .$SDKBinDir\mc.exe -h "$CompileDir" -r "$CompileDir" "$MessageFile"
-
-        # Compile .rc to .res in the same directory as the input file.
-        $MessageFileBasename = $(Get-Item $MessageFile).Basename
-        .$SDKBinDir\rc.exe "$CompileDir\$MessageFileBasename.rc"
-
-        # Compile .res to .dll.
-        $LinkExe = vswhere.exe -find **\Hostx64\x64\link.exe | Select -First 1
-        .$LinkExe -dll -noentry -out:"$CompileDir\$MessageFileBasename.dll" "$CompileDir\$MessageFileBasename.res" /MACHINE:X64
-
         Write-Host "::endgroup::"
     }
 }
@@ -562,9 +527,7 @@ function Build-Connect {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
         Install-Wintun -InstallDir "$TeleportSourceDirectory\wintun"
-        Compile-Message-File -MessageFile "$TeleportSourceDirectory\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$TeleportSourceDirectory\msgfile"
         $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
-        $env:CONNECT_MSGFILE_DLL_PATH = "$TeleportSourceDirectory\msgfile\msgfile.dll"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
         pnpm install --frozen-lockfile
         pnpm build-term

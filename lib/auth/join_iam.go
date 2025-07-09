@@ -110,7 +110,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamReg
 		// invalid sts:GetCallerIdentity request, it's either going to be caused
 		// by a node in a unknown region or an attacker.
 		if err != nil {
-			logger.WarnContext(req.Context(), "Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method", "error", err)
+			log.WithError(err).Warn("Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method.")
 		}
 	}()
 
@@ -366,7 +366,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, joinFailureMetadata, joinRequest,
+				err, provisionToken, joinFailureMetadata, joinRequest,
 			)
 		}
 	}()
@@ -407,7 +407,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
+		certs, err := a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req.RegisterUsingTokenRequest,

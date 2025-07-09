@@ -139,13 +139,6 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 		},
 	}
 
-	// Remove MFA resp from context if set. This way, the mfa required
-	// check will return true as long as MFA for admin actions is enabled,
-	// even if the current context has a reusable MFA. v18 server will
-	// return this requirement as expected.
-	// TODO(Joerger): DELETE IN v19.0.0
-	ceremonyCtx := ContextWithMFAResponse(ctx, nil)
-
-	resp, err := mfaCeremony(ceremonyCtx, challengeRequest, WithPromptReasonAdminAction())
+	resp, err := mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
 	return resp, trace.Wrap(err)
 }

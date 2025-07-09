@@ -38,7 +38,7 @@ import {
 } from 'teleterm/ui/Search/useSearch';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+import { useVnetAppLauncher, useVnetContext } from 'teleterm/ui/Vnet';
 
 import { useDisplayResults } from './useDisplayResults';
 
@@ -48,7 +48,7 @@ export function useActionAttempts() {
   const searchContext = useSearchContext();
   const { inputValue, filters, pauseUserInteraction } = searchContext;
   const { isSupported: isVnetSupported } = useVnetContext();
-  const vnetLauncher = useVnetLauncher();
+  const vnetLauncher = useVnetAppLauncher();
   const launchVnet = isVnetSupported ? vnetLauncher.launchVnet : undefined;
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =

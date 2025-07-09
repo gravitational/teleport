@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-	"runtime/debug"
 
 	"github.com/gravitational/trace"
 )
@@ -140,7 +139,7 @@ func NewBasicPacket(header PacketHeader, data []byte) (*BasicPacket, error) {
 func ToSQLPacket(p *BasicPacket) (out Packet, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = trace.BadParameter("failed to convert packet to SQL packet: %v @ %v", r, debug.Stack())
+			err = trace.BadParameter("failed to convert packet to SQL packet: %v", r)
 		}
 	}()
 

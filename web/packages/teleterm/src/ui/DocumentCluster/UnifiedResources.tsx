@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback, useEffect, useMemo, type JSX } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 
-import { Box, ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
+import { ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
 import * as icons from 'design/Icon';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
@@ -27,31 +27,16 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import {
-  InfoGuidePanelProvider,
-  useInfoGuide,
-} from 'shared/components/SlidingSidePanel/InfoGuide';
-import {
-  marginTransitionCss,
-  resourceStatusPanelWidth,
-} from 'shared/components/SlidingSidePanel/InfoGuide/const';
-import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
-  ResourceHealthStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
-import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
-import {
-  getResourceId,
-  openStatusInfoPanel,
-} from 'shared/components/UnifiedResources/shared/StatusInfo';
 import { Attempt } from 'shared/hooks/useAsync';
-import { AppSubKind, NodeSubKind } from 'shared/services';
+import { NodeSubKind } from 'shared/services';
 import {
   DbProtocol,
   DbType,
@@ -83,9 +68,7 @@ import {
   ConnectServerActionButton,
   ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
-import { InfoGuideSidePanel } from './InfoGuideSidePanel';
 import { useResourcesContext } from './resourcesContext';
-import { StatusInfo } from './StatusInfo';
 import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
@@ -129,14 +112,12 @@ export function UnifiedResources(props: {
       query: props.queryParams.advancedSearchEnabled
         ? props.queryParams.search
         : '',
-      statuses: props.queryParams.statuses,
     }),
     [
       props.queryParams.advancedSearchEnabled,
       props.queryParams.resourceKinds,
       props.queryParams.search,
       props.queryParams.sort,
-      props.queryParams.statuses,
       unifiedResourcePreferences.defaultTab,
     ]
   );
@@ -193,7 +174,6 @@ export function UnifiedResources(props: {
           newParams.kinds as DocumentClusterResourceKind[];
         queryParams.search = newParams.search || newParams.query;
         queryParams.advancedSearchEnabled = !!newParams.query;
-        queryParams.statuses = newParams.statuses;
       });
     },
     [documentsService, props.docUri]
@@ -243,28 +223,26 @@ export function UnifiedResources(props: {
   );
 
   return (
-    <InfoGuidePanelProvider defaultPanelWidth={resourceStatusPanelWidth}>
-      <Resources
-        getAccessRequestButton={getAccessRequestButton}
-        queryParams={mergedParams}
-        onParamsChange={onParamsChange}
-        clusterUri={props.clusterUri}
-        userPreferencesAttempt={userPreferencesAttempt}
-        updateUserPreferences={updateUserPreferences}
-        userPreferences={userPreferences}
-        canAddResources={canAddResources}
-        canUseConnectMyComputer={canUseConnectMyComputer}
-        openConnectMyComputerDocument={openConnectMyComputerDocument}
-        onResourcesRefreshRequest={onResourcesRefreshRequest}
-        bulkAddResources={bulkAddResources}
-        getAddedItemsCount={getAddedItemsCount}
-        discoverUrl={discoverUrl}
-        integratedAccessRequests={integratedAccessRequests}
-        // Reset the component state when query params object change.
-        // JSON.stringify on the same object will always produce the same string.
-        key={`${JSON.stringify(mergedParams)}-${JSON.stringify(integratedAccessRequests)}`}
-      />
-    </InfoGuidePanelProvider>
+    <Resources
+      getAccessRequestButton={getAccessRequestButton}
+      queryParams={mergedParams}
+      onParamsChange={onParamsChange}
+      clusterUri={props.clusterUri}
+      userPreferencesAttempt={userPreferencesAttempt}
+      updateUserPreferences={updateUserPreferences}
+      userPreferences={userPreferences}
+      canAddResources={canAddResources}
+      canUseConnectMyComputer={canUseConnectMyComputer}
+      openConnectMyComputerDocument={openConnectMyComputerDocument}
+      onResourcesRefreshRequest={onResourcesRefreshRequest}
+      bulkAddResources={bulkAddResources}
+      getAddedItemsCount={getAddedItemsCount}
+      discoverUrl={discoverUrl}
+      integratedAccessRequests={integratedAccessRequests}
+      // Reset the component state when query params object change.
+      // JSON.stringify on the same object will always produce the same string.
+      key={`${JSON.stringify(mergedParams)}-${JSON.stringify(integratedAccessRequests)}`}
+    />
   );
 }
 
@@ -312,10 +290,7 @@ const Resources = memo(
                   },
                   search: props.queryParams.search,
                   kinds: props.queryParams.kinds,
-                  query: buildPredicateExpression(
-                    props.queryParams.statuses,
-                    props.queryParams.query
-                  ),
+                  query: props.queryParams.query,
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
@@ -339,7 +314,6 @@ const Resources = memo(
           props.queryParams.search,
           props.queryParams.sort.dir,
           props.queryParams.sort.fieldName,
-          props.queryParams.statuses,
           props.clusterUri,
           props.integratedAccessRequests,
         ]
@@ -406,106 +380,80 @@ const Resources = memo(
         }),
     };
 
-    const { infoGuideConfig, panelWidth, setInfoGuideConfig } = useInfoGuide();
-    const infoGuideSidePanelOpened = infoGuideConfig != null;
-
-    function onShowStatusInfo(resource: UnifiedResourceDefinition) {
-      openStatusInfoPanel({
-        resource,
-        setInfoGuideConfig,
-        guide: (
-          <StatusInfo
-            resource={resource}
-            clusterUri={props.clusterUri}
-            key={getResourceId(resource)}
-          />
-        ),
-      });
-    }
-
     return (
-      <Box
-        css={marginTransitionCss({
-          sidePanelOpened: infoGuideSidePanelOpened,
-          panelWidth,
-        })}
-      >
-        <SharedUnifiedResources
-          onShowStatusInfo={onShowStatusInfo}
-          params={props.queryParams}
-          setParams={props.onParamsChange}
-          unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
-          bulkActions={
-            props.integratedAccessRequests.supported === 'yes'
-              ? [
-                  {
-                    key: 'requestAccess',
-                    Icon: icons.AddCircle,
-                    text:
-                      props.getAddedItemsCount() > 0
-                        ? 'Add/Remove to Request'
-                        : 'Request Access',
-                    disabled: false,
-                    action: selectedResources =>
-                      props.bulkAddResources(
-                        selectedResources.map(sharedResource =>
-                          getUnifiedResourceFromSharedResource(
-                            sharedResource.resource
-                          )
+      <SharedUnifiedResources
+        params={props.queryParams}
+        setParams={props.onParamsChange}
+        unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+        bulkActions={
+          props.integratedAccessRequests.supported === 'yes'
+            ? [
+                {
+                  key: 'requestAccess',
+                  Icon: icons.AddCircle,
+                  text:
+                    props.getAddedItemsCount() > 0
+                      ? 'Add/Remove to Request'
+                      : 'Request Access',
+                  disabled: false,
+                  action: selectedResources =>
+                    props.bulkAddResources(
+                      selectedResources.map(sharedResource =>
+                        getUnifiedResourceFromSharedResource(
+                          sharedResource.resource
                         )
-                      ),
-                  },
-                ]
-              : []
-          }
-          unifiedResourcePreferences={
-            props.userPreferences.unifiedResourcePreferences
-          }
-          updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
-            props.updateUserPreferences({ unifiedResourcePreferences })
-          }
-          pinning={pinning}
-          availabilityFilter={
-            props.integratedAccessRequests.supported === 'yes'
-              ? props.integratedAccessRequests.availabilityFilter
-              : undefined
-          }
-          resources={sharedResources}
-          resourcesFetchAttempt={attempt}
-          fetchResources={fetch}
-          availableKinds={[
-            {
-              kind: 'node',
-              disabled: false,
-            },
-            {
-              kind: 'app',
-              disabled: false,
-            },
-            {
-              kind: 'db',
-              disabled: false,
-            },
-            {
-              kind: 'kube_cluster',
-              disabled: false,
-            },
-            {
-              kind: 'windows_desktop',
-              disabled: false,
-            },
-          ]}
-          NoResources={
-            <NoResources
-              canCreate={props.canAddResources}
-              discoverUrl={props.discoverUrl}
-              canUseConnectMyComputer={props.canUseConnectMyComputer}
-              onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
-            />
-          }
-        />
-        <InfoGuideSidePanel />
-      </Box>
+                      )
+                    ),
+                },
+              ]
+            : []
+        }
+        unifiedResourcePreferences={
+          props.userPreferences.unifiedResourcePreferences
+        }
+        updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
+          props.updateUserPreferences({ unifiedResourcePreferences })
+        }
+        pinning={pinning}
+        availabilityFilter={
+          props.integratedAccessRequests.supported === 'yes'
+            ? props.integratedAccessRequests.availabilityFilter
+            : undefined
+        }
+        resources={sharedResources}
+        resourcesFetchAttempt={attempt}
+        fetchResources={fetch}
+        availableKinds={[
+          {
+            kind: 'node',
+            disabled: false,
+          },
+          {
+            kind: 'app',
+            disabled: false,
+          },
+          {
+            kind: 'db',
+            disabled: false,
+          },
+          {
+            kind: 'kube_cluster',
+            disabled: false,
+          },
+          {
+            kind: 'windows_desktop',
+            disabled: false,
+          },
+        ]}
+        NoResources={
+          <NoResources
+            canCreate={props.canAddResources}
+            discoverUrl={props.discoverUrl}
+            canUseConnectMyComputer={props.canUseConnectMyComputer}
+            onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
+          />
+        }
+      />
     );
   }
 );
@@ -546,11 +494,6 @@ const mapToSharedResource = (
           ).title,
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
-          targetHealth: database.targetHealth && {
-            status: database.targetHealth.status as ResourceHealthStatus,
-            error: database.targetHealth.error,
-            message: database.targetHealth.message,
-          },
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,
@@ -574,8 +517,6 @@ const mapToSharedResource = (
     }
     case 'app': {
       const { resource: app } = resource;
-      const addrWithProtocol = getAppAddrWithProtocol(app);
-      const isMCP = addrWithProtocol.startsWith('mcp+');
 
       return {
         resource: {
@@ -583,19 +524,15 @@ const mapToSharedResource = (
           labels: app.labels,
           name: app.name,
           id: app.name,
-          addrWithProtocol: addrWithProtocol,
+          addrWithProtocol: getAppAddrWithProtocol(app),
           awsConsole: app.awsConsole,
           description: app.desc,
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
-          subKind: isMCP ? AppSubKind.MCP : undefined,
         },
         ui: {
-          // TODO(greedy52) decide what to do with MCP servers.
-          ActionButton: isMCP ? undefined : (
-            <ConnectAppActionButton app={app} />
-          ),
+          ActionButton: <ConnectAppActionButton app={app} />,
         },
       };
     }

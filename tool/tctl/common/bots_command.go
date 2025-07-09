@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"os"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
@@ -264,7 +264,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 
 	roles := splitEntries(c.botRoles)
 	if len(roles) == 0 {
-		slog.WarnContext(ctx, "No roles specified - the bot will not be able to produce outputs until a role is added to the bot")
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 	var token types.ProvisionToken
 	if c.tokenID == "" {
@@ -398,7 +398,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) er
 
 // updateBotLogins applies updates from CLI arguments to a bot's logins trait,
 // updating the field mask if any updates were made.
-func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+func (c *BotsCommand) updateBotLogins(bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	traits := map[string][]string{}
 	for _, t := range bot.Spec.GetTraits() {
 		traits[t.Name] = t.Values
@@ -431,15 +431,15 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 	desiredLoginsArray := utils.StringsSliceFromSet(desiredLogins)
 
 	if maps.Equal(currentLogins, desiredLogins) {
-		slog.InfoContext(ctx, "Logins will be left unchanged", "logins", desiredLoginsArray)
+		log.Infof("Logins will be left unchanged: %+v", desiredLoginsArray)
 		return nil
 	}
 
-	slog.InfoContext(ctx, "Desired logins for bot", "bot", c.botName, "logins", desiredLoginsArray)
+	log.Infof("Desired logins for bot %q: %+v", c.botName, desiredLoginsArray)
 
 	if len(desiredLogins) == 0 {
 		delete(traits, constants.TraitLogins)
-		slog.InfoContext(ctx, "Removing logins trait from bot user")
+		log.Infof("Removing logins trait from bot user")
 	} else {
 		traits[constants.TraitLogins] = desiredLoginsArray
 	}
@@ -489,11 +489,11 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGette
 	desiredRolesArray := utils.StringsSliceFromSet(desiredRoles)
 
 	if maps.Equal(currentRoles, desiredRoles) {
-		slog.InfoContext(ctx, "Roles will be left unchanged", "roles", desiredRolesArray)
+		log.Infof("Roles will be left unchanged: %+v", desiredRolesArray)
 		return nil
 	}
 
-	slog.InfoContext(ctx, "Desired roles for bot", "bot", c.botName, "roles", desiredRolesArray)
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, desiredRolesArray)
 
 	// Validate roles (server does not do this yet).
 	for roleName := range desiredRoles {
@@ -522,7 +522,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 	}
 
 	if c.setLogins != "" || c.addLogins != "" {
-		if err := c.updateBotLogins(ctx, bot, fieldMask); err != nil {
+		if err := c.updateBotLogins(bot, fieldMask); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -541,7 +541,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 	}
 
 	if len(fieldMask.Paths) == 0 {
-		slog.InfoContext(ctx, "No changes requested, nothing to do")
+		log.Infof("No changes requested, nothing to do.")
 		return nil
 	}
 
@@ -553,7 +553,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName)
+	log.Infof("Bot %q has been updated. Roles will take effect on its next renewal.", c.botName)
 
 	return nil
 }
@@ -789,7 +789,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Cl
 		heartbeatTable = "No heartbeat records."
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"executable":                   os.Args[0],
 		"instance":                     instance,
 		"initial_authentication_table": initialAuthenticationTable,
@@ -848,7 +848,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 		joinMethod = types.JoinMethodToken
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"token":       token.GetName(),
 		"addr":        addr,
 		"join_method": joinMethod,
@@ -863,7 +863,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 // ignoring empty or whitespace-only elements.
 func splitEntries(flag string) []string {
 	var roles []string
-	for s := range strings.SplitSeq(flag, ",") {
+	for _, s := range strings.Split(flag, ",") {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue

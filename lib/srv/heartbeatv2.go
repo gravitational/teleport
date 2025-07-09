@@ -21,10 +21,10 @@ package srv
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -401,11 +401,6 @@ func (h *HeartbeatV2) run() {
 		case <-h.closeContext.Done():
 			return
 		}
-
-		// check if we are closing to avoid randomly looping back into the sender
-		if h.closing() {
-			return
-		}
 	}
 }
 
@@ -507,14 +502,7 @@ func (h *HeartbeatV2) onHeartbeat(err error) {
 	if h.onHeartbeatInner == nil {
 		return
 	}
-	if h.closing() {
-		return
-	}
 	h.onHeartbeatInner(err)
-}
-
-func (h *HeartbeatV2) closing() bool {
-	return h.closeContext.Err() != nil
 }
 
 // heartbeatV2Driver is the pluggable core of the HeartbeatV2 type. A service needing to use HeartbeatV2 should
@@ -571,12 +559,12 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for ssh server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
 		return false
 	}
 
 	if _, err := h.announcer.UpsertNode(ctx, server); err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for ssh server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
 		return false
 	}
 
@@ -587,12 +575,12 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for ssh server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
 		return false
 	}
 
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for ssh server", "error", err)
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
+		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
 		return false
 	}
 	h.prev = server
@@ -629,13 +617,13 @@ func (h *appServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for app server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for app server: %v", err)
 		return false
 	}
 
 	if _, err := h.announcer.UpsertApplicationServer(ctx, server); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for app server", "error", err)
+			log.Warnf("Failed to perform fallback heartbeat for app server: %v", err)
 		}
 		return false
 	}
@@ -657,13 +645,13 @@ func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for app server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
 		return false
 	}
 
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for app server", "error", err)
+			log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
 		}
 		return false
 	}
@@ -702,12 +690,12 @@ func (h *dbServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for database server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for database server: %v", err)
 		return false
 	}
 	if _, err := h.announcer.UpsertDatabaseServer(ctx, server); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for database server", "error", err)
+			log.Warnf("Failed to perform fallback heartbeat for database server: %v", err)
 		}
 		return false
 	}
@@ -729,12 +717,12 @@ func (h *dbServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Dow
 
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for database server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for database server: %v", err)
 		return false
 	}
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{DatabaseServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{DatabaseServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for database server", "error", err)
+			log.Warnf("Failed to perform inventory heartbeat for database server: %v", err)
 		}
 		return false
 	}
@@ -773,13 +761,13 @@ func (h *kubeServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) 
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for kubernetes server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for kubernetes server: %v", err)
 		return false
 	}
 
 	if _, err := h.announcer.UpsertKubernetesServer(ctx, apiutils.CloneProtoMsg(server)); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for kubernetes server", "error", err)
+			log.Warnf("Failed to perform fallback heartbeat for kubernetes server: %v", err)
 		}
 		return false
 	}
@@ -801,12 +789,12 @@ func (h *kubeServerHeartbeatV2) Announce(ctx context.Context, sender inventory.D
 
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for kubernetes server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for kubernetes server: %v", err)
 		return false
 	}
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{KubernetesServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{KubernetesServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for kubernetes server", "error", err)
+			log.Warnf("Failed to perform inventory heartbeat for kubernetes server: %v", err)
 		}
 		return false
 	}

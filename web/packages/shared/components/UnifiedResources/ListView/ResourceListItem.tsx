@@ -17,50 +17,41 @@
  */
 
 import { useEffect, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
-import { Tags, Warning } from 'design/Icon';
+import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
-  getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
-import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
+  name,
+  primaryIconName,
+  SecondaryIcon,
   onLabelClick,
+  listViewProps,
+  ActionButton,
+  labels,
   pinningSupport,
   pinned,
   pinResource,
   selectResource,
   selected,
   expandAllLabels,
-  onShowStatusInfo,
-  showingStatusInfo,
-  viewItem,
-}: ResourceItemProps) {
-  const {
-    name,
-    primaryIconName,
-    SecondaryIcon,
-    listViewProps,
-    ActionButton,
-    labels,
-    requiresRequest = false,
-    status,
-  } = viewItem;
+  requiresRequest = false,
+}: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
   const [showLabels, setShowLabels] = useState(expandAllLabels);
@@ -72,7 +63,6 @@ export function ResourceListItem({
   }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
-  const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
   // Determines which column the resource type text should end at.
   // We do this because if there is no address, or the labels button
@@ -92,26 +82,21 @@ export function ResourceListItem({
     <RowContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      shouldDisplayWarning={shouldDisplayStatusWarning}
-      showingStatusInfo={showingStatusInfo}
     >
       <RowInnerContainer
         requiresRequest={requiresRequest}
         alignItems="start"
         pinned={pinned}
         selected={selected}
-        shouldDisplayWarning={shouldDisplayStatusWarning}
-        showingStatusInfo={showingStatusInfo}
       >
         {/* checkbox */}
-        <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            css={`
-              grid-area: checkbox;
-            `}
-          />
+        <HoverTooltip
+          css={`
+            grid-area: checkbox;
+          `}
+          tipContent={selected ? 'Deselect' : 'Select'}
+        >
+          <CheckboxInput checked={selected} onChange={selectResource} />
         </HoverTooltip>
 
         {/* pin button */}
@@ -185,70 +170,54 @@ export function ResourceListItem({
           <ResTypeIconBox mr={1}>
             <SecondaryIcon size={18} />
           </ResTypeIconBox>
-          <HoverTooltip tipContent={resourceType} showOnlyOnOverflow>
-            <Text
-              fontSize="14px"
-              fontWeight={300}
-              color="text.slightlyMuted"
-              css={`
-                // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
-                // its min-width is explicitly set.
-                min-width: 0;
-              `}
-            >
+          <HoverTooltip
+            tipContent={resourceType}
+            css={`
+              // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
+              // its min-width is explicitly set.
+              min-width: 0;
+            `}
+            showOnlyOnOverflow
+          >
+            <Text fontSize="14px" fontWeight={300} color="text.slightlyMuted">
               {resourceType}
             </Text>
           </HoverTooltip>
         </Flex>
 
         {/* address */}
-        <HoverTooltip tipContent={addr} showOnlyOnOverflow>
-          <Text
-            fontSize="14px"
-            fontWeight={300}
-            color="text.muted"
-            css={`
-              grid-area: address;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-              // If the labels button isn't showing, let this column take up the extra space.
-              ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
-            `}
-          >
+        <HoverTooltip
+          tipContent={addr}
+          showOnlyOnOverflow
+          css={`
+            grid-area: address;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            // If the labels button isn't showing, let this column take up the extra space.
+            ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
+          `}
+        >
+          <Text fontSize="14px" fontWeight={300} color="text.muted">
             {addr}
           </Text>
         </HoverTooltip>
 
         {/* show labels button */}
         {showLabelsButton && (
-          <HoverTooltip tipContent={showLabels ? 'Hide labels' : 'Show labels'}>
-            <HoverIconButton
+          <HoverTooltip
+            tipContent={showLabels ? 'Hide labels' : 'Show labels'}
+            css={`
+              grid-area: labels-btn;
+            `}
+          >
+            <ShowLabelsButton
               size={1}
               onClick={() => setShowLabels(prevState => !prevState)}
               className={showLabels ? 'active' : ''}
-              css={`
-                grid-area: labels-btn;
-              `}
             >
               <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
-            </HoverIconButton>
-          </HoverTooltip>
-        )}
-
-        {/* warning icon if status is unhealthy */}
-        {shouldDisplayStatusWarning && (
-          <HoverTooltip tipContent={'Show Connection Issue'}>
-            <HoverIconButton
-              size={1}
-              onClick={onShowStatusInfo}
-              css={`
-                grid-area: warning-icon;
-                cursor: pointer;
-              `}
-            >
-              <Warning size={18} />
-            </HoverIconButton>
+            </ShowLabelsButton>
           </HoverTooltip>
         )}
 
@@ -307,37 +276,12 @@ const ResTypeIconBox = styled(Box)`
   line-height: 0;
 `;
 
-const RowContainer = styled(Box)<{
-  shouldDisplayWarning: boolean;
-  showingStatusInfo: boolean;
-}>`
+const RowContainer = styled(Box)`
   transition: all 150ms;
   position: relative;
 
-  ${p =>
-    p.shouldDisplayWarning &&
-    css`
-      background-color: ${getStatusBackgroundColor({
-        showingStatusInfo: p.showingStatusInfo,
-        theme: p.theme,
-        action: '',
-        viewType: 'list',
-      })};
-    `}
-
   &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
-
-    ${p =>
-      p.shouldDisplayWarning &&
-      css`
-        background-color: ${getStatusBackgroundColor({
-          showingStatusInfo: p.showingStatusInfo,
-          theme: p.theme,
-          action: 'hover',
-          viewType: 'list',
-        })};
-      `}
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
@@ -360,8 +304,8 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   column-gap: ${props => props.theme.space[3]}px;
   grid-template-rows: 56px min-content;
   grid-template-areas:
-    'checkbox pin icon name type address labels-btn warning-icon button'
-    '. . labels labels labels labels labels labels labels';
+    'checkbox pin icon name type address labels-btn button'
+    '. . labels labels labels labels labels labels';
   align-items: center;
   height: 100%;
   min-width: 100%;
@@ -391,7 +335,7 @@ const Description = styled(Text)`
   color: ${props => props.theme.colors.text.muted};
 `;
 
-const HoverIconButton = styled(ButtonIcon)`
+const ShowLabelsButton = styled(ButtonIcon)`
   .active {
     background: ${props => props.theme.colors.buttons.secondary.default};
 

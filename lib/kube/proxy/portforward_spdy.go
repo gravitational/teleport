@@ -19,7 +19,6 @@ package proxy
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 
@@ -91,10 +91,10 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	defer conn.Close()
 
 	h := &portForwardProxy{
-		logger: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
-			events.RemoteAddr, req.httpRequest.RemoteAddr,
-		),
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.ComponentProxyKube),
+			events.RemoteAddr:     req.httpRequest.RemoteAddr,
+		}),
 		portForwardRequest:    req,
 		sourceConn:            conn,
 		streamChan:            streamChan,
@@ -104,7 +104,7 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	}
 	defer h.Close()
 
-	h.logger.DebugContext(req.context, "Setting port forwarding streaming connection idle timeout", "idle_timeout", req.idleTimeout)
+	h.Debugf("Setting port forwarding streaming connection idle timeout to %s.", req.idleTimeout)
 	conn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	h.run()
@@ -149,7 +149,7 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 // portForwardProxy is capable of processing multiple port forward
 // requests over a single httpstream.Connection.
 type portForwardProxy struct {
-	logger *slog.Logger
+	*log.Entry
 	portForwardRequest
 	sourceConn            httpstream.Connection
 	streamChan            chan httpstream.Stream
@@ -200,7 +200,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	go func() {
 		defer wg.Done()
 		if err := utils.ProxyConn(h.context, p.errorStream, targetErrorStream); err != nil {
-			h.logger.DebugContext(h.context, "Unable to proxy portforward error-stream", "error", err)
+			h.WithError(err).Debugf("Unable to proxy portforward error-stream.")
 		}
 	}()
 
@@ -222,14 +222,14 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	go func() {
 		defer wg.Done()
 		if err := utils.ProxyConn(h.context, p.dataStream, targetDataStream); err != nil {
-			h.logger.DebugContext(h.context, "Unable to proxy portforward data-stream", "error", err)
+			h.WithError(err).Debugf("Unable to proxy portforward data-stream.")
 		}
 	}()
 
-	h.logger.DebugContext(h.context, "Streams have been created, Waiting for copy to complete")
+	h.Debugf("Streams have been created, Waiting for copy to complete.")
 	// wait for the copies to complete before returning.
 	wg.Wait()
-	h.logger.DebugContext(h.context, "Port forwarding pair completed")
+	h.Debugf("Port forwarding pair completed.")
 	return nil
 }
 
@@ -241,11 +241,11 @@ func (h *portForwardProxy) getStreamPair(requestID string) (*httpStreamPair, boo
 	defer h.streamPairsLock.Unlock()
 
 	if p, ok := h.streamPairs[requestID]; ok {
-		h.logger.DebugContext(h.context, "Found existing stream pair for request", "request_id", requestID)
+		log.Debugf("Request %s, found existing stream pair", requestID)
 		return p, false
 	}
 
-	h.logger.DebugContext(h.context, "Creating new stream pair for request", "request_id", requestID)
+	h.Debugf("Request %s, creating new stream pair.", requestID)
 
 	p := newPortForwardPair(requestID)
 	h.streamPairs[requestID] = p
@@ -261,9 +261,9 @@ func (h *portForwardProxy) monitorStreamPair(p *httpStreamPair) {
 	defer timeC.Stop()
 	select {
 	case <-timeC.C:
-		h.logger.ErrorContext(h.context, "Request timed out waiting for streams", "request_id", p.requestID)
+		h.Errorf("Request %s, timed out waiting for streams.", p.requestID)
 	case <-p.complete:
-		h.logger.DebugContext(h.context, "Request successfully received error and data streams", "request_id", p.requestID)
+		h.Debugf("Request %s, successfully received error and data streams.", p.requestID)
 	}
 	h.removeStreamPair(p.requestID)
 }
@@ -296,24 +296,23 @@ func (h *portForwardProxy) requestID(stream httpstream.Stream) (string, error) {
 // streams, invoking portForward for each complete stream pair. The loop exits
 // when the httpstream.Connection is closed.
 func (h *portForwardProxy) run() {
-	h.logger.DebugContext(h.context, "Waiting for port forward streams")
+	h.Debugf("Waiting for port forward streams.")
 	for {
 		select {
 		case <-h.context.Done():
-			h.logger.DebugContext(h.context, "Context is closing, returning")
+			h.Debugf("Context is closing, returning.")
 			return
 		case <-h.sourceConn.CloseChan():
-			h.logger.DebugContext(h.context, "Upgraded connection closed")
+			h.Debugf("Upgraded connection closed.")
 			return
 		case stream := <-h.streamChan:
 			requestID, err := h.requestID(stream)
 			if err != nil {
-				h.logger.WarnContext(h.context, "Failed to parse request id", "error", err)
+				h.Warningf("Failed to parse request id: %v.", err)
 				return
 			}
-
 			streamType := stream.Headers().Get(StreamType)
-			h.logger.DebugContext(h.context, "Received new stream", "request_id", requestID, "stream_type", streamType)
+			h.Debugf("Received new stream %v of type %v.", requestID, streamType)
 
 			p, created := h.getStreamPair(requestID)
 			if created {
@@ -337,15 +336,13 @@ func (h *portForwardProxy) portForward(p *httpStreamPair) {
 	portString := p.dataStream.Headers().Get(PortHeader)
 	port, _ := strconv.ParseInt(portString, 10, 32)
 
-	logger := h.logger.With("request_id", p.requestID, "port", portString)
-
-	logger.DebugContext(h.context, "Forwarding port")
+	h.Debugf("Forwarding port %v -> %v.", p.requestID, portString)
 
 	if err := h.forwardStreamPair(p, port); err != nil {
-		logger.DebugContext(h.context, "Error forwarding port", "error", err)
+		h.WithError(err).Debugf("Error forwarding port %v -> %v.", p.requestID, portString)
 		return
 	}
-	h.logger.DebugContext(h.context, "Completed forwarding port")
+	h.Debugf("Completed forwarding port %v -> %v.", p.requestID, portString)
 }
 
 // httpStreamPair represents the error and data streams for a port

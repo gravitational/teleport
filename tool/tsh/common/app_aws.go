@@ -26,9 +26,8 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/credentials"
+	awsarn "github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -59,13 +57,13 @@ func onAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
+			log.WithError(err).Error("Failed to close AWS app.")
 		}
 	}()
 
 	args := cf.AWSCommandArgs
 	if cf.AWSEndpointURLMode {
-		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
 	}
 
 	commandToRun := awsCLIBinaryName
@@ -83,7 +81,7 @@ type awsApp struct {
 
 	cf *CLIConf
 
-	credentials     aws.CredentialsProvider
+	credentials     *credentials.Credentials
 	credentialsOnce sync.Once
 }
 
@@ -107,29 +105,43 @@ func (a *awsApp) GetAppName() string {
 
 // StartLocalProxies sets up local proxies for serving AWS clients.
 //
-// Clients can send AWS requests to our local forward proxy by configuring
-// HTTPS_PROXY (or equivalent). This preserves the original hostname. The API
-// flow looks like this:
+// There are two ways clients can connect to the local proxies.
+//
+// 1. client can send AWS requests to our local forward proxy by configuring
+// HTTPS_PROXY (or equivalent). The API flow looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
+//
+// 2. client can send AWS requests to our local ALPN proxy directly by
+// configuring AWS endpoint URLs. The API flow looks like this.
+// clients -> local ALPN proxy -> remote server
+//
+// The first method is always preferred as the original hostname is preserved
+// through forward proxy.
 func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
+	cred, err := a.GetAWSCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	awsMiddleware := &alpnproxy.AWSAccessMiddleware{
-		AWSCredentialsProvider: a.GetAWSCredentialsProvider(),
+		AWSCredentials: cred,
 	}
 
 	// AWS endpoint URL mode
 	if a.cf.AWSEndpointURLMode {
-		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+		err := a.StartLocalProxyWithTLS(ctx, alpnproxy.WithHTTPMiddleware(awsMiddleware))
+		return trace.Wrap(err)
 	}
 
 	// HTTPS proxy mode
-	err := a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchAWSRequests, alpnproxy.WithHTTPMiddleware(awsMiddleware))
+	err = a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchAWSRequests, alpnproxy.WithHTTPMiddleware(awsMiddleware))
 	return trace.Wrap(err)
 }
 
-// GetAWSCredentialsProvider returns an [aws.CredentialsProvider] that generates
-// fake AWS credentials that are used for signing an AWS request during AWS API
-// calls and verified on local AWS proxy side.
-func (a *awsApp) GetAWSCredentialsProvider() aws.CredentialsProvider {
+// GetAWSCredentials generates fake AWS credentials that are used for
+// signing an AWS request during AWS API calls and verified on local AWS proxy
+// side.
+func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
@@ -138,13 +150,17 @@ func (a *awsApp) GetAWSCredentialsProvider() aws.CredentialsProvider {
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		a.credentials = credentials.NewStaticCredentialsProvider(
+		a.credentials = credentials.NewStaticCredentials(
 			getEnvOrDefault(awsAccessKeyIDEnvVar, uuid.NewString()),
 			getEnvOrDefault(awsSecretAccessKeyEnvVar, uuid.NewString()),
 			"",
 		)
 	})
-	return a.credentials
+
+	if a.credentials == nil {
+		return nil, trace.BadParameter("missing credentials")
+	}
+	return a.credentials, nil
 }
 
 // GetEnvVars returns required environment variables to configure the
@@ -154,7 +170,12 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		return nil, trace.NotFound("ALPN proxy is not running")
 	}
 
-	cred, err := a.GetAWSCredentialsProvider().Retrieve(context.Background())
+	cred, err := a.GetAWSCredentials()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credValues, err := cred.Get()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,20 +184,33 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// AWS CLI and SDKs can load credentials through environment variables.
 		//
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
-		"AWS_ACCESS_KEY_ID":     cred.AccessKeyID,
-		"AWS_SECRET_ACCESS_KEY": cred.SecretAccessKey,
+		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
+		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
 		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
-		// Proxy settings.
-		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
-		"https_proxy": "http://" + a.localForwardProxy.GetAddr(),
 	}
 
+	// Set proxy settings.
+	if a.localForwardProxy != nil {
+		envVars["HTTPS_PROXY"] = "http://" + a.localForwardProxy.GetAddr()
+		envVars["https_proxy"] = "http://" + a.localForwardProxy.GetAddr()
+	}
 	return envVars, nil
 }
 
 // GetForwardProxyAddr returns local forward proxy address.
 func (a *awsApp) GetForwardProxyAddr() string {
-	return a.localForwardProxy.GetAddr()
+	if a.localForwardProxy != nil {
+		return a.localForwardProxy.GetAddr()
+	}
+	return ""
+}
+
+// GetEndpointURL returns AWS endpoint URL that clients can use.
+func (a *awsApp) GetEndpointURL() string {
+	if a.localALPNProxy != nil {
+		return "https://" + a.localALPNProxy.GetAddr()
+	}
+	return ""
 }
 
 // RunCommand executes provided command.
@@ -186,7 +220,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	logger.DebugContext(a.cf.Context, "Running AWS command", "command", logutils.StringerAttr(cmd))
+	log.Debugf("Running command: %q", cmd)
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -225,7 +259,7 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 
 	if cf.AWSRole == "" {
 		if len(roles) == 1 {
-			logger.InfoContext(cf.Context, "AWS Role is selected by default as it is the only role configured for this AWS app", "role", roles[0].Display)
+			log.Infof("AWS Role %v is selected by default as it is the only role configured for this AWS app.", roles[0].Display)
 			return roles[0].ARN, nil
 		}
 
@@ -234,7 +268,7 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 	}
 
 	// Match by role ARN.
-	if arn.IsARN(cf.AWSRole) {
+	if awsarn.IsARN(cf.AWSRole) {
 		if role, found := roles.FindRoleByARN(cf.AWSRole); found {
 			return role.ARN, nil
 		}
@@ -268,13 +302,13 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 func getARNFromRoles(cf *CLIConf, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, siteName string, app types.Application) []string {
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), siteName, roleGetter)
 	if err != nil {
-		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
+		log.WithError(err).Debugf("Failed to fetch user roles.")
 		return profile.AWSRolesARNs
 	}
 
 	logins, err := accessChecker.GetAllowedLoginsForResource(app)
 	if err != nil {
-		logger.DebugContext(cf.Context, "Failed to fetch app logins", "error", err)
+		log.WithError(err).Debugf("Failed to fetch app logins.")
 		return profile.AWSRolesARNs
 	}
 

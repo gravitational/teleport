@@ -261,10 +261,6 @@ export const storageService = {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
   },
 
-  getAccessGraphIacEnabled(): boolean {
-    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_IAC_ENABLED, false);
-  },
-
   getAccessGraphSQLEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },

@@ -21,7 +21,7 @@ package integration
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -54,6 +55,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
+func newSilentLogger() utils.Logger {
+	logger := utils.NewLoggerForTests()
+	logger.SetLevel(logrus.PanicLevel)
+	logger.SetOutput(io.Discard)
+	return logger
+}
+
 func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV3
@@ -64,7 +72,7 @@ func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) 
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.Logger = slog.New(slog.DiscardHandler)
+	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -85,7 +93,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)
-	config.Logger = slog.New(slog.DiscardHandler)
+	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -119,7 +127,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
 	config.Clock = clock
-	config.Logger = slog.New(slog.DiscardHandler)
+	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -341,7 +349,7 @@ func TestEC2Labels(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = slog.New(slog.DiscardHandler)
+	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
@@ -466,7 +474,7 @@ func TestEC2Hostname(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = slog.New(slog.DiscardHandler)
+	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true

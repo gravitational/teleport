@@ -175,7 +175,7 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	}
 
 	if err := r.serverContext.GetServer().EmitAuditEvent(ctx, subsystemEvent); err != nil {
-		r.logger.WarnContext(ctx, "Failed to emit subsystem audit event", "error", err)
+		r.logger.WarnContext(ctx, "Failed to emit subsystem audit event.", "error", err)
 	}
 }
 

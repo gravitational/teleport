@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v8
+version: v7
 metadata:
   name: example
   description: This is an example role.
@@ -130,6 +130,13 @@ spec:
     # best_effort_drop (try to drop the user at session end, if it doesn't
     # succeed, fallback to disabling it).
     create_db_user_mode: keep
+    # Specifies role specific options for identity provider access.
+    idp:
+      # Specifies role specific options for SAML identity provider access.
+      saml:
+        # Specifies whether this role has access to the SAML identity provider.
+        # Defaults to true.
+        enabled: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -199,15 +206,31 @@ spec:
     kubernetes_resources:
         # The resource kind. Teleport currently supports:
         # - * (all resources)
-        # - <arbitrary string> (Resource plural name, e.g. pods, deployments, cronjobs, mycustomresources)
+        # - pod
+        # - secret
+        # - configmap
+        # - namespace
+        # - service
+        # - serviceaccount
+        # - kube_node
+        # - persistentvolume
+        # - persistentvolumeclaim
+        # - deployment
+        # - replicaset
+        # - statefulset
+        # - daemonset
+        # - clusterrole
+        # - kube_role
+        # - clusterrolebinding
+        # - rolebinding
+        # - cronjob
+        # - job
+        # - certificatesigningrequest
+        # - ingress
       - kind: '*'
-        # The resource name of the Kubernetes cluster in which to allow access
-        # to the resources you specify with 'name' and 'kind'.
-        api_group: '*'
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with 'name' and 'kind'.
-        # The wildcard character '*' matches any sequence of characters for namespaced
-        # resource. If set, global resources will not match.
+        # The wildcard character '*' matches any sequence of characters.
         # If the value begins with '^' and ends with '$', the Kubernetes
         # Service will treat it as a regular expression.
         namespace: '*'
@@ -282,8 +305,11 @@ spec:
 
     # workload_identity_labels: a user/bot with this role will be allowed to
     # issue Workload Identities with labels matching below.
+    #
+    # Supports role templating with traits.
     workload_identity_labels:
       'env': 'prod'
+      'team': '{{external.team}}'
 
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.

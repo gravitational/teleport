@@ -26,7 +26,6 @@ import {
   awsConsoleApp,
   awsIamIcAccountApp,
   gcpCloudApp,
-  mcpApp,
 } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
@@ -124,11 +123,6 @@ export function ResourceActionButton() {
               ],
             })}
           />
-        </Stack>
-
-        <Stack>
-          <Text>MCP app</Text>
-          <Component resource={mcpApp} />
         </Stack>
       </Stack>
 

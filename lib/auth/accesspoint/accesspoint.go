@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -63,6 +64,8 @@ type Config struct {
 	// TracingProvider is the provider to be used for exporting
 	// traces. No-op tracers will be used if no provider is set.
 	TracingProvider *tracing.Provider
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
 
 	// The following services are provided to the Cache to allow it to
 	// populate its resource collections. They will either be the local service
@@ -91,9 +94,10 @@ type Config struct {
 	Provisioner             services.Provisioner
 	Restrictions            services.Restrictions
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
-	SPIFFEFederations       services.SPIFFEFederations
+	SPIFFEFederations       cache.SPIFFEFederationReader
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
@@ -102,7 +106,7 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
-	WorkloadIdentity        services.WorkloadIdentities
+	WorkloadIdentity        cache.WorkloadIdentityReader
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
@@ -110,7 +114,6 @@ type Config struct {
 	IdentityCenter          services.IdentityCenter
 	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
-	HealthCheckConfig       services.HealthCheckConfigReader
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -130,6 +133,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	slog.DebugContext(cfg.Context, "Creating in-memory backend cache.", "cache_name", cfg.CacheName)
 	mem, err := memory.New(memory.Config{
 		Context:   cfg.Context,
@@ -139,10 +143,12 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	var tracer oteltrace.Tracer
 	if cfg.TracingProvider != nil {
 		tracer = cfg.TracingProvider.Tracer(teleport.ComponentCache)
 	}
+
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
 		Backend:   mem,
@@ -161,14 +167,14 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
 	cacheCfg := cache.Config{
-		Context:         cfg.Context,
-		Backend:         reporter,
-		Component:       teleport.Component(component...),
-		MetricComponent: teleport.Component(metricComponent...),
-		Tracer:          tracer,
-		MaxRetryPeriod:  cfg.MaxRetryPeriod,
-		Unstarted:       cfg.Unstarted,
-
+		Context:                 cfg.Context,
+		Backend:                 reporter,
+		Component:               teleport.Component(component...),
+		MetricComponent:         teleport.Component(metricComponent...),
+		Tracer:                  tracer,
+		Registerer:              cfg.Registerer,
+		MaxRetryPeriod:          cfg.MaxRetryPeriod,
+		Unstarted:               cfg.Unstarted,
 		Access:                  cfg.Access,
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
@@ -192,6 +198,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Provisioner:             cfg.Provisioner,
 		Restrictions:            cfg.Restrictions,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SAMLIdPSession:          cfg.SAMLIdPSession,
 		SecReports:              cfg.SecReports,
 		SnowflakeSession:        cfg.SnowflakeSession,
 		SPIFFEFederations:       cfg.SPIFFEFederations,
@@ -210,7 +217,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		IdentityCenter:          cfg.IdentityCenter,
 		PluginStaticCredentials: cfg.PluginStaticCredentials,
 		GitServers:              cfg.GitServers,
-		HealthCheckConfig:       cfg.HealthCheckConfig,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

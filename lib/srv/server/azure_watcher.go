@@ -25,7 +25,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -68,7 +69,7 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
-		events[azureEventPrefix+azure.StringVal(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
+		events[azureEventPrefix+aws.StringValue(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
 			ResourceType:   resourceType,
 			ResourceOrigin: types.OriginCloud,
 			CloudProvider:  types.CloudAzure,
@@ -211,7 +212,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 
 		vmTags := make(map[string]string, len(vm.Tags))
 		for key, value := range vm.Tags {
-			vmTags[key] = azure.StringVal(value)
+			vmTags[key] = aws.StringValue(value)
 		}
 		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
 			continue

@@ -21,9 +21,7 @@ package host
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
-	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -31,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // man GROUPADD(8), exit codes section
@@ -56,10 +55,7 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 
 	cmd := exec.Command(groupaddBin, args...)
 	output, err := cmd.CombinedOutput()
-	slog.DebugContext(context.Background(), "groupadd command completed",
-		"command_path", cmd.Path,
-		"output", string(output),
-	)
+	log.Debugf("%s output: %s", cmd.Path, string(output))
 
 	switch code := cmd.ProcessState.ExitCode(); code {
 	case GroupExistExit:
@@ -69,7 +65,7 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 		if strings.Contains(string(output), "not a valid group name") {
 			errMsg = "invalid group name"
 		}
-		return code, trace.BadParameter("%s", errMsg)
+		return code, trace.BadParameter(errMsg)
 	default:
 		return code, trace.Wrap(err)
 	}
@@ -126,7 +122,7 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 
 	if opts.Shell != "" {
 		if shell, err := exec.LookPath(opts.Shell); err != nil {
-			slog.WarnContext(context.Background(), "configured shell not found, falling back to host default", "shell", opts.Shell)
+			log.Warnf("configured shell %q not found, falling back to host default", opts.Shell)
 		} else {
 			args = append(args, "--shell", shell)
 		}
@@ -134,10 +130,7 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 
 	cmd := exec.Command(useraddBin, args...)
 	output, err := cmd.CombinedOutput()
-	slog.DebugContext(context.Background(), "useradd command completed",
-		"command_path", cmd.Path,
-		"output", string(output),
-	)
+	log.Debugf("%s output: %s", cmd.Path, string(output))
 	if cmd.ProcessState.ExitCode() == UserExistExit {
 		return cmd.ProcessState.ExitCode(), trace.AlreadyExists("user already exists")
 	}
@@ -157,7 +150,7 @@ func UserUpdate(username string, groups []string, defaultShell string) (exitCode
 	}
 	if defaultShell != "" {
 		if shell, err := exec.LookPath(defaultShell); err != nil {
-			slog.WarnContext(context.Background(), "configured shell not found, falling back to host default", "shell", defaultShell)
+			log.Warnf("configured shell %q not found, falling back to host default", defaultShell)
 		} else {
 			args = append(args, "--shell", shell)
 		}
@@ -165,10 +158,7 @@ func UserUpdate(username string, groups []string, defaultShell string) (exitCode
 	// usermod -G (replace groups) --shell (default shell) (username)
 	cmd := exec.Command(usermodBin, append(args, username)...)
 	output, err := cmd.CombinedOutput()
-	slog.DebugContext(context.Background(), "usermod completed",
-		"command_path", cmd.Path,
-		"output", string(output),
-	)
+	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
@@ -191,10 +181,7 @@ func UserDel(username string) (exitCode int, err error) {
 	// userdel --remove (remove home) username
 	cmd := exec.Command(userdelBin, args...)
 	output, err := cmd.CombinedOutput()
-	slog.DebugContext(context.Background(), "userdel command completed",
-		"command_path", cmd.Path,
-		"output", string(output),
-	)
+	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 

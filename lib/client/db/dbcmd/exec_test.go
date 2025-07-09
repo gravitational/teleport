@@ -40,11 +40,11 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 	}
 
 	conf := &client.Config{
-		ClientStore:  client.NewFSClientStore(t.TempDir()),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -86,7 +86,7 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 			name:     "mysql",
 			protocol: defaults.ProtocolMySQL,
 			opts:     []ConnectCommandFunc{WithNoTLS()},
-			cmd:      []string{"mysql", "--user", "db-user", "--database", "db-name", "--port", "12345", "--host", "localhost", "--protocol", "TCP", "-e", "select 1"},
+			cmd:      []string{"mysql", "--skip-password", "--user", "db-user", "--database", "db-name", "--port", "12345", "--host", "localhost", "--protocol", "TCP", "-e", "select 1"},
 			wantErr:  false,
 		},
 	}

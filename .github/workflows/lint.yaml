@@ -16,7 +16,6 @@ jobs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
       has_proto: ${{ steps.changes.outputs.has_proto }}
-      has_rfd: ${{ steps.changes.outputs.has_rfd }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -27,10 +26,6 @@ jobs:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
           filters: |
-            has_rfd:
-              - '.github/workflows/lint.yaml'
-              - 'rfd/**.md'
-              - 'rfd/cspell.json'
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
@@ -64,7 +59,6 @@ jobs:
               - 'integrations/terraform/Makefile'
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
-              - 'integrations/terraform/provider/**'
               # rendered doc changes
               - 'docs/pages/admin-guides/**'
               - 'docs/pages/enroll-resources/**'
@@ -82,7 +76,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
 
     steps:
       - name: Checkout
@@ -152,9 +146,6 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
 
-      - name: Check if go generated files are up to date
-        run: make go-generate-up-to-date
-
   lint-rust:
     name: Lint (Rust)
     runs-on: ubuntu-22.04
@@ -194,7 +185,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
 
     steps:
       - name: Checkout
@@ -207,7 +198,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+      - uses: bufbuild/buf-setup-action@62ee92603c244ad0da98bab36a834a999a5329e6 # v1.43.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
@@ -216,11 +207,9 @@ jobs:
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         with:
           against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
-      # Release branches must not add new fields to protos with respect to
-      # master, new fields should be added to master first.
       - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
-        if: startsWith(github.base_ref, 'branch/v') || startsWith(github.event.merge_group.base_ref, 'refs/heads/branch/v')
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
           input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
           against: '.'
@@ -237,25 +226,3 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
         run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
-
-  lint-rfd:
-    name: Lint (RFD)
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
-    runs-on: ubuntu-22.04
-
-    permissions:
-      contents: read
-
-    container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Check spelling
-        run: pnpm cspell -c ./rfd/cspell.json rfd

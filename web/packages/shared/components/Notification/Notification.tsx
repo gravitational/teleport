@@ -64,7 +64,7 @@ export function Notification(props: NotificationProps) {
   const content = toObjectContent(item.content);
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const timeoutHandler = useRef<number>(undefined);
+  const timeoutHandler = useRef<number>();
   const theme = useTheme();
 
   const isAutoRemovable =

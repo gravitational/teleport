@@ -89,7 +89,7 @@ export function FieldMultiInput({
 
   const theme = useTheme();
   // Index of the input to be focused after the next rendering.
-  const toFocus = useRef<number | undefined>(undefined);
+  const toFocus = useRef<number | undefined>();
 
   const setFocus = (element: HTMLInputElement) => {
     element?.focus();
@@ -167,7 +167,7 @@ export function FieldMultiInput({
                 />
               </Box>
               <ButtonIcon
-                size={0}
+                size="0"
                 title="Remove Item"
                 onClick={() => removeItem(i)}
                 disabled={disabled}

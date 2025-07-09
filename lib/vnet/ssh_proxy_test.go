@@ -103,11 +103,6 @@ func testSSHConnection(t *testing.T, dial dialer) {
 	sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, "localhost", clientConfig)
 	require.NoError(t, err)
 	defer sshConn.Close()
-
-	testConnectionToSshEchoServer(t, sshConn, chans, reqs)
-}
-
-func testConnectionToSshEchoServer(t *testing.T, sshConn ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
 	go ssh.DiscardRequests(reqs)
 	go func() {
 		for newChan := range chans {

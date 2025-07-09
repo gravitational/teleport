@@ -48,6 +48,10 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {
   kind: 'connection.kube';
+  /**
+   * @deprecated Used only by connections created by doc.terminal_tsh_kube.
+   */
+  kubeConfigRelativePath?: string;
   kubeUri: KubeUri;
 }
 

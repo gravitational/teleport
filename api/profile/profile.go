@@ -23,7 +23,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -317,26 +317,19 @@ func FullProfilePath(dir string) string {
 
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
-	home, ok := UserHomeDir()
-	if !ok {
-		home = os.TempDir()
+	// start with UserHomeDir, which is the fastest option as it
+	// relies only on environment variables and does not perform
+	// a user lookup (which can be very slow on large AD environments)
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return filepath.Join(home, profileDir)
+	}
+
+	home = os.TempDir()
+	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
+		home = u.HomeDir
 	}
 	return filepath.Join(home, profileDir)
-}
-
-// UserHomeDir returns the current user's home directory if it can be found.
-func UserHomeDir() (string, bool) {
-	// Start with os.UserHomeDir, which is the fastest option as it relies only
-	// on environment variables and does not perform a user lookup (which can be
-	// very slow on large AD environments).
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		return home, true
-	}
-	// Fall back to the user lookup.
-	if u, err := user.Current(); err == nil && u.HomeDir != "" {
-		return u.HomeDir, true
-	}
-	return "", false
 }
 
 // FromDir reads the user profile from a given directory. If dir is empty,

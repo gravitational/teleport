@@ -282,66 +282,28 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		return sshConfig, nil
 	}
 
-	newKeyRing, completedMFA, err := c.SessionSSHKeyRing(ctx, user, target)
+	keyRing, err := c.tc.localAgent.GetKeyRing(target.Cluster, WithAllCerts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !completedMFA {
-		// The caller relies on this function returning an error if
-		// target.MFACheck is nil and session MFA was not actually required.
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	}
-
-	am, err := newKeyRing.AsAuthMethod()
-	if err != nil {
-		return nil, trace.Wrap(ceremonyFailedErr{err})
-	}
-
-	sshConfig.Auth = []ssh.AuthMethod{am}
-	return sshConfig, nil
-}
-
-// SessionSSHKeyRing returns a KeyRing valid for an SSH session to the target.
-// If per session MFA is required to establish the connection, then the MFA
-// ceremony will be performed. If per session MFA is not required, the user's
-// base KeyRing for the cluster will be returned.
-func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, target NodeDetails) (keyRing *KeyRing, completedMFA bool, err error) {
-	ctx, span := c.Tracer.Start(
-		ctx,
-		"clusterClient/SessionSSHKeyRing",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("cluster", c.tc.SiteName),
-		),
-	)
-	defer span.End()
-
-	baseKeyRing, err := c.tc.localAgent.GetKeyRing(target.Cluster, WithSSHCerts{})
-	if err != nil {
-		return nil, false, trace.Wrap(MFARequiredUnknown(err))
-	}
-
-	if target.MFACheck != nil && !target.MFACheck.Required {
-		return baseKeyRing, false, nil
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
-	rootClusterName, err := baseKeyRing.RootClusterName()
+	rootClusterName, err := keyRing.RootClusterName()
 	if err != nil {
-		return nil, false, trace.Wrap(MFARequiredUnknown(err))
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
 		cfg, err := c.ProxyClient.ClientConfig(ctx, rootClusterName)
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		authClient, err := authclient.NewClient(cfg)
 		if err != nil {
-			return nil, false, trace.Wrap(MFARequiredUnknown(err))
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 
 		mfaClt = &ClusterClient{
@@ -356,7 +318,7 @@ func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, targ
 		defer authClient.Close()
 	}
 
-	log.DebugContext(ctx, "Attempting to issue a single-use user certificate with an MFA check")
+	log.Debug("Attempting to issue a single-use user certificate with an MFA check")
 	result, err := c.performSessionMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
@@ -364,19 +326,20 @@ func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, targ
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
-		baseKeyRing.Copy(),
+		keyRing,
 	)
 	if err != nil {
-		if errors.Is(err, services.ErrSessionMFANotRequired) {
-			log.DebugContext(ctx, "Session MFA was not required, returning original KeyRing")
-			return baseKeyRing, false, nil
-		}
-		log.DebugContext(ctx, "Error performing session MFA ceremony", "error", err)
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
-	return result.KeyRing, true, nil
+	log.Debug("Issued single-use user certificate after an MFA check")
+	am, err := result.KeyRing.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(ceremonyFailedErr{err})
+	}
+
+	sshConfig.Auth = []ssh.AuthMethod{am}
+	return sshConfig, nil
 }
 
 // prepareUserCertsRequest creates a [proto.UserCertsRequest] with the fields
@@ -639,7 +602,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	// MFA is not required, but the user requires a new certificate with the
 	// target included in it for routing.
 	if !mfaRequired {
-		log.DebugContext(ctx, "MFA not required for access")
+		log.Debug("MFA not required for access")
 		params.ReusableMFAResponse = nil
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		if err != nil {
@@ -652,7 +615,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	}
 
 	if params.ReusableMFAResponse != nil {
-		log.DebugContext(ctx, "MFA is required, using reusable MFA response")
+		log.Debug("MFA is required, using reusable MFA response")
 		params.ExistingCreds = keyRing
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		switch {
@@ -678,7 +641,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}, trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
+	log.Debug("Issued single-use user certificate after an MFA check")
 	return &IssueUserCertsWithMFAResult{
 		KeyRing:             keyRing,
 		MFARequired:         proto.MFARequired_MFA_REQUIRED_YES,
@@ -769,7 +732,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// that MFA was not required instead of the error received from the root cluster.
 	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
-		log.DebugContext(ctx, "MFA requirement acquired from leaf", "mfa_required", mfaRequiredResp.GetMFARequired())
+		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
 			return nil, trace.Wrap(MFARequiredUnknown(err))
@@ -813,7 +776,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	certsReq := params.CertsReq
 	certsReq.MFAResponse = mfaResp
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
-	log.DebugContext(ctx, "Issuing single-use certificate from unary GenerateUserCerts")
+	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
 	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"slices"
 	"sort"
@@ -34,6 +33,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -224,7 +224,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
-		tokenInfo := map[string]any{
+		tokenInfo := map[string]interface{}{
 			"token":   token,
 			"roles":   roles,
 			"expires": expires,
@@ -282,7 +282,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 		}
 		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
 		return kubeMessageTemplate.Execute(c.stdout,
-			map[string]any{
+			map[string]interface{}{
 				"auth_server": proxies[0].GetPublicAddr(),
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
@@ -300,7 +300,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
 
 		return appMessageTemplate.Execute(c.stdout,
-			map[string]any{
+			map[string]interface{}{
 				"token":           token,
 				"minutes":         c.ttl.Minutes(),
 				"ca_pins":         caPins,
@@ -318,7 +318,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 			return trace.NotFound("cluster has no proxies")
 		}
 		return dbMessageTemplate.Execute(c.stdout,
-			map[string]any{
+			map[string]interface{}{
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
 				"ca_pins":     caPins,
@@ -333,12 +333,12 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 			int(c.ttl.Minutes()))
 	case roles.Include(types.RoleWindowsDesktop):
 		return desktopMessageTemplate.Execute(c.stdout,
-			map[string]any{
+			map[string]interface{}{
 				"token":   token,
 				"minutes": c.ttl.Minutes(),
 			})
 	case roles.Include(types.RoleMDM):
-		return mdmTokenAddTemplate.Execute(c.stdout, map[string]any{
+		return mdmTokenAddTemplate.Execute(c.stdout, map[string]interface{}{
 			"token":   token,
 			"minutes": c.ttl.Minutes(),
 			"ca_pins": caPins,
@@ -348,7 +348,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 
 		pingResponse, err := client.Ping(ctx)
 		if err != nil {
-			slog.DebugContext(ctx, "unable to ping auth client", "error", err)
+			log.Debugf("unable to ping auth client: %s.", err.Error())
 		}
 
 		if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -362,7 +362,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 			}
 		}
 
-		return nodeMessageTemplate.Execute(c.stdout, map[string]any{
+		return nodeMessageTemplate.Execute(c.stdout, map[string]interface{}{
 			"token":       token,
 			"roles":       strings.ToLower(roles.String()),
 			"minutes":     int(c.ttl.Minutes()),

@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	redis "github.com/gravitational/teleport/lib/srv/db/redis/testing"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
 // TestAuditPostgres verifies proper audit events are emitted for Postgres

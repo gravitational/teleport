@@ -36,14 +36,14 @@ type yamlParseRequest struct {
 }
 
 type yamlParseResponse struct {
-	Resource any `json:"resource"`
+	Resource interface{} `json:"resource"`
 }
 
 type yamlStringifyResponse struct {
 	YAML string `json:"yaml"`
 }
 
-func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
@@ -84,13 +84,13 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 	}
 }
 
-func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
 	}
 
-	var resource any
+	var resource interface{}
 
 	switch kind {
 	case types.KindAccessMonitoringRule:

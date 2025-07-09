@@ -37,7 +37,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
@@ -73,11 +73,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -91,11 +90,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -109,11 +107,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -127,11 +124,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -145,18 +141,16 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Name:      "pod-1",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -170,11 +164,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -188,11 +181,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -205,10 +197,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind: "namespaces",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace-2",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -221,10 +212,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind: "namespaces",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -237,10 +227,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace-2",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -254,10 +243,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup:  "resources.teleport.dev",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace-2",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -271,10 +259,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup:  "resources.teleport.dev",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace-2",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -288,10 +275,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace-2",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -305,10 +291,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "clusterroles",
-						Name:     "role",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -322,10 +307,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "clusterroles",
-						Name:     "role",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -339,10 +323,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "clusterroles",
-						Name:     "role",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -356,10 +339,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "clusterroles",
-						Name:     "role",
-						Verbs:    []string{"get"},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{"get"},
 					},
 				},
 			},
@@ -373,10 +355,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				namespace: "namespace-1",
 				resources: []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     "namespace-1",
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-1",
+						Verbs: []string{types.Wildcard},
 					},
 				},
 			},
@@ -385,9 +366,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// Create a user with full access to kubernetes Pods.
+			// create a user with full access to kubernetes Pods.
 			// (kubernetes_user and kubernetes_groups specified)
 			userID := uuid.New().String()
 			user, _ := testCtx.CreateUserAndRole(
@@ -428,174 +410,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, rsp.Status.Allowed)
-		})
-	}
-}
-
-// TestSelfSubjectAccessReviewsAllowed tests that the SelfSubjectAccessReview
-// endpoint can be accessed even if not explicitly allowed by the role.
-func TestSelfSubjectAccessReviewsAllowed(t *testing.T) {
-	t.Parallel()
-
-	_, testCtx := newTestKubeCRDMock(t, testingkubemock.WithTeleportRoleCRD)
-
-	newTestUserV7 := newTestUserFactory(t, testCtx, "", types.V7)
-	newTestUserV8 := newTestUserFactory(t, testCtx, "", types.V8)
-
-	tests := []struct {
-		name    string
-		user    types.User
-		wantErr bool
-	}{
-		{
-			name:    "full default access v7",
-			user:    newTestUserV7(nil, nil),
-			wantErr: false,
-		},
-		{
-			name:    "full default access v8",
-			user:    newTestUserV8(nil, nil),
-			wantErr: false,
-		},
-		{
-			name: "namespace access v7",
-			user: newTestUserV7([]types.KubernetesResource{
-				{
-					Kind:  types.KindKubeNamespace,
-					Name:  "default",
-					Verbs: []string{types.Wildcard},
-				},
-			}, nil),
-			wantErr: false,
-		},
-		{
-			name: "wildcard namespace access v8",
-			user: newTestUserV8([]types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: "default",
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			}, nil),
-			wantErr: false,
-		},
-		{
-			name: "single pod access v7",
-			user: newTestUserV7([]types.KubernetesResource{
-				{
-					Kind:      types.KindKubePod,
-					Name:      "pod-1",
-					Namespace: "default",
-					Verbs:     []string{"get"},
-				},
-			}, nil),
-			wantErr: false,
-		},
-		{
-			name: "single pod access v8",
-			user: newTestUserV8([]types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      "pod-1",
-					Namespace: "default",
-					Verbs:     []string{"get"},
-					APIGroup:  "",
-				},
-			}, nil),
-			wantErr: false,
-		},
-		// NOTE: SelfSubjectAccessReview can't be explicitly denied in role v7.
-		{
-			name: "explicit deny v8",
-			user: newTestUserV8([]types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      "pod-1",
-					Namespace: "default",
-					Verbs:     []string{"get"},
-					APIGroup:  "",
-				},
-			}, []types.KubernetesResource{
-				{
-					Kind:     "selfsubjectaccessreviews",
-					Name:     types.Wildcard,
-					Verbs:    []string{"create"},
-					APIGroup: "authorization.k8s.io",
-				},
-			}),
-			wantErr: true,
-		},
-		{
-			name: "wildcard deny v7",
-			user: newTestUserV7([]types.KubernetesResource{
-				{
-					Kind:      types.KindKubePod,
-					Name:      "pod-1",
-					Namespace: "default",
-					Verbs:     []string{"get"},
-				},
-			}, []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-				},
-			}),
-			wantErr: true,
-		},
-		{
-			name: "wildcard deny v8",
-			user: newTestUserV8([]types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      "pod-1",
-					Namespace: "default",
-					Verbs:     []string{"get"},
-					APIGroup:  "",
-				},
-			}, []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			}),
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Generate a kube dynClient with user certs for auth.
-			client, _, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
-
-			// Create a SelfSubjectAccessReview object.
-			obj := &authv1.SelfSubjectAccessReview{
-				Spec: authv1.SelfSubjectAccessReviewSpec{
-					ResourceAttributes: &authv1.ResourceAttributes{
-						Resource: "nodes",
-						Verb:     "list",
-					},
-				},
-			}
-
-			// Call the SelfSubjectAccessReview endpoint.
-			_, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
-				context.TODO(),
-				obj,
-				metav1.CreateOptions{},
-			)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
 		})
 	}
 }

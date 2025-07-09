@@ -71,6 +71,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		},
 		clock:           clock,
 		clusterFeatures: proto.Features{},
+		log:             newPackageLogger(),
 		logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 	}
 
@@ -150,7 +151,7 @@ func TestFeaturesWatcher(t *testing.T) {
 // requireFeatures is a helper function that advances the clock, then
 // calls `getFeatures` every 100ms for up to 1 second, until it
 // returns the expected result (`want`).
-func requireFeatures(t *testing.T, fakeClock *clockwork.FakeClock, want proto.Features, getFeatures func() proto.Features) {
+func requireFeatures(t *testing.T, fakeClock clockwork.FakeClock, want proto.Features, getFeatures func() proto.Features) {
 	t.Helper()
 
 	// Advance the clock so the service fetch and stores features
@@ -165,7 +166,7 @@ func requireFeatures(t *testing.T, fakeClock *clockwork.FakeClock, want proto.Fe
 // neverFeatures is a helper function that advances the clock, then
 // calls `getFeatures` every 100ms for up to 1 second. If at some point `getFeatures`
 // returns `doNotWant`, the test fails.
-func neverFeatures(t *testing.T, fakeClock *clockwork.FakeClock, doNotWant proto.Features, getFeatures func() proto.Features) {
+func neverFeatures(t *testing.T, fakeClock clockwork.FakeClock, doNotWant proto.Features, getFeatures func() proto.Features) {
 	t.Helper()
 
 	fakeClock.Advance(1 * time.Second)

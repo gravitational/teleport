@@ -103,7 +103,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
+		log.WithError(err).Warn("Failed to emit create reset password token event.")
 	}
 
 	return a.GetUserToken(ctx, token.GetName())
@@ -150,7 +150,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	if len(proxies) == 0 {
 		proxyHost, err = s.GetDomainName()
 		if err != nil {
-			logger.ErrorContext(context.TODO(), "Failed to retrieve cluster name, falling back to hostname", "error", err)
+			log.Errorf("Failed to retrieve cluster name, falling back to hostname: %v.", err)
 			proxyHost = authHostname
 		}
 	} else {
@@ -191,13 +191,12 @@ func (a *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.Use
 }
 
 func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
-	ctx := context.TODO()
 	// Fetch account name to display in OTP apps.
 	accountName, err := formatAccountName(a, user, a.AuthServiceName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -364,7 +363,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit create recovery token event", "error", err)
+		log.WithError(err).Warn("Failed to emit create recovery token event.")
 	}
 
 	return newToken, nil
@@ -443,7 +442,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit create privilege token event", "error", err)
+		log.WithError(err).Warn("Failed to emit create privilege token event.")
 	}
 
 	convertedToken, ok := token.(*types.UserTokenV3)
@@ -455,13 +454,10 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
-func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, allowedKinds ...string) error {
+func (a *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
 	if token.Expiry().Before(a.clock.Now().UTC()) {
 		// Provide obscure message on purpose, while logging the real error server side.
-		a.logger.DebugContext(ctx, "Expired token",
-			"token", token.GetName(),
-			"token_type", token.GetSubKind(),
-		)
+		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
 		return trace.AccessDenied("invalid token")
 	}
 
@@ -471,10 +467,6 @@ func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, all
 		}
 	}
 
-	a.logger.DebugContext(ctx, "Invalid token",
-		"token", token.GetName(),
-		"token_type", token.GetSubKind(),
-		"expected_type", allowedKinds,
-	)
+	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
 	return trace.AccessDenied("invalid token")
 }

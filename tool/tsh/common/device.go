@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -74,12 +73,12 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 		"current-device",
 		"Attempts to register and enroll the current device. Requires device admin privileges.").
 		BoolVar(&root.enroll.currentDevice)
-	root.enroll.Flag("token", "Device enrollment token.").StringVar(&root.enroll.token)
+	root.enroll.Flag("token", "Device enrollment token").StringVar(&root.enroll.token)
 
 	// "tsh device" hidden debug commands.
-	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection.").Hidden()
-	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag.").Hidden()
-	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key.").Hidden()
+	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
+	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag").Hidden()
+	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
 
 	// Windows TPM hidden support commands.
 	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
@@ -91,7 +90,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 		StringVar(&root.activateCredential.encryptedCredentialSecret)
 
 	// Linux TPM hidden support commands.
-	root.dmiRead.CmdClause = parentCmd.Command("dmi-read", "Read device DMI information.").Hidden()
+	root.dmiRead.CmdClause = parentCmd.Command("dmi-read", "Read device DMI information").Hidden()
 
 	return root
 }
@@ -248,7 +247,7 @@ func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
 		// On error, wait for user input before executing. This is because this
 		// opens in a second window. If we return the error immediately, then
 		// this window closes before the user can inspect it.
-		logger.ErrorContext(cf.Context, "An error occurred during credential activation, press enter to close this window", "error", err)
+		log.WithError(err).Error("An error occurred during credential activation. Press enter to close this window.")
 		_, _ = fmt.Scanln()
 	}
 	return trace.Wrap(err)
@@ -261,10 +260,7 @@ type deviceDMIReadCommand struct {
 func (c *deviceDMIReadCommand) run(cf *CLIConf) error {
 	dmiInfo, err := linux.DMIInfoFromSysfs()
 	if err != nil {
-		logger.WarnContext(cf.Context, "Failed to read DMI information",
-			teleport.ComponentKey, "DeviceTrust",
-			"error", err,
-		)
+		log.WithError(err).Warn("Device Trust: Failed to read DMI information")
 		// err swallowed on purpose.
 	}
 	if dmiInfo != nil {

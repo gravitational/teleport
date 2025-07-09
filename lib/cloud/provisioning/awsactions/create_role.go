@@ -113,14 +113,14 @@ func CreateRole(
 				RoleName: &roleName,
 			})
 			if err != nil {
-				convertedErr := awslib.ConvertIAMError(err)
+				convertedErr := awslib.ConvertIAMv2Error(err)
 				if !trace.IsNotFound(convertedErr) {
 					return trace.Wrap(convertedErr)
 				}
 				slog.InfoContext(ctx, "Creating IAM role", "role", roleName)
 				_, err = clt.CreateRole(ctx, input)
 				if err != nil {
-					return trace.Wrap(awslib.ConvertIAMError(err))
+					return trace.Wrap(awslib.ConvertIAMv2Error(err))
 				}
 				return nil
 			}

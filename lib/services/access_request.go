@@ -41,7 +41,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -92,15 +91,15 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // ClusterGetter provides access to the local cluster
 type ClusterGetter interface {
-	ClusterNameGetter
+	// GetClusterName returns the local cluster name
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
 // ValidateAccessRequestClusterNames checks that the clusters in the access request exist
 func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest) error {
-	ctx := context.TODO()
-	localClusterName, err := cg.GetClusterName(ctx)
+	localClusterName, err := cg.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,7 +111,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		if resourceID.ClusterName == localClusterName.GetClusterName() {
 			continue
 		}
-		_, err := cg.GetRemoteCluster(ctx, resourceID.ClusterName)
+		_, err := cg.GetRemoteCluster(context.TODO(), resourceID.ClusterName)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
 		}
@@ -187,7 +186,7 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 	if !req.FilterRequestableRolesByResource {
 		return false, nil
 	}
-	currentCluster, err := a.GetClusterName(context.TODO())
+	currentCluster, err := a.GetClusterName()
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -507,7 +506,7 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 	// user must not have previously reviewed this request
 	for _, existingReview := range req.GetReviews() {
 		if existingReview.Author == rev.Author {
-			return trace.AlreadyExists("user %q has already reviewed this request", rev.Author)
+			return trace.AccessDenied("user %q has already reviewed this request", rev.Author)
 		}
 	}
 
@@ -766,7 +765,7 @@ type RequestValidatorGetter interface {
 	RoleGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
@@ -1202,7 +1201,7 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter("%s", explanation)
+			return trace.BadParameter(explanation)
 		}
 	}
 
@@ -1561,7 +1560,7 @@ func (m *requestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := m.getter.GetClusterName(ctx)
+	cluster, err := m.getter.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2175,7 +2174,7 @@ func (m *requestValidator) pruneResourceRequestRoles(
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
 
-	clusterNameResource, err := m.getter.GetClusterName(ctx)
+	clusterNameResource, err := m.getter.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2183,9 +2182,10 @@ func (m *requestValidator) pruneResourceRequestRoles(
 
 	for _, resourceID := range resourceIDs {
 		if resourceID.ClusterName != localClusterName {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
-				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
-			)
+			_, debugf := rbacDebugLogger()
+			debugf("Requested resource %q is in a foreign cluster, unable to prune roles. "+
+				`All available "search_as_roles" will be requested.`,
+				types.ResourceIDToString(resourceID))
 			return roles, nil
 		}
 	}
@@ -2217,10 +2217,14 @@ func (m *requestValidator) pruneResourceRequestRoles(
 		}
 
 		switch rr := resource.(type) {
-		case types.Resource153UnwrapperT[IdentityCenterAccount]:
-			matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
-		case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
-			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
+		case types.Resource153Unwrapper:
+			switch urr := rr.Unwrap().(type) {
+			case IdentityCenterAccount:
+				matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
+
+			case IdentityCenterAccountAssignment:
+				matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
+			}
 		}
 
 		for _, role := range allRoles {
@@ -2386,15 +2390,10 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 
 	for _, resourceID := range resourceIDs {
 		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
-			kind := types.KubernetesResourcesKindsPlurals[resourceID.Kind]
-			if kind == "" {
-				kind = resourceID.Kind
-			}
 			switch {
-			// TODO(@creack): Make sure this is handled in the AccessRequest PR.
 			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
 				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-					Kind: kind,
+					Kind: resourceID.Kind,
 					Name: resourceID.SubResourceName,
 				})
 			default:
@@ -2403,7 +2402,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 					return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
 				}
 				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-					Kind:      kind,
+					Kind:      resourceID.Kind,
 					Namespace: splits[0],
 					Name:      splits[1],
 				})

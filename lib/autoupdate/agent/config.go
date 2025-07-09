@@ -34,11 +34,6 @@ import (
 )
 
 const (
-	// defaultSetting is used to represent the default value for updater config.
-	defaultSetting = "default"
-)
-
-const (
 	// updateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
 	updateConfigName = "update.yaml"
 
@@ -233,7 +228,7 @@ func overrideOptional(orig, override string) string {
 	switch override {
 	case "":
 		return orig
-	case defaultSetting:
+	case "default":
 		return ""
 	default:
 		return override

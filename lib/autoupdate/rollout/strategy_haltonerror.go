@@ -21,7 +21,6 @@ package rollout
 import (
 	"context"
 	"log/slog"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -41,34 +40,22 @@ const (
 
 type haltOnErrorStrategy struct {
 	log *slog.Logger
-	clt Client
 }
 
 func (h *haltOnErrorStrategy) name() string {
 	return update.AgentsStrategyHaltOnError
 }
 
-func newHaltOnErrorStrategy(log *slog.Logger, clt Client) (rolloutStrategy, error) {
+func newHaltOnErrorStrategy(log *slog.Logger) (rolloutStrategy, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
-	if clt == nil {
-		return nil, trace.BadParameter("missing Client")
-	}
 	return &haltOnErrorStrategy{
 		log: log.With("strategy", update.AgentsStrategyHaltOnError),
-		clt: clt,
 	}, nil
 }
 
-func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
-	reports, err := getAllValidReports(ctx, h.clt, now)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	countByGroup, upToDateByGroup := countUpToDate(reports, spec.GetTargetVersion())
-
+func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, _ *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	// We process every group in order, all the previous groups must be in the DONE state
 	// for the next group to become active. Even if some early groups are not DONE,
 	// later groups might be ACTIVE and need to transition to DONE, so we cannot
@@ -80,17 +67,6 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 	previousGroupsAreDone := true
 
 	for i, group := range status.Groups {
-		var agentCount, agentUpToDateCount int
-		if i == len(status.Groups)-1 {
-			agentCount, agentUpToDateCount = countCatchAll(status, countByGroup, upToDateByGroup)
-		} else {
-			agentCount = countByGroup[group.GetName()]
-			agentUpToDateCount = upToDateByGroup[group.GetName()]
-		}
-
-		group.PresentCount = uint64(agentCount)
-		group.UpToDateCount = uint64(agentUpToDateCount)
-
 		switch group.State {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:
 			var previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup
@@ -129,7 +105,6 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 				// All previous groups are DONE and time-related criteria are met.
 				// We can start.
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
-				group.InitialCount = uint64(agentCount)
 			}
 			previousGroupsAreDone = false
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
@@ -147,8 +122,8 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE, reason, now)
 			} else {
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, reason, now)
-				previousGroupsAreDone = false
 			}
+			previousGroupsAreDone = false
 
 		default:
 			return trace.BadParameter("unknown autoupdate group state: %v", group.State)
@@ -178,81 +153,12 @@ func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRollout
 	return inWindow(group, now, haltOnErrorWindowDuration)
 }
 
-const (
-	// Currently hardcoded maxInFlight, we might add a user-facing per-group
-	// value in the future.
-	maxInFlight   = 0.10
-	doneThreshold = 1 - maxInFlight
-)
-
 func isDoneHaltOnError(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, string) {
-	switch {
-	case group.InitialCount == 0:
-		// Currently we don't implement status reporting from groups/agents.
-		// So we just wait 60 minutes and consider the maintenance done.
-		if group.StartTime.AsTime().Add(haltOnErrorWindowDuration).Before(now) {
-			return true, updateReasonUpdateComplete
-		}
-		return false, updateReasonUpdateInProgress
-	case float64(group.PresentCount)/float64(group.InitialCount) >= doneThreshold && float64(group.UpToDateCount)/float64(group.PresentCount) >= doneThreshold:
+	// Currently we don't implement status reporting from groups/agents.
+	// So we just wait 60 minutes and consider the maintenance done.
+	// This will change as we introduce agent status report and aggregated agent counts.
+	if group.StartTime.AsTime().Add(haltOnErrorWindowDuration).Before(now) {
 		return true, updateReasonUpdateComplete
-	default:
-		return false, updateReasonUpdateInProgress
 	}
-}
-
-// countUpToDate iterates over all the reports and aggregates the counts by reported groups.
-// The function returns two maps:
-// - the number of agents belonging to each reported group
-// - the number of up-to-date agents belonging to each reported group
-func countUpToDate(
-	reports []*autoupdate.AutoUpdateAgentReport,
-	targetVersion string,
-) (countByGroup, upToDateByGroup map[string]int) {
-	countByGroup = make(map[string]int)
-	upToDateByGroup = make(map[string]int)
-
-	for _, report := range reports {
-		for group, groupCount := range report.GetSpec().GetGroups() {
-			for version, versionCount := range groupCount.GetVersions() {
-				countByGroup[group] += int(versionCount.GetCount())
-				if version == targetVersion {
-					upToDateByGroup[group] += int(versionCount.GetCount())
-				}
-			}
-		}
-	}
-	return countByGroup, upToDateByGroup
-}
-
-// CountCatchAll counts the number of agents belonging to the last group which is acting like a catch-all.
-// The function returns two integers:
-// - the number of agents belonging to the last group
-// - the number of up-to-date agents belonging to the last group
-func countCatchAll(rolloutStatus *autoupdate.AutoUpdateAgentRolloutStatus, countByGroup, upToDateByGroup map[string]int) (int, int) {
-	if len(rolloutStatus.GetGroups()) == 0 {
-		return 0, 0
-	}
-
-	rolloutGroups := make([]string, 0, len(rolloutStatus.GetGroups())-1)
-	// We don't count the last group as it is the default one
-	for _, group := range rolloutStatus.GetGroups()[:len(rolloutStatus.GetGroups())-1] {
-		rolloutGroups = append(rolloutGroups, group.GetName())
-	}
-
-	var defaultGroupCount, upToDateDefaultGroupCount int
-
-	for group, count := range countByGroup {
-		if !slices.Contains(rolloutGroups, group) {
-			defaultGroupCount += count
-		}
-	}
-
-	for group, count := range upToDateByGroup {
-		if !slices.Contains(rolloutGroups, group) {
-			upToDateDefaultGroupCount += count
-		}
-	}
-
-	return defaultGroupCount, upToDateDefaultGroupCount
+	return false, updateReasonUpdateInProgress
 }

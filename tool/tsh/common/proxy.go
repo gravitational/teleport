@@ -162,7 +162,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
-		return trace.BadParameter("%s", formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
+		return trace.BadParameter(formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
 	}
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
@@ -187,7 +187,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	defer func() {
 		if err := listener.Close(); err != nil {
-			logger.WarnContext(cf.Context, "Failed to close listener", "error", err)
+			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
 
@@ -299,7 +299,7 @@ func requiresGCPMetadata(protocol string) bool {
 func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, extraOpts ...dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
 	var err error
 	opts := append([]dbcmd.ConnectCommandFunc{
-		dbcmd.WithLogger(logger),
+		dbcmd.WithLogger(log),
 		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}, extraOpts...)
 
@@ -363,7 +363,7 @@ func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, db
 	dbServers, err := getDatabaseServers(ctx, tc, dbInfo.ServiceName)
 	if err != nil {
 		// log, but treat this error as non-fatal.
-		logger.WarnContext(ctx, "Error getting database servers", "error", err)
+		log.Warnf("Error getting database servers: %s", err.Error())
 		return opts
 	}
 
@@ -372,7 +372,7 @@ func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, db
 	for _, server := range dbServers {
 		ver, err := semver.NewVersion(server.GetTeleportVersion())
 		if err != nil {
-			logger.DebugContext(ctx, "Failed to parse teleport version", "version", server.GetTeleportVersion(), "error", err)
+			log.Debugf("Failed to parse teleport version %q: %v", server.GetTeleportVersion(), err)
 			continue
 		}
 
@@ -387,17 +387,10 @@ func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, db
 		}
 	}
 
-	logger.DebugContext(ctx, "Retrieved agents for database with Oracle support",
-		"database", dbInfo.ServiceName,
-		"total", len(dbServers),
-		"old_count", oldServers,
-		"new_count", newServers,
-	)
+	log.Debugf("Agents for database %q with Oracle support: total %v, old %v, new %v.", dbInfo.ServiceName, len(dbServers), oldServers, newServers)
 
 	if oldServers > 0 {
-		logger.WarnContext(ctx, "Detected outdated database agent, for improved client support upgrade all database agents in your cluster to a newer version",
-			"lowest_supported_version", cutoffVersion,
-		)
+		log.Warnf("Detected database agents older than %v. For improved client support upgrade all database agents in your cluster to a newer version.", cutoffVersion)
 	}
 
 	opts = append(opts, dbcmd.WithOracleOpts(oldServers == 0, newServers > 0))
@@ -501,10 +494,6 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
-	}
-
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
@@ -525,7 +514,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close app proxy", "error", err)
+			log.WithError(err).Error("Failed to close app proxy.")
 		}
 	}()
 
@@ -552,7 +541,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
+			log.WithError(err).Error("Failed to close AWS app.")
 		}
 	}()
 
@@ -567,6 +556,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 type awsAppInfo interface {
 	GetAppName() string
 	GetEnvVars() (map[string]string, error)
+	GetEndpointURL() string
 	GetForwardProxyAddr() string
 }
 
@@ -576,14 +566,15 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]any{
-		"envVars":    envVars,
-		"format":     cf.Format,
-		"randomPort": cf.LocalProxyPort == "",
-		"appName":    awsApp.GetAppName(),
-		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
-		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
-		"workgroup":  getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+	templateData := map[string]interface{}{
+		"envVars":     envVars,
+		"endpointURL": awsApp.GetEndpointURL(),
+		"format":      cf.Format,
+		"randomPort":  cf.LocalProxyPort == "",
+		"appName":     awsApp.GetAppName(),
+		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
 	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
@@ -603,7 +594,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	case cf.Format == awsProxyFormatAthenaJDBC:
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 	case cf.AWSEndpointURLMode:
-		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+		templates = append(templates, awsEndpointURLProxyTemplate)
 	default:
 		templates = append(templates, awsHTTPSProxyTemplate)
 	}
@@ -620,8 +611,11 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
-	if cf.AWSEndpointURLMode {
-		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+	switch cf.Format {
+	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
 	}
 	return nil
 }
@@ -640,7 +634,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := azApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
+			log.WithError(err).Error("Failed to close Azure app.")
 		}
 	}()
 
@@ -671,7 +665,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := gcpApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
+			log.WithError(err).Error("Failed to close GCP app.")
 		}
 	}()
 
@@ -811,7 +805,7 @@ Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
 {{if .canUseTCP }}Other clients can use:
-  - a direct connection to {{.address}} without a username and password
+  - a direct connection to {{.address}} without a username and password  
   - a custom JDBC connection string: {{.jdbcConnectionString}}
 
 {{else }}You can also connect using Oracle JDBC connection string:
@@ -871,7 +865,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s.",
+		"%s Or specify a service format, one of: %s",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -914,7 +908,11 @@ var cloudTemplateFuncs = template.FuncMap{
 // awsProxyHeaderTemplate contains common header used for AWS proxy.
 const awsProxyHeaderTemplate = `
 {{define "header"}}
+{{- if .envVars.HTTPS_PROXY -}}
 Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+{{- else -}}
+Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
+{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 {{end}}
@@ -951,6 +949,15 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
 `
 
+// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
+// AWS endpoint URL proxy is started.
+var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
+In addition to the endpoint URL, use the following credentials to connect to the proxy:
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+`
+
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
 // AWS proxy is used for Athena ODBC driver.
 var awsProxyAthenaODBCTemplate = `{{- template "header" . -}}
@@ -985,7 +992,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

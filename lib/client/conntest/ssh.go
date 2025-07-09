@@ -167,7 +167,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cfg.UserClient.GetClusterName(ctx)
+	clusterName, err := s.cfg.UserClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

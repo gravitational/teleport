@@ -23,8 +23,7 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -50,27 +49,6 @@ func (a *Fetcher) pollAWSPolicies(ctx context.Context, result *Resources, collec
 // It uses iam.ListPoliciesPagesWithContext to iterate over all policies
 // and iam.GetPolicyVersionWithContext to fetch policy documents.
 func (a *Fetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSPolicyV1, error) {
-	awsCfg, err := a.AWSConfigProvider.GetConfig(
-		ctx,
-		"", /* region is empty because users and groups are global */
-		a.getAWSOptions()...,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	iamClient := a.awsClients.getIAMClient(awsCfg)
-	pager := iam.NewListPoliciesPaginator(
-		iamClient,
-		&iam.ListPoliciesInput{
-			MaxItems: aws.Int32(20),
-		},
-		func(opts *iam.ListPoliciesPaginatorOptions) {
-			opts.StopOnDuplicateToken = true
-		},
-	)
-
-	eGroup, ctx := errgroup.WithContext(ctx)
-	eGroup.SetLimit(5)
 	var policies []*accessgraphv1alpha.AWSPolicyV1
 	var errs []error
 	var mu sync.Mutex
@@ -86,42 +64,56 @@ func (a *Fetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSP
 		}
 	}
 
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			_ = eGroup.Wait()
-			return policies, trace.NewAggregate(append(errs, err)...)
-		}
-		eGroup.Go(func() error {
-			for _, policy := range page.Policies {
-				oldPolicy := sliceFilterPickFirst(existing.Policies, func(p *accessgraphv1alpha.AWSPolicyV1) bool {
-					return p.Arn == aws.ToString(policy.Arn) && p.AccountId == a.AccountID
-				})
-				out, err := iamClient.GetPolicyVersion(ctx, &iam.GetPolicyVersionInput{
-					PolicyArn: policy.Arn,
-					VersionId: policy.DefaultVersionId,
-				})
-				if err != nil {
-					collect(oldPolicy, trace.Wrap(err, "failed to fetch policy %q", *policy.Arn))
-					continue
-				}
-				collect(
-					awsPolicyToProtoPolicy(
-						policy,
-						[]byte(aws.ToString(out.PolicyVersion.Document)),
-						a.AccountID,
-					),
-					nil,
-				)
-			}
-			return nil
-		})
+	iamClient, err := a.CloudClients.GetAWSIAMClient(
+		ctx,
+		"", /* region is empty because users and groups are global */
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	eGroup, ctx := errgroup.WithContext(ctx)
+	eGroup.SetLimit(5)
+	pageSize := int64(20)
+	err = iamClient.ListPoliciesPagesWithContext(
+		ctx,
+		&iam.ListPoliciesInput{
+			MaxItems: aws.Int64(pageSize),
+		},
+		func(page *iam.ListPoliciesOutput, lastPage bool) bool {
+			pp := page.Policies
+			eGroup.Go(func() error {
+				for _, policy := range pp {
+					oldPolicy := sliceFilterPickFirst(existing.Policies, func(p *accessgraphv1alpha.AWSPolicyV1) bool {
+						return p.Arn == aws.ToString(policy.Arn) && p.AccountId == a.AccountID
+					})
+					out, err := iamClient.GetPolicyVersionWithContext(ctx, &iam.GetPolicyVersionInput{
+						PolicyArn: policy.Arn,
+						VersionId: policy.DefaultVersionId,
+					})
+					if err != nil {
+						collect(oldPolicy, trace.Wrap(err, "failed to fetch policy %q", *policy.Arn))
+						continue
+					}
+					collect(
+						awsPolicyToProtoPolicy(
+							policy,
+							[]byte(aws.ToString(out.PolicyVersion.Document)),
+							a.AccountID,
+						),
+						nil,
+					)
+				}
+				return nil
+			})
+			return !lastPage
+		},
+	)
 	_ = eGroup.Wait()
 	return policies, trace.NewAggregate(append(errs, err)...)
 }
 
-func awsPolicyToProtoPolicy(policy iamtypes.Policy, policyDoc []byte, accountID string) *accessgraphv1alpha.AWSPolicyV1 {
+func awsPolicyToProtoPolicy(policy *iam.Policy, policyDoc []byte, accountID string) *accessgraphv1alpha.AWSPolicyV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(policy.Tags))
 	for _, tag := range policy.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
@@ -135,7 +127,7 @@ func awsPolicyToProtoPolicy(policy iamtypes.Policy, policyDoc []byte, accountID 
 		CreatedAt:        awsTimeToProtoTime(policy.CreateDate),
 		DefaultVersionId: aws.ToString(policy.DefaultVersionId),
 		Description:      aws.ToString(policy.Description),
-		IsAttachable:     policy.IsAttachable,
+		IsAttachable:     aws.ToBool(policy.IsAttachable),
 		Path:             aws.ToString(policy.Path),
 		UpdatedAt:        awsTimeToProtoTime(policy.UpdateDate),
 		PolicyId:         aws.ToString(policy.PolicyId),

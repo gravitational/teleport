@@ -878,7 +878,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig, id string) (FindR
 	}
 	group := cfg.Spec.Group
 	if group == "" {
-		group = defaultSetting
+		group = "default"
 	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,

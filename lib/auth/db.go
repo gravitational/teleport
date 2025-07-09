@@ -62,7 +62,7 @@ func (a *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 // generateDatabaseServerCert generates database server certificate used by a
 // database to authenticate itself to a database service.
 func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,7 +96,7 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 // generateDatabaseClientCert generates client certificate used by a database
 // service to authenticate with the database instance.
 func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,7 +170,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		certReq.DNSNames = getServerNames(req)
 
 		// The windows smartcard cert req already does the same in
-		// lib/winpki/windows.go, along with another ExtKeyUsage for
+		// lib/auth/windows/windows.go, along with another ExtKeyUsage for
 		// smartcard logon that we don't want to override above.
 		switch ca.GetType() {
 		case types.DatabaseCA:
@@ -217,9 +217,9 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	a.logger.DebugContext(ctx, "Signing database CSR for cluster", "cluster", req.ClusterName)
+	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -306,7 +306,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,7 +349,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 		return nil, trace.Wrap(err)
 	}
 
-	subject, issuer := getSnowflakeJWTParams(ctx, req.AccountName, req.UserName, pubKey)
+	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
 
 	_, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
@@ -372,7 +372,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	}, nil
 }
 
-func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
+func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (string, string) {
 	// Use only the first part of the account name to generate JWT
 	// Based on:
 	// https://github.com/snowflakedb/snowflake-connector-python/blob/f2f7e6f35a162484328399c8a50a5015825a5573/src/snowflake/connector/auth_keypair.py#L83
@@ -384,10 +384,7 @@ func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, pu
 	accnToken, _, _ := strings.Cut(accountName, accNameSeparator)
 	accnTokenCap := strings.ToUpper(accnToken)
 	userNameCap := strings.ToUpper(userName)
-	logger.DebugContext(ctx, "Signing database JWT token",
-		"account_name", accnTokenCap,
-		"user_name", userNameCap,
-	)
+	log.Debugf("Signing database JWT token for %s %s", accnTokenCap, userNameCap)
 
 	subject := fmt.Sprintf("%s.%s", accnTokenCap, userNameCap)
 
@@ -418,7 +415,7 @@ func filterExtensions(ctx context.Context, logger *slog.Logger, extensions []pki
 	return filtered
 }
 
-// TODO(gavin): move OIDs from here and in lib/winpki to lib/tlsca package.
+// TODO(gavin): move OIDs from here and in lib/auth/windows to tlsca package.
 var (
 	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
 	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}

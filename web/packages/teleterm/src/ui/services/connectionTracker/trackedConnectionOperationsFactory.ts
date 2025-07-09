@@ -29,6 +29,7 @@ import {
   getDesktopDocumentByConnection,
   getGatewayDocumentByConnection,
   getGatewayKubeDocumentByConnection,
+  getKubeDocumentByConnection,
   getServerDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
@@ -217,6 +218,15 @@ export class TrackedConnectionOperationsFactory {
               documentsService
                 .getDocuments()
                 .filter(getGatewayKubeDocumentByConnection(connection))
+                .forEach(document => {
+                  documentsService.close(document.uri);
+                });
+
+              // Remove deprecated doc.terminal_tsh_kube documents.
+              // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+              documentsService
+                .getDocuments()
+                .filter(getKubeDocumentByConnection(connection))
                 .forEach(document => {
                   documentsService.close(document.uri);
                 });

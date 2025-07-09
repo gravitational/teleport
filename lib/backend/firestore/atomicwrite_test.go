@@ -27,10 +27,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 	cfg := firestoreParams()
 
 	testCfg, err := test.ApplyOptions(options)

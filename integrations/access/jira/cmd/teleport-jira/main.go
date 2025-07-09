@@ -20,7 +20,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -73,13 +72,12 @@ func main() {
 		if err := run(*path, *insecure, *debug); err != nil {
 			lib.Bail(err)
 		} else {
-			slog.InfoContext(context.Background(), "Successfully shut down")
+			logger.Standard().Info("Successfully shut down")
 		}
 	}
 }
 
 func run(configPath string, insecure bool, debug bool) error {
-	ctx := context.Background()
 	conf, err := jira.LoadConfig(configPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -93,7 +91,7 @@ func run(configPath string, insecure bool, debug bool) error {
 		return err
 	}
 	if debug {
-		slog.DebugContext(ctx, "DEBUG logging enabled")
+		logger.Standard().Debugf("DEBUG logging enabled")
 	}
 
 	conf.HTTP.Insecure = insecure
@@ -104,9 +102,8 @@ func run(configPath string, insecure bool, debug bool) error {
 
 	go lib.ServeSignals(app, common.PluginShutdownTimeout)
 
-	slog.InfoContext(ctx, "Starting Teleport Access Jira Plugin",
-		"version", teleport.Version,
-		"git_ref", teleport.Gitref,
+	logger.Standard().Infof("Starting Teleport Access Jira Plugin %s:%s", teleport.Version, teleport.Gitref)
+	return trace.Wrap(
+		app.Run(context.Background()),
 	)
-	return trace.Wrap(app.Run(ctx))
 }

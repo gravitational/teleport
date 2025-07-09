@@ -29,11 +29,6 @@ import Dialog, {
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import {
-  TraitsEditor,
-  traitsToTraitsOption,
-  type TraitsOption,
-} from 'shared/components/TraitsEditor';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -48,6 +43,11 @@ import userService, {
 import { GetUsersQueryKey } from 'teleport/services/user/hooks';
 
 import UserTokenLink from './../UserTokenLink';
+import {
+  TraitsEditor,
+  traitsToTraitsOption,
+  type TraitsOption,
+} from './TraitsEditor';
 
 interface UserAddEditProps {
   user: User;

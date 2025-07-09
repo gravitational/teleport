@@ -239,9 +239,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
       onSave={onSave}
     />
   );
-
-  // Select v7 so we can set a different value.
-  await selectEvent.select(screen.getByLabelText('Version'), 'v7');
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
   await user.click(getTabByName('Resources'));
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
@@ -251,11 +249,6 @@ test('triggers v6 validation for Kubernetes resources', async () => {
     screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
   );
   await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
-
-  // Back to v6 to check validation.
-  await user.click(getTabByName('Overview'));
-  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
-  await user.click(getTabByName('Resources'));
 
   // Adding a second resource to make sure that we don't run into attempting to
   // modify an immer-frozen object. This might happen if the reducer tried to
@@ -275,123 +268,6 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   // Back to v7, try again
   await user.click(getTabByName('Overview'));
   await selectEvent.select(screen.getByLabelText('Version'), 'v7');
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(onSave).toHaveBeenCalled();
-}, 10000);
-
-test('triggers v7 validation for Kubernetes resources', async () => {
-  const onSave = jest.fn();
-  render(
-    <TestStandardEditor
-      originalRole={newRoleWithYaml(newRole())}
-      onSave={onSave}
-    />
-  );
-
-  // Select v8 so we can set a different value.
-  await selectEvent.select(screen.getByLabelText('Version'), 'v8');
-  await user.click(getTabByName('Resources'));
-  await user.click(
-    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
-  );
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes Access' }));
-  await user.click(
-    screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
-  );
-  await selectEvent.select(screen.getByLabelText('Kind (plural)'), 'jobs');
-
-  // Go to v7 to check validation.
-  await user.click(getTabByName('Overview'));
-  await selectEvent.select(screen.getByLabelText('Version'), 'v7');
-  await user.click(getTabByName('Resources'));
-
-  // Adding a second resource to make sure that we don't run into attempting to
-  // modify an immer-frozen object. This might happen if the reducer tried to
-  // modify resources that were already there.
-  await user.click(
-    screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
-  );
-
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-
-  // Validation should have failed on a jobs resource and role v7.
-  expect(
-    screen.getByText(
-      'Only core predefined kinds are allowed for role version v7'
-    )
-  ).toBeVisible();
-  // Validation should have failed on a api groups being set and role v7.
-  expect(
-    screen.getByText('API Group not supported for role version v7.')
-  ).toBeVisible();
-  expect(onSave).not.toHaveBeenCalled();
-
-  // Back to v8, try again
-  await user.click(getTabByName('Overview'));
-  await selectEvent.select(screen.getByLabelText('Version'), 'v8');
-
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(onSave).not.toHaveBeenCalled();
-}, 10000);
-
-test('triggers v8 validation for Kubernetes resources', async () => {
-  const onSave = jest.fn();
-  render(
-    <TestStandardEditor
-      originalRole={newRoleWithYaml(newRole())}
-      onSave={onSave}
-    />
-  );
-
-  // Select v7 so we can set a known value.
-  await selectEvent.select(screen.getByLabelText('Version'), 'v7');
-  await user.click(getTabByName('Resources'));
-  await user.click(
-    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
-  );
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes Access' }));
-  await user.click(
-    screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
-  );
-  await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
-
-  // Go to v8 to check validation.
-  await user.click(getTabByName('Overview'));
-  await selectEvent.select(screen.getByLabelText('Version'), 'v8');
-  await user.click(getTabByName('Resources'));
-
-  // Adding a second resource to make sure that we don't run into attempting to
-  // modify an immer-frozen object. This might happen if the reducer tried to
-  // modify resources that were already there.
-  await user.click(
-    screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
-  );
-
-  // Set the api group for the first resource.
-  await user.type(screen.getAllByLabelText('API Group *')[0], '*');
-  // Clear the api group for the second resource.
-  await user.clear(screen.getAllByLabelText('API Group *')[1]);
-
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-
-  // Validation should have failed on a v7 kind and role v8.
-  expect(
-    screen.getByText('Kind must use k8s plural name. Did you mean "jobs"?')
-  ).toBeVisible();
-
-  // Validation should have failed on a api group being missing and role v8.
-  expect(
-    screen.getByText('API Group required. Use "*" for any group.')
-  ).toBeVisible();
-  expect(onSave).not.toHaveBeenCalled();
-
-  // Fix the validation errors and try again.
-  await selectEvent.select(
-    screen.getAllByLabelText('Kind (plural)')[0],
-    'jobs'
-  );
-  await user.type(screen.getAllByLabelText('API Group *')[1], '*');
-
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
 }, 10000);

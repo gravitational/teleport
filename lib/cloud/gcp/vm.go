@@ -37,6 +37,7 @@ import (
 	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
@@ -553,11 +554,11 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		var err error
 		// Fetch the instance first to get the most up-to-date metadata hash.
 		if keyReq.Instance, err = req.Client.GetInstance(ctx, &req.InstanceRequest); err != nil {
-			slog.WarnContext(ctx, "Error fetching instance", "error", err)
+			logrus.WithError(err).Warn("Error fetching instance.")
 			return
 		}
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
-			slog.WarnContext(ctx, "Error deleting SSH Key", "error", err)
+			logrus.WithError(err).Warn("Error deleting SSH Key.")
 		}
 	}()
 

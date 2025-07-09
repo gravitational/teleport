@@ -98,7 +98,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
@@ -195,7 +195,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
@@ -473,6 +473,7 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	wg, _ := errgroup.WithContext(ctx)
 	wantNames := make([]string, 0, len(clusters))
 	for _, kc := range clusters {
+		kc := kc
 		wg.Go(func() error {
 			err := authSrv.CreateKubernetesCluster(ctx, kc)
 			return trace.Wrap(err)

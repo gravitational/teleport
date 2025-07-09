@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var pkcs11Prefix = []byte("pkcs11:")
@@ -48,7 +47,6 @@ type pkcs11KeyStore struct {
 	log       *slog.Logger
 	isYubiHSM bool
 	semaphore chan struct{}
-	oaepHash  crypto.Hash
 }
 
 func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11KeyStore, error) {
@@ -71,18 +69,12 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 		return nil, trace.Wrap(err, "getting PKCS#11 module info")
 	}
 
-	oaepHash := crypto.SHA256
-	if opts.OAEPHash != crypto.Hash(0) {
-		oaepHash = opts.OAEPHash
-	}
-
 	return &pkcs11KeyStore{
 		ctx:       ctx,
 		hostUUID:  opts.HostUUID,
 		log:       opts.Logger,
 		isYubiHSM: strings.HasPrefix(info.ManufacturerID, "Yubico"),
 		semaphore: make(chan struct{}, 1),
-		oaepHash:  oaepHash,
 	}, nil
 }
 
@@ -130,9 +122,9 @@ func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
 	return keyID{}, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
 }
 
-// generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
+// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	// The key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
 	select {
@@ -159,7 +151,7 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 		return nil, nil, trace.Wrap(err)
 	}
 
-	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", logutils.StringerAttr(alg))
+	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", alg.String())
 
 	label := []byte(p.hostUUID)
 	switch alg {
@@ -174,48 +166,7 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 	}
 }
 
-// generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
-// identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
-func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
-	// The key identifiers are not created in a thread safe
-	// manner so all calls are serialized to prevent races.
-	select {
-	case p.semaphore <- struct{}{}:
-	case <-ctx.Done():
-		return nil, nil, p.oaepHash, trace.Wrap(ctx.Err())
-	}
-	defer func() {
-		<-p.semaphore
-	}()
-
-	id, err := p.findUnusedID(ctx)
-	if err != nil {
-		return nil, nil, p.oaepHash, trace.Wrap(err)
-	}
-
-	rawTeleportID, err := id.marshal()
-	if err != nil {
-		return nil, nil, p.oaepHash, trace.Wrap(err)
-	}
-
-	rawPKCS11ID, err := id.pkcs11Key(p.isYubiHSM)
-	if err != nil {
-		return nil, nil, p.oaepHash, trace.Wrap(err)
-	}
-
-	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", logutils.StringerAttr(alg))
-
-	label := []byte(p.hostUUID)
-	switch alg {
-	case cryptosuites.RSA2048:
-		decrypter, err := p.generateRSA2048(rawPKCS11ID, label)
-		return rawTeleportID, newOAEPDecrypter(p.oaepHash, decrypter), p.oaepHash, trace.Wrap(err, "generating RSA2048 key")
-	default:
-		return nil, nil, p.oaepHash, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM decryption: %v", alg)
-	}
-}
-
-func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
+func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto.Signer, error) {
 	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSAKeySize)
 	return signer, trace.Wrap(err)
 }
@@ -228,20 +179,6 @@ func (p *pkcs11KeyStore) generateECDSAP256(ckaID, label []byte) (crypto.Signer, 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
 func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	return p.getSignerWithoutPublicKey(ctx, rawKey)
-}
-
-// getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
-	signer, err := p.getSignerWithoutPublicKey(ctx, rawKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if decrypter, ok := signer.(crypto.Decrypter); ok {
-		return newOAEPDecrypter(hash, decrypter), nil
-	}
-
-	return nil, trace.BadParameter("pkcs11 key does not support decryption")
 }
 
 func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
@@ -269,11 +206,11 @@ func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey [
 	return signer, nil
 }
 
-// canUseKey returns true if the given key is PKCS11 and was created by
+// canSignWithKey returns true if the given key is PKCS11 and was created by
 // this host. If the HSM is disconnected or the key material has been deleted
-// the error will not be detected here but when the first signature or
-// decryption is attempted.
-func (p *pkcs11KeyStore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+// the error will not be detected here but when the first signature is
+// attempted.
+func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_PKCS11 {
 		return false, nil
 	}
@@ -281,7 +218,6 @@ func (p *pkcs11KeyStore) canUseKey(ctx context.Context, raw []byte, keyType type
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-
 	return keyID.HostID == p.hostUUID, nil
 }
 
@@ -432,6 +368,5 @@ func parsePKCS11KeyID(key []byte) (keyID, error) {
 	if err := json.Unmarshal(key, &keyID); err != nil {
 		return keyID, trace.Wrap(err)
 	}
-
 	return keyID, nil
 }

@@ -27,7 +27,6 @@ import { getAssumedRequests } from 'teleterm/ui/services/clusters';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
-import { statusBarHeight } from './constants';
 import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
@@ -52,7 +51,7 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
   return (
     <Flex
       width="100%"
-      height={`${statusBarHeight}px`}
+      height="28px"
       css={`
         border-top: 1px solid ${props => props.theme.colors.spotBackground[1]};
       `}

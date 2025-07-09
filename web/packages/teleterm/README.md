@@ -172,11 +172,6 @@ Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
 with the `CONNECT_WINTUN_DLL_PATH` environment variable. By default, electron-builder builds an x64
 version of the app, so you need amd64 version of the DLL.
 
-Another DLL that's not required but one that makes logs in Event Viewer easier to read is
-msgfile.dll. Refer to
-[`lib/utils/log/eventlog/README.md`](/lib/utils/log/eventlog/README.md#message-file) for details on
-how to generate it.
-
 ### macOS
 
 To make a fully-fledged build on macOS with Touch ID support, you need two things:
@@ -306,34 +301,7 @@ resource availability as possible.
 
 ### PTY communication overview (Renderer Process <=> Shared Process)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant DT as Document Terminal
-    participant PS as PTY Service
-    participant PHS as PTY Host Service
-    participant PP as PTY Process
-
-    DT->>PS: wants new PTY
-    Note over PS,PHS: gRPC communication
-    PS->>PHS: createPtyProcess(options)
-    PHS->>PP: new PtyProcess()
-    PHS-->>PS: ptyId of the process is returned
-    PS->>PHS: establishExchangeEvents(ptyId) channel
-    Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
-    PS-->>DT: pty process object
-    DT->>PS: start()
-    PS->>PHS: exchangeEvents.start()
-    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
-    PHS->>PP: start()
-    PP-->>PHS: onOpen()
-    PHS-->>PS: exchangeEvents.onOpen()
-    PS-->>DT: onOpen()
-    DT->>PS: dispose()
-    PS->>PHS: end exchangeEvents channel
-    PHS->>PP: dispose process and remove it
-
-```
+![PTY communication](docs/ptyCommunication.png)
 
 ### Overview of a deep link launch process
 

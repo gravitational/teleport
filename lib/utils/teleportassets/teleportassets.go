@@ -60,11 +60,6 @@ func CDNBaseURLForVersion(artifactVersion *semver.Version) string {
 }
 
 func cdnBaseURLForVersion(artifactVersion, teleportVersion *semver.Version) string {
-	// Something is not right a version is nil, we default to the standard CDN.
-	if artifactVersion == nil || teleportVersion == nil {
-		return TeleportReleaseCDN
-	}
-
 	if teleportVersion.PreRelease != "" && artifactVersion.PreRelease != "" {
 		return teleportPreReleaseCDN
 	}

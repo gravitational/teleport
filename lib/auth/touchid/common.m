@@ -26,12 +26,8 @@
 #include <string.h>
 
 char *CopyNSString(NSString *val) {
-  if (!val) {
-    return strdup("");
+  if (val) {
+    return strdup([val UTF8String]);
   }
-  const char *utf8String = [val UTF8String];
-  if (!utf8String) {
-    return strdup("");
-  }
-  return strdup(utf8String);
+  return strdup("");
 }

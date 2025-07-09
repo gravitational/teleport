@@ -43,6 +43,12 @@ export class MockTshClient implements TshdClient {
       roles: [],
       applicableRoles: [],
     });
+  getServers = () =>
+    new MockedUnaryCall({
+      agents: [],
+      totalCount: 0,
+      startKey: '',
+    });
   assumeRole = () => new MockedUnaryCall({});
   deleteAccessRequest = () => new MockedUnaryCall({});
   getAccessRequests = () =>
@@ -89,8 +95,6 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
-  listDatabaseServers = () =>
-    new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () =>
     new MockedUnaryCall({
       userPreferences: {
@@ -118,12 +122,7 @@ export class MockTshClient implements TshdClient {
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
-  getServiceInfo = () =>
-    new MockedUnaryCall({
-      appDnsZones: [],
-      clusters: [],
-      sshConfigured: false,
-    });
+  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
 
   runDiagnostics() {

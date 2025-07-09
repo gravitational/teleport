@@ -18,8 +18,6 @@ package types
 
 import (
 	"fmt"
-	"iter"
-	"slices"
 	"sort"
 	"time"
 
@@ -28,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/iterutils"
 )
 
 // AppServer represents a single proxied web app.
@@ -411,11 +408,4 @@ func (s AppServers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
-}
-
-// Applications iterates over the applications that the AppServers proxy.
-func (s AppServers) Applications() iter.Seq[Application] {
-	return iterutils.Map(func(appServer AppServer) Application {
-		return appServer.GetApp()
-	}, slices.Values(s))
 }

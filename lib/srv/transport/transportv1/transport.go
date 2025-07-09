@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -36,20 +36,20 @@ import (
 
 	"github.com/gravitational/teleport"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
-	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error)
 }
 
 // ConnectionMonitor monitors authorized connections and terminates them when
@@ -64,7 +64,7 @@ type ServerConfig struct {
 	// to run in FIPS mode.
 	FIPS bool
 	// Logger provides a mechanism to log output.
-	Logger *slog.Logger
+	Logger logrus.FieldLogger
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
@@ -94,7 +94,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "transport")
+		c.Logger = utils.NewLogger().WithField(teleport.ComponentKey, "transport")
 	}
 
 	if c.agentGetterFn == nil {
@@ -107,12 +107,12 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 
 	if c.authzContextFn == nil {
 		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
-			identityInfo, ok := info.(interface{ AuthzContext() *authz.Context })
+			identityInfo, ok := info.(auth.IdentityInfo)
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthzContext(), nil
+			return identityInfo.AuthContext, nil
 		}
 	}
 
@@ -248,7 +248,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			req, err := stream.Recv()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-					s.cfg.Logger.ErrorContext(ctx, "ssh stream terminated unexpectedly", "error", err)
+					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
 
 				return
@@ -263,7 +263,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			case *transportv1pb.ProxySSHRequest_Agent:
 				agentStream.incomingC <- frame.Agent.Payload
 			default:
-				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
+				s.cfg.Logger.Errorf("received unexpected ssh frame: %T", frame)
 				continue
 			}
 		}
@@ -288,7 +288,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker.CheckAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		// Return ambiguous errors unadorned so that clients can detect them easily.
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
@@ -455,7 +455,7 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker.CheckAccessToRemoteCluster)
+	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target desktop")
 	}

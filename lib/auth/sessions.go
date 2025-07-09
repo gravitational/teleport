@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -154,7 +155,7 @@ func (a *Server) augmentSessionForDeviceTrust(
 	})
 	switch {
 	case err != nil:
-		a.logger.WarnContext(ctx, "Failed to create DeviceWebToken for user", "error", err)
+		log.WithError(err).Warn("Failed to create DeviceWebToken for user")
 	case webToken != nil: // May be nil even if err==nil.
 		session.SetDeviceWebToken(&types.DeviceWebToken{
 			Id:    webToken.Id,
@@ -210,10 +211,10 @@ func (a *Server) newWebSession(
 	}
 	if req.LoginIP == "" {
 		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
-		a.logger.DebugContext(ctx, "Creating new web session without login IP specified")
+		log.Debug("Creating new web session without login IP specified.")
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -351,15 +352,17 @@ func (a *Server) newWebSession(
 	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
 		return checker.Roles(), nil
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
+		log.
+			WithError(err).
+			Warn("Failed to calculate trusted device mode for session")
 	} else {
 		sess.SetTrustedDeviceRequirement(tdr)
 
 		if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
-			a.logger.DebugContext(ctx, "Calculated trusted device requirement for session",
-				"user", req.User,
-				"trusted_device_requirement", tdr,
-			)
+			log.WithFields(logrus.Fields{
+				"user":                       req.User,
+				"trusted_device_requirement": tdr,
+			}).Debug("Calculated trusted device requirement for session")
 		}
 	}
 
@@ -472,7 +475,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			Roles:          roles,
 			Traits:         traits,
 			AccessRequests: identity.ActiveRequests,
-			// If the user's current identity is attested as a "web_session", its secrets are only
+			// If the user's current identity is attested as a "web_session", it's secrets are only
 			// available to the Proxy and Auth roles, meaning this request is coming from the Proxy
 			// service on behalf of the user's Web Session. We can safely attest this child app session
 			// as a "web_session" as a result.
@@ -510,7 +513,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -605,7 +608,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	if err = a.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
+	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
 
 	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
@@ -651,7 +654,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		},
 	})
 	if err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
+		log.WithError(err).Warn("Failed to emit app session start event")
 	}
 
 	return session, nil
@@ -729,7 +732,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
 	accessInfo := services.AccessInfoFromUserState(req.UserState)
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -792,7 +795,31 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	if err = a.UpsertSnowflakeSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	a.logger.DebugContext(ctx, "Generated Snowflake web session", "user", req.Username, "ttl", ttl)
+	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)
+
+	return session, nil
+}
+
+func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	// TODO(mdwn): implement a module.Features() check.
+
+	if req.SAMLSession == nil {
+		return nil, trace.BadParameter("required SAML session is not populated")
+	}
+
+	// Create services.WebSession for this session.
+	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
+		User:        req.Username,
+		Expires:     req.SAMLSession.ExpireTime,
+		SAMLSession: req.SAMLSession,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertSAMLIdPSession(ctx, session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
 }

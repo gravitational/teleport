@@ -24,6 +24,7 @@ import (
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
@@ -48,6 +49,13 @@ type IdentityCenterAccount struct {
 	// least-bad approach.
 
 	*identitycenterv1.Account
+}
+
+// CloneResource creates a deep copy of the underlying account resource
+func (a IdentityCenterAccount) CloneResource() types.ClonableResource153 {
+	return IdentityCenterAccount{
+		Account: apiutils.CloneProtoMsg(a.Account),
+	}
 }
 
 // GetDisplayName returns a human-readable name for the account for UI display.
@@ -178,6 +186,13 @@ type IdentityCenterAccountAssignment struct {
 	*identitycenterv1.AccountAssignment
 }
 
+// CloneResource creates a deep copy of the underlying account resource
+func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource153 {
+	return IdentityCenterAccountAssignment{
+		AccountAssignment: apiutils.CloneProtoMsg(a.AccountAssignment),
+	}
+}
+
 // IdentityCenterAccountAssignmentID is a strongly typed ID for an
 // IdentityCenterAccountAssignment
 type IdentityCenterAccountAssignmentID string
@@ -224,57 +239,6 @@ type IdentityCenter interface {
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
-}
-
-func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.AppServerV3 {
-	srcPSs := acct.GetSpec().GetPermissionSetInfo()
-	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
-	for i, ps := range acct.GetSpec().GetPermissionSetInfo() {
-		pss[i] = &types.IdentityCenterPermissionSet{
-			ARN:          ps.Arn,
-			Name:         ps.Name,
-			AssignmentID: ps.AssignmentId,
-		}
-	}
-
-	appServer := &types.AppServerV3{
-		Kind:     types.KindAppServer,
-		SubKind:  types.KindIdentityCenterAccount,
-		Version:  types.V3,
-		Metadata: types.Metadata153ToLegacy(acct.Metadata),
-		Spec: types.AppServerSpecV3{
-			App: &types.AppV3{
-				Kind:     types.KindApp,
-				SubKind:  types.KindIdentityCenterAccount,
-				Version:  types.V3,
-				Metadata: types.Metadata153ToLegacy(acct.Metadata),
-				Spec: types.AppSpecV3{
-					URI:        acct.Spec.StartUrl,
-					PublicAddr: acct.Spec.StartUrl,
-					AWS: &types.AppAWS{
-						ExternalID: acct.Spec.Id,
-					},
-					IdentityCenter: &types.AppIdentityCenter{
-						AccountID:      acct.Spec.Id,
-						PermissionSets: pss,
-					},
-				},
-			},
-		},
-	}
-	appServer.Metadata.Description = acct.Spec.Name
-	return appServer
-}
-
-// NewIdentityCenterAppMatcher creates a new [RoleMatcher] configured to
-// match the supplied [types.Application] that is wrapping a [*identitycenterv1.Account].
-func NewIdentityCenterAppMatcher(app types.Application) *IdentityCenterAccountMatcher {
-	ic := app.GetIdentityCenter()
-	if ic == nil {
-		return nil
-	}
-
-	return &IdentityCenterAccountMatcher{accountID: ic.AccountID}
 }
 
 // NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to

@@ -17,8 +17,6 @@
 package diagnostics
 
 import (
-	"context"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // Profile captures various Go pprof profiles and writes
@@ -35,7 +34,6 @@ import (
 // with the same epoch time so that profiles can easily be associated
 // as being captured from the same call.
 func Profile(dir string) error {
-	ctx := context.Background()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return trace.Wrap(err, "creating profile directory %v", dir)
 	}
@@ -71,37 +69,37 @@ func Profile(dir string) error {
 	}
 	defer blockFile.Close()
 
-	slog.DebugContext(ctx, "capturing trace profile", "file", traceFile.Name())
+	logrus.Debugf("capturing trace profile to %s", traceFile.Name())
 
 	if err := runtimetrace.Start(traceFile); err != nil {
 		return trace.Wrap(err, "capturing trace profile")
 	}
 
-	slog.DebugContext(ctx, "capturing cpu profile", "file", cpuFile.Name())
+	logrus.Debugf("capturing cpu profile to %s", cpuFile.Name())
 
 	if err := pprof.StartCPUProfile(cpuFile); err != nil {
 		return trace.Wrap(err, "capturing cpu profile")
 	}
 
 	defer func() {
-		slog.DebugContext(ctx, "capturing goroutine profile", "file", cpuFile.Name())
+		logrus.Debugf("capturing goroutine profile to %s", cpuFile.Name())
 
 		if err := pprof.Lookup("goroutine").WriteTo(goroutineFile, 0); err != nil {
-			slog.WarnContext(ctx, "failed to capture goroutine profile", "error", err)
+			logrus.WithError(err).Warn("failed to capture goroutine profile")
 		}
 
-		slog.DebugContext(ctx, "capturing block profile", "file", cpuFile.Name())
+		logrus.Debugf("capturing block profile to %s", cpuFile.Name())
 
 		if err := pprof.Lookup("block").WriteTo(blockFile, 0); err != nil {
-			slog.WarnContext(ctx, "failed to capture block profile", "error", err)
+			logrus.WithError(err).Warn("failed to capture block profile")
 		}
 
 		runtime.GC()
 
-		slog.DebugContext(ctx, "capturing heap profile", "file", cpuFile.Name())
+		logrus.Debugf("capturing heap profile to %s", cpuFile.Name())
 
 		if err := pprof.WriteHeapProfile(heapFile); err != nil {
-			slog.WarnContext(ctx, "failed to capture heap profile", "error", err)
+			logrus.WithError(err).Warn("failed to capture heap profile")
 		}
 
 		pprof.StopCPUProfile()

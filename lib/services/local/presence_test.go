@@ -21,7 +21,6 @@ package local
 import (
 	"context"
 	"fmt"
-	"maps"
 	"testing"
 	"time"
 
@@ -31,14 +30,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	gproto "google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -583,37 +578,6 @@ func TestListResources(t *testing.T) {
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				desktopService := NewWindowsDesktopService(presence.Backend)
 				return desktopService.DeleteAllWindowsDesktops(ctx)
-			},
-		},
-		"GitServer": {
-			resourceType: types.KindGitServer,
-			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				gitServerService, err := NewGitServerService(presence.Backend)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
-					Organization: "my-org",
-					Integration:  "my-org",
-				})
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				gitServer.SetName(name)
-				newLabels := gitServer.GetLabels()
-				maps.Copy(newLabels, labels)
-				gitServer.SetStaticLabels(newLabels)
-
-				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
-				return trace.Wrap(err)
-			},
-			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				gitServerService, err := NewGitServerService(presence.Backend)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return gitServerService.DeleteAllGitServers(ctx)
 			},
 		},
 	}
@@ -1359,7 +1323,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
+		err = presenceService.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 	}
 
@@ -1409,7 +1373,7 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Upsert a reverse tunnel
-	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
+	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
 	require.NoError(t, err)
 	// Check that the returned resource is the same as the one we upserted
 	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1418,89 +1382,4 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(got, fetched))
-}
-
-func TestPresenceService_RelayServer(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	defer bk.Close()
-
-	var p *PresenceService
-	require.NotPanics(t, func() {
-		p = NewPresenceService(bk)
-	})
-
-	_, err = p.UpsertRelayServer(ctx, nil)
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-
-	relayA := &presencev1.RelayServer{
-		Kind:    types.KindRelayServer,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "a",
-		},
-	}
-
-	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
-	require.NoError(t, err)
-	require.NotNil(t, upsertedA.GetMetadata())
-
-	diffOpts := []cmp.Option{
-		protocmp.Transform(),
-		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
-	}
-
-	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
-
-	gottenA, err := p.GetRelayServer(ctx, "a")
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
-
-	_, err = p.GetRelayServer(ctx, "b")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	err = p.DeleteRelayServer(ctx, "a")
-	require.NoError(t, err)
-
-	_, err = p.GetRelayServer(ctx, "a")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-	err = p.DeleteRelayServer(ctx, "a")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	relayB := &presencev1.RelayServer{
-		Kind:    types.KindRelayServer,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "b",
-		},
-	}
-
-	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
-	require.NoError(t, err)
-	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
-	require.NoError(t, err)
-
-	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, listedRelays, 2)
-	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
-	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
-
-	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
-	require.NoError(t, err)
-	require.Equal(t, "b", nextPageToken)
-	require.Len(t, shortList, 1)
-	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
-
-	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, shortList, 1)
-	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
 }

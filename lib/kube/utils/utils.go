@@ -22,8 +22,8 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -183,32 +183,21 @@ type Pinger interface {
 
 // GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
 // for enrolling EKS clusters.
-func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, versionGetter version.Getter) (*semver.Version, error) {
+func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, versionGetter version.Getter) (string, error) {
 	pingResponse, err := pinger.Ping(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
+	agentVersion := pingResponse.ServerVersion
 
-	var agentVersion *semver.Version
-
-	// TODO(hugoShaka) remove the conditional check, we always use the cluster version
 	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
 		defaultVersion, err := versionGetter.GetVersion(ctx)
 		if err == nil {
 			agentVersion = defaultVersion
 		} else if !errors.Is(err, &version.NoNewVersionError{}) {
-			return nil, trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 	}
 
-	if agentVersion == nil {
-		clusterVersion, err := version.EnsureSemver(pingResponse.ServerVersion)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse cluster version")
-		} else {
-			agentVersion = clusterVersion
-		}
-	}
-
-	return agentVersion, nil
+	return strings.TrimPrefix(agentVersion, "v"), nil
 }

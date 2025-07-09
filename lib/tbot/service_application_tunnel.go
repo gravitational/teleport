@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -51,6 +52,7 @@ type ApplicationTunnelService struct {
 	botClient          *apiclient.Client
 	getBotIdentity     getBotIdentityFn
 	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -98,10 +100,16 @@ func (s *ApplicationTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
+	if s.statusReporter == nil {
+		s.statusReporter = readyz.NoopReporter()
+	}
+	s.statusReporter.Report(readyz.Healthy)
+
 	select {
 	case <-ctx.Done():
 		return nil
 	case err := <-errCh:
+		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		return trace.Wrap(err, "local proxy failed")
 	}
 }
@@ -164,7 +172,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 			ctx, span := tracer.Start(ctx, "ApplicationTunnelService/OnNewConnection")
 			defer span.End()
 
-			if err := lp.CheckCertExpiry(ctx); err != nil {
+			if err := lp.CheckCertExpiry(); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
 				cert, _, err := s.issueCert(ctx, roles)
 				if err != nil {
@@ -262,5 +270,8 @@ func (s *ApplicationTunnelService) issueCert(
 // String returns a human-readable string that can uniquely identify the
 // service.
 func (s *ApplicationTunnelService) String() string {
-	return fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName)
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName),
+	)
 }

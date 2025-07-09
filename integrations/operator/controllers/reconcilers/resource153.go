@@ -76,10 +76,12 @@ func NewTeleportResource153Reconciler[T types.Resource153, K KubernetesCR[T]](
 		return nil, trace.Wrap(err)
 	}
 	reconciler := &resourceReconciler[T, K]{
-		kubeClient:     client,
-		resourceClient: resourceClient,
-		gvk:            gvk,
-		adapter:        Resource153Adapter[T]{},
+		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
+		resourceClient:         resourceClient,
+		gvk:                    gvk,
+		adapter:                Resource153Adapter[T]{},
 	}
+	reconciler.ResourceBaseReconciler.UpsertExternal = reconciler.Upsert
+	reconciler.ResourceBaseReconciler.DeleteExternal = reconciler.Delete
 	return reconciler, nil
 }

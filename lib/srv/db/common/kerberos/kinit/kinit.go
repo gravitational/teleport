@@ -22,74 +22,31 @@ package kinit
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/winpki"
+	"github.com/gravitational/teleport/lib/auth/windows"
 )
 
-type ClientProvider interface {
-	// CreateClient returns a client logged in as particular username, ready to use.
-	CreateClient(ctx context.Context, username string) (*client.Client, error)
-}
-
-// NewProviderExternalExecutable returns a new CredentialProvider which performs PKINIT using an external, preinstalled kinit binary.
-func NewProviderExternalExecutable(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (ClientProvider, error) {
-	return newKinitProvider(logger, auth, adConfig)
-}
-
-func newKinitProvider(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (*kinitProvider, error) {
-	if logger == nil {
-		logger = slog.Default()
-	}
-
-	connector, err := newLDAPConnector(logger, auth, adConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	krb5Config, err := newKrb5Config(adConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	provider := &kinitProvider{
-		ldapCertificatePEM: adConfig.LDAPCert,
-		runner: &execCommandRunner{
-			logger: logger,
-		},
-		krb5Config: krb5Config,
-		certGetter: &dbCertGetter{
-			logger:        logger,
-			auth:          auth,
-			domain:        adConfig.Domain,
-			ldapConnector: connector,
-		},
-		logger: logger,
-	}
-	return provider, nil
-}
-
-func newKrb5Config(config types.AD) (string, error) {
-	data := map[string]string{
-		"RealmName":       strings.ToUpper(config.Domain),
-		"KDCHostName":     config.KDCHostName,
-		"AdminServerName": config.Domain,
-	}
-
-	const krb5ConfigTemplate = `[libdefaults]
+const (
+	// krb5ConfigEnv sets the location from which kinit will attempt to read a configuration value
+	krb5ConfigEnv = "KRB5_CONFIG"
+	// kinitBinary is the binary Name for the kinit executable
+	kinitBinary = "kinit"
+	// krb5ConfigTemplate is a configuration template suitable for x509 configuration; it is read by the kinit binary
+	krb5ConfigTemplate = `[libdefaults]
  default_realm = {{ .RealmName }}
  rdns = false
 
@@ -101,59 +58,133 @@ func newKrb5Config(config types.AD) (string, error) {
   pkinit_eku_checking = kpServerAuth
   pkinit_kdc_hostname = {{ .KDCHostName }}
  }`
-	tpl, err := template.New("krb_conf").Parse(krb5ConfigTemplate)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	b := bytes.NewBuffer([]byte{})
-	err = tpl.Execute(b, data)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return b.String(), nil
+	// certTTL is the certificate time to live; 1 hour
+	certTTL = time.Minute * 60
+)
+
+// Provider is a kinit provider capable of producing a credentials cacheData for kerberos
+type Provider interface {
+	// UseOrCreateCredentials uses or updates an existing cacheData or creates a new one
+	UseOrCreateCredentials(ctx context.Context) (cache *credentials.CCache, conf *config.Config, err error)
 }
 
-type execCommandRunner struct {
-	logger *slog.Logger
+// PKInit is a structure used for initializing a kerberos context
+type PKInit struct {
+	provider Provider
 }
 
-func (e *execCommandRunner) runCommand(ctx context.Context, env map[string]string, command string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, command, args...)
-	for key, value := range env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+// UseOrCreateCredentialsCache uses or creates a credentials cacheData.
+func (k *PKInit) UseOrCreateCredentialsCache(ctx context.Context) (*credentials.CCache, *config.Config, error) {
+	return k.provider.UseOrCreateCredentials(ctx)
+}
+
+// New returns a new PKInit initializer
+func New(provider Provider) *PKInit {
+	return &PKInit{provider: provider}
+}
+
+// CommandConfig is used to configure a kinit binary execution
+type CommandConfig struct {
+	// AuthClient is a subset of the auth interface
+	AuthClient windows.AuthInterface
+	// User is the username of the database/AD user
+	User string
+	// Realm is the domain name
+	Realm string
+	// KDCHost is the key distribution center hostname (usually AD server)
+	KDCHost string
+	// AdminServer is the administration server hostname (usually AD server)
+	AdminServer string
+	// LDAPCA is the Windows LDAP Certificate for client signing
+	LDAPCA *x509.Certificate
+	// LDAPCAPEM contains the same certificate as LDAPCA but in PEM format. It
+	// can be used to embed the LDAPCA into files without needing to convert
+	// it.
+	LDAPCAPEM string
+	// Command is a command generator that generates an executable command
+	Command CommandGenerator
+	// CertGetter is a Teleport Certificate getter that prepares an x509 certificate
+	// for use with windows AD
+	CertGetter CertGetter
+}
+
+// NewCommandLineInitializer returns a new command line initializer using a preinstalled `kinit` binary
+func NewCommandLineInitializer(config CommandConfig) *CommandLineInitializer {
+	cmd := &CommandLineInitializer{
+		auth:               config.AuthClient,
+		userName:           config.User,
+		RealmName:          config.Realm,
+		KDCHostName:        config.KDCHost,
+		AdminServerName:    config.AdminServer,
+		binary:             kinitBinary,
+		command:            config.Command,
+		certGetter:         config.CertGetter,
+		ldapCertificatePEM: config.LDAPCAPEM,
+		logger:             slog.Default(),
 	}
-	e.logger.DebugContext(ctx, "running command", "cmd", cmd, "args", args, "env", cmd.Env)
-	output, err := cmd.CombinedOutput()
-	return string(output), trace.Wrap(err)
+	if cmd.command == nil {
+		cmd.command = &execCmd{}
+	}
+	return cmd
 }
 
-// kinitProvider performs PKINIT using an external, preinstalled kinit binary.
-type kinitProvider struct {
-	krb5Config string
+// CommandGenerator is a small interface for wrapping *exec.Cmd
+type CommandGenerator interface {
+	// CommandContext is a wrapper for creating a command
+	CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd
+}
 
-	runner     commandRunner
-	certGetter certGetter
+// execCmd is a small wrapper around exec.Cmd
+type execCmd struct {
+}
+
+// CommandContext returns exec.CommandContext
+func (e *execCmd) CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, name, args...)
+}
+
+// CommandLineInitializer uses a command line `kinit` binary to provide a kerberos CCache
+type CommandLineInitializer struct {
+	auth windows.AuthInterface
+
+	// RealmName is the kerberos realm Name (domain Name, like `example.com`
+	RealmName string
+	// KDCHostName is the key distribution center host Name (usually AD host, like ad.example.com)
+	KDCHostName string
+	// AdminServerName is the admin server Name (usually AD host)
+	AdminServerName string
+
+	userName string
+
+	binary string
+
+	command    CommandGenerator
+	certGetter CertGetter
 
 	ldapCertificatePEM string
 	logger             *slog.Logger
 }
 
-type commandRunner interface {
-	runCommand(ctx context.Context, env map[string]string, command string, args ...string) (string, error)
+// CertGetter is an interface for getting a new cert/key pair along with a CA cert
+type CertGetter interface {
+	// GetCertificateBytes returns a new cert/key pair along with a CA for use with x509 Auth
+	GetCertificateBytes(ctx context.Context) (*WindowsCAAndKeyPair, error)
 }
 
-type certGetter interface {
-	getCertificate(ctx context.Context, username string) (*getCertificateResult, error)
+// DBCertGetter obtains a new cert/key pair along with the Teleport database CA
+type DBCertGetter struct {
+	// Auth is the auth client
+	Auth windows.AuthInterface
+	// Logger is the logger to use.
+	Logger *slog.Logger
+	// ADConfig is the database-level Active Directory config
+	ADConfig types.AD
+	// UserName is the database username
+	UserName string
 }
 
-type dbCertGetter struct {
-	logger        *slog.Logger
-	auth          winpki.AuthInterface
-	domain        string
-	ldapConnector LDAPConnector
-}
-
-type getCertificateResult struct {
+// WindowsCAAndKeyPair is a wrapper around PEM bytes for Windows authentication
+type WindowsCAAndKeyPair struct {
 	certPEM []byte
 	keyPEM  []byte
 	caCert  []byte
@@ -162,33 +193,34 @@ type getCertificateResult struct {
 }
 
 // GetCertificateBytes returns a new cert/key pem and the DB CA bytes
-func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*getCertificateResult, error) {
-	clusterName, err := d.auth.GetClusterName(ctx)
+func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKeyPair, error) {
+	clusterName, err := d.Auth.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sid, sidLookupError := d.ldapConnector.GetActiveDirectorySID(ctx, username)
+	sid, sidLookupError := d.GetActiveDirectorySID(ctx, clusterName.GetClusterName())
 	if sidLookupError != nil {
-		d.logger.WarnContext(ctx, "Failed to get SID from ActiveDirectory; PKINIT flow is likely to fail.", "error", sidLookupError)
+		d.Logger.WarnContext(ctx, "Failed to get SID from ActiveDirectory; PKINIT flow is likely to fail.", "error", sidLookupError)
 	}
 
-	req := &winpki.GenerateCredentialsRequest{
+	req := &windows.GenerateCredentialsRequest{
 		CAType:             types.DatabaseClientCA,
-		TTL:                time.Minute * 10,
-		Domain:             d.domain,
+		Username:           d.UserName,
+		Domain:             d.ADConfig.Domain,
+		TTL:                certTTL,
 		ClusterName:        clusterName.GetClusterName(),
-		OmitCDP:            true,
-		Username:           username,
+		AuthClient:         d.Auth,
 		ActiveDirectorySID: sid,
+		OmitCDP:            true,
 	}
 
-	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, d.auth, req)
+	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &getCertificateResult{
+	return &WindowsCAAndKeyPair{
 		certPEM:        certPEM,
 		keyPEM:         keyPEM,
 		caCert:         bytes.Join(caCerts, []byte("\n")),
@@ -196,93 +228,160 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 	}, nil
 }
 
-const (
-	// kinitBinary is the binary Name for the kinit executable
-	kinitBinary = "kinit"
-)
-
-func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*client.Client, error) {
-	tmp, err := os.MkdirTemp("", "kinit")
+func (d *DBCertGetter) getLDAPCACert() (*x509.Certificate, error) {
+	ldapPem, _ := pem.Decode([]byte(d.ADConfig.LDAPCert))
+	if ldapPem == nil {
+		return nil, trace.BadParameter("cannot find valid LDAP certificate block in AD configuration")
+	}
+	cert, err := x509.ParseCertificate(ldapPem.Bytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
+func (d *DBCertGetter) GetActiveDirectorySID(ctx context.Context, clusterName string) (string, error) {
+	if d.ADConfig.LDAPServiceAccountName == "" || d.ADConfig.LDAPServiceAccountSID == "" {
+		return "", trace.BadParameter("cannot query AD: missing LDAP service principal name or SID")
+	}
+
+	ldapCert, err := d.getLDAPCACert()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	conn := newLDAPConnector(ldapConnectorConfig{
+		logger:      d.Logger,
+		authClient:  d.Auth,
+		clusterName: clusterName,
+
+		ldapConfig: ldapConfig{
+			Address:           d.ADConfig.KDCHostName,
+			TLSServerName:     d.ADConfig.KDCHostName,
+			Domain:            d.ADConfig.Domain,
+			ServiceAccount:    d.ADConfig.LDAPServiceAccountName,
+			ServiceAccountSID: d.ADConfig.LDAPServiceAccountSID,
+			TLSCACert:         ldapCert,
+		},
+	})
+
+	sid, err := conn.GetActiveDirectorySID(ctx, d.UserName)
+
+	return sid, trace.Wrap(err)
+}
+
+// UseOrCreateCredentials uses an existing cacheData or creates a new one
+func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*credentials.CCache, *config.Config, error) {
+	tmp, err := os.MkdirTemp("", "kinit")
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	defer func() {
 		err = os.RemoveAll(tmp)
 		if err != nil {
-			k.logger.ErrorContext(ctx, "failed removing temporary kinit directory", "error", err)
+			k.logger.ErrorContext(ctx, "Failed to remove temporary kinit directory", "error", err)
 		}
 	}()
 
 	certPath := filepath.Join(tmp, "cert.pem")
 	keyPath := filepath.Join(tmp, "key.pem")
 	userCAPath := filepath.Join(tmp, "userca.pem")
-	cachePath := filepath.Join(tmp, "login.ccache")
+	cachePath := filepath.Join(tmp, "krb5.cache")
 
-	certResult, err := k.certGetter.getCertificate(ctx, username)
+	wca, err := k.certGetter.GetCertificateBytes(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(certPath, certResult.certPEM, 0644)
+	// store files in temp dir
+	err = os.WriteFile(certPath, wca.certPEM, 0600)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(keyPath, certResult.keyPEM, 0644)
+	err = os.WriteFile(keyPath, wca.keyPEM, 0600)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(certResult.caCert), 0644)
+	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(wca.caCert), 0600)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	krbConfPath := filepath.Join(tmp, "krb5.conf")
-	err = os.WriteFile(krbConfPath, []byte(k.krb5Config), 0600)
+	err = k.WriteKRB5Config(krbConfPath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	conf, err := config.Load(krbConfPath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	env := map[string]string{
-		"KRB5_CONFIG": krbConfPath,
-		"KRB5_TRACE":  "/dev/stdout",
-	}
-
-	output, err := k.runner.runCommand(ctx,
-		env,
-		kinitBinary,
+	cmd := k.command.CommandContext(ctx,
+		k.binary,
 		"-X", fmt.Sprintf("X509_anchors=FILE:%s", userCAPath),
 		"-X", fmt.Sprintf("X509_user_identity=FILE:%s,%s", certPath, keyPath),
 		"-c", cachePath,
-		"--",
-		username,
+		"--", k.userName,
 	)
-	if err != nil {
-		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "command_output", output, "error", err)
-		if certResult.sidLookupError != nil {
-			k.logger.WarnContext(ctx, "The failed request was made with empty SID due to LDAP lookup failure. AD servers are likely to reject such requests. The lookup error may be due to non-existent user or invalid configuration.", "sid_lookup_error", certResult.sidLookupError)
-		}
-		return nil, trace.Wrap(err)
+	if cmd.Err != nil {
+		return nil, nil, trace.Wrap(cmd.Err)
 	}
 
+	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath))
+	cmd.Env = append(cmd.Env, "KRB5_TRACE=/dev/stdout")
+
+	k.logger.DebugContext(ctx, "running kinit command", "cmd", cmd, "env", cmd.Env)
+
+	kinitOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "cmd_output", string(kinitOutput), "error", err)
+		if wca.sidLookupError != nil {
+			k.logger.WarnContext(ctx, "The failed request was made with an empty SID due to an LDAP lookup failure. AD servers are likely to reject such requests. The lookup error may be due to a non-existent user or invalid configuration.", "sid_lookup_error", wca.sidLookupError)
+		}
+		return nil, nil, trace.AccessDenied("authentication failed")
+	}
 	ccache, err := credentials.LoadCCache(cachePath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return client.NewFromCCache(ccache, conf, client.DisablePAFXFAST(true))
+	return ccache, conf, nil
+}
+
+// krb5ConfigString returns a config suitable for a kdc
+func (k *CommandLineInitializer) krb5ConfigString() (string, error) {
+	t, err := template.New("krb_conf").Parse(krb5ConfigTemplate)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	b := bytes.NewBuffer([]byte{})
+	err = t.Execute(b, k)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return b.String(), nil
+}
+
+// WriteKRB5Config writes a krb configuration to path
+func (k *CommandLineInitializer) WriteKRB5Config(path string) error {
+	s, err := k.krb5ConfigString()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(os.WriteFile(path, []byte(s), 0644))
 }
 
 // buildAnchorsFileContents generates the contents of the anchors file (pkinit).
 // The file must contain the Teleport DB CA and the KDB/LDAP CA, otherwise the
 // connections will fail.
-func (k *kinitProvider) buildAnchorsFileContents(caBytes []byte) []byte {
+func (k *CommandLineInitializer) buildAnchorsFileContents(caBytes []byte) []byte {
 	return append(caBytes, []byte(k.ldapCertificatePEM)...)
 }

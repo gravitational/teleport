@@ -326,7 +326,7 @@ func (b InputBlock) BlockType() BlockType {
 // Slack API: section blocks
 
 type SectionBlock struct {
-	Text    TextObjectItem   `json:"text"`
+	Text    TextObjectItem   `json:"text,omitempty"`
 	BlockID string           `json:"block_id,omitempty"`
 	Fields  []TextObjectItem `json:"fields,omitempty"`
 }

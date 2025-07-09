@@ -34,9 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
-// TestAutoInfoServiceCRUD verifies create/read/update/delete methods of the backend service
+// TestBackendInfoServiceCRUD verifies create/read/update/delete methods of the backend service
 // for BackendInfo resource.
-func TestAutoInfoServiceCRUD(t *testing.T) {
+func TestBackendInfoServiceCRUD(t *testing.T) {
 	t.Parallel()
 
 	bk, err := memory.New(memory.Config{})

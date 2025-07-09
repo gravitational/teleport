@@ -332,15 +332,15 @@ func (h *Handler) ensureBucket() error {
 	return nil
 }
 
-func convertGCSError(err error) error {
+func convertGCSError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
 
 	switch {
 	case errors.Is(err, storage.ErrBucketNotExist), errors.Is(err, storage.ErrObjectNotExist):
-		return trace.NotFound("%s", err)
+		return trace.NotFound(err.Error(), args...)
 	default:
-		return trace.Wrap(err)
+		return trace.Wrap(err, args...)
 	}
 }

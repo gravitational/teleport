@@ -21,10 +21,10 @@ package config
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -35,12 +35,12 @@ import (
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
 func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
-	ctx := context.TODO()
+	ctx := context.Background()
+
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
@@ -71,10 +71,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
 	}
 
-	slog.DebugContext(ctx, "Found profile",
-		"proxy", logutils.StringerAttr(&profile.ProxyURL),
-		"user", profile.Username,
-	)
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found profile.")
 
 	idx := client.KeyRingIndex{ProxyHost: profile.Name, Username: profile.Username, ClusterName: profile.Cluster}
 	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
@@ -108,7 +105,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		slog.DebugContext(ctx, "Setting auth server to web proxy", "web_proxy_addr", webProxyAddr)
+		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
 		cfg.SetAuthServerAddress(*webProxyAddr)
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()

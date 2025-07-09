@@ -64,8 +64,12 @@ service TerminalService {
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-  // ListDatabaseServers lists allowed users for the given database based on the role set.
-  rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
+  // GetServers returns filtered, sorted, and paginated servers
+  //
+  // Deprecated: Use ListUnifiedResources instead.
+  rpc GetServers(GetServersRequest) returns (GetServersResponse) {
+    option deprecated = true;
+  }
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -477,28 +481,6 @@ message ListDatabaseUsersResponse {
   repeated string users = 1;
 }
 
-// ListResourcesParams describes different types of params
-// that can be applied when sending a request to a method that
-// uses the ListResources API underneath.
-message ListResourcesParams {
-  string start_key = 1;
-  int32 limit = 2;
-  string predicate_expression = 3;
-  // UseSearchAsRoles indicates that the response should include all resources
-  // the caller is able to request access to using search_as_roles
-  bool use_search_as_roles = 4;
-}
-
-message ListDatabaseServersRequest {
-  string cluster_uri = 1;
-  ListResourcesParams params = 2;
-}
-
-message ListDatabaseServersResponse {
-  repeated DatabaseServer resources = 1;
-  string next_key = 2;
-}
-
 message CreateGatewayRequest {
   string target_uri = 1;
   string target_user = 2;
@@ -524,6 +506,22 @@ message SetGatewayTargetSubresourceNameRequest {
 message SetGatewayLocalPortRequest {
   string gateway_uri = 1;
   string local_port = 2;
+}
+
+message GetServersRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetServersResponse {
+  repeated Server agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
 }
 
 message GetAuthSettingsRequest {
@@ -624,7 +622,7 @@ message SortBy {
 
 message ListUnifiedResourcesResponse {
   repeated PaginatedResource resources = 1;
-  // A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
+  // A key to use as start_key in a ListResourcesRequest to continue retrieving
   // the next pages. If it is empty, there are no more pages.
   string next_key = 2;
 }

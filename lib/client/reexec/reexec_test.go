@@ -90,7 +90,9 @@ func TestRunForkAuthenticate(t *testing.T) {
 			Stderr:     stderr,
 		}
 
-		err := RunForkAuthenticate(t.Context(), params)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		err := RunForkAuthenticate(ctx, params)
 		assert.NoError(t, err)
 		assert.EventuallyWithT(t, func(t *assert.CollectT) {
 			assert.Equal(t, "stdout: hello\n", stdout.String())
@@ -100,6 +102,8 @@ func TestRunForkAuthenticate(t *testing.T) {
 
 	t.Run("child exits with error", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 		const script = `
 		# Make sure stdin/out/err work.
 		read
@@ -121,7 +125,7 @@ func TestRunForkAuthenticate(t *testing.T) {
 			Stderr:     stderr,
 		}
 
-		err := RunForkAuthenticate(t.Context(), params)
+		err := RunForkAuthenticate(ctx, params)
 		var execErr *exec.ExitError
 		if assert.ErrorAs(t, err, &execErr) {
 			assert.Equal(t, 42, execErr.ExitCode())
@@ -153,7 +157,7 @@ func TestRunForkAuthenticate(t *testing.T) {
 			Stdout:     stdout,
 			Stderr:     stderr,
 		}
-		ctx, cancel := context.WithCancel(t.Context())
+		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
 		errorCh := make(chan error, 1)

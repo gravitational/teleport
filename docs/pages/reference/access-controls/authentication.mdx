@@ -47,7 +47,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factors: ["webauthn"]
+      second_factor: "webauthn"
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -68,7 +68,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "webauthn"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -102,7 +102,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "webauthn"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -272,7 +272,7 @@ See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) fo
 ## Require displaying a message of the day
 
 Teleport can display a custom message of the day (MOTD) for users prior to authenticating
-in the Teleport Web UI and CLI. 
+in the Teleport Web UI and CLI.
 
 ### Self-Hosted
 

@@ -19,7 +19,7 @@ package kinit
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
+	"crypto/x509"
 	"testing"
 	"time"
 
@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -77,43 +78,44 @@ func (m *mockAuthClient) GenerateDatabaseCert(ctx context.Context, request *prot
 }
 
 func (m *mockAuthClient) GenerateWindowsDesktopCert(ctx context.Context, request *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	return nil, trace.NotImplemented("GenerateWindowsDesktopCert not implemented")
+	return nil, trace.NotImplemented("GenerateWindowsDesktopCert")
 }
 
 func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return nil, trace.NotImplemented("GetCertAuthority not implemented")
+	return nil, trace.NotImplemented("GetCertAuthority")
 }
 
-func (m *mockAuthClient) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "test-cluster", ClusterID: "test-cluster-id"})
+func (m *mockAuthClient) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	return nil, trace.NotImplemented("GetClusterName")
 }
 
 func TestTLSConfigForLDAP(t *testing.T) {
-	auth := &mockAuthClient{
-		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			require.Equal(t, "CN=test-user", csr.Subject.String())
-			require.Len(t, csr.Extensions, 3)
-			return generateDatabaseCert(ctx, request)
+	mockCACert := &x509.Certificate{}
+
+	connector := newLDAPConnector(ldapConnectorConfig{
+		authClient: &mockAuthClient{
+			generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+				csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				require.Equal(t, "CN=test-user", csr.Subject.String())
+				require.Len(t, csr.Extensions, 3)
+				return generateDatabaseCert(ctx, request)
+			},
 		},
-	}
-
-	adConfig := types.AD{
-		Domain:                 "example.com",
-		LDAPCert:               fixtures.TLSCACertPEM,
-		KDCHostName:            "ldap.example.com",
-		LDAPServiceAccountName: "DOMAIN\\test-user",
-		LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
-	}
-
-	connector, err := newLDAPConnector(slog.Default(), auth, adConfig)
-	require.NoError(t, err)
+		ldapConfig: ldapConfig{
+			ServiceAccount:    "DOMAIN\\test-user",
+			ServiceAccountSID: "S-1-5-21-2191801808-3167526388-2669316733-1104",
+			Domain:            "example.com",
+			TLSServerName:     "ldap.example.com",
+			TLSCACert:         mockCACert,
+		},
+		clusterName: "test-cluster",
+	})
 
 	ctx := context.Background()
-	tlsConfig, err := connector.tlsConfigForLDAP(ctx, "test-cluster")
+	tlsConfig, err := connector.tlsConfigForLDAP(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tlsConfig)
 	require.Equal(t, "ldap.example.com", tlsConfig.ServerName)
@@ -134,19 +136,19 @@ func (m *mockLDAPClient) SearchWithPaging(searchRequest *ldap.SearchRequest, pag
 }
 
 func TestGetActiveDirectorySID(t *testing.T) {
-	adConfig := types.AD{
-		KeytabFile:             "",
-		Krb5File:               "",
-		SPN:                    "",
-		Domain:                 "example.com",
-		LDAPCert:               fixtures.TLSCACertPEM,
-		KDCHostName:            "ldap.example.com",
-		LDAPServiceAccountName: "DOMAIN\\test-service-account",
-		LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
-	}
+	mockCACert := &x509.Certificate{}
 
-	connector, err := newLDAPConnector(slog.Default(), &mockAuthClient{}, adConfig)
-	require.NoError(t, err)
+	connector := newLDAPConnector(ldapConnectorConfig{
+		authClient: &mockAuthClient{},
+		ldapConfig: ldapConfig{
+			ServiceAccount:    "DOMAIN\\test-service-account",
+			ServiceAccountSID: "S-1-5-21-2191801808-3167526388-2669316733-1104",
+			Domain:            "example.com",
+			TLSServerName:     "ldap.example.com",
+			TLSCACert:         mockCACert,
+		},
+		clusterName: "test-cluster",
+	})
 
 	connector.dialLDAPServerFunc = func(ctx context.Context) (ldap.Client, error) {
 		return &mockLDAPClient{searchWithPaging: func(searchRequest *ldap.SearchRequest, pagingSize uint32) (*ldap.SearchResult, error) {

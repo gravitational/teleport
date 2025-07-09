@@ -25,6 +25,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testLogger struct {
+	loggedCount int
+}
+
+func (t *testLogger) Infof(msg string, args ...any) {
+	t.loggedCount++
+}
+
 func TestCachedParser(t *testing.T) {
 	// A simple cached parser with no environment that always returns an int.
 	p, err := NewCachedParser[struct{}, int](ParserSpec[struct{}]{
@@ -36,6 +44,9 @@ func TestCachedParser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, p)
+
+	var logger testLogger
+	p.logger = &logger
 
 	// Sanity check we still get errors.
 	_, err = p.Parse(`"hello"`)
@@ -82,12 +93,18 @@ func TestCachedParser(t *testing.T) {
 
 		// Check that each new parsed expression results in an eviction.
 		require.Equal(t, uint32(i+1), p.evictedCount.Load())
+
+		// Check that no log was printed
+		require.Equal(t, 0, logger.loggedCount)
 	}
 
 	// Parse one more expression
 	expr := fmt.Sprintf("inc(%d)", defaultCacheSize+logAfterEvictions)
 	_, err = p.Parse(expr)
 	require.NoError(t, err)
+
+	// Check a log was printed once after $logAfterEvictions evictions.
+	require.Equal(t, 1, logger.loggedCount)
 
 	// Parse another $logAfterEvictions unique expressions to cause
 	// another $logAfterEvictions cache evictions and one more log
@@ -96,4 +113,7 @@ func TestCachedParser(t *testing.T) {
 		_, err := p.Parse(expr)
 		require.NoError(t, err)
 	}
+
+	// Check a log was printed twice after 2*$logAfterEvictions evictions.
+	require.Equal(t, 2, logger.loggedCount)
 }

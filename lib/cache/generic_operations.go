@@ -26,7 +26,7 @@ import (
 
 // genericGetter is a helper to retrieve a single item from a cache collection.
 type genericGetter[T any, I comparable] struct {
-	// cache to performe the primary read from.
+	// cache to perform the primary read from.
 	cache *Cache
 	// collection that contains the item.
 	collection *collection[T, I]
@@ -39,7 +39,7 @@ type genericGetter[T any, I comparable] struct {
 
 // get retrieves a single item by an identifier from
 // a cache collection. If the cache is not healthy, then the item is retrieved
-// from the upstream backend. The item returend is cloned and ownership
+// from the upstream backend. The item returned is cloned and ownership
 // is retained by the caller.
 func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, error) {
 	var t T
@@ -64,12 +64,14 @@ func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, err
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
 type genericLister[T any, I comparable] struct {
-	// cache to performe the primary read from.
+	// cache to perform the primary read from.
 	cache *Cache
 	// collection that contains the item.
 	collection *collection[T, I]
 	// index of the collection to read with.
 	index I
+	// isDesc indicates whether the lister should retrieve items in descending order.
+	isDesc bool
 	// defaultPageSize optionally defines a page size to use if
 	// one is not specified by the caller. If not set then
 	// [defaults.DefaultChunkSize] is used.
@@ -87,7 +89,7 @@ type genericLister[T any, I comparable] struct {
 
 // listRange retrieves a page of items from the configured cache collection between the start and end tokens.
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
-// The items returend are cloned and ownership is retained by the caller.
+// The items returned are cloned and ownership is retained by the caller.
 func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startToken, endToken string) ([]T, string, error) {
 	rg, err := acquireReadGuard(l.cache, l.collection)
 	if err != nil {
@@ -109,8 +111,13 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 		pageSize = defaultPageSize
 	}
 
+	fetchFn := rg.store.cache.Ascend
+	if l.isDesc {
+		fetchFn = rg.store.cache.Descend
+	}
+
 	var out []T
-	for sf := range rg.store.resources(l.index, startToken, endToken) {
+	for sf := range fetchFn(l.index, startToken, endToken) {
 		if len(out) == pageSize {
 			return out, l.nextToken(sf), nil
 		}
@@ -126,31 +133,8 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 
 // list retrieves a page of items from the configured cache collection.
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
-// The items returend are cloned and ownership is retained by the caller.
+// The items returned are cloned and ownership is retained by the caller.
 func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
 	out, next, err := l.listRange(ctx, pageSize, startToken, "")
 	return out, next, trace.Wrap(err)
-}
-
-// fetchAll fetches all items from a paginated getter that's appropriately
-// shaped. Useful to implement [collection.fetcher].
-func fetchAll[T any](
-	ctx context.Context,
-	getPage func(ctx context.Context, pageSize int, pageToken string) (_ []T, nextPageToken string, _ error),
-) ([]T, error) {
-	var out []T
-	var pageToken string
-	for {
-		const defaultPageSize = 0
-		page, nextPageToken, err := getPage(ctx, defaultPageSize, pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextPageToken == "" {
-			break
-		}
-		pageToken = nextPageToken
-	}
-	return out, nil
 }

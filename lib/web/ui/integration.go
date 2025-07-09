@@ -49,36 +49,6 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
-// IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
-type IntegrationAWSRASpec struct {
-	// TrustAnchorARN is the IAM Roles Anywhere Trust Anchor ARN associated with the integration.
-	TrustAnchorARN string `json:"trustAnchorARN"`
-
-	// ProfileSyncConfig contains the Profile sync configuration.
-	ProfileSyncConfig AWSRAProfileSync `json:"profileSyncConfig"`
-}
-
-// AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
-type AWSRAProfileSync struct {
-	// Enabled indicates if the Profile Sync is enabled.
-	Enabled bool `json:"enabled"`
-
-	// ProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
-	ProfileARN string `json:"profileArn"`
-
-	// RoleARN is the ARN of the IAM Role that is used to sync profiles.
-	RoleARN string `json:"roleArn"`
-}
-
-// CheckAndSetDefaults for the aws oidc integration spec.
-func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
-	if r.TrustAnchorARN == "" {
-		return trace.BadParameter("missing awsra.trustAnchorArn field")
-	}
-
-	return nil
-}
-
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
 	Organization string `json:"organization"`
@@ -104,11 +74,11 @@ type IntegrationWithSummary struct {
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
-	AWSEC2 ResourceTypeSummary `json:"awsec2"`
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
-	AWSRDS ResourceTypeSummary `json:"awsrds"`
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
-	AWSEKS ResourceTypeSummary `json:"awseks"`
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -168,8 +138,6 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
-	// AWSRA contains the fields for `aws-ra` subkind integration.
-	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// GitHub contains the fields for `github` subkind integration.
 	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
@@ -198,10 +166,6 @@ func (r *Integration) CheckAndSetDefaults() error {
 		}
 		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
-		}
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		if r.AWSRA == nil {
-			return trace.BadParameter("missing spec for AWS Roles Anywhere integration")
 		}
 	}
 
@@ -234,22 +198,6 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
-	if r.SubKind == types.IntegrationSubKindAWSRolesAnywhere {
-		if r.AWSRA == nil {
-			return trace.BadParameter("missing awsra field")
-		}
-		if r.AWSRA.TrustAnchorARN == "" {
-			return trace.BadParameter("missing awsra.trustAnchorArn field")
-		}
-		if r.AWSRA.ProfileSyncConfig.Enabled {
-			if r.AWSRA.ProfileSyncConfig.ProfileARN == "" {
-				return trace.BadParameter("missing awsra.profileSync.profileArn field")
-			}
-			if r.AWSRA.ProfileSyncConfig.RoleARN == "" {
-				return trace.BadParameter("missing awsra.profileSync.roleArn field")
-			}
-		}
-	}
 	return nil
 }
 
@@ -257,8 +205,6 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
-	// AWSRA contains the fields for `aws-ra` subkind integration.
-	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// OAuth contains OAuth settings.
 	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
@@ -267,11 +213,6 @@ type UpdateIntegrationRequest struct {
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if r.AWSRA != nil {
-		if err := r.AWSRA.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -345,20 +286,6 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		ret.GitHub = &IntegrationGitHub{
 			Organization: spec.Organization,
-		}
-
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		spec := ig.GetAWSRolesAnywhereIntegrationSpec()
-		if spec == nil {
-			return nil, trace.BadParameter("missing spec for AWS Roles Anywhere integrations")
-		}
-		ret.AWSRA = &IntegrationAWSRASpec{
-			TrustAnchorARN: spec.TrustAnchorARN,
-			ProfileSyncConfig: AWSRAProfileSync{
-				Enabled:    spec.ProfileSyncConfig.Enabled,
-				ProfileARN: spec.ProfileSyncConfig.ProfileARN,
-				RoleARN:    spec.ProfileSyncConfig.RoleARN,
-			},
 		}
 	}
 
@@ -554,6 +481,25 @@ type AWSOIDCListEKSClustersResponse struct {
 	NextToken string `json:"nextToken,omitempty"`
 }
 
+// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
+type AWSOIDCListEC2Request struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
+type AWSOIDCListEC2Response struct {
+	// Servers contains the page of Servers
+	Servers []Server `json:"servers"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
 // AWSOIDCListSecurityGroupsRequest is a request to ListSecurityGroups using the AWS OIDC Integration.
 type AWSOIDCListSecurityGroupsRequest struct {
 	// Region is the AWS Region.
@@ -643,6 +589,78 @@ type AWSOIDCRequiredVPCSResponse struct {
 	// VPCMapOfSubnets is a map of vpc ids and its subnets.
 	// Will be empty if no vpc's are required.
 	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
+}
+
+// AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
+type AWSOIDCListEC2ICERequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
+	// Deprecated: use VPCIDs instead.
+	VPCID string `json:"vpcId"`
+	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+	VPCIDs []string `json:"vpcIds"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
+type AWSOIDCListEC2ICEResponse struct {
+	// EC2ICEs contains the page of Endpoints
+	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
+
+	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
+	DashboardLink string `json:"dashboardLink,omitempty"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCDeployEC2ICERequest is a request to create an AWS EC2 Instance Connect Endpoint.
+type AWSOIDCDeployEC2ICERequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// Endpoints is a list of endpoinst to create.
+	Endpoints []AWSOIDCDeployEC2ICERequestEndpoint `json:"endpoints"`
+
+	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
+	// Deprecated: use Endpoints instead.
+	SubnetID string `json:"subnetId"`
+	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
+	// Deprecated: use Endpoints instead.
+	SecurityGroupIDs []string `json:"securityGroupIds"`
+}
+
+// AWSOIDCDeployEC2ICERequestEndpoint is a single Endpoint that should be created.
+type AWSOIDCDeployEC2ICERequestEndpoint struct {
+	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
+	SubnetID string `json:"subnetId"`
+	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
+	SecurityGroupIDs []string `json:"securityGroupIds"`
+}
+
+// AWSOIDCDeployEC2ICEResponse is the response after creating an AWS EC2 Instance Connect Endpoint.
+type AWSOIDCDeployEC2ICEResponse struct {
+	// Name is the name of the endpoint that was created.
+	// If multiple endpoints were created, this will contain all of them joined by a `,`.
+	// Eg, eice-1,eice-2
+	// Deprecated: use Endpoints instead.
+	Name string `json:"name"`
+
+	// Endpoints is a list of created endpoints
+	Endpoints []AWSOIDCDeployEC2ICEResponseEndpoint `json:"endpoints"`
+}
+
+// AWSOIDCDeployEC2ICEResponseEndpoint describes a single endpoint that was created.
+type AWSOIDCDeployEC2ICEResponseEndpoint struct {
+	// Name is the EC2 Instance Connect Endpoint name.
+	Name string `json:"name"`
+	// SubnetID is the subnet where this endpoint was created.
+	SubnetID string `json:"subnetId"`
 }
 
 // AWSOIDCPingResponse contains the result of the Ping request.

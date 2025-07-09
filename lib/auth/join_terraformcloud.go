@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
@@ -58,7 +59,7 @@ func (a *Server) checkTerraformCloudJoinRequest(
 
 	aud := token.Spec.TerraformCloud.Audience
 	if aud == "" {
-		clusterName, err := a.GetClusterName(ctx)
+		clusterName, err := a.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -73,10 +74,10 @@ func (a *Server) checkTerraformCloudJoinRequest(
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "Terraform Cloud run trying to join cluster",
-		"claims", claims,
-		"token", pt.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("Terraform Cloud run trying to join cluster")
 
 	return claims, trace.Wrap(checkTerraformCloudAllowRules(token, claims))
 }

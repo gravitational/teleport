@@ -51,6 +51,8 @@ type SecurityReportGetter interface {
 type SecurityReportStateGetter interface {
 	// GetSecurityReportState returns a security report state.
 	GetSecurityReportState(ctx context.Context, name string) (*secreports.ReportState, error)
+	// GetSecurityReportsStates returns security report states.
+	GetSecurityReportsStates(context.Context) ([]*secreports.ReportState, error)
 	// ListSecurityReportsStates  lists security report states.
 	ListSecurityReportsStates(context.Context, int, string) ([]*secreports.ReportState, string, error)
 }
@@ -62,16 +64,24 @@ type SecReports interface {
 	UpsertSecurityAuditQuery(ctx context.Context, in *secreports.AuditQuery) error
 	// DeleteSecurityAuditQuery deletes an audit query.
 	DeleteSecurityAuditQuery(ctx context.Context, name string) error
+	// DeleteAllSecurityAuditQueries deletes all audit queries.
+	DeleteAllSecurityAuditQueries(context.Context) error
 
 	SecurityReportGetter
 	// UpsertSecurityReport upserts a security report.
 	UpsertSecurityReport(ctx context.Context, item *secreports.Report) error
 	// DeleteSecurityReport deletes a security report.
 	DeleteSecurityReport(ctx context.Context, name string) error
+	// DeleteAllSecurityReports deletes all audit queries.
+	DeleteAllSecurityReports(context.Context) error
 
 	SecurityReportStateGetter
 	// UpsertSecurityReportsState upserts a security report state.
 	UpsertSecurityReportsState(ctx context.Context, item *secreports.ReportState) error
+	// DeleteSecurityReportsState deletes all audit queries.
+	DeleteSecurityReportsState(ctx context.Context, name string) error
+	// DeleteAllSecurityReportsStates deletes all audit queries.
+	DeleteAllSecurityReportsStates(context.Context) error
 }
 
 // CostLimiter is the interface for the security cost limiter.
@@ -111,7 +121,7 @@ func UnmarshalAuditQuery(data []byte, opts ...MarshalOption) (*secreports.AuditQ
 	}
 	var out *secreports.AuditQuery
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -151,7 +161,7 @@ func UnmarshalSecurityReport(data []byte, opts ...MarshalOption) (*secreports.Re
 	}
 	var out *secreports.Report
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -189,7 +199,7 @@ func UnmarshalSecurityReportState(data []byte, opts ...MarshalOption) (*secrepor
 	}
 	var out *secreports.ReportState
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -227,7 +237,7 @@ func UnmarshalSecurityCostLimiter(data []byte, opts ...MarshalOption) (*secrepor
 	}
 	var out *secreports.CostLimiter
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

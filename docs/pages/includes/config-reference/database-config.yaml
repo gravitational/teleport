@@ -20,8 +20,8 @@ db_service:
     # 'rdsproxy' - discovers and registers Amazon RDS Proxy databases.
     # 'redshift' - discovers and registers Amazon Redshift databases.
     # 'redshift-serverless' - discovers and registers Amazon Redshift Serverless databases.
-    # 'elasticache' - discovers and registers Amazon ElastiCache Redis and Valkey databases.
-    # 'memorydb' - discovers and registers Amazon MemoryDB databases.
+    # 'elasticache' - discovers and registers Amazon ElastiCache Redis databases.
+    # 'memorydb' - discovers and registers Amazon MemoryDB Redis databases.
     # 'opensearch' - discovers and registers Amazon OpenSearch databases.
     # 'docdb' - discovers and registers Amazon DocumentDB databases.
   - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]

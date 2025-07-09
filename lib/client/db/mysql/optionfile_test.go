@@ -65,14 +65,15 @@ func TestOptionFile(t *testing.T) {
 
 	require.Equal(t,
 		map[string]string{
-			"host":     "localhost",
-			"port":     "3036",
-			"user":     "root",
-			"database": "mysql",
-			"ssl-mode": "VERIFY_IDENTITY",
-			"ssl-ca":   `c:\\users\\user\\.tsh\\foo\\ca.pem`,
-			"ssl-cert": `c:\\users\\user\\.tsh\\foo\\cert.pem`,
-			"ssl-key":  `c:\\users\\user\\.tsh\\foo\\key.pem`,
+			"host":          "localhost",
+			"port":          "3036",
+			"user":          "root",
+			"database":      "mysql",
+			"ssl-mode":      "VERIFY_IDENTITY",
+			"ssl-ca":        `c:\\users\\user\\.tsh\\foo\\ca.pem`,
+			"ssl-cert":      `c:\\users\\user\\.tsh\\foo\\cert.pem`,
+			"ssl-key":       `c:\\users\\user\\.tsh\\foo\\key.pem`,
+			"skip-password": "true",
 		},
 		clientTest.KeysHash())
 

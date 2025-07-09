@@ -20,7 +20,6 @@ package resources_test
 
 import (
 	"context"
-	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -32,6 +31,7 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var oktaImportRuleSpec = types.OktaImportRuleSpecV1{
@@ -111,7 +111,7 @@ func (g *oktaImportRuleTestingPrimitives) CreateKubernetesResource(ctx context.C
 		}
 		spec.Mappings[i] = resourcesv1.TeleportOktaImportRuleMapping{
 			Match:     matches,
-			AddLabels: maps.Clone(mapping.AddLabels),
+			AddLabels: utils.CopyStringsMap(mapping.AddLabels),
 		}
 	}
 

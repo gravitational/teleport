@@ -88,11 +88,9 @@ test.each(tests)(
         clusters: [rootCluster],
       })
     );
-    jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
+    jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
       new MockedUnaryCall({
-        appDnsZones: [proxyHostname(rootCluster.proxyHost)],
-        clusters: [rootCluster.name],
-        sshConfigured: true,
+        dnsZones: [proxyHostname(rootCluster.proxyHost)],
       })
     );
 
@@ -122,7 +120,7 @@ test.each(tests)(
     ).toBeInTheDocument();
     await user.click(within(docVnetInfo).getByText('Start VNet'));
     expect(
-      await screen.findByText(/Proxying TCP and SSH connections/)
+      await screen.findByText(/Proxying TCP connections/)
     ).toBeInTheDocument();
 
     // Verify that a notification is shown and that the address is in the clipboard.
@@ -143,7 +141,7 @@ test.each(tests)(
     await user.click(within(docVnetInfo).getByText('Stop VNet'));
     await user.click(await within(docVnetInfo).findByText('Start VNet'));
     expect(
-      await screen.findByText(/Proxying TCP and SSH connections/)
+      await screen.findByText(/Proxying TCP connections/)
     ).toBeInTheDocument();
 
     // Verify that the address was not copied to the clipboard after the second start from the "Start
@@ -184,11 +182,9 @@ test.each(tests)(
         clusters: [rootCluster],
       })
     );
-    jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
+    jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
       new MockedUnaryCall({
-        appDnsZones: [proxyHostname(rootCluster.proxyHost)],
-        clusters: [rootCluster.name],
-        sshConfigured: true,
+        dnsZones: [proxyHostname(rootCluster.proxyHost)],
       })
     );
 
@@ -213,7 +209,7 @@ test.each(tests)(
 
     // Verify that VNet is running and that the public address was copied to the clipboard.
     expect(
-      await screen.findByText(/Proxying TCP and SSH connections/)
+      await screen.findByText(/Proxying TCP connections/)
     ).toBeInTheDocument();
     expect(
       await screen.findByText(
@@ -245,11 +241,9 @@ test('launching VNet for the first time from the connections panel does not open
       clusters: [rootCluster],
     })
   );
-  jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
+  jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
     new MockedUnaryCall({
-      appDnsZones: [proxyHostname(rootCluster.proxyHost)],
-      clusters: [rootCluster.name],
-      sshConfigured: true,
+      dnsZones: [proxyHostname(rootCluster.proxyHost)],
     })
   );
 

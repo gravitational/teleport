@@ -21,10 +21,10 @@ package kubev1
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -85,7 +85,7 @@ type Config struct {
 	// Authz authenticates user.
 	Authz authz.Authorizer
 	// Log is the logger function.
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// Component name to include in log output.
@@ -139,9 +139,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Component = "kube.grpc"
 	}
 	if c.Log == nil {
-		c.Log = slog.Default()
+		c.Log = logrus.New()
 	}
-	c.Log = c.Log.With(teleport.ComponentKey, c.Component)
+	c.Log = c.Log.WithFields(logrus.Fields{teleport.ComponentKey: c.Component})
 	return nil
 }
 

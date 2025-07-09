@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
+// +build vnetdaemon
 
 package common
 
@@ -26,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 const (
@@ -50,19 +50,10 @@ func newPlatformVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
 }
 
 func (c *vnetDaemonCommand) run(cf *CLIConf) error {
-	subsystem, err := daemon.DaemonLabel()
-	if err != nil {
-		logger.WarnContext(cf.Context, "Could not get daemon label to set it as os_log subsystem, using 'tsh' as a fallback", "error", err)
-		subsystem = "tsh"
-	}
-
-	level := slog.LevelInfo
 	if cf.Debug {
-		level = slog.LevelDebug
-	}
-
-	if _, err := utils.InitLogger(utils.LoggingForDaemon, level, utils.WithOSLog(subsystem)); err != nil {
-		return trace.Wrap(err, "initializing logger")
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
+	} else {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 	}
 
 	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))

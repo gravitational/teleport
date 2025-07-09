@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -38,7 +39,7 @@ type Getter interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // MatchUnshuffled will match a list of applications with the passed in matcher
@@ -145,7 +146,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tun
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := MatchUnshuffled(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		clusterName, err := clt.GetClusterName(ctx)
+		clusterName, err := clt.GetClusterName()
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

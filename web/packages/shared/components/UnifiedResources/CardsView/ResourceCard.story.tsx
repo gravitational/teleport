@@ -23,21 +23,13 @@ import styled from 'styled-components';
 import { ButtonBorder } from 'design';
 import { gap, GapProps } from 'design/system';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps } from 'teleport/Apps/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases } from 'teleport/Databases/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops } from 'teleport/Desktops/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { kubes } from 'teleport/Kubes/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { nodes } from 'teleport/Nodes/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import makeApp from 'teleport/services/apps/makeApps';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import {
@@ -142,9 +134,12 @@ export const Cards: Story = {
                 selectResource={() => {}}
                 selected={false}
                 pinningSupport={PinningSupport.Supported}
-                onShowStatusInfo={() => null}
-                showingStatusInfo={false}
-                viewItem={res}
+                name={res.name}
+                primaryIconName={res.primaryIconName}
+                SecondaryIcon={res.SecondaryIcon}
+                cardViewProps={res.cardViewProps}
+                labels={res.labels}
+                ActionButton={res.ActionButton}
               />
             ))}
           </Grid>

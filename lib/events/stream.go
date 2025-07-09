@@ -90,8 +90,6 @@ type ProtoStreamerConfig struct {
 	// sending on this channel just forces a single flush for whichever upload happens
 	// to receive the signal first, so this may not be suitable for concurrent tests.
 	ForceFlush chan struct{}
-	// RetryConfig defines how to retry on a failed upload
-	RetryConfig *retryutils.LinearConfig
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -141,7 +139,6 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		MinUploadBytes:    s.cfg.MinUploadBytes,
 		ConcurrentUploads: s.cfg.ConcurrentUploads,
 		ForceFlush:        s.cfg.ForceFlush,
-		RetryConfig:       s.cfg.RetryConfig,
 	})
 }
 
@@ -170,7 +167,6 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		Uploader:       s.cfg.Uploader,
 		MinUploadBytes: s.cfg.MinUploadBytes,
 		CompletedParts: parts,
-		RetryConfig:    s.cfg.RetryConfig,
 	})
 }
 
@@ -201,8 +197,6 @@ type ProtoStreamConfig struct {
 	Clock clockwork.Clock
 	// ConcurrentUploads sets concurrent uploads per stream
 	ConcurrentUploads int
-	// RetryConfig defines how to retry on a failed upload
-	RetryConfig *retryutils.LinearConfig
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -230,12 +224,6 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
-	}
-	if cfg.RetryConfig == nil {
-		cfg.RetryConfig = &retryutils.LinearConfig{
-			Step: NetworkRetryDuration,
-			Max:  NetworkBackoffDuration,
-		}
 	}
 	return nil
 }
@@ -296,7 +284,6 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		completedUploadsC: make(chan *activeUpload, cfg.ConcurrentUploads),
 		semUploads:        make(chan struct{}, cfg.ConcurrentUploads),
 		lastPartNumber:    0,
-		retryConfig:       *cfg.RetryConfig,
 	}
 	if len(cfg.CompletedParts) > 0 {
 		// skip 2 extra parts as a protection from accidental overwrites.
@@ -502,8 +489,6 @@ type sliceWriter struct {
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
 	emptyHeader [ProtoStreamV1PartHeaderSize]byte
-	// retryConfig  defines how to retry on a failed upload
-	retryConfig retryutils.LinearConfig
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -791,7 +776,10 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error
-				retry, rerr = retryutils.NewLinear(w.retryConfig)
+				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
+					Step: NetworkRetryDuration,
+					Max:  NetworkBackoffDuration,
+				})
 				if rerr != nil {
 					activeUpload.setError(rerr)
 					return

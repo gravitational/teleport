@@ -51,14 +51,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -67,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -90,7 +87,7 @@ import (
 func TestMFADeviceManagement(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(*clockwork.FakeClock)
+	clock := testServer.Clock().(clockwork.FakeClock)
 	ctx := context.Background()
 
 	// Enable MFA support.
@@ -570,7 +567,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(*clockwork.FakeClock)
+	clock := testServer.Clock().(clockwork.FakeClock)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -758,7 +755,7 @@ type mfaDevices struct {
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 	require.NotNil(t, challenge.TOTP, "nil TOTP challenge")
 
-	if c, ok := d.clock.(*clockwork.FakeClock); ok {
+	if c, ok := d.clock.(clockwork.FakeClock); ok {
 		c.Advance(30 * time.Second)
 	}
 
@@ -1521,7 +1518,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
-	fakeClock, ok := clock.(*clockwork.FakeClock)
+	fakeClock, ok := clock.(clockwork.FakeClock)
 	require.True(t, ok)
 	fakeClock.Advance(-60 * time.Second)
 
@@ -2277,105 +2274,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 			},
 		},
-		{
-			desc: "fail - ssh using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					SSHPublicKey: sshPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:    proto.UserCertsRequest_SSH,
-					NodeName: "node-a",
-					SSHLogin: "role",
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - k8s using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:             proto.UserCertsRequest_Kubernetes,
-					KubernetesCluster: "kube-b",
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - db using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_Database,
-					RouteToDatabase: proto.RouteToDatabase{
-						ServiceName: "db-a",
-						Database:    "db-a",
-					},
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - app using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_App,
-					RouteToApp: proto.RouteToApp{
-						Name: "app-a",
-					},
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - desktops using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_WindowsDesktop,
-					RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-						WindowsDesktop: "desktop",
-						Login:          "role",
-					},
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -3041,16 +2939,16 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	err = stream.Send(ctx, &proto.UpstreamInventoryHello{
+	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: types.SystemRoles(roles).StringSlice(),
+		Services: roles,
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(*proto.DownstreamInventoryHello)
+		_, ok := msg.(proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for downstream hello")
@@ -3077,9 +2975,9 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	// wait for the ping
 	select {
 	case msg := <-stream.Recv():
-		ping, ok := msg.(*proto.DownstreamInventoryPing)
+		ping, ok := msg.(proto.DownstreamInventoryPing)
 		require.True(t, ok)
-		err = stream.Send(ctx, &proto.UpstreamInventoryPong{
+		err = stream.Send(ctx, proto.UpstreamInventoryPong{
 			ID: ping.ID,
 		})
 		require.NoError(t, err)
@@ -3325,7 +3223,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			ServerID: "node",
+			Node: "node",
 		},
 		Message: "node compromised",
 	})
@@ -4853,7 +4751,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 }
 
 func TestRoleVersions(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+	t.Parallel()
 	srv := newTestTLSServer(t)
 
 	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
@@ -5019,8 +4917,6 @@ func TestRoleVersions(t *testing.T) {
 						// and ignore it in the role diff.
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-						} else {
-							require.Empty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
 						}
 					}
 					checkErr := func(err error) {
@@ -5051,21 +4947,6 @@ func TestRoleVersions(t *testing.T) {
 							break
 						}
 						require.True(t, foundTestRole, "GetRoles result does not include expected role")
-					}
-
-					// Test ListRoles
-					listRoles, err := client.ListRoles(ctx, &proto.ListRolesRequest{})
-					checkErr(err)
-					if !tc.expectError {
-						foundTestRole := false
-						for _, gotRole := range listRoles.Roles {
-							if gotRole.GetName() == tc.inputRole.GetName() {
-								checkRole(gotRole)
-								foundTestRole = true
-								break
-							}
-						}
-						require.True(t, foundTestRole, "ListRoles result does not include expected role")
 					}
 
 					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -5277,31 +5158,6 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	}
 }
 
-func TestGetVnetConfig(t *testing.T) {
-	server := newTestTLSServer(t)
-	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
-	require.NoError(t, err)
-
-	// Create newConfig.
-	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
-		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
-		CustomDnsZones: []*vnetv1pb.CustomDNSZone{&vnetv1pb.CustomDNSZone{Suffix: "example.com"}},
-	})
-	require.NoError(t, err)
-	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
-	require.NoError(t, err)
-
-	// Verify that a regular user is able to fetch the config.
-	identity := authz.LocalUser{
-		Username: user.GetName(),
-	}
-	client, err := server.NewClient(TestIdentity{I: identity})
-	require.NoError(t, err)
-	actualConfig, err := client.GetVnetConfig(t.Context())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
-}
-
 func TestCreateAuditStreamLimit(t *testing.T) {
 	const N = 5
 	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
@@ -5342,583 +5198,4 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	require.NoError(t, err)
 	_, err = stream.Recv()
 	require.ErrorAs(t, err, new(*trace.ConnectionProblemError))
-}
-
-func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
-
-	srv := newTestTLSServer(t)
-
-	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
-		role, err := types.NewRoleWithVersion(name, version, spec)
-		require.NoError(t, err)
-		return role
-	}
-
-	testRole1 := newRole("test_role_1", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule(types.KindRole, services.RW()),
-			},
-		},
-	})
-	downgradev7comptibleK8sResourcesRole := newRole("downgrade_v7_compatible_k8s_resources", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					// Full wildcard has the same behavior in v7 and v8, so we can keep it.
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "ingresses",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "networking.k8s.io",
-				},
-				{
-					Kind:      "deployments",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "apps",
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "ingresses",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "networking.k8s.io",
-				},
-				{
-					Kind:      "deployments",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "apps",
-				},
-			},
-		},
-	})
-	downgradev7incompatibleK8sResourcesRole := newRole("downgrade_v7_incompatible_k8s_resources", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "stable.example.com",
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7incompatibleNamespace := newRole("downgrade_v7_incompatible_namespace", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:  "namespaces",
-					Name:  "foo",
-					Verbs: []string{types.Wildcard},
-				},
-			},
-		},
-	})
-	downgradev7incompatibleNamespacedWildcard := newRole("downgrade_v7_incompatible_namespaced_wildcard", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					// In v17, this would also grant access to cluster-wide resources, so we need to reject.
-					Kind:      types.Wildcard,
-					Name:      "foo",
-					Namespace: "bar",
-					Verbs:     []string{"get"},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7incompatibleClusterWideWildcard := newRole("downgrade_v7_incompatible_cluster_wide_wildcard", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					// In v17, this wasn't supported.
-					Kind:      types.Wildcard,
-					Name:      "bar",
-					Namespace: "", // Cluster wide.
-					Verbs:     []string{"get"},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7mixedK8sResourcesRole := newRole("downgrade_v7_mixed_k8s_resources2", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "stable.example.com",
-				},
-				{
-					Kind:      "deployments",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	user, err := CreateUser(context.Background(), srv.Auth(), "user",
-		testRole1,
-		downgradev7comptibleK8sResourcesRole,
-		downgradev7incompatibleK8sResourcesRole,
-		downgradev7incompatibleNamespace,
-		downgradev7incompatibleNamespacedWildcard,
-		downgradev7incompatibleClusterWideWildcard,
-		downgradev7mixedK8sResourcesRole,
-	)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		desc             string
-		clientVersions   []string
-		inputRole        types.Role
-		expectedRole     types.Role
-		expectDowngraded bool
-	}{
-		{
-			desc: "up to date",
-			clientVersions: []string{
-				"18.0.0-aa", api.Version, "",
-			},
-			inputRole:    testRole1,
-			expectedRole: testRole1,
-		},
-		{
-			desc: "downgrade v7 compatible k8s resources",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7comptibleK8sResourcesRole,
-			expectedRole: newRole(downgradev7comptibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeIngress,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeDeployment,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Deny: types.RoleConditions{
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeIngress,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeDeployment,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s resources",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleK8sResourcesRole,
-			expectedRole: newRole(downgradev7incompatibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s namespaces kind",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleNamespace,
-			expectedRole: newRole(downgradev7incompatibleNamespace.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s namespaced wildcard kind",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleNamespacedWildcard,
-			expectedRole: newRole(downgradev7incompatibleNamespacedWildcard.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s cluster wide wildcard kind",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleClusterWideWildcard,
-			expectedRole: newRole(downgradev7incompatibleClusterWideWildcard.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 mixed k8s resources",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7mixedK8sResourcesRole,
-			expectedRole: newRole(downgradev7mixedK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade role version to v7",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: testRole1,
-			expectedRole: newRole(testRole1.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			for _, clientVersion := range tc.clientVersions {
-				t.Run(clientVersion, func(t *testing.T) {
-					// Setup client metadata.
-					ctx := context.Background()
-					if clientVersion == "" {
-						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
-					} else {
-						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
-							metadata.VersionKey: clientVersion,
-						})
-					}
-
-					checkRole := func(gotRole types.Role) {
-						t.Helper()
-
-						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
-							cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
-						// The downgraded label value won't match exactly because it
-						// includes the client version, so just check it's not empty
-						// and ignore it in the role diff.
-						if tc.expectDowngraded {
-							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role V8 is only supported")
-							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "SAML IdP will be disabled")
-						} else {
-							require.Empty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-						}
-					}
-
-					// Test GetRole
-					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
-					require.NoError(t, err)
-					checkRole(gotRole)
-
-					// Test GetRoles.
-					gotRoles, err := client.GetRoles(ctx)
-					require.NoError(t, err)
-					foundTestRole := false
-					for _, gotRole := range gotRoles {
-						if gotRole.GetName() != tc.inputRole.GetName() {
-							continue
-						}
-						checkRole(gotRole)
-						foundTestRole = true
-						break
-					}
-					require.True(t, foundTestRole, "GetRoles result does not include expected role")
-
-					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-					defer cancel()
-
-					// Test WatchEvents.
-					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
-					require.NoError(t, err)
-					defer watcher.Close()
-
-					// Swallow the init event.
-					e := <-watcher.Events()
-					require.Equal(t, types.OpInit, e.Type)
-
-					// Re-upsert the role so that the watcher sees it, do this
-					// on the auth server directly to avoid the
-					// TeleportDowngradedLabel check in ServerWithRoles.
-					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
-					require.NoError(t, err)
-					gotRole, err = func() (types.Role, error) {
-						for {
-							select {
-							case <-watcher.Done():
-								return nil, watcher.Error()
-							case e := <-watcher.Events():
-								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
-									return gotRole, nil
-								}
-							}
-						}
-					}()
-					require.NoError(t, err)
-					checkRole(gotRole)
-
-					// Try to re-upsert the role we got. If it was
-					// downgraded, it should be rejected due to the
-					// TeleportDowngradedLabel.
-					if _, err := client.UpsertRole(ctx, gotRole); tc.expectDowngraded {
-						require.Error(t, err)
-					} else {
-						require.NoError(t, err)
-					}
-				})
-			}
-		})
-	}
 }

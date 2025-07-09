@@ -82,8 +82,8 @@ func TestAWS(t *testing.T) {
 		// Validate AWS credentials are set.
 		getEnvValue := func(key string) string {
 			for _, env := range cmd.Env {
-				if after, ok := strings.CutPrefix(env, key+"="); ok {
-					return after
+				if strings.HasPrefix(env, key+"=") {
+					return strings.TrimPrefix(env, key+"=")
 				}
 			}
 			return ""
@@ -117,7 +117,7 @@ func TestAWS(t *testing.T) {
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Log out from "aws-app" app. The app should be logged-in automatically as needed.
 	err = Run(
@@ -132,7 +132,7 @@ func TestAWS(t *testing.T) {
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	validateCmd = func(cmd *exec.Cmd) error {
 		// Validate composed AWS CLI command.
@@ -143,7 +143,7 @@ func TestAWS(t *testing.T) {
 	}
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--exec", "terraform", "plan"},
+		[]string{"aws", "--app", "aws-app", "--exec", "terraform", "plan"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)

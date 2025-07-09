@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -263,8 +262,10 @@ func parseSSHIdentity(
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, nil, nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	if slices.Contains(cert.ValidPrincipals, "") {
-		return nil, nil, nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, nil, nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
 	hostCheckers, err = apisshutils.ParseAuthorizedKeys(caBytes)

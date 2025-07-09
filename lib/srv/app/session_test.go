@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -37,6 +38,7 @@ func newSessionChunk(timeout time.Duration) *sessionChunk {
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: timeout,
+		legacyLogger: logrus.NewEntry(logrus.StandardLogger()),
 		log:          utils.NewSlogLoggerForTests(),
 		streamCloser: events.NewDiscardRecorder(),
 	}

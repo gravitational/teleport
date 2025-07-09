@@ -1,4 +1,5 @@
 //go:build pam && cgo
+// +build pam,cgo
 
 /*
  * Teleport
@@ -46,7 +47,6 @@ import "C"
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -57,10 +57,10 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func init() {
@@ -101,7 +101,9 @@ func init() {
 	runtime.LockOSThread()
 }
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentPAM)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentPAM,
+})
 
 const (
 	// maxMessageSize is the maximum size of a message to accept from PAM. In
@@ -146,7 +148,7 @@ var handlers map[int]handler = make(map[int]handler)
 func writeCallback(index C.int, stream C.int, s *C.char) {
 	handle, err := lookupHandler(int(index))
 	if err != nil {
-		logger.ErrorContext(context.Background(), "Unable to write to output stream", "error", err)
+		log.Errorf("Unable to write to output stream: %v", err)
 		return
 	}
 
@@ -162,7 +164,7 @@ func writeCallback(index C.int, stream C.int, s *C.char) {
 func readCallback(index C.int, e C.int) *C.char {
 	handle, err := lookupHandler(int(index))
 	if err != nil {
-		logger.ErrorContext(context.Background(), "Unable to read from input stream", "error", err)
+		log.Errorf("Unable to read from input stream: %v", err)
 		return nil
 	}
 
@@ -174,7 +176,7 @@ func readCallback(index C.int, e C.int) *C.char {
 	// Read from the stream (typically stdin or equivalent).
 	s, err := handle.readStream(echo)
 	if err != nil {
-		logger.ErrorContext(context.Background(), "Unable to read from input stream", "error", err)
+		log.Errorf("Unable to read from input stream: %v", err)
 		return nil
 	}
 
@@ -436,7 +438,7 @@ func (p *PAM) free() {
 		// Terminate the PAM transaction.
 		retval := C._pam_end(pamHandle, p.pamh, p.retval)
 		if retval != C.PAM_SUCCESS {
-			logger.WarnContext(context.Background(), "Failed to end PAM transaction", "error", p.codeToError(retval))
+			log.Warnf("Failed to end PAM transaction: %v.\n", p.codeToError(retval))
 		}
 
 		// Release the memory allocated for the conversation function.
@@ -490,7 +492,7 @@ func (p *PAM) codeToError(returnValue C.int) error {
 	// released.
 	err := C._pam_strerror(pamHandle, p.pamh, returnValue)
 	if err != nil {
-		return trace.BadParameter("%s", C.GoString(err))
+		return trace.BadParameter(C.GoString(err))
 	}
 
 	return nil

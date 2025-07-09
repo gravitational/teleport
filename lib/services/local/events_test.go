@@ -56,11 +56,12 @@ func newTestContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func unwrapResource153[T types.Resource153](t *testing.T, r types.Resource) T {
-	u, ok := r.(types.Resource153UnwrapperT[T])
+func unwrapResource153[T any](t *testing.T, r types.Resource) T {
+	u, ok := r.(types.Resource153Unwrapper)
 	require.True(t, ok, "expected event to implement Resource153Unwrapper")
 
-	dst := u.UnwrapT()
+	dst, ok := u.Unwrap().(T)
+	require.True(t, ok, "expected event to cast to %T", dst)
 	return dst
 }
 

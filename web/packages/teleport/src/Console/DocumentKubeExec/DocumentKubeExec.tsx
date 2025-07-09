@@ -35,7 +35,7 @@ type Props = {
 };
 
 export default function DocumentKubeExec({ doc, visible }: Props) {
-  const terminalRef = useRef<TerminalRef>(undefined);
+  const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendKubeExecData } =
     useKubeExecSession(doc);
   const mfa = useMfaEmitter(tty);

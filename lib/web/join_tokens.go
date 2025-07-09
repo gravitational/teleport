@@ -56,7 +56,7 @@ type nodeJoinToken struct {
 	//  ID is token ID.
 	ID string `json:"id"`
 	// Expiry is token expiration time.
-	Expiry time.Time `json:"expiry"`
+	Expiry time.Time `json:"expiry,omitempty"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
 	// SuggestedLabels contains the set of labels we expect the node to set when using this token
@@ -92,7 +92,7 @@ type GetTokensResponse struct {
 	Items []webui.JoinToken `json:"items"`
 }
 
-func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,7 +113,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 	}, nil
 }
 
-func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	token := r.Header.Get(HeaderTokenName)
 	if token == "" {
 		return nil, trace.BadParameter("requires a token to delete")
@@ -135,7 +135,7 @@ type CreateTokenRequest struct {
 	Content string `json:"content"`
 }
 
-func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
 	tokenId := r.Header.Get(HeaderTokenName)
 	if tokenId == "" {
 		return nil, trace.BadParameter("requires a token name to edit")
@@ -247,7 +247,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 // createTokenForDiscoveryHandle creates tokens used during guided discover flows.
 // V2 endpoint processes "suggestedLabels" field.
-func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,7 +367,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	}, nil
 }
 
-func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
@@ -378,40 +378,34 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "name",
-			"error", err,
-		)
+		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "uri",
-			"error", err,
-		)
+		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -425,21 +419,21 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Info("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
@@ -449,38 +443,33 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Info("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Debug("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 	const discoveryGroupQueryParam = "discoveryGroup"
 
 	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script",
-			"error", err,
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 	if discoveryGroup == "" {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script. Missing required fields",
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -493,14 +482,14 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Info("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 

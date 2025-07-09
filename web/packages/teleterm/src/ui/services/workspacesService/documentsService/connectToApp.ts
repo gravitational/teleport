@@ -27,7 +27,7 @@ import {
 import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { IAppContext } from 'teleterm/ui/types';
 import { AppUri, routing } from 'teleterm/ui/uri';
-import { VnetLauncher } from 'teleterm/ui/Vnet';
+import { VnetAppLauncher } from 'teleterm/ui/Vnet';
 
 import { DocumentOrigin } from './types';
 
@@ -46,7 +46,7 @@ export async function connectToApp(
    * launchVnet is supposed to be provided if VNet is supported. If so, connectToApp is going to use
    * this function when targeting a TCP app. Otherwise it'll create an app gateway.
    */
-  launchVnet: null | VnetLauncher,
+  launchVnet: null | VnetAppLauncher,
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
@@ -111,7 +111,7 @@ export async function connectToApp(
     await launchVnet({
       addrToCopy: appToAddrToCopy(target),
       resourceUri: target.uri,
-      isMultiPortApp: !!target.tcpPorts.length,
+      isMultiPort: !!target.tcpPorts.length,
     });
     return;
   }

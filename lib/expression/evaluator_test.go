@@ -31,8 +31,8 @@ import (
 
 var (
 	baseInputTraits = map[string][]string{
-		"groups":   {"devs", "security"},
-		"username": {"alice"},
+		"groups":   []string{"devs", "security"},
+		"username": []string{"alice"},
 	}
 
 	testCases = []struct {
@@ -49,17 +49,17 @@ var (
 		},
 		{
 			desc: "simple traits map",
-			expressions: map[string][]string{"groups": {
+			expressions: map[string][]string{"groups": []string{
 				"user.spec.traits.groups",
 			}},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"groups": {"devs", "security"},
+				"groups": []string{"devs", "security"},
 			},
 		},
 		{
 			desc:        "wrong map return type",
-			expressions: map[string][]string{"groups": {"user.spec.traits"}},
+			expressions: map[string][]string{"groups": []string{"user.spec.traits"}},
 			errorContains: []string{
 				"traits_map expression must evaluate to type string or set, the following expression evaluates to expression.Dict:",
 			},
@@ -67,30 +67,30 @@ var (
 		{
 			desc: "ifelse",
 			expressions: map[string][]string{
-				"a": {
+				"a": []string{
 					`ifelse(true, "correct", "wrong")`,
 					`ifelse(false, "wrong", "correct")`,
 					`ifelse(ifelse(true, true, false), "correct", "wrong")`,
 					`set(ifelse(true, "correct", "wrong"), "correct")`,
 				},
-				"groups": {
+				"groups": []string{
 					`ifelse(true, user.spec.traits.groups, "wrong")`,
 				},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"a":      {"correct"},
+				"a":      []string{"correct"},
 				"groups": baseInputTraits["groups"],
 			},
 		},
 		{
 			desc: "set methods",
 			expressions: map[string][]string{
-				"extragroups":            {`user.spec.traits.groups.add("extra", "surplus")`},
-				"fewergroups":            {`user.spec.traits.groups.remove("security")`},
-				"nogroups":               {`user.spec.traits.groups.remove("devs", "security").add("test").remove("test").remove("not-a-group")`},
-				"groups-by-another-name": {`user.spec.traits.groups.remove("not-a-group")`},
-				"logins": {
+				"extragroups":            []string{`user.spec.traits.groups.add("extra", "surplus")`},
+				"fewergroups":            []string{`user.spec.traits.groups.remove("security")`},
+				"nogroups":               []string{`user.spec.traits.groups.remove("devs", "security").add("test").remove("test").remove("not-a-group")`},
+				"groups-by-another-name": []string{`user.spec.traits.groups.remove("not-a-group")`},
+				"logins": []string{
 					// user.spec.traits.groups does not contain "admins", so we
 					// expect to just get the username.
 					`ifelse(user.spec.traits.groups.contains("admins"), user.spec.traits.username.add("root"), user.spec.traits.username)`,
@@ -102,40 +102,40 @@ var (
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
 				"extragroups":            append([]string{"extra", "surplus"}, baseInputTraits["groups"]...),
-				"fewergroups":            {"devs"},
-				"nogroups":               {},
+				"fewergroups":            []string{"devs"},
+				"nogroups":               []string{},
 				"groups-by-another-name": baseInputTraits["groups"],
-				"logins":                 {"alice", "security-team"},
+				"logins":                 []string{"alice", "security-team"},
 			},
 		},
 		{
 			desc: "set union",
 			expressions: map[string][]string{
-				"groups": {`union(user.spec.traits.groups, set("test1", "test2"))`},
-				"fruits": {`union(set("apple", "banana"), set("cherry"), set("dragonfruit", "eggplant"))`},
+				"groups": []string{`union(user.spec.traits.groups, set("test1", "test2"))`},
+				"fruits": []string{`union(set("apple", "banana"), set("cherry"), set("dragonfruit", "eggplant"))`},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
 				"groups": append([]string{"test1", "test2"}, baseInputTraits["groups"]...),
-				"fruits": {"apple", "banana", "cherry", "dragonfruit", "eggplant"},
+				"fruits": []string{"apple", "banana", "cherry", "dragonfruit", "eggplant"},
 			},
 		},
 		{
 			desc: "string helpers",
 			expressions: map[string][]string{
-				"lower": {
+				"lower": []string{
 					`strings.lower("APPLE")`,
 					`strings.lower("BaNaNa")`,
 					`strings.lower(set("cherry", "dragonFRUIT"))`,
 					`strings.lower(user.spec.traits.username)`,
 				},
-				"upper": {
+				"upper": []string{
 					`strings.upper("APPLE")`,
 					`strings.upper("BaNaNa")`,
 					`strings.upper(set("cherry", "dragonFRUIT"))`,
 					`strings.upper(user.spec.traits.username)`,
 				},
-				"replaced": {
+				"replaced": []string{
 					`strings.replaceall("snake_case_example", "_", "-")`,
 					`strings.replaceall(strings.replaceall("user@example.com", "@", "_"), ".", "-")`,
 					`strings.replaceall(set("dev-team", "platform-team"), "-team", "")`,
@@ -143,21 +143,21 @@ var (
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"lower":    {"apple", "banana", "cherry", "dragonfruit", "alice"},
-				"upper":    {"APPLE", "BANANA", "CHERRY", "DRAGONFRUIT", "ALICE"},
-				"replaced": {"snake-case-example", "user_example-com", "dev", "platform"},
+				"lower":    []string{"apple", "banana", "cherry", "dragonfruit", "alice"},
+				"upper":    []string{"APPLE", "BANANA", "CHERRY", "DRAGONFRUIT", "ALICE"},
+				"replaced": []string{"snake-case-example", "user_example-com", "dev", "platform"},
 			},
 		},
 		{
 			desc: "choose",
 			expressions: map[string][]string{
-				"choose_first": {
+				"choose_first": []string{
 					`choose(option(true, "first"), option(false, "second"))`,
 				},
-				"choose_second": {
+				"choose_second": []string{
 					`choose(option(false, "first"), option(true, "second"))`,
 				},
-				"groups": {
+				"groups": []string{
 					`choose(
 							option(user.spec.traits.username.contains("alice"), set("devs", "security", "requester")),
 							option(user.spec.traits.username.contains("bob"), set("security", "reviewer")),
@@ -168,9 +168,9 @@ var (
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"choose_first":  {"first"},
-				"choose_second": {"second"},
-				"groups":        {"devs", "security", "requester"},
+				"choose_first":  []string{"first"},
+				"choose_second": []string{"second"},
+				"groups":        []string{"devs", "security", "requester"},
 			},
 		},
 		{
@@ -260,7 +260,6 @@ var (
 				"d": {`ifelse(user.spec.traits["d"].isempty(), set("d"), set("z"))`},
 				"e": {`user.spec.traits["e"].remove("e")`},
 				"f": {`user.spec.traits["f"].remove("f").add("f")`},
-				"g": {`ifelse(user.spec.traits["g"].contains_all(set("g")), set("z"), set("g"))`},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -270,42 +269,6 @@ var (
 				"d": {"d"},
 				"e": {},
 				"f": {"f"},
-				"g": {"g"},
-			},
-		},
-		{
-			desc: "contains_all",
-			expressions: map[string][]string{
-				"contains_all": {
-					`ifelse(
-						user.spec.traits.groups.contains_all(set("security")) ||
-						contains_all(user.spec.traits.groups, set("security")),
-						"true",
-						"false",
-					)`,
-				},
-				"does_not_contain_all": {
-					`ifelse(
-						user.spec.traits.groups.contains_all(set("security", "not-in-group")) ||
-						contains_all(user.spec.traits.groups, set("security", "not-in-group")),
-						"true",
-						"false",
-					)`,
-				},
-				"empty_set": {
-					`ifelse(
-						user.spec.traits.groups.contains_all(set()) ||
-						contains_all(user.spec.traits.groups, set()),
-						"true",
-						"false",
-					)`,
-				},
-			},
-			inputTraits: baseInputTraits,
-			expectedTraits: map[string][]string{
-				"contains_all":         {"true"},
-				"does_not_contain_all": {"false"},
-				"empty_set":            {"false"},
 			},
 		},
 	}

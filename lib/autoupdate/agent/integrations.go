@@ -19,24 +19,15 @@
 package agent
 
 import (
-	"context"
 	"errors"
-	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
-const (
-	installDirEnvVar       = "TELEPORT_UPDATE_INSTALL_DIR"
-	updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
-)
+const installDirEnvVar = "TELEPORT_UPDATE_INSTALL_DIR"
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
 // Note that true may be returned even if auto-updates is disabled or the version is pinned.
@@ -179,63 +170,4 @@ func findParentMatching(dir, name string, rpos int) string {
 		return dir
 	}
 	return ""
-}
-
-// ReadHelloUpdaterInfo reads the updater config and generates a proto.UpdaterV2Info
-// that can be reported in the inventory hello message.
-// This function performs io operations, its usage must be cached
-// (the downstream inventory handler does this for us).
-func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string) (*types.UpdaterV2Info, error) {
-	info := &types.UpdaterV2Info{}
-
-	configPath := os.Getenv(updateConfigFileEnvVar)
-	if configPath == "" {
-		return nil, trace.Errorf("config file not specified")
-	}
-
-	cfg, err := readConfig(configPath)
-	if err != nil {
-		return nil, trace.Wrap(err, "reading config file %s", configPath)
-	}
-
-	info.UpdateGroup = cfg.Spec.Group
-	if info.UpdateGroup == "" {
-		info.UpdateGroup = defaultSetting
-	}
-	if p := cfg.Status.IDFile; p != "" {
-		machineID, err := os.ReadFile(systemdMachineIDFile)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", systemdMachineIDFile, errorKey, err)
-			log.WarnContext(ctx, "Updater ID may be inaccurate for tracking.")
-			machineID = nil
-		}
-		id, err := findDBPIDUUID(p, []byte(hostUUID), machineID, true)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to determine updater ID.", "path", p, errorKey, err)
-			log.ErrorContext(ctx, "Updater ID cannot be used for tracking this agent.")
-		} else {
-			info.UpdateUUID = id[:]
-		}
-	} else {
-		log.ErrorContext(ctx, "Updater ID is not available to the updater and cannot be used to track this agent.")
-	}
-
-	switch {
-	case !cfg.Spec.Enabled:
-		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_DISABLED
-	case cfg.Spec.Pinned:
-		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_PINNED
-	default:
-		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_OK
-	}
-	return info, nil
-}
-
-func findDBPIDUUID(path string, systemID, namespaceID []byte, persist bool) (uuid.UUID, error) {
-	id, err := FindDBPID(path, systemID, namespaceID, persist)
-	if err != nil {
-		return uuid.Nil, trace.Wrap(err)
-	}
-	v, err := uuid.Parse(id)
-	return v, trace.Wrap(err)
 }

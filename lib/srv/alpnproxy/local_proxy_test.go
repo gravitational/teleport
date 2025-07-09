@@ -33,13 +33,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
@@ -56,62 +54,72 @@ import (
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
 func TestHandleAWSAccessSigVerification(t *testing.T) {
 	var (
-		firstAWSCred  = credentials.NewStaticCredentialsProvider("userID", "firstSecret", "")
-		secondAWSCred = credentials.NewStaticCredentialsProvider("userID", "secondSecret", "")
-		thirdAWSCred  = credentials.NewStaticCredentialsProvider("userID2", "firstSecret", "")
+		firstAWSCred  = credentials.NewStaticCredentials("userID", "firstSecret", "")
+		secondAWSCred = credentials.NewStaticCredentials("userID", "secondSecret", "")
+		thirdAWSCred  = credentials.NewStaticCredentials("userID2", "firstSecret", "")
 
-		awsRegion = "eu-central-1"
+		awsService = "s3"
+		awsRegion  = "eu-central-1"
 	)
 
 	testCases := []struct {
 		name       string
-		proxyCred  aws.CredentialsProvider
-		clientCred aws.CredentialsProvider
-		apiOpts    []func(*middleware.Stack) error
+		proxyCred  *credentials.Credentials
+		signFunc   func(*http.Request, io.ReadSeeker, string, string, time.Time) (http.Header, error)
+		wantErr    require.ErrorAssertionFunc
 		wantStatus int
 	}{
 		{
 			name:       "valid signature",
 			proxyCred:  firstAWSCred,
-			clientCred: firstAWSCred,
+			signFunc:   v4.NewSigner(firstAWSCred).Sign,
+			wantErr:    require.NoError,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "different aws secret access key",
 			proxyCred:  secondAWSCred,
-			clientCred: firstAWSCred,
+			signFunc:   v4.NewSigner(firstAWSCred).Sign,
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "different aws access key ID",
 			proxyCred:  thirdAWSCred,
-			clientCred: firstAWSCred,
+			signFunc:   v4.NewSigner(firstAWSCred).Sign,
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:       "unsigned request",
-			proxyCred:  firstAWSCred,
-			clientCred: nil,
+			name:      "unsigned request",
+			proxyCred: firstAWSCred,
+			signFunc: func(*http.Request, io.ReadSeeker, string, string, time.Time) (http.Header, error) {
+				// no-op
+				return nil, nil
+			},
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:       "signed with User-Agent header",
-			proxyCred:  secondAWSCred,
-			clientCred: firstAWSCred,
-			apiOpts: []func(*middleware.Stack) error{
-				func(stack *middleware.Stack) error {
-					stack.Finalize.Insert(
-						addUserAgentSignedHeaderMiddleware{},
-						"Signing",
-						middleware.After,
-					)
-					return nil
-				},
+			name:      "signed with User-Agent header",
+			proxyCred: secondAWSCred,
+			signFunc: func(r *http.Request, body io.ReadSeeker, service, region string, signTime time.Time) (http.Header, error) {
+				// Simulate a case where "User-Agent" is part of the "SignedHeaders".
+				// The signature does not have to be valid as it will not be compared.
+				header, err := v4.NewSigner(firstAWSCred).Sign(r, body, service, region, signTime)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				authHeader := r.Header.Get("Authorization")
+				authHeader = strings.Replace(authHeader, "SignedHeaders=", "SignedHeaders=user-agent;", 1)
+				r.Header.Set("Authorization", authHeader)
+				return header, nil
 			},
 			wantStatus: http.StatusOK,
 		},
 	}
 
+	httpClient := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,50 +133,45 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				Path:   "/",
 			}
 
-			//nolint:forbidigo // OK to not use "stsutils" on tests.
-			clt := sts.New(sts.Options{
-				APIOptions:       tc.apiOpts,
-				Region:           awsRegion,
-				Credentials:      tc.clientCred,
-				BaseEndpoint:     aws.String(url.String()),
-				HTTPClient:       &http.Client{Timeout: 5 * time.Second},
-				RetryMaxAttempts: 0,
-			})
-			_, err := clt.GetCallerIdentity(context.Background(), nil)
-			if tc.wantStatus == http.StatusOK {
-				require.NoError(t, err)
-				return
-			}
+			payload := []byte("payload content")
+			req, err := http.NewRequest(http.MethodGet, url.String(), bytes.NewReader(payload))
+			require.NoError(t, err)
 
-			require.Error(t, err)
-			var serr *awshttp.ResponseError
-			require.ErrorAs(t, err, &serr)
-			require.Equal(t, tc.wantStatus, serr.HTTPStatusCode())
+			tc.signFunc(req, bytes.NewReader(payload), awsService, awsRegion, time.Now())
+
+			resp, err := httpClient.Do(req)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
+			require.NoError(t, resp.Body.Close())
 		})
 	}
 }
 
 // Verifies s3 requests are signed without URL escaping to match AWS SDKs.
 func TestHandleAWSAccessS3Signing(t *testing.T) {
-	provider := credentials.NewStaticCredentialsProvider("access-key", "secret-key", "")
-	lp := createAWSAccessProxySuite(t, provider)
+	cred := credentials.NewStaticCredentials("access-key", "secret-key", "")
+	lp := createAWSAccessProxySuite(t, cred)
 
 	// Avoid loading extra things.
 	t.Setenv("AWS_SDK_LOAD_CONFIG", "false")
 
 	// Create a real AWS SDK s3 client.
-	s3client := s3.New(s3.Options{
-		Region:           "local",
-		Credentials:      provider,
-		BaseEndpoint:     aws.String("http://" + lp.GetAddr()),
-		UsePathStyle:     true,
-		HTTPClient:       &http.Client{Timeout: 5 * time.Second},
-		RetryMaxAttempts: 0,
-	})
+	awsConfig := aws.NewConfig().
+		WithDisableSSL(true).
+		WithRegion("local").
+		WithCredentials(cred).
+		WithEndpoint(lp.GetAddr()).
+		WithS3ForcePathStyle(true)
+
+	s3client := s3.New(session.Must(session.NewSession(awsConfig)),
+		&aws.Config{
+			HTTPClient: &http.Client{Timeout: 5 * time.Second},
+			MaxRetries: aws.Int(0),
+		})
 
 	// Use a bucket name with special charaters. AWS SDK actually signs the
 	// request with the unescaped bucket name.
-	_, err := s3client.ListObjects(context.Background(), &s3.ListObjectsInput{
+	_, err := s3client.ListObjects(&s3.ListObjectsInput{
 		Bucket: aws.String("=bucket=name="),
 	})
 
@@ -418,7 +421,7 @@ func TestCheckDBCerts(t *testing.T) {
 				withClock(tt.clock),
 			)
 			lp.SetCert(tlsCert)
-			tt.errAssertFn(t, lp.CheckDBCert(context.Background(), tt.dbRoute))
+			tt.errAssertFn(t, lp.CheckDBCert(tt.dbRoute))
 		})
 	}
 }
@@ -614,7 +617,7 @@ func TestKubeMiddleware(t *testing.T) {
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
-				Logger:       utils.NewSlogLoggerForTests(),
+				Logger:       utils.NewLoggerForTests(),
 				Clock:        tt.clock,
 				CloseContext: context.Background(),
 			})
@@ -635,7 +638,7 @@ func TestKubeMiddleware(t *testing.T) {
 	}
 }
 
-func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *LocalProxy {
+func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
@@ -644,7 +647,7 @@ func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		HTTPMiddleware:     &AWSAccessMiddleware{AWSCredentialsProvider: provider},
+		HTTPMiddleware:     &AWSAccessMiddleware{AWSCredentials: cred},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -773,24 +776,4 @@ func TestGetCertsForConn(t *testing.T) {
 			}
 		})
 	}
-}
-
-type addUserAgentSignedHeaderMiddleware struct {
-}
-
-func (m addUserAgentSignedHeaderMiddleware) ID() string { return "AddUserAgentSignedHeader" }
-func (m addUserAgentSignedHeaderMiddleware) HandleFinalize(
-	ctx context.Context,
-	in middleware.FinalizeInput,
-	next middleware.FinalizeHandler,
-) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
-	req, ok := in.Request.(*smithyhttp.Request)
-	if !ok {
-		return out, metadata, trace.Errorf("unexpected request middleware type %T", in.Request)
-	}
-
-	authHeader := req.Header.Get("Authorization")
-	authHeader = strings.Replace(authHeader, "SignedHeaders=", "SignedHeaders=user-agent;", 1)
-	req.Header.Set("Authorization", authHeader)
-	return next.HandleFinalize(ctx, in)
 }

@@ -91,19 +91,6 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// NextMessageType peaks at the next incoming message without
-// consuming it.
-func (c *Conn) NextMessageType() (MessageType, error) {
-	b, err := c.bufr.ReadByte()
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if err := c.bufr.UnreadByte(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return MessageType(b), nil
-}
-
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
 	m, err := decode(c.bufr)
@@ -186,8 +173,8 @@ func IsFatalErr(err error) bool {
 }
 
 // NewConnProxy creates a bidirectional proxy to copy messages between the client and server connection.
-// It accepts an optional interceptor to intercept server messages.
-func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor Interceptor) *ConnProxy {
+// It accepts an optional serverInterceptor to intercept received messages.
+func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInterceptor) *ConnProxy {
 	return &ConnProxy{
 		client:            NewConn(client),
 		server:            NewConn(server),
@@ -201,15 +188,15 @@ type ConnProxy struct {
 	client *Conn
 	// server is a connection to the server (Windows Desktop Service).
 	server *Conn
-	// serverInterceptor intercepts messages received from the serve.
-	serverInterceptor Interceptor
+	// serverInterceptor intercepts the incoming messages.
+	// If the returned message is non-nil, it is forwarded to the client.
+	// If an error is returned, the stream is canceled.
+	serverInterceptor ServerInterceptor
 }
 
-// Interceptor intercepts messages on the connection. It should return
-// the [potentially modified] message in order to pass it on to the
-// other end of the connection, or nil to prevent the message from
-// being forwarded.
-type Interceptor func(conn *Conn, message Message) (Message, error)
+// ServerInterceptor intercepts messages received from the server.
+// If a message returned from the interceptor is nil, it's not sent to the client.
+type ServerInterceptor func(serverTdpConn *Conn, message Message) (Message, error)
 
 // SendToClient sends a message to the client and blocks until the operation completes.
 func (c *ConnProxy) SendToClient(message Message) error {
@@ -272,9 +259,9 @@ func (c *ConnProxy) Run() error {
 	// and pass them on to the Windows agent.
 	errs.Go(func() error {
 		defer closeAll()
-
 		for {
 			msg, err := c.client.ReadMessage()
+
 			if err := c.handleError(err); err != nil {
 				return err
 			}

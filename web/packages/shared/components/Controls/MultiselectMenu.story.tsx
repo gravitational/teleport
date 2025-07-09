@@ -19,7 +19,7 @@
 import { action } from '@storybook/addon-actions';
 import { useArgs } from '@storybook/preview-api';
 import type { Meta, StoryFn, StoryObj } from '@storybook/react';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 import { Flex } from 'design';
 
@@ -57,10 +57,6 @@ export default {
     buffered: {
       control: { type: 'boolean' },
       description: 'Buffer selections until "Apply" is clicked',
-      table: { defaultValue: { summary: 'false' } },
-    },
-    disabled: {
-      control: { type: 'boolean' },
       table: { defaultValue: { summary: 'false' } },
     },
     showIndicator: {
@@ -110,7 +106,6 @@ export default {
     showIndicator: true,
     showSelectControls: true,
     onChange: action('onChange'),
-    disabled: false,
   },
   render: (args => {
     const [{ selected }, updateArgs] =
@@ -147,11 +142,4 @@ const WithDisabledOption: Story = {
   },
 };
 
-const WithDisabledMenu: Story = {
-  args: {
-    options,
-    disabled: true,
-  },
-};
-
-export { Default, WithCustomLabels, WithDisabledOption, WithDisabledMenu };
+export { Default, WithCustomLabels, WithDisabledOption };

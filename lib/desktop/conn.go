@@ -18,10 +18,10 @@ package desktop
 
 import (
 	"context"
-	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -31,7 +31,7 @@ import (
 // ConnectionConfig contains configuration needed to connect to Windows desktop service.
 type ConnectionConfig struct {
 	// Log emits log messages.
-	Log *slog.Logger
+	Log *logrus.Entry
 	// DesktopsGetter is responsible for getting desktops and desktop services.
 	DesktopsGetter DesktopsGetter
 	// Site represents a remote teleport site that can be accessed via
@@ -89,10 +89,8 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 		if err == nil {
 			return conn, ver, nil
 		}
-		config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
-			"windows_desktop_service_id", id,
-			"error", err,
-		)
+		config.Log.Warnf("failed to connect to windows_desktop_service %q: %v", id, err)
+
 	}
 	return nil, "", trace.Errorf("failed to connect to any windows_desktop_service")
 }
@@ -100,7 +98,7 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 func tryConnect(ctx context.Context, desktopServiceID string, config *ConnectionConfig) (conn net.Conn, version string, err error) {
 	service, err := config.DesktopsGetter.GetWindowsDesktopService(ctx, desktopServiceID)
 	if err != nil {
-		config.Log.ErrorContext(ctx, "Error finding service", "service_id", desktopServiceID, "error", err)
+		config.Log.Errorf("Error finding service with id %s", desktopServiceID)
 		return nil, "", trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
 	}
 
@@ -117,11 +115,11 @@ func tryConnect(ctx context.Context, desktopServiceID string, config *Connection
 	}
 
 	ver := service.GetTeleportVersion()
-	config.Log.DebugContext(ctx, "Established windows_desktop_service connection",
-		"windows_service_version", ver,
-		"windows_service_uuid", service.GetName(),
-		"windows_service_addr", service.GetAddr(),
-	)
+	config.Log.
+		WithField("windows_service_version", ver).
+		WithField("windows_service_uuid", service.GetName()).
+		WithField("windows_service_addr", service.GetAddr()).
+		Debug("Established windows_desktop_service connection")
 
 	return conn, ver, nil
 }

@@ -210,6 +210,10 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
+	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
+		return p, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -1152,14 +1156,14 @@ func TestLocalControlStream(t *testing.T) {
 	stream := s.a.MakeLocalInventoryControlStream()
 	defer stream.Close()
 
-	err := stream.Send(ctx, &proto.UpstreamInventoryHello{
+	err := stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(*proto.DownstreamInventoryHello)
+		_, ok := msg.(proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
@@ -1181,7 +1185,8 @@ func TestLocalControlStream(t *testing.T) {
 
 	select {
 	case msg := <-stream.Recv():
-		require.IsType(t, *new(*proto.DownstreamInventoryPing), msg)
+		_, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
 	case <-time.After(time.Second * 10):
@@ -1192,9 +1197,8 @@ func TestLocalControlStream(t *testing.T) {
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
 
-	cn, err := s.a.GetClusterName(ctx)
+	cn, err := s.a.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
@@ -1234,7 +1238,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check first auth server and make sure it returns the correct values
 	// (original cluster name, new static tokens)
-	cn, err = s.a.GetClusterName(ctx)
+	cn, err = s.a.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()
@@ -1565,7 +1569,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devCred = "devicecred1"
 
 	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
+		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
 			fc.Advance(d)
 		}
 	}

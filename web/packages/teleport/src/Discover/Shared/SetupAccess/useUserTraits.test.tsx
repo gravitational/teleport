@@ -505,10 +505,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() =>
-      expect(teleCtx.userService.fetchUser).toHaveBeenCalledTimes(1)
-    );
-
-    await waitFor(() =>
       expect(result.current.staticTraits.awsRoleArns.length).toBeGreaterThan(0)
     );
 
