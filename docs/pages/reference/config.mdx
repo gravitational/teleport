@@ -108,6 +108,120 @@ Further reading:
 - [Teleport Metrics Reference](monitoring/monitoring.mdx): Data to collect using
   `diag_addr`.
 
+### Proxy Service
+
+These settings apply to the Teleport Proxy Service:
+
+<Admonition type="tip">
+Teleport Enterprise Cloud manages the Proxy Service for you, so you do not need
+to specify these configuration settings.
+</Admonition>
+
+```yaml
+(!docs/pages/includes/config-reference/proxy-service.yaml!)
+```
+
+### Auth Service
+
+These settings apply to the Teleport Auth Service:
+
+<Admonition type="tip">
+Teleport Enterprise Cloud manages the Auth Service for you, so you do not need
+to specify these configuration settings.
+</Admonition>
+
+```yaml
+(!docs/pages/includes/config-reference/auth-service.yaml!)
+```
+
+Further reading:
+- [Storage Backends](backends.mdx) reference: instructions on configuring DynamoDB, S3, etcd, and other highly available
+  backends.
+- [Passwordless](../admin-guides/access-controls/guides/passwordless.mdx): More
+  information about the `passwordless` authentication option.
+- [Headless
+  WebAuthn](../admin-guides/access-controls/guides/headless.mdx): The
+  `headless` authentication option.
+- [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx): Configuring SSO
+  so you can configure Teleport to use a specific SSO authentication connector.
+- [Locking](../identity-governance/locking.mdx): Configuring the
+  `locking_mode` option.
+- [Device Trust](../identity-governance/device-trust/device-trust.mdx): Configuring
+  the `device_trust` section.
+- [Recording Proxy Mode](architecture/session-recording.mdx): If you configure
+  Recording Proxy Mode, consider enabling `proxy_checks_host_keys`.
+
+### SSH Service
+
+These settings apply to the Teleport SSH Service:
+
+```yaml
+(!docs/pages/includes/config-reference/ssh-service.yaml!)
+```
+
+Further reading:
+- [Enhanced Session
+  Recording](../enroll-resources/server-access/guides/bpf-session-recording.mdx):
+  Configuring `enhanced_recording`.
+- [PAM Integration](../enroll-resources/server-access/guides/ssh-pam.mdx):
+  Configuring the `pam` section.
+
+### Kubernetes Service
+
+These settings apply to the Teleport Kubernetes Service:
+
+```yaml
+(!docs/pages/includes/config-reference/kubernetes-config.yaml!)
+```
+
+### Application Service
+
+These settings apply to the Teleport Application Service:
+
+```yaml
+(!docs/pages/includes/config-reference/app-service.yaml!)
+```
+
+### Database Service
+
+These settings apply to the Teleport Database Service:
+
+```yaml
+(!docs/pages/includes/config-reference/database-config.yaml!)
+```
+
+### Discovery Service
+
+These settings apply to the Teleport Discovery Service:
+
+```yaml
+(!docs/pages/includes/discovery/discovery-config.yaml!)
+```
+
+### Windows Desktop Service
+
+These settings apply to the Windows Desktop Service:
+
+```yaml
+(!docs/pages/includes/config-reference/desktop-config.yaml!)
+```
+
+### Jamf Service
+
+These settings apply to the Jamf Service:
+
+```yaml
+(!docs/pages/includes/config-reference/jamf-service.yaml!)
+```
+
+### Debug Service
+
+These settings apply to the Debug Service
+
+```yaml
+(!docs/pages/includes/config-reference/debug-service.yaml!)
+```
+
 ## Configuration versions
 
 In order to avoid breaking existing configurations, Teleport's configuration is
