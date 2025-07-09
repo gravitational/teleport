@@ -36,31 +36,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// CreateSummarizationInferenceModelRequest is a request for creating a
-// SummmarizationInferenceModel.
-type CreateSummarizationInferenceModelRequest struct {
+// CreateInferenceModelRequest is a request for creating a InferenceModel.
+type CreateInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SummarizationInferenceModel is the SummarizationInferenceModel resource to
-	// create.
-	Model         *SummarizationInferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	// InferenceModel is the InferenceModel resource to create.
+	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateSummarizationInferenceModelRequest) Reset() {
-	*x = CreateSummarizationInferenceModelRequest{}
+func (x *CreateInferenceModelRequest) Reset() {
+	*x = CreateInferenceModelRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateSummarizationInferenceModelRequest) String() string {
+func (x *CreateInferenceModelRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateSummarizationInferenceModelRequest) ProtoMessage() {}
+func (*CreateInferenceModelRequest) ProtoMessage() {}
 
-func (x *CreateSummarizationInferenceModelRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -72,42 +70,41 @@ func (x *CreateSummarizationInferenceModelRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateSummarizationInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*CreateSummarizationInferenceModelRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateInferenceModelRequest.ProtoReflect.Descriptor instead.
+func (*CreateInferenceModelRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *CreateSummarizationInferenceModelRequest) GetModel() *SummarizationInferenceModel {
+func (x *CreateInferenceModelRequest) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
 	}
 	return nil
 }
 
-// GetSummarizationInferenceModelRequest is a request for retrieving a
-// SummmarizationInferenceModel.
-type GetSummarizationInferenceModelRequest struct {
+// GetInferenceModelRequest is a request for retrieving a InferenceModel.
+type GetInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the resource name of the SummarizationInferenceModel to retrieve.
+	// Name is the resource name of the InferenceModel to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetSummarizationInferenceModelRequest) Reset() {
-	*x = GetSummarizationInferenceModelRequest{}
+func (x *GetInferenceModelRequest) Reset() {
+	*x = GetInferenceModelRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetSummarizationInferenceModelRequest) String() string {
+func (x *GetInferenceModelRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetSummarizationInferenceModelRequest) ProtoMessage() {}
+func (*GetInferenceModelRequest) ProtoMessage() {}
 
-func (x *GetSummarizationInferenceModelRequest) ProtoReflect() protoreflect.Message {
+func (x *GetInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -119,42 +116,41 @@ func (x *GetSummarizationInferenceModelRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSummarizationInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*GetSummarizationInferenceModelRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetInferenceModelRequest.ProtoReflect.Descriptor instead.
+func (*GetInferenceModelRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetSummarizationInferenceModelRequest) GetName() string {
+func (x *GetInferenceModelRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-// UpdateSummarizationInferenceModelRequest is a request for updating a
-// SummmarizationInferenceModel.
-type UpdateSummarizationInferenceModelRequest struct {
+// UpdateInferenceModelRequest is a request for updating a InferenceModel.
+type UpdateInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Model is the SummarizationInferenceModel resource to update.
-	Model         *SummarizationInferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	// Model is the InferenceModel resource to update.
+	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateSummarizationInferenceModelRequest) Reset() {
-	*x = UpdateSummarizationInferenceModelRequest{}
+func (x *UpdateInferenceModelRequest) Reset() {
+	*x = UpdateInferenceModelRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateSummarizationInferenceModelRequest) String() string {
+func (x *UpdateInferenceModelRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateSummarizationInferenceModelRequest) ProtoMessage() {}
+func (*UpdateInferenceModelRequest) ProtoMessage() {}
 
-func (x *UpdateSummarizationInferenceModelRequest) ProtoReflect() protoreflect.Message {
+func (x *UpdateInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -166,42 +162,41 @@ func (x *UpdateSummarizationInferenceModelRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateSummarizationInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*UpdateSummarizationInferenceModelRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpdateInferenceModelRequest.ProtoReflect.Descriptor instead.
+func (*UpdateInferenceModelRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *UpdateSummarizationInferenceModelRequest) GetModel() *SummarizationInferenceModel {
+func (x *UpdateInferenceModelRequest) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
 	}
 	return nil
 }
 
-// UpsertSummarizationInferenceModelRequest is a request for updating a
-// SummmarizationInferenceModel.
-type UpsertSummarizationInferenceModelRequest struct {
+// UpsertInferenceModelRequest is a request for updating a InferenceModel.
+type UpsertInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Model is the SummarizationInferenceModel resource to create or update.
-	Model         *SummarizationInferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	// Model is the InferenceModel resource to create or update.
+	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpsertSummarizationInferenceModelRequest) Reset() {
-	*x = UpsertSummarizationInferenceModelRequest{}
+func (x *UpsertInferenceModelRequest) Reset() {
+	*x = UpsertInferenceModelRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpsertSummarizationInferenceModelRequest) String() string {
+func (x *UpsertInferenceModelRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpsertSummarizationInferenceModelRequest) ProtoMessage() {}
+func (*UpsertInferenceModelRequest) ProtoMessage() {}
 
-func (x *UpsertSummarizationInferenceModelRequest) ProtoReflect() protoreflect.Message {
+func (x *UpsertInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -213,42 +208,41 @@ func (x *UpsertSummarizationInferenceModelRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertSummarizationInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*UpsertSummarizationInferenceModelRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertInferenceModelRequest.ProtoReflect.Descriptor instead.
+func (*UpsertInferenceModelRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *UpsertSummarizationInferenceModelRequest) GetModel() *SummarizationInferenceModel {
+func (x *UpsertInferenceModelRequest) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
 	}
 	return nil
 }
 
-// DeleteSummarizationInferenceModelRequest is a request for deleting a
-// SummmarizationInferenceModel.
-type DeleteSummarizationInferenceModelRequest struct {
+// DeleteInferenceModelRequest is a request for deleting a InferenceModel.
+type DeleteInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the resource name of the SummarizationInferenceModel to delete.
+	// Name is the resource name of the InferenceModel to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteSummarizationInferenceModelRequest) Reset() {
-	*x = DeleteSummarizationInferenceModelRequest{}
+func (x *DeleteInferenceModelRequest) Reset() {
+	*x = DeleteInferenceModelRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteSummarizationInferenceModelRequest) String() string {
+func (x *DeleteInferenceModelRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteSummarizationInferenceModelRequest) ProtoMessage() {}
+func (*DeleteInferenceModelRequest) ProtoMessage() {}
 
-func (x *DeleteSummarizationInferenceModelRequest) ProtoReflect() protoreflect.Message {
+func (x *DeleteInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -260,21 +254,20 @@ func (x *DeleteSummarizationInferenceModelRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteSummarizationInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*DeleteSummarizationInferenceModelRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use DeleteInferenceModelRequest.ProtoReflect.Descriptor instead.
+func (*DeleteInferenceModelRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *DeleteSummarizationInferenceModelRequest) GetName() string {
+func (x *DeleteInferenceModelRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-// ListSummarizationInferenceModelsRequest is a request for listing
-// SummmarizationInferenceModels.
-type ListSummarizationInferenceModelsRequest struct {
+// ListInferenceModelsRequest is a request for listing InferenceModels.
+type ListInferenceModelsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// PageSize is the maximum number of items to return. The server may use a
 	// different page size at its discretion.
@@ -286,20 +279,20 @@ type ListSummarizationInferenceModelsRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListSummarizationInferenceModelsRequest) Reset() {
-	*x = ListSummarizationInferenceModelsRequest{}
+func (x *ListInferenceModelsRequest) Reset() {
+	*x = ListInferenceModelsRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListSummarizationInferenceModelsRequest) String() string {
+func (x *ListInferenceModelsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListSummarizationInferenceModelsRequest) ProtoMessage() {}
+func (*ListInferenceModelsRequest) ProtoMessage() {}
 
-func (x *ListSummarizationInferenceModelsRequest) ProtoReflect() protoreflect.Message {
+func (x *ListInferenceModelsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -311,32 +304,30 @@ func (x *ListSummarizationInferenceModelsRequest) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSummarizationInferenceModelsRequest.ProtoReflect.Descriptor instead.
-func (*ListSummarizationInferenceModelsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListInferenceModelsRequest.ProtoReflect.Descriptor instead.
+func (*ListInferenceModelsRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ListSummarizationInferenceModelsRequest) GetPageSize() int32 {
+func (x *ListInferenceModelsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
 	}
 	return 0
 }
 
-func (x *ListSummarizationInferenceModelsRequest) GetPageToken() string {
+func (x *ListInferenceModelsRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
 	}
 	return ""
 }
 
-// ListSummarizationInferenceModelsResponse is the response for listing
-// SummmarizationInferenceModels.
-type ListSummarizationInferenceModelsResponse struct {
+// ListInferenceModelsResponse is the response for listing InferenceModels.
+type ListInferenceModelsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Models is the page of SummarizationInferenceModels that matched the
-	// request.
-	Models []*SummarizationInferenceModel `protobuf:"bytes,1,rep,name=models,proto3" json:"models,omitempty"`
+	// Models is the page of InferenceModels that matched the request.
+	Models []*InferenceModel `protobuf:"bytes,1,rep,name=models,proto3" json:"models,omitempty"`
 	// NextPageToken is the token to retrieve the next page of results, or empty
 	// if there are no more results in the list.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
@@ -344,20 +335,20 @@ type ListSummarizationInferenceModelsResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListSummarizationInferenceModelsResponse) Reset() {
-	*x = ListSummarizationInferenceModelsResponse{}
+func (x *ListInferenceModelsResponse) Reset() {
+	*x = ListInferenceModelsResponse{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListSummarizationInferenceModelsResponse) String() string {
+func (x *ListInferenceModelsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListSummarizationInferenceModelsResponse) ProtoMessage() {}
+func (*ListInferenceModelsResponse) ProtoMessage() {}
 
-func (x *ListSummarizationInferenceModelsResponse) ProtoReflect() protoreflect.Message {
+func (x *ListInferenceModelsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -369,50 +360,49 @@ func (x *ListSummarizationInferenceModelsResponse) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSummarizationInferenceModelsResponse.ProtoReflect.Descriptor instead.
-func (*ListSummarizationInferenceModelsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListInferenceModelsResponse.ProtoReflect.Descriptor instead.
+func (*ListInferenceModelsResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ListSummarizationInferenceModelsResponse) GetModels() []*SummarizationInferenceModel {
+func (x *ListInferenceModelsResponse) GetModels() []*InferenceModel {
 	if x != nil {
 		return x.Models
 	}
 	return nil
 }
 
-func (x *ListSummarizationInferenceModelsResponse) GetNextPageToken() string {
+func (x *ListInferenceModelsResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
 	}
 	return ""
 }
 
-// CreateSummarizationInferenceSecretRequest is a request for creating a
-// SummmarizationInferenceSecret.
-type CreateSummarizationInferenceSecretRequest struct {
+// CreateInferenceSecretRequest is a request for creating a InferenceSecret.
+type CreateInferenceSecretRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SummarizationInferenceSecret is the SummarizationInferenceSecret resource
+	// InferenceSecret is the InferenceSecret resource
 	// to create.
-	Secret        *SummarizationInferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateSummarizationInferenceSecretRequest) Reset() {
-	*x = CreateSummarizationInferenceSecretRequest{}
+func (x *CreateInferenceSecretRequest) Reset() {
+	*x = CreateInferenceSecretRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateSummarizationInferenceSecretRequest) String() string {
+func (x *CreateInferenceSecretRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateSummarizationInferenceSecretRequest) ProtoMessage() {}
+func (*CreateInferenceSecretRequest) ProtoMessage() {}
 
-func (x *CreateSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -424,42 +414,41 @@ func (x *CreateSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateSummarizationInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*CreateSummarizationInferenceSecretRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateInferenceSecretRequest.ProtoReflect.Descriptor instead.
+func (*CreateInferenceSecretRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *CreateSummarizationInferenceSecretRequest) GetSecret() *SummarizationInferenceSecret {
+func (x *CreateInferenceSecretRequest) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
 	}
 	return nil
 }
 
-// GetSummarizationInferenceSecretRequest is a request for retrieving a
-// SummmarizationInferenceSecret.
-type GetSummarizationInferenceSecretRequest struct {
+// GetInferenceSecretRequest is a request for retrieving a InferenceSecret.
+type GetInferenceSecretRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the resource name of the SummarizationInferenceSecret to retrieve.
+	// Name is the resource name of the InferenceSecret to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetSummarizationInferenceSecretRequest) Reset() {
-	*x = GetSummarizationInferenceSecretRequest{}
+func (x *GetInferenceSecretRequest) Reset() {
+	*x = GetInferenceSecretRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetSummarizationInferenceSecretRequest) String() string {
+func (x *GetInferenceSecretRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetSummarizationInferenceSecretRequest) ProtoMessage() {}
+func (*GetInferenceSecretRequest) ProtoMessage() {}
 
-func (x *GetSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.Message {
+func (x *GetInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -471,42 +460,41 @@ func (x *GetSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSummarizationInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*GetSummarizationInferenceSecretRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetInferenceSecretRequest.ProtoReflect.Descriptor instead.
+func (*GetInferenceSecretRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *GetSummarizationInferenceSecretRequest) GetName() string {
+func (x *GetInferenceSecretRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-// UpdateSummarizationInferenceSecretRequest is a request for updating a
-// SummmarizationInferenceSecret.
-type UpdateSummarizationInferenceSecretRequest struct {
+// UpdateInferenceSecretRequest is a request for updating a InferenceSecret.
+type UpdateInferenceSecretRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Secret is the SummarizationInferenceSecret resource to update.
-	Secret        *SummarizationInferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	// Secret is the InferenceSecret resource to update.
+	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateSummarizationInferenceSecretRequest) Reset() {
-	*x = UpdateSummarizationInferenceSecretRequest{}
+func (x *UpdateInferenceSecretRequest) Reset() {
+	*x = UpdateInferenceSecretRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateSummarizationInferenceSecretRequest) String() string {
+func (x *UpdateInferenceSecretRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateSummarizationInferenceSecretRequest) ProtoMessage() {}
+func (*UpdateInferenceSecretRequest) ProtoMessage() {}
 
-func (x *UpdateSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.Message {
+func (x *UpdateInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -518,42 +506,41 @@ func (x *UpdateSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateSummarizationInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*UpdateSummarizationInferenceSecretRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpdateInferenceSecretRequest.ProtoReflect.Descriptor instead.
+func (*UpdateInferenceSecretRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *UpdateSummarizationInferenceSecretRequest) GetSecret() *SummarizationInferenceSecret {
+func (x *UpdateInferenceSecretRequest) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
 	}
 	return nil
 }
 
-// UpsertSummarizationInferenceSecretRequest is a request for updating a
-// SummmarizationInferenceSecret.
-type UpsertSummarizationInferenceSecretRequest struct {
+// UpsertInferenceSecretRequest is a request for updating a InferenceSecret.
+type UpsertInferenceSecretRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Secret is the SummarizationInferenceSecret resource to create or update.
-	Secret        *SummarizationInferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
+	// Secret is the InferenceSecret resource to create or update.
+	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpsertSummarizationInferenceSecretRequest) Reset() {
-	*x = UpsertSummarizationInferenceSecretRequest{}
+func (x *UpsertInferenceSecretRequest) Reset() {
+	*x = UpsertInferenceSecretRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpsertSummarizationInferenceSecretRequest) String() string {
+func (x *UpsertInferenceSecretRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpsertSummarizationInferenceSecretRequest) ProtoMessage() {}
+func (*UpsertInferenceSecretRequest) ProtoMessage() {}
 
-func (x *UpsertSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.Message {
+func (x *UpsertInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -565,42 +552,41 @@ func (x *UpsertSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertSummarizationInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*UpsertSummarizationInferenceSecretRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertInferenceSecretRequest.ProtoReflect.Descriptor instead.
+func (*UpsertInferenceSecretRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *UpsertSummarizationInferenceSecretRequest) GetSecret() *SummarizationInferenceSecret {
+func (x *UpsertInferenceSecretRequest) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
 	}
 	return nil
 }
 
-// DeleteSummarizationInferenceSecretRequest is a request for deleting a
-// SummmarizationInferenceSecret.
-type DeleteSummarizationInferenceSecretRequest struct {
+// DeleteInferenceSecretRequest is a request for deleting a InferenceSecret.
+type DeleteInferenceSecretRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the resource name of the SummarizationInferenceSecret to delete.
+	// Name is the resource name of the InferenceSecret to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteSummarizationInferenceSecretRequest) Reset() {
-	*x = DeleteSummarizationInferenceSecretRequest{}
+func (x *DeleteInferenceSecretRequest) Reset() {
+	*x = DeleteInferenceSecretRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteSummarizationInferenceSecretRequest) String() string {
+func (x *DeleteInferenceSecretRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteSummarizationInferenceSecretRequest) ProtoMessage() {}
+func (*DeleteInferenceSecretRequest) ProtoMessage() {}
 
-func (x *DeleteSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.Message {
+func (x *DeleteInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -612,21 +598,20 @@ func (x *DeleteSummarizationInferenceSecretRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteSummarizationInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*DeleteSummarizationInferenceSecretRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use DeleteInferenceSecretRequest.ProtoReflect.Descriptor instead.
+func (*DeleteInferenceSecretRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *DeleteSummarizationInferenceSecretRequest) GetName() string {
+func (x *DeleteInferenceSecretRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-// ListSummarizationInferenceSecretsRequest is a request for listing
-// SummmarizationInferenceSecrets.
-type ListSummarizationInferenceSecretsRequest struct {
+// ListInferenceSecretsRequest is a request for listing InferenceSecrets.
+type ListInferenceSecretsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// PageSize is the maximum number of items to return. The server may use a
 	// different page size at its discretion.
@@ -638,20 +623,20 @@ type ListSummarizationInferenceSecretsRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListSummarizationInferenceSecretsRequest) Reset() {
-	*x = ListSummarizationInferenceSecretsRequest{}
+func (x *ListInferenceSecretsRequest) Reset() {
+	*x = ListInferenceSecretsRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListSummarizationInferenceSecretsRequest) String() string {
+func (x *ListInferenceSecretsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListSummarizationInferenceSecretsRequest) ProtoMessage() {}
+func (*ListInferenceSecretsRequest) ProtoMessage() {}
 
-func (x *ListSummarizationInferenceSecretsRequest) ProtoReflect() protoreflect.Message {
+func (x *ListInferenceSecretsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -663,32 +648,31 @@ func (x *ListSummarizationInferenceSecretsRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSummarizationInferenceSecretsRequest.ProtoReflect.Descriptor instead.
-func (*ListSummarizationInferenceSecretsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListInferenceSecretsRequest.ProtoReflect.Descriptor instead.
+func (*ListInferenceSecretsRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *ListSummarizationInferenceSecretsRequest) GetPageSize() int32 {
+func (x *ListInferenceSecretsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
 	}
 	return 0
 }
 
-func (x *ListSummarizationInferenceSecretsRequest) GetPageToken() string {
+func (x *ListInferenceSecretsRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
 	}
 	return ""
 }
 
-// ListSummarizationInferenceSecretsResponse is the response for listing
-// SummmarizationInferenceSecrets.
-type ListSummarizationInferenceSecretsResponse struct {
+// ListInferenceSecretsResponse is the response for listing InferenceSecrets.
+type ListInferenceSecretsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Secrets is the page of SummarizationInferenceSecrets that matched the
+	// Secrets is the page of InferenceSecrets that matched the
 	// request.
-	Secrets []*SummarizationInferenceSecret `protobuf:"bytes,1,rep,name=secrets,proto3" json:"secrets,omitempty"`
+	Secrets []*InferenceSecret `protobuf:"bytes,1,rep,name=secrets,proto3" json:"secrets,omitempty"`
 	// NextPageToken is the token to retrieve the next page of results, or empty
 	// if there are no more results in the list.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
@@ -696,20 +680,20 @@ type ListSummarizationInferenceSecretsResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListSummarizationInferenceSecretsResponse) Reset() {
-	*x = ListSummarizationInferenceSecretsResponse{}
+func (x *ListInferenceSecretsResponse) Reset() {
+	*x = ListInferenceSecretsResponse{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListSummarizationInferenceSecretsResponse) String() string {
+func (x *ListInferenceSecretsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListSummarizationInferenceSecretsResponse) ProtoMessage() {}
+func (*ListInferenceSecretsResponse) ProtoMessage() {}
 
-func (x *ListSummarizationInferenceSecretsResponse) ProtoReflect() protoreflect.Message {
+func (x *ListInferenceSecretsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -721,50 +705,48 @@ func (x *ListSummarizationInferenceSecretsResponse) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSummarizationInferenceSecretsResponse.ProtoReflect.Descriptor instead.
-func (*ListSummarizationInferenceSecretsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListInferenceSecretsResponse.ProtoReflect.Descriptor instead.
+func (*ListInferenceSecretsResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *ListSummarizationInferenceSecretsResponse) GetSecrets() []*SummarizationInferenceSecret {
+func (x *ListInferenceSecretsResponse) GetSecrets() []*InferenceSecret {
 	if x != nil {
 		return x.Secrets
 	}
 	return nil
 }
 
-func (x *ListSummarizationInferenceSecretsResponse) GetNextPageToken() string {
+func (x *ListInferenceSecretsResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
 	}
 	return ""
 }
 
-// CreateSummarizationInferencePolicyRequest is a request for creating a
-// SummmarizationInferencePolicy.
-type CreateSummarizationInferencePolicyRequest struct {
+// CreateInferencePolicyRequest is a request for creating a InferencePolicy.
+type CreateInferencePolicyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SummarizationInferencePolicy is the SummarizationInferencePolicy resource
-	// to create.
-	Policy        *SummarizationInferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	// InferencePolicy is the InferencePolicy resource to create.
+	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateSummarizationInferencePolicyRequest) Reset() {
-	*x = CreateSummarizationInferencePolicyRequest{}
+func (x *CreateInferencePolicyRequest) Reset() {
+	*x = CreateInferencePolicyRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateSummarizationInferencePolicyRequest) String() string {
+func (x *CreateInferencePolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateSummarizationInferencePolicyRequest) ProtoMessage() {}
+func (*CreateInferencePolicyRequest) ProtoMessage() {}
 
-func (x *CreateSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -776,42 +758,41 @@ func (x *CreateSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateSummarizationInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*CreateSummarizationInferencePolicyRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateInferencePolicyRequest.ProtoReflect.Descriptor instead.
+func (*CreateInferencePolicyRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *CreateSummarizationInferencePolicyRequest) GetPolicy() *SummarizationInferencePolicy {
+func (x *CreateInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
 	}
 	return nil
 }
 
-// GetSummarizationInferencePolicyRequest is a request for retrieving a
-// SummmarizationInferencePolicy.
-type GetSummarizationInferencePolicyRequest struct {
+// GetInferencePolicyRequest is a request for retrieving a InferencePolicy.
+type GetInferencePolicyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the resource name of the SummarizationInferencePolicy to retrieve.
+	// Name is the resource name of the InferencePolicy to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetSummarizationInferencePolicyRequest) Reset() {
-	*x = GetSummarizationInferencePolicyRequest{}
+func (x *GetInferencePolicyRequest) Reset() {
+	*x = GetInferencePolicyRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetSummarizationInferencePolicyRequest) String() string {
+func (x *GetInferencePolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetSummarizationInferencePolicyRequest) ProtoMessage() {}
+func (*GetInferencePolicyRequest) ProtoMessage() {}
 
-func (x *GetSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.Message {
+func (x *GetInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -823,42 +804,41 @@ func (x *GetSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSummarizationInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*GetSummarizationInferencePolicyRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetInferencePolicyRequest.ProtoReflect.Descriptor instead.
+func (*GetInferencePolicyRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *GetSummarizationInferencePolicyRequest) GetName() string {
+func (x *GetInferencePolicyRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-// UpdateSummarizationInferencePolicyRequest is a request for updating a
-// SummmarizationInferencePolicy.
-type UpdateSummarizationInferencePolicyRequest struct {
+// UpdateInferencePolicyRequest is a request for updating a InferencePolicy.
+type UpdateInferencePolicyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Policy is the SummarizationInferencePolicy resource to update.
-	Policy        *SummarizationInferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	// Policy is the InferencePolicy resource to update.
+	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateSummarizationInferencePolicyRequest) Reset() {
-	*x = UpdateSummarizationInferencePolicyRequest{}
+func (x *UpdateInferencePolicyRequest) Reset() {
+	*x = UpdateInferencePolicyRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateSummarizationInferencePolicyRequest) String() string {
+func (x *UpdateInferencePolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateSummarizationInferencePolicyRequest) ProtoMessage() {}
+func (*UpdateInferencePolicyRequest) ProtoMessage() {}
 
-func (x *UpdateSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.Message {
+func (x *UpdateInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -870,42 +850,41 @@ func (x *UpdateSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateSummarizationInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpdateSummarizationInferencePolicyRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpdateInferencePolicyRequest.ProtoReflect.Descriptor instead.
+func (*UpdateInferencePolicyRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *UpdateSummarizationInferencePolicyRequest) GetPolicy() *SummarizationInferencePolicy {
+func (x *UpdateInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
 	}
 	return nil
 }
 
-// UpsertSummarizationInferencePolicyRequest is a request for updating a
-// SummmarizationInferencePolicy.
-type UpsertSummarizationInferencePolicyRequest struct {
+// UpsertInferencePolicyRequest is a request for updating a InferencePolicy.
+type UpsertInferencePolicyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Policy is the SummarizationInferencePolicy resource to create or update.
-	Policy        *SummarizationInferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	// Policy is the InferencePolicy resource to create or update.
+	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpsertSummarizationInferencePolicyRequest) Reset() {
-	*x = UpsertSummarizationInferencePolicyRequest{}
+func (x *UpsertInferencePolicyRequest) Reset() {
+	*x = UpsertInferencePolicyRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpsertSummarizationInferencePolicyRequest) String() string {
+func (x *UpsertInferencePolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpsertSummarizationInferencePolicyRequest) ProtoMessage() {}
+func (*UpsertInferencePolicyRequest) ProtoMessage() {}
 
-func (x *UpsertSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.Message {
+func (x *UpsertInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -917,42 +896,41 @@ func (x *UpsertSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertSummarizationInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpsertSummarizationInferencePolicyRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertInferencePolicyRequest.ProtoReflect.Descriptor instead.
+func (*UpsertInferencePolicyRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *UpsertSummarizationInferencePolicyRequest) GetPolicy() *SummarizationInferencePolicy {
+func (x *UpsertInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
 	}
 	return nil
 }
 
-// DeleteSummarizationInferencePolicyRequest is a request for deleting a
-// SummmarizationInferencePolicy.
-type DeleteSummarizationInferencePolicyRequest struct {
+// DeleteInferencePolicyRequest is a request for deleting a InferencePolicy.
+type DeleteInferencePolicyRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the resource name of the SummarizationInferencePolicy to delete.
+	// Name is the resource name of the InferencePolicy to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteSummarizationInferencePolicyRequest) Reset() {
-	*x = DeleteSummarizationInferencePolicyRequest{}
+func (x *DeleteInferencePolicyRequest) Reset() {
+	*x = DeleteInferencePolicyRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteSummarizationInferencePolicyRequest) String() string {
+func (x *DeleteInferencePolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteSummarizationInferencePolicyRequest) ProtoMessage() {}
+func (*DeleteInferencePolicyRequest) ProtoMessage() {}
 
-func (x *DeleteSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.Message {
+func (x *DeleteInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -964,21 +942,20 @@ func (x *DeleteSummarizationInferencePolicyRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteSummarizationInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*DeleteSummarizationInferencePolicyRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use DeleteInferencePolicyRequest.ProtoReflect.Descriptor instead.
+func (*DeleteInferencePolicyRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{18}
 }
 
-func (x *DeleteSummarizationInferencePolicyRequest) GetName() string {
+func (x *DeleteInferencePolicyRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-// ListSummarizationInferencePoliciesRequest is a request for listing
-// SummmarizationInferencePolicies.
-type ListSummarizationInferencePoliciesRequest struct {
+// ListInferencePoliciesRequest is a request for listing InferencePolicies.
+type ListInferencePoliciesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// PageSize is the maximum number of items to return. The server may use a
 	// different page size at its discretion.
@@ -990,20 +967,20 @@ type ListSummarizationInferencePoliciesRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListSummarizationInferencePoliciesRequest) Reset() {
-	*x = ListSummarizationInferencePoliciesRequest{}
+func (x *ListInferencePoliciesRequest) Reset() {
+	*x = ListInferencePoliciesRequest{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListSummarizationInferencePoliciesRequest) String() string {
+func (x *ListInferencePoliciesRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListSummarizationInferencePoliciesRequest) ProtoMessage() {}
+func (*ListInferencePoliciesRequest) ProtoMessage() {}
 
-func (x *ListSummarizationInferencePoliciesRequest) ProtoReflect() protoreflect.Message {
+func (x *ListInferencePoliciesRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1015,32 +992,31 @@ func (x *ListSummarizationInferencePoliciesRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSummarizationInferencePoliciesRequest.ProtoReflect.Descriptor instead.
-func (*ListSummarizationInferencePoliciesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListInferencePoliciesRequest.ProtoReflect.Descriptor instead.
+func (*ListInferencePoliciesRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *ListSummarizationInferencePoliciesRequest) GetPageSize() int32 {
+func (x *ListInferencePoliciesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
 	}
 	return 0
 }
 
-func (x *ListSummarizationInferencePoliciesRequest) GetPageToken() string {
+func (x *ListInferencePoliciesRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
 	}
 	return ""
 }
 
-// ListSummarizationInferencePoliciesResponse is the response for listing
-// SummmarizationInferencePolicies.
-type ListSummarizationInferencePoliciesResponse struct {
+// ListInferencePoliciesResponse is the response for listing InferencePolicies.
+type ListInferencePoliciesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Policies is the page of SummarizationInferencePolicies that matched the
+	// Policies is the page of InferencePolicies that matched the
 	// request.
-	Policies []*SummarizationInferencePolicy `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
+	Policies []*InferencePolicy `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
 	// NextPageToken is the token to retrieve the next page of results, or empty
 	// if there are no more results in the list.
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
@@ -1048,20 +1024,20 @@ type ListSummarizationInferencePoliciesResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListSummarizationInferencePoliciesResponse) Reset() {
-	*x = ListSummarizationInferencePoliciesResponse{}
+func (x *ListInferencePoliciesResponse) Reset() {
+	*x = ListInferencePoliciesResponse{}
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListSummarizationInferencePoliciesResponse) String() string {
+func (x *ListInferencePoliciesResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListSummarizationInferencePoliciesResponse) ProtoMessage() {}
+func (*ListInferencePoliciesResponse) ProtoMessage() {}
 
-func (x *ListSummarizationInferencePoliciesResponse) ProtoReflect() protoreflect.Message {
+func (x *ListInferencePoliciesResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1073,19 +1049,19 @@ func (x *ListSummarizationInferencePoliciesResponse) ProtoReflect() protoreflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSummarizationInferencePoliciesResponse.ProtoReflect.Descriptor instead.
-func (*ListSummarizationInferencePoliciesResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListInferencePoliciesResponse.ProtoReflect.Descriptor instead.
+func (*ListInferencePoliciesResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *ListSummarizationInferencePoliciesResponse) GetPolicies() []*SummarizationInferencePolicy {
+func (x *ListInferencePoliciesResponse) GetPolicies() []*InferencePolicy {
 	if x != nil {
 		return x.Policies
 	}
 	return nil
 }
 
-func (x *ListSummarizationInferencePoliciesResponse) GetNextPageToken() string {
+func (x *ListInferencePoliciesResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
 	}
@@ -1096,77 +1072,77 @@ var File_teleport_summarizer_v1_summarizer_service_proto protoreflect.FileDescri
 
 const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\n" +
-	"/teleport/summarizer/v1/summarizer_service.proto\x12\x16teleport.summarizer.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a'teleport/summarizer/v1/summarizer.proto\"u\n" +
-	"(CreateSummarizationInferenceModelRequest\x12I\n" +
-	"\x05model\x18\x01 \x01(\v23.teleport.summarizer.v1.SummarizationInferenceModelR\x05model\";\n" +
-	"%GetSummarizationInferenceModelRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"u\n" +
-	"(UpdateSummarizationInferenceModelRequest\x12I\n" +
-	"\x05model\x18\x01 \x01(\v23.teleport.summarizer.v1.SummarizationInferenceModelR\x05model\"u\n" +
-	"(UpsertSummarizationInferenceModelRequest\x12I\n" +
-	"\x05model\x18\x01 \x01(\v23.teleport.summarizer.v1.SummarizationInferenceModelR\x05model\">\n" +
-	"(DeleteSummarizationInferenceModelRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"e\n" +
-	"'ListSummarizationInferenceModelsRequest\x12\x1b\n" +
+	"/teleport/summarizer/v1/summarizer_service.proto\x12\x16teleport.summarizer.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a'teleport/summarizer/v1/summarizer.proto\"[\n" +
+	"\x1bCreateInferenceModelRequest\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.InferenceModelR\x05model\".\n" +
+	"\x18GetInferenceModelRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"[\n" +
+	"\x1bUpdateInferenceModelRequest\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.InferenceModelR\x05model\"[\n" +
+	"\x1bUpsertInferenceModelRequest\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.InferenceModelR\x05model\"1\n" +
+	"\x1bDeleteInferenceModelRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"X\n" +
+	"\x1aListInferenceModelsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\x9f\x01\n" +
-	"(ListSummarizationInferenceModelsResponse\x12K\n" +
-	"\x06models\x18\x01 \x03(\v23.teleport.summarizer.v1.SummarizationInferenceModelR\x06models\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"y\n" +
-	")CreateSummarizationInferenceSecretRequest\x12L\n" +
-	"\x06secret\x18\x01 \x01(\v24.teleport.summarizer.v1.SummarizationInferenceSecretR\x06secret\"<\n" +
-	"&GetSummarizationInferenceSecretRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"y\n" +
-	")UpdateSummarizationInferenceSecretRequest\x12L\n" +
-	"\x06secret\x18\x01 \x01(\v24.teleport.summarizer.v1.SummarizationInferenceSecretR\x06secret\"y\n" +
-	")UpsertSummarizationInferenceSecretRequest\x12L\n" +
-	"\x06secret\x18\x01 \x01(\v24.teleport.summarizer.v1.SummarizationInferenceSecretR\x06secret\"?\n" +
-	")DeleteSummarizationInferenceSecretRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"f\n" +
-	"(ListSummarizationInferenceSecretsRequest\x12\x1b\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x85\x01\n" +
+	"\x1bListInferenceModelsResponse\x12>\n" +
+	"\x06models\x18\x01 \x03(\v2&.teleport.summarizer.v1.InferenceModelR\x06models\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"_\n" +
+	"\x1cCreateInferenceSecretRequest\x12?\n" +
+	"\x06secret\x18\x01 \x01(\v2'.teleport.summarizer.v1.InferenceSecretR\x06secret\"/\n" +
+	"\x19GetInferenceSecretRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"_\n" +
+	"\x1cUpdateInferenceSecretRequest\x12?\n" +
+	"\x06secret\x18\x01 \x01(\v2'.teleport.summarizer.v1.InferenceSecretR\x06secret\"_\n" +
+	"\x1cUpsertInferenceSecretRequest\x12?\n" +
+	"\x06secret\x18\x01 \x01(\v2'.teleport.summarizer.v1.InferenceSecretR\x06secret\"2\n" +
+	"\x1cDeleteInferenceSecretRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"Y\n" +
+	"\x1bListInferenceSecretsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\xa3\x01\n" +
-	")ListSummarizationInferenceSecretsResponse\x12N\n" +
-	"\asecrets\x18\x01 \x03(\v24.teleport.summarizer.v1.SummarizationInferenceSecretR\asecrets\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"y\n" +
-	")CreateSummarizationInferencePolicyRequest\x12L\n" +
-	"\x06policy\x18\x01 \x01(\v24.teleport.summarizer.v1.SummarizationInferencePolicyR\x06policy\"<\n" +
-	"&GetSummarizationInferencePolicyRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"y\n" +
-	")UpdateSummarizationInferencePolicyRequest\x12L\n" +
-	"\x06policy\x18\x01 \x01(\v24.teleport.summarizer.v1.SummarizationInferencePolicyR\x06policy\"y\n" +
-	")UpsertSummarizationInferencePolicyRequest\x12L\n" +
-	"\x06policy\x18\x01 \x01(\v24.teleport.summarizer.v1.SummarizationInferencePolicyR\x06policy\"?\n" +
-	")DeleteSummarizationInferencePolicyRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"g\n" +
-	")ListSummarizationInferencePoliciesRequest\x12\x1b\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x89\x01\n" +
+	"\x1cListInferenceSecretsResponse\x12A\n" +
+	"\asecrets\x18\x01 \x03(\v2'.teleport.summarizer.v1.InferenceSecretR\asecrets\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"_\n" +
+	"\x1cCreateInferencePolicyRequest\x12?\n" +
+	"\x06policy\x18\x01 \x01(\v2'.teleport.summarizer.v1.InferencePolicyR\x06policy\"/\n" +
+	"\x19GetInferencePolicyRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"_\n" +
+	"\x1cUpdateInferencePolicyRequest\x12?\n" +
+	"\x06policy\x18\x01 \x01(\v2'.teleport.summarizer.v1.InferencePolicyR\x06policy\"_\n" +
+	"\x1cUpsertInferencePolicyRequest\x12?\n" +
+	"\x06policy\x18\x01 \x01(\v2'.teleport.summarizer.v1.InferencePolicyR\x06policy\"2\n" +
+	"\x1cDeleteInferencePolicyRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"Z\n" +
+	"\x1cListInferencePoliciesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\xa6\x01\n" +
-	"*ListSummarizationInferencePoliciesResponse\x12P\n" +
-	"\bpolicies\x18\x01 \x03(\v24.teleport.summarizer.v1.SummarizationInferencePolicyR\bpolicies\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xf7\x15\n" +
-	"\x11SummarizerService\x12\x9a\x01\n" +
-	"!CreateSummarizationInferenceModel\x12@.teleport.summarizer.v1.CreateSummarizationInferenceModelRequest\x1a3.teleport.summarizer.v1.SummarizationInferenceModel\x12\x94\x01\n" +
-	"\x1eGetSummarizationInferenceModel\x12=.teleport.summarizer.v1.GetSummarizationInferenceModelRequest\x1a3.teleport.summarizer.v1.SummarizationInferenceModel\x12\x9a\x01\n" +
-	"!UpdateSummarizationInferenceModel\x12@.teleport.summarizer.v1.UpdateSummarizationInferenceModelRequest\x1a3.teleport.summarizer.v1.SummarizationInferenceModel\x12\x9a\x01\n" +
-	"!UpsertSummarizationInferenceModel\x12@.teleport.summarizer.v1.UpsertSummarizationInferenceModelRequest\x1a3.teleport.summarizer.v1.SummarizationInferenceModel\x12}\n" +
-	"!DeleteSummarizationInferenceModel\x12@.teleport.summarizer.v1.DeleteSummarizationInferenceModelRequest\x1a\x16.google.protobuf.Empty\x12\xa5\x01\n" +
-	" ListSummarizationInferenceModels\x12?.teleport.summarizer.v1.ListSummarizationInferenceModelsRequest\x1a@.teleport.summarizer.v1.ListSummarizationInferenceModelsResponse\x12\x9d\x01\n" +
-	"\"CreateSummarizationInferenceSecret\x12A.teleport.summarizer.v1.CreateSummarizationInferenceSecretRequest\x1a4.teleport.summarizer.v1.SummarizationInferenceSecret\x12\x97\x01\n" +
-	"\x1fGetSummarizationInferenceSecret\x12>.teleport.summarizer.v1.GetSummarizationInferenceSecretRequest\x1a4.teleport.summarizer.v1.SummarizationInferenceSecret\x12\x9d\x01\n" +
-	"\"UpdateSummarizationInferenceSecret\x12A.teleport.summarizer.v1.UpdateSummarizationInferenceSecretRequest\x1a4.teleport.summarizer.v1.SummarizationInferenceSecret\x12\x9d\x01\n" +
-	"\"UpsertSummarizationInferenceSecret\x12A.teleport.summarizer.v1.UpsertSummarizationInferenceSecretRequest\x1a4.teleport.summarizer.v1.SummarizationInferenceSecret\x12\x7f\n" +
-	"\"DeleteSummarizationInferenceSecret\x12A.teleport.summarizer.v1.DeleteSummarizationInferenceSecretRequest\x1a\x16.google.protobuf.Empty\x12\xa8\x01\n" +
-	"!ListSummarizationInferenceSecrets\x12@.teleport.summarizer.v1.ListSummarizationInferenceSecretsRequest\x1aA.teleport.summarizer.v1.ListSummarizationInferenceSecretsResponse\x12\x9d\x01\n" +
-	"\"CreateSummarizationInferencePolicy\x12A.teleport.summarizer.v1.CreateSummarizationInferencePolicyRequest\x1a4.teleport.summarizer.v1.SummarizationInferencePolicy\x12\x97\x01\n" +
-	"\x1fGetSummarizationInferencePolicy\x12>.teleport.summarizer.v1.GetSummarizationInferencePolicyRequest\x1a4.teleport.summarizer.v1.SummarizationInferencePolicy\x12\x9d\x01\n" +
-	"\"UpdateSummarizationInferencePolicy\x12A.teleport.summarizer.v1.UpdateSummarizationInferencePolicyRequest\x1a4.teleport.summarizer.v1.SummarizationInferencePolicy\x12\x9d\x01\n" +
-	"\"UpsertSummarizationInferencePolicy\x12A.teleport.summarizer.v1.UpsertSummarizationInferencePolicyRequest\x1a4.teleport.summarizer.v1.SummarizationInferencePolicy\x12\x7f\n" +
-	"\"DeleteSummarizationInferencePolicy\x12A.teleport.summarizer.v1.DeleteSummarizationInferencePolicyRequest\x1a\x16.google.protobuf.Empty\x12\xab\x01\n" +
-	"\"ListSummarizationInferencePolicies\x12A.teleport.summarizer.v1.ListSummarizationInferencePoliciesRequest\x1aB.teleport.summarizer.v1.ListSummarizationInferencePoliciesResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x8c\x01\n" +
+	"\x1dListInferencePoliciesResponse\x12C\n" +
+	"\bpolicies\x18\x01 \x03(\v2'.teleport.summarizer.v1.InferencePolicyR\bpolicies\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xd3\x10\n" +
+	"\x11SummarizerService\x12s\n" +
+	"\x14CreateInferenceModel\x123.teleport.summarizer.v1.CreateInferenceModelRequest\x1a&.teleport.summarizer.v1.InferenceModel\x12m\n" +
+	"\x11GetInferenceModel\x120.teleport.summarizer.v1.GetInferenceModelRequest\x1a&.teleport.summarizer.v1.InferenceModel\x12s\n" +
+	"\x14UpdateInferenceModel\x123.teleport.summarizer.v1.UpdateInferenceModelRequest\x1a&.teleport.summarizer.v1.InferenceModel\x12s\n" +
+	"\x14UpsertInferenceModel\x123.teleport.summarizer.v1.UpsertInferenceModelRequest\x1a&.teleport.summarizer.v1.InferenceModel\x12c\n" +
+	"\x14DeleteInferenceModel\x123.teleport.summarizer.v1.DeleteInferenceModelRequest\x1a\x16.google.protobuf.Empty\x12~\n" +
+	"\x13ListInferenceModels\x122.teleport.summarizer.v1.ListInferenceModelsRequest\x1a3.teleport.summarizer.v1.ListInferenceModelsResponse\x12v\n" +
+	"\x15CreateInferenceSecret\x124.teleport.summarizer.v1.CreateInferenceSecretRequest\x1a'.teleport.summarizer.v1.InferenceSecret\x12p\n" +
+	"\x12GetInferenceSecret\x121.teleport.summarizer.v1.GetInferenceSecretRequest\x1a'.teleport.summarizer.v1.InferenceSecret\x12v\n" +
+	"\x15UpdateInferenceSecret\x124.teleport.summarizer.v1.UpdateInferenceSecretRequest\x1a'.teleport.summarizer.v1.InferenceSecret\x12v\n" +
+	"\x15UpsertInferenceSecret\x124.teleport.summarizer.v1.UpsertInferenceSecretRequest\x1a'.teleport.summarizer.v1.InferenceSecret\x12e\n" +
+	"\x15DeleteInferenceSecret\x124.teleport.summarizer.v1.DeleteInferenceSecretRequest\x1a\x16.google.protobuf.Empty\x12\x81\x01\n" +
+	"\x14ListInferenceSecrets\x123.teleport.summarizer.v1.ListInferenceSecretsRequest\x1a4.teleport.summarizer.v1.ListInferenceSecretsResponse\x12v\n" +
+	"\x15CreateInferencePolicy\x124.teleport.summarizer.v1.CreateInferencePolicyRequest\x1a'.teleport.summarizer.v1.InferencePolicy\x12p\n" +
+	"\x12GetInferencePolicy\x121.teleport.summarizer.v1.GetInferencePolicyRequest\x1a'.teleport.summarizer.v1.InferencePolicy\x12v\n" +
+	"\x15UpdateInferencePolicy\x124.teleport.summarizer.v1.UpdateInferencePolicyRequest\x1a'.teleport.summarizer.v1.InferencePolicy\x12v\n" +
+	"\x15UpsertInferencePolicy\x124.teleport.summarizer.v1.UpsertInferencePolicyRequest\x1a'.teleport.summarizer.v1.InferencePolicy\x12e\n" +
+	"\x15DeleteInferencePolicy\x124.teleport.summarizer.v1.DeleteInferencePolicyRequest\x1a\x16.google.protobuf.Empty\x12\x84\x01\n" +
+	"\x15ListInferencePolicies\x124.teleport.summarizer.v1.ListInferencePoliciesRequest\x1a5.teleport.summarizer.v1.ListInferencePoliciesResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
 	file_teleport_summarizer_v1_summarizer_service_proto_rawDescOnce sync.Once
@@ -1182,81 +1158,81 @@ func file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP() []byte {
 
 var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
-	(*CreateSummarizationInferenceModelRequest)(nil),   // 0: teleport.summarizer.v1.CreateSummarizationInferenceModelRequest
-	(*GetSummarizationInferenceModelRequest)(nil),      // 1: teleport.summarizer.v1.GetSummarizationInferenceModelRequest
-	(*UpdateSummarizationInferenceModelRequest)(nil),   // 2: teleport.summarizer.v1.UpdateSummarizationInferenceModelRequest
-	(*UpsertSummarizationInferenceModelRequest)(nil),   // 3: teleport.summarizer.v1.UpsertSummarizationInferenceModelRequest
-	(*DeleteSummarizationInferenceModelRequest)(nil),   // 4: teleport.summarizer.v1.DeleteSummarizationInferenceModelRequest
-	(*ListSummarizationInferenceModelsRequest)(nil),    // 5: teleport.summarizer.v1.ListSummarizationInferenceModelsRequest
-	(*ListSummarizationInferenceModelsResponse)(nil),   // 6: teleport.summarizer.v1.ListSummarizationInferenceModelsResponse
-	(*CreateSummarizationInferenceSecretRequest)(nil),  // 7: teleport.summarizer.v1.CreateSummarizationInferenceSecretRequest
-	(*GetSummarizationInferenceSecretRequest)(nil),     // 8: teleport.summarizer.v1.GetSummarizationInferenceSecretRequest
-	(*UpdateSummarizationInferenceSecretRequest)(nil),  // 9: teleport.summarizer.v1.UpdateSummarizationInferenceSecretRequest
-	(*UpsertSummarizationInferenceSecretRequest)(nil),  // 10: teleport.summarizer.v1.UpsertSummarizationInferenceSecretRequest
-	(*DeleteSummarizationInferenceSecretRequest)(nil),  // 11: teleport.summarizer.v1.DeleteSummarizationInferenceSecretRequest
-	(*ListSummarizationInferenceSecretsRequest)(nil),   // 12: teleport.summarizer.v1.ListSummarizationInferenceSecretsRequest
-	(*ListSummarizationInferenceSecretsResponse)(nil),  // 13: teleport.summarizer.v1.ListSummarizationInferenceSecretsResponse
-	(*CreateSummarizationInferencePolicyRequest)(nil),  // 14: teleport.summarizer.v1.CreateSummarizationInferencePolicyRequest
-	(*GetSummarizationInferencePolicyRequest)(nil),     // 15: teleport.summarizer.v1.GetSummarizationInferencePolicyRequest
-	(*UpdateSummarizationInferencePolicyRequest)(nil),  // 16: teleport.summarizer.v1.UpdateSummarizationInferencePolicyRequest
-	(*UpsertSummarizationInferencePolicyRequest)(nil),  // 17: teleport.summarizer.v1.UpsertSummarizationInferencePolicyRequest
-	(*DeleteSummarizationInferencePolicyRequest)(nil),  // 18: teleport.summarizer.v1.DeleteSummarizationInferencePolicyRequest
-	(*ListSummarizationInferencePoliciesRequest)(nil),  // 19: teleport.summarizer.v1.ListSummarizationInferencePoliciesRequest
-	(*ListSummarizationInferencePoliciesResponse)(nil), // 20: teleport.summarizer.v1.ListSummarizationInferencePoliciesResponse
-	(*SummarizationInferenceModel)(nil),                // 21: teleport.summarizer.v1.SummarizationInferenceModel
-	(*SummarizationInferenceSecret)(nil),               // 22: teleport.summarizer.v1.SummarizationInferenceSecret
-	(*SummarizationInferencePolicy)(nil),               // 23: teleport.summarizer.v1.SummarizationInferencePolicy
-	(*emptypb.Empty)(nil),                              // 24: google.protobuf.Empty
+	(*CreateInferenceModelRequest)(nil),   // 0: teleport.summarizer.v1.CreateInferenceModelRequest
+	(*GetInferenceModelRequest)(nil),      // 1: teleport.summarizer.v1.GetInferenceModelRequest
+	(*UpdateInferenceModelRequest)(nil),   // 2: teleport.summarizer.v1.UpdateInferenceModelRequest
+	(*UpsertInferenceModelRequest)(nil),   // 3: teleport.summarizer.v1.UpsertInferenceModelRequest
+	(*DeleteInferenceModelRequest)(nil),   // 4: teleport.summarizer.v1.DeleteInferenceModelRequest
+	(*ListInferenceModelsRequest)(nil),    // 5: teleport.summarizer.v1.ListInferenceModelsRequest
+	(*ListInferenceModelsResponse)(nil),   // 6: teleport.summarizer.v1.ListInferenceModelsResponse
+	(*CreateInferenceSecretRequest)(nil),  // 7: teleport.summarizer.v1.CreateInferenceSecretRequest
+	(*GetInferenceSecretRequest)(nil),     // 8: teleport.summarizer.v1.GetInferenceSecretRequest
+	(*UpdateInferenceSecretRequest)(nil),  // 9: teleport.summarizer.v1.UpdateInferenceSecretRequest
+	(*UpsertInferenceSecretRequest)(nil),  // 10: teleport.summarizer.v1.UpsertInferenceSecretRequest
+	(*DeleteInferenceSecretRequest)(nil),  // 11: teleport.summarizer.v1.DeleteInferenceSecretRequest
+	(*ListInferenceSecretsRequest)(nil),   // 12: teleport.summarizer.v1.ListInferenceSecretsRequest
+	(*ListInferenceSecretsResponse)(nil),  // 13: teleport.summarizer.v1.ListInferenceSecretsResponse
+	(*CreateInferencePolicyRequest)(nil),  // 14: teleport.summarizer.v1.CreateInferencePolicyRequest
+	(*GetInferencePolicyRequest)(nil),     // 15: teleport.summarizer.v1.GetInferencePolicyRequest
+	(*UpdateInferencePolicyRequest)(nil),  // 16: teleport.summarizer.v1.UpdateInferencePolicyRequest
+	(*UpsertInferencePolicyRequest)(nil),  // 17: teleport.summarizer.v1.UpsertInferencePolicyRequest
+	(*DeleteInferencePolicyRequest)(nil),  // 18: teleport.summarizer.v1.DeleteInferencePolicyRequest
+	(*ListInferencePoliciesRequest)(nil),  // 19: teleport.summarizer.v1.ListInferencePoliciesRequest
+	(*ListInferencePoliciesResponse)(nil), // 20: teleport.summarizer.v1.ListInferencePoliciesResponse
+	(*InferenceModel)(nil),                // 21: teleport.summarizer.v1.InferenceModel
+	(*InferenceSecret)(nil),               // 22: teleport.summarizer.v1.InferenceSecret
+	(*InferencePolicy)(nil),               // 23: teleport.summarizer.v1.InferencePolicy
+	(*emptypb.Empty)(nil),                 // 24: google.protobuf.Empty
 }
 var file_teleport_summarizer_v1_summarizer_service_proto_depIdxs = []int32{
-	21, // 0: teleport.summarizer.v1.CreateSummarizationInferenceModelRequest.model:type_name -> teleport.summarizer.v1.SummarizationInferenceModel
-	21, // 1: teleport.summarizer.v1.UpdateSummarizationInferenceModelRequest.model:type_name -> teleport.summarizer.v1.SummarizationInferenceModel
-	21, // 2: teleport.summarizer.v1.UpsertSummarizationInferenceModelRequest.model:type_name -> teleport.summarizer.v1.SummarizationInferenceModel
-	21, // 3: teleport.summarizer.v1.ListSummarizationInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.SummarizationInferenceModel
-	22, // 4: teleport.summarizer.v1.CreateSummarizationInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.SummarizationInferenceSecret
-	22, // 5: teleport.summarizer.v1.UpdateSummarizationInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.SummarizationInferenceSecret
-	22, // 6: teleport.summarizer.v1.UpsertSummarizationInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.SummarizationInferenceSecret
-	22, // 7: teleport.summarizer.v1.ListSummarizationInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.SummarizationInferenceSecret
-	23, // 8: teleport.summarizer.v1.CreateSummarizationInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.SummarizationInferencePolicy
-	23, // 9: teleport.summarizer.v1.UpdateSummarizationInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.SummarizationInferencePolicy
-	23, // 10: teleport.summarizer.v1.UpsertSummarizationInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.SummarizationInferencePolicy
-	23, // 11: teleport.summarizer.v1.ListSummarizationInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.SummarizationInferencePolicy
-	0,  // 12: teleport.summarizer.v1.SummarizerService.CreateSummarizationInferenceModel:input_type -> teleport.summarizer.v1.CreateSummarizationInferenceModelRequest
-	1,  // 13: teleport.summarizer.v1.SummarizerService.GetSummarizationInferenceModel:input_type -> teleport.summarizer.v1.GetSummarizationInferenceModelRequest
-	2,  // 14: teleport.summarizer.v1.SummarizerService.UpdateSummarizationInferenceModel:input_type -> teleport.summarizer.v1.UpdateSummarizationInferenceModelRequest
-	3,  // 15: teleport.summarizer.v1.SummarizerService.UpsertSummarizationInferenceModel:input_type -> teleport.summarizer.v1.UpsertSummarizationInferenceModelRequest
-	4,  // 16: teleport.summarizer.v1.SummarizerService.DeleteSummarizationInferenceModel:input_type -> teleport.summarizer.v1.DeleteSummarizationInferenceModelRequest
-	5,  // 17: teleport.summarizer.v1.SummarizerService.ListSummarizationInferenceModels:input_type -> teleport.summarizer.v1.ListSummarizationInferenceModelsRequest
-	7,  // 18: teleport.summarizer.v1.SummarizerService.CreateSummarizationInferenceSecret:input_type -> teleport.summarizer.v1.CreateSummarizationInferenceSecretRequest
-	8,  // 19: teleport.summarizer.v1.SummarizerService.GetSummarizationInferenceSecret:input_type -> teleport.summarizer.v1.GetSummarizationInferenceSecretRequest
-	9,  // 20: teleport.summarizer.v1.SummarizerService.UpdateSummarizationInferenceSecret:input_type -> teleport.summarizer.v1.UpdateSummarizationInferenceSecretRequest
-	10, // 21: teleport.summarizer.v1.SummarizerService.UpsertSummarizationInferenceSecret:input_type -> teleport.summarizer.v1.UpsertSummarizationInferenceSecretRequest
-	11, // 22: teleport.summarizer.v1.SummarizerService.DeleteSummarizationInferenceSecret:input_type -> teleport.summarizer.v1.DeleteSummarizationInferenceSecretRequest
-	12, // 23: teleport.summarizer.v1.SummarizerService.ListSummarizationInferenceSecrets:input_type -> teleport.summarizer.v1.ListSummarizationInferenceSecretsRequest
-	14, // 24: teleport.summarizer.v1.SummarizerService.CreateSummarizationInferencePolicy:input_type -> teleport.summarizer.v1.CreateSummarizationInferencePolicyRequest
-	15, // 25: teleport.summarizer.v1.SummarizerService.GetSummarizationInferencePolicy:input_type -> teleport.summarizer.v1.GetSummarizationInferencePolicyRequest
-	16, // 26: teleport.summarizer.v1.SummarizerService.UpdateSummarizationInferencePolicy:input_type -> teleport.summarizer.v1.UpdateSummarizationInferencePolicyRequest
-	17, // 27: teleport.summarizer.v1.SummarizerService.UpsertSummarizationInferencePolicy:input_type -> teleport.summarizer.v1.UpsertSummarizationInferencePolicyRequest
-	18, // 28: teleport.summarizer.v1.SummarizerService.DeleteSummarizationInferencePolicy:input_type -> teleport.summarizer.v1.DeleteSummarizationInferencePolicyRequest
-	19, // 29: teleport.summarizer.v1.SummarizerService.ListSummarizationInferencePolicies:input_type -> teleport.summarizer.v1.ListSummarizationInferencePoliciesRequest
-	21, // 30: teleport.summarizer.v1.SummarizerService.CreateSummarizationInferenceModel:output_type -> teleport.summarizer.v1.SummarizationInferenceModel
-	21, // 31: teleport.summarizer.v1.SummarizerService.GetSummarizationInferenceModel:output_type -> teleport.summarizer.v1.SummarizationInferenceModel
-	21, // 32: teleport.summarizer.v1.SummarizerService.UpdateSummarizationInferenceModel:output_type -> teleport.summarizer.v1.SummarizationInferenceModel
-	21, // 33: teleport.summarizer.v1.SummarizerService.UpsertSummarizationInferenceModel:output_type -> teleport.summarizer.v1.SummarizationInferenceModel
-	24, // 34: teleport.summarizer.v1.SummarizerService.DeleteSummarizationInferenceModel:output_type -> google.protobuf.Empty
-	6,  // 35: teleport.summarizer.v1.SummarizerService.ListSummarizationInferenceModels:output_type -> teleport.summarizer.v1.ListSummarizationInferenceModelsResponse
-	22, // 36: teleport.summarizer.v1.SummarizerService.CreateSummarizationInferenceSecret:output_type -> teleport.summarizer.v1.SummarizationInferenceSecret
-	22, // 37: teleport.summarizer.v1.SummarizerService.GetSummarizationInferenceSecret:output_type -> teleport.summarizer.v1.SummarizationInferenceSecret
-	22, // 38: teleport.summarizer.v1.SummarizerService.UpdateSummarizationInferenceSecret:output_type -> teleport.summarizer.v1.SummarizationInferenceSecret
-	22, // 39: teleport.summarizer.v1.SummarizerService.UpsertSummarizationInferenceSecret:output_type -> teleport.summarizer.v1.SummarizationInferenceSecret
-	24, // 40: teleport.summarizer.v1.SummarizerService.DeleteSummarizationInferenceSecret:output_type -> google.protobuf.Empty
-	13, // 41: teleport.summarizer.v1.SummarizerService.ListSummarizationInferenceSecrets:output_type -> teleport.summarizer.v1.ListSummarizationInferenceSecretsResponse
-	23, // 42: teleport.summarizer.v1.SummarizerService.CreateSummarizationInferencePolicy:output_type -> teleport.summarizer.v1.SummarizationInferencePolicy
-	23, // 43: teleport.summarizer.v1.SummarizerService.GetSummarizationInferencePolicy:output_type -> teleport.summarizer.v1.SummarizationInferencePolicy
-	23, // 44: teleport.summarizer.v1.SummarizerService.UpdateSummarizationInferencePolicy:output_type -> teleport.summarizer.v1.SummarizationInferencePolicy
-	23, // 45: teleport.summarizer.v1.SummarizerService.UpsertSummarizationInferencePolicy:output_type -> teleport.summarizer.v1.SummarizationInferencePolicy
-	24, // 46: teleport.summarizer.v1.SummarizerService.DeleteSummarizationInferencePolicy:output_type -> google.protobuf.Empty
-	20, // 47: teleport.summarizer.v1.SummarizerService.ListSummarizationInferencePolicies:output_type -> teleport.summarizer.v1.ListSummarizationInferencePoliciesResponse
+	21, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	21, // 1: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	21, // 2: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	21, // 3: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
+	22, // 4: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	22, // 5: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	22, // 6: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	22, // 7: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
+	23, // 8: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	23, // 9: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	23, // 10: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	23, // 11: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
+	0,  // 12: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
+	1,  // 13: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
+	2,  // 14: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
+	3,  // 15: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
+	4,  // 16: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
+	5,  // 17: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
+	7,  // 18: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
+	8,  // 19: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
+	9,  // 20: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
+	10, // 21: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
+	11, // 22: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
+	12, // 23: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
+	14, // 24: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
+	15, // 25: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
+	16, // 26: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
+	17, // 27: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
+	18, // 28: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
+	19, // 29: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
+	21, // 30: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.InferenceModel
+	21, // 31: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.InferenceModel
+	21, // 32: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.InferenceModel
+	21, // 33: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.InferenceModel
+	24, // 34: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> google.protobuf.Empty
+	6,  // 35: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
+	22, // 36: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.InferenceSecret
+	22, // 37: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.InferenceSecret
+	22, // 38: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.InferenceSecret
+	22, // 39: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.InferenceSecret
+	24, // 40: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> google.protobuf.Empty
+	13, // 41: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
+	23, // 42: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.InferencePolicy
+	23, // 43: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.InferencePolicy
+	23, // 44: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.InferencePolicy
+	23, // 45: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.InferencePolicy
+	24, // 46: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> google.protobuf.Empty
+	20, // 47: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
 	30, // [30:48] is the sub-list for method output_type
 	12, // [12:30] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
