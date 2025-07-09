@@ -300,33 +300,7 @@ const withFetchError = (status = 500, message = 'something went wrong') => {
 };
 
 const withFetchSuccess = () => {
-  server.use(
-    getBotSuccess({
-      status: 'active',
-      kind: 'bot',
-      subKind: '',
-      version: 'v1',
-      metadata: {
-        name: 'test-bot-name',
-        description: '',
-        labels: new Map(),
-        namespace: '',
-        revision: '',
-      },
-      spec: {
-        roles: ['admin', 'user'],
-        traits: [
-          {
-            name: 'trait-1',
-            values: ['value-1', 'value-2', 'value-3'],
-          },
-        ],
-        max_session_ttl: {
-          seconds: 43200,
-        },
-      },
-    })
-  );
+  server.use(getBotSuccess());
 };
 
 const withSaveSuccess = (overrides?: Partial<EditBotRequest>) => {

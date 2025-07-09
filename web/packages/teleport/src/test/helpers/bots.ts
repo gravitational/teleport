@@ -20,12 +20,49 @@ import { http, HttpResponse } from 'msw';
 
 import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
 
-const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name?';
+const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:botName?';
 
-export const getBotSuccess = (mock: ApiBot) =>
-  http.get(botPath, () => {
-    return HttpResponse.json(mock);
+export const getBotSuccess = (overrides?: {
+  name?: ApiBot['metadata']['name'];
+  roles?: ApiBot['spec']['roles'];
+  traits?: ApiBot['spec']['traits'];
+  max_session_ttl?: ApiBot['spec']['max_session_ttl'];
+}) => {
+  const {
+    name = 'test-bot-name',
+    roles = ['admin', 'user'],
+    traits = [
+      {
+        name: 'trait-1',
+        values: ['value-1', 'value-2', 'value-3'],
+      },
+    ],
+    max_session_ttl = {
+      seconds: 43200,
+    },
+  } = overrides ?? {};
+
+  return http.get(botPath, () => {
+    return HttpResponse.json({
+      status: 'active',
+      kind: 'bot',
+      subKind: '',
+      version: 'v1',
+      metadata: {
+        name,
+        description: '',
+        labels: new Map(),
+        namespace: '',
+        revision: '',
+      },
+      spec: {
+        roles,
+        traits,
+        max_session_ttl,
+      },
+    });
   });
+};
 
 /**
  * `editBotSuccess` returns a handler that captures the request and uses its values
@@ -35,7 +72,7 @@ export const getBotSuccess = (mock: ApiBot) =>
  * @returns http handler to use in SetupServerApi.use()
  */
 export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
-  http.put(botPath, async ({ request }) => {
+  http.put<{ botName: string }>(botPath, async ({ request, params }) => {
     const req = (await request.clone().json()) as EditBotRequest;
     const {
       roles = req.roles,
@@ -52,7 +89,7 @@ export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
       subKind: '',
       version: 'v1',
       metadata: {
-        name: 'test-bot-name',
+        name: params.botName,
         description: '',
         labels: new Map(),
         namespace: '',

@@ -18,7 +18,6 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { css } from 'styled-components';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
 import Dialog, {
@@ -83,7 +82,7 @@ export function EditDialog(props: {
       return editBot(ctx.getFeatureFlags(), botName, params);
     },
     onSuccess: (newData, variables) => {
-      const key = createGetBotQueryKey({ name: botName });
+      const key = createGetBotQueryKey({ name: newData.name });
       queryClient.setQueryData(key, newData);
 
       // Older APIs may not support updating some fields, check that applicable fields were updated and show a warning if not.
@@ -96,6 +95,10 @@ export function EditDialog(props: {
       }
 
       onSuccess(newData, hasInconsistencies);
+
+      setSelectedRoles(null);
+      setSelectedTraits(null);
+      setSelectedMaxSessionDuration(null);
     },
   });
 
@@ -157,104 +160,114 @@ export function EditDialog(props: {
                 <Alert kind="danger">{`Error: ${error.message}`}</Alert>
               ) : undefined}
 
+              {isSuccess && data === null && (
+                <Alert kind="warning">Bot {botName} does not exist</Alert>
+              )}
+
               {!hasReadPermission && (
                 <Alert kind="warning">
-                  You do not have permission to view this bot.
+                  You do not have permission to view this bot
                 </Alert>
               )}
 
               {!hasEditPermission && (
                 <Alert kind="warning">
-                  You do not have permission to edit this bot.
+                  You do not have permission to edit this bot
                 </Alert>
               )}
 
-              {hasReadPermission && isSuccess && data ? (
-                <>
-                  <Alert kind="info" width={'100%'}>
-                    Updates to a bot&apos;s identity take effect when tbot next
-                    renews its certificates. By default, this happens every 20
-                    minutes.
-                  </Alert>
+              <div
+                style={{
+                  visibility:
+                    hasReadPermission && isSuccess && data
+                      ? 'visible'
+                      : 'hidden',
+                }}
+              >
+                <Alert kind="info" width={'100%'}>
+                  Updates to a bot&apos;s identity take effect when tbot next
+                  renews its certificates. By default, this happens every 20
+                  minutes.
+                </Alert>
 
-                  <FieldInput
-                    label="Name"
-                    placeholder="Name"
-                    value={data.name}
-                    readonly={true}
-                    helperText={'Bot name cannot be changed'}
-                  />
-                  <FieldSelectAsync
-                    menuPosition="fixed"
-                    label="Roles"
-                    rule={requiredField('At least one role is required')}
-                    placeholder="Click to select roles"
-                    isSearchable
-                    isMulti
-                    isClearable={false}
-                    value={(selectedRoles ?? data.roles.toSorted()).map(r => ({
+                <FieldInput
+                  label="Name"
+                  placeholder="Name"
+                  value={data?.name ?? ''}
+                  readonly={true}
+                  helperText={'Bot name cannot be changed'}
+                />
+                <FieldSelectAsync
+                  menuPosition="fixed"
+                  label="Roles"
+                  rule={requiredField('At least one role is required')}
+                  placeholder="Click to select roles"
+                  isSearchable
+                  isMulti
+                  isClearable={false}
+                  value={(selectedRoles ?? data?.roles.toSorted() ?? []).map(
+                    r => ({
                       value: r,
                       label: r,
-                    }))}
-                    onChange={(values: Option[]) =>
-                      setSelectedRoles(values?.map(v => v.value) || [])
+                    })
+                  )}
+                  onChange={(values: Option[]) =>
+                    setSelectedRoles(values?.map(v => v.value) || [])
+                  }
+                  loadOptions={async input => {
+                    const flags = ctx.getFeatureFlags();
+                    const roles = await fetchRoles({ search: input, flags });
+                    return roles.items.map(r => ({
+                      value: r.name,
+                      label: r.name,
+                    }));
+                  }}
+                  noOptionsMessage={() => 'No roles found'}
+                  elevated={true}
+                />
+                <Box mb={3}>
+                  <TraitsEditor
+                    configuredTraits={
+                      selectedTraits ??
+                      data?.traits
+                        .toSorted((a, b) => a.name.localeCompare(b.name))
+                        .map(t => ({
+                          traitKey: {
+                            value: t.name,
+                            label: t.name,
+                          },
+                          traitValues: t.values.toSorted().map(v => ({
+                            value: v,
+                            label: v,
+                          })),
+                        })) ??
+                      []
                     }
-                    loadOptions={async input => {
-                      const flags = ctx.getFeatureFlags();
-                      const roles = await fetchRoles({ search: input, flags });
-                      return roles.items.map(r => ({
-                        value: r.name,
-                        label: r.name,
-                      }));
-                    }}
-                    noOptionsMessage={() => 'No roles found'}
-                    elevated={true}
+                    setConfiguredTraits={setSelectedTraits}
+                    isLoading={false}
+                    label="Traits"
+                    addActionLabel="Add trait"
+                    addActionSubsequentLabel="Add another trait"
+                    autoFocus={false}
                   />
-                  <Box mb={3}>
-                    <TraitsEditor
-                      configuredTraits={
-                        selectedTraits ??
-                        data.traits
-                          .toSorted((a, b) => a.name.localeCompare(b.name))
-                          .map(t => ({
-                            traitKey: {
-                              value: t.name,
-                              label: t.name,
-                            },
-                            traitValues: t.values.toSorted().map(v => ({
-                              value: v,
-                              label: v,
-                            })),
-                          }))
-                      }
-                      setConfiguredTraits={setSelectedTraits}
-                      isLoading={false}
-                      label="Traits"
-                      addActionLabel="Add trait"
-                      addActionSubsequentLabel="Add another trait"
-                      autoFocus={false}
-                    />
-                  </Box>
-                  <FieldInput
-                    label="Max session duration"
-                    rule={requiredField('Max session duration is required')}
-                    value={
-                      selectedMaxSessionDuration ??
-                      formatDuration({
-                        seconds:
-                          data.max_session_ttl?.seconds ??
-                          TWELVE_HOURS_IN_SECONDS,
-                      })
-                    }
-                    onChange={e =>
-                      setSelectedMaxSessionDuration(e.target.value)
-                    }
-                    helperText={
-                      'A duration string such as 12h, 2h 45m, 43200s. Maximum is 24h. Valid time units are ns, us (or µs), ms, s, m, h.'
-                    }
-                  />
-                </>
-              ) : undefined}
+                </Box>
+                <FieldInput
+                  label="Max session duration"
+                  rule={requiredField('Max session duration is required')}
+                  value={
+                    selectedMaxSessionDuration ??
+                    formatDuration({
+                      seconds:
+                        data?.max_session_ttl?.seconds ??
+                        TWELVE_HOURS_IN_SECONDS,
+                    })
+                  }
+                  onChange={e => setSelectedMaxSessionDuration(e.target.value)}
+                  helperText={
+                    'A duration string such as 12h, 2h 45m, 43200s. Maximum is 24h. Valid time units are ns, us (or µs), ms, s, m, h.'
+                  }
+                />
+              </div>
 
               {saveError ? (
                 <Alert kind="danger">Error: {saveError.message}</Alert>
@@ -263,33 +276,46 @@ export function EditDialog(props: {
               {hasInconsistencies ? (
                 <Alert
                   kind="warning"
-                  primaryAction={{ content: 'Dismiss', onClick: onCancel }}
+                  primaryAction={{
+                    content: 'tclt Reference',
+                    href: 'https://goteleport.com/docs/reference/cli/tctl/#tctl-bots-update',
+                  }}
+                  details={`This can happen when the Teleport cluster has one or more nodes that are not up-to-date. Consider using tctl to perform the update instead, or try again.`}
+                  alignItems="flex-start"
                 >
-                  Warning: Some fields may not have updated correctly;{' '}
+                  Some fields may not have updated correctly;{' '}
                   {inconsistentFields.join(', ')}
                 </Alert>
               ) : undefined}
             </DialogContent>
             <DialogFooter>
-              <ButtonPrimary
-                type="submit"
-                mr="3"
-                disabled={
-                  isLoading ||
-                  isSubmitting ||
-                  !hasEditPermission ||
-                  hasInconsistencies ||
-                  !isDirty
-                }
-              >
-                Save
-              </ButtonPrimary>
-              <ButtonSecondary
-                disabled={isLoading || isSubmitting || hasInconsistencies}
-                onClick={onCancel}
-              >
-                Cancel
-              </ButtonSecondary>
+              {hasInconsistencies ? (
+                <ButtonPrimary mr="3" onClick={onCancel}>
+                  Continue
+                </ButtonPrimary>
+              ) : (
+                <>
+                  <ButtonPrimary
+                    type="submit"
+                    mr="3"
+                    disabled={
+                      isLoading ||
+                      isSubmitting ||
+                      !hasEditPermission ||
+                      hasInconsistencies ||
+                      !isDirty
+                    }
+                  >
+                    Save
+                  </ButtonPrimary>
+                  <ButtonSecondary
+                    disabled={isLoading || isSubmitting || hasInconsistencies}
+                    onClick={onCancel}
+                  >
+                    Cancel
+                  </ButtonSecondary>
+                </>
+              )}
             </DialogFooter>
           </form>
         )}
