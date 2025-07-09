@@ -34,24 +34,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SummarizerService_CreateSummarizationInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/CreateSummarizationInferenceModel"
-	SummarizerService_GetSummarizationInferenceModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/GetSummarizationInferenceModel"
-	SummarizerService_UpdateSummarizationInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpdateSummarizationInferenceModel"
-	SummarizerService_UpsertSummarizationInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpsertSummarizationInferenceModel"
-	SummarizerService_DeleteSummarizationInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/DeleteSummarizationInferenceModel"
-	SummarizerService_ListSummarizationInferenceModels_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/ListSummarizationInferenceModels"
-	SummarizerService_CreateSummarizationInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/CreateSummarizationInferenceSecret"
-	SummarizerService_GetSummarizationInferenceSecret_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/GetSummarizationInferenceSecret"
-	SummarizerService_UpdateSummarizationInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpdateSummarizationInferenceSecret"
-	SummarizerService_UpsertSummarizationInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertSummarizationInferenceSecret"
-	SummarizerService_DeleteSummarizationInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteSummarizationInferenceSecret"
-	SummarizerService_ListSummarizationInferenceSecrets_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/ListSummarizationInferenceSecrets"
-	SummarizerService_CreateSummarizationInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/CreateSummarizationInferencePolicy"
-	SummarizerService_GetSummarizationInferencePolicy_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/GetSummarizationInferencePolicy"
-	SummarizerService_UpdateSummarizationInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpdateSummarizationInferencePolicy"
-	SummarizerService_UpsertSummarizationInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertSummarizationInferencePolicy"
-	SummarizerService_DeleteSummarizationInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteSummarizationInferencePolicy"
-	SummarizerService_ListSummarizationInferencePolicies_FullMethodName = "/teleport.summarizer.v1.SummarizerService/ListSummarizationInferencePolicies"
+	SummarizerService_CreateInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/CreateInferenceModel"
+	SummarizerService_GetInferenceModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/GetInferenceModel"
+	SummarizerService_UpdateInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpdateInferenceModel"
+	SummarizerService_UpsertInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpsertInferenceModel"
+	SummarizerService_DeleteInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/DeleteInferenceModel"
+	SummarizerService_ListInferenceModels_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/ListInferenceModels"
+	SummarizerService_CreateInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/CreateInferenceSecret"
+	SummarizerService_GetInferenceSecret_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/GetInferenceSecret"
+	SummarizerService_UpdateInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpdateInferenceSecret"
+	SummarizerService_UpsertInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertInferenceSecret"
+	SummarizerService_DeleteInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteInferenceSecret"
+	SummarizerService_ListInferenceSecrets_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/ListInferenceSecrets"
+	SummarizerService_CreateInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/CreateInferencePolicy"
+	SummarizerService_GetInferencePolicy_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/GetInferencePolicy"
+	SummarizerService_UpdateInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpdateInferencePolicy"
+	SummarizerService_UpsertInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertInferencePolicy"
+	SummarizerService_DeleteInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteInferencePolicy"
+	SummarizerService_ListInferencePolicies_FullMethodName = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -62,60 +62,45 @@ const (
 // models, secrets, and policies. These objects configures the session
 // recording summarizer.
 type SummarizerServiceClient interface {
-	// CreateSummarizationInferenceModel creates a new
-	// SummarizationInferenceModel.
-	CreateSummarizationInferenceModel(ctx context.Context, in *CreateSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error)
-	// GetSummarizationInferenceModel retrieves an existing
-	// SummarizationInferenceModel by name.
-	GetSummarizationInferenceModel(ctx context.Context, in *GetSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error)
-	// UpdateSummarizationInferenceModel updates an existing
-	// SummarizationInferenceModel.
-	UpdateSummarizationInferenceModel(ctx context.Context, in *UpdateSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error)
-	// UpsertSummarizationInferenceModel creates a new
-	// SummarizationInferenceModel or updates an existing one.
-	UpsertSummarizationInferenceModel(ctx context.Context, in *UpsertSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error)
-	// DeleteSummarizationInferenceModel deletes an existing
-	// SummarizationInferenceModel by name.
-	DeleteSummarizationInferenceModel(ctx context.Context, in *DeleteSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// ListSummarizationInferenceModels lists all SummarizationInferenceModels
-	// that match the request.
-	ListSummarizationInferenceModels(ctx context.Context, in *ListSummarizationInferenceModelsRequest, opts ...grpc.CallOption) (*ListSummarizationInferenceModelsResponse, error)
-	// CreateSummarizationInferenceSecret creates a new
-	// SummarizationInferenceSecret.
-	CreateSummarizationInferenceSecret(ctx context.Context, in *CreateSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error)
-	// GetSummarizationInferenceSecret retrieves an existing
-	// SummarizationInferenceSecret by name.
-	GetSummarizationInferenceSecret(ctx context.Context, in *GetSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error)
-	// UpdateSummarizationInferenceSecret updates an existing
-	// SummarizationInferenceSecret.
-	UpdateSummarizationInferenceSecret(ctx context.Context, in *UpdateSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error)
-	// UpsertSummarizationInferenceSecret creates a new
-	// SummarizationInferenceSecret or updates an existing one.
-	UpsertSummarizationInferenceSecret(ctx context.Context, in *UpsertSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error)
-	// DeleteSummarizationInferenceSecret deletes an existing
-	// SummarizationInferenceSecret by name.
-	DeleteSummarizationInferenceSecret(ctx context.Context, in *DeleteSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// ListSummarizationInferenceSecrets lists all SummarizationInferenceSecrets
-	// that match the request.
-	ListSummarizationInferenceSecrets(ctx context.Context, in *ListSummarizationInferenceSecretsRequest, opts ...grpc.CallOption) (*ListSummarizationInferenceSecretsResponse, error)
-	// CreateSummarizationInferencePolicy creates a new
-	// SummarizationInferencePolicy.
-	CreateSummarizationInferencePolicy(ctx context.Context, in *CreateSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error)
-	// GetSummarizationInferencePolicy retrieves an existing
-	// SummarizationInferencePolicy by name.
-	GetSummarizationInferencePolicy(ctx context.Context, in *GetSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error)
-	// UpdateSummarizationInferencePolicy updates an existing
-	// SummarizationInferencePolicy.
-	UpdateSummarizationInferencePolicy(ctx context.Context, in *UpdateSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error)
-	// UpsertSummarizationInferencePolicy creates a new
-	// SummarizationInferencePolicy or updates an existing one.
-	UpsertSummarizationInferencePolicy(ctx context.Context, in *UpsertSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error)
-	// DeleteSummarizationInferencePolicy deletes an existing
-	// SummarizationInferencePolicy by name.
-	DeleteSummarizationInferencePolicy(ctx context.Context, in *DeleteSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// ListSummarizationInferencePolicies lists all
-	// SummarizationInferencePolicies that match the request.
-	ListSummarizationInferencePolicies(ctx context.Context, in *ListSummarizationInferencePoliciesRequest, opts ...grpc.CallOption) (*ListSummarizationInferencePoliciesResponse, error)
+	// CreateInferenceModel creates a new InferenceModel.
+	CreateInferenceModel(ctx context.Context, in *CreateInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error)
+	// GetInferenceModel retrieves an existing InferenceModel by name.
+	GetInferenceModel(ctx context.Context, in *GetInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error)
+	// UpdateInferenceModel updates an existing InferenceModel.
+	UpdateInferenceModel(ctx context.Context, in *UpdateInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error)
+	// UpsertInferenceModel creates a new InferenceModel or updates an existing
+	// one.
+	UpsertInferenceModel(ctx context.Context, in *UpsertInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error)
+	// DeleteInferenceModel deletes an existing InferenceModel by name.
+	DeleteInferenceModel(ctx context.Context, in *DeleteInferenceModelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListInferenceModels lists all InferenceModels that match the request.
+	ListInferenceModels(ctx context.Context, in *ListInferenceModelsRequest, opts ...grpc.CallOption) (*ListInferenceModelsResponse, error)
+	// CreateInferenceSecret creates a new InferenceSecret.
+	CreateInferenceSecret(ctx context.Context, in *CreateInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error)
+	// GetInferenceSecret retrieves an existing InferenceSecret by name.
+	GetInferenceSecret(ctx context.Context, in *GetInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error)
+	// UpdateInferenceSecret updates an existing InferenceSecret.
+	UpdateInferenceSecret(ctx context.Context, in *UpdateInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error)
+	// UpsertInferenceSecret creates a new InferenceSecret or updates an existing
+	// one.
+	UpsertInferenceSecret(ctx context.Context, in *UpsertInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error)
+	// DeleteInferenceSecret deletes an existing InferenceSecret by name.
+	DeleteInferenceSecret(ctx context.Context, in *DeleteInferenceSecretRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListInferenceSecrets lists all InferenceSecrets that match the request.
+	ListInferenceSecrets(ctx context.Context, in *ListInferenceSecretsRequest, opts ...grpc.CallOption) (*ListInferenceSecretsResponse, error)
+	// CreateInferencePolicy creates a new InferencePolicy.
+	CreateInferencePolicy(ctx context.Context, in *CreateInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error)
+	// GetInferencePolicy retrieves an existing InferencePolicy by name.
+	GetInferencePolicy(ctx context.Context, in *GetInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error)
+	// UpdateInferencePolicy updates an existing InferencePolicy.
+	UpdateInferencePolicy(ctx context.Context, in *UpdateInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error)
+	// UpsertInferencePolicy creates a new InferencePolicy or updates an existing
+	// one.
+	UpsertInferencePolicy(ctx context.Context, in *UpsertInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error)
+	// DeleteInferencePolicy deletes an existing InferencePolicy by name.
+	DeleteInferencePolicy(ctx context.Context, in *DeleteInferencePolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListInferencePolicies lists all InferencePolicies that match the request.
+	ListInferencePolicies(ctx context.Context, in *ListInferencePoliciesRequest, opts ...grpc.CallOption) (*ListInferencePoliciesResponse, error)
 }
 
 type summarizerServiceClient struct {
@@ -126,180 +111,180 @@ func NewSummarizerServiceClient(cc grpc.ClientConnInterface) SummarizerServiceCl
 	return &summarizerServiceClient{cc}
 }
 
-func (c *summarizerServiceClient) CreateSummarizationInferenceModel(ctx context.Context, in *CreateSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error) {
+func (c *summarizerServiceClient) CreateInferenceModel(ctx context.Context, in *CreateInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceModel)
-	err := c.cc.Invoke(ctx, SummarizerService_CreateSummarizationInferenceModel_FullMethodName, in, out, cOpts...)
+	out := new(InferenceModel)
+	err := c.cc.Invoke(ctx, SummarizerService_CreateInferenceModel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) GetSummarizationInferenceModel(ctx context.Context, in *GetSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error) {
+func (c *summarizerServiceClient) GetInferenceModel(ctx context.Context, in *GetInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceModel)
-	err := c.cc.Invoke(ctx, SummarizerService_GetSummarizationInferenceModel_FullMethodName, in, out, cOpts...)
+	out := new(InferenceModel)
+	err := c.cc.Invoke(ctx, SummarizerService_GetInferenceModel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) UpdateSummarizationInferenceModel(ctx context.Context, in *UpdateSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error) {
+func (c *summarizerServiceClient) UpdateInferenceModel(ctx context.Context, in *UpdateInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceModel)
-	err := c.cc.Invoke(ctx, SummarizerService_UpdateSummarizationInferenceModel_FullMethodName, in, out, cOpts...)
+	out := new(InferenceModel)
+	err := c.cc.Invoke(ctx, SummarizerService_UpdateInferenceModel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) UpsertSummarizationInferenceModel(ctx context.Context, in *UpsertSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*SummarizationInferenceModel, error) {
+func (c *summarizerServiceClient) UpsertInferenceModel(ctx context.Context, in *UpsertInferenceModelRequest, opts ...grpc.CallOption) (*InferenceModel, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceModel)
-	err := c.cc.Invoke(ctx, SummarizerService_UpsertSummarizationInferenceModel_FullMethodName, in, out, cOpts...)
+	out := new(InferenceModel)
+	err := c.cc.Invoke(ctx, SummarizerService_UpsertInferenceModel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) DeleteSummarizationInferenceModel(ctx context.Context, in *DeleteSummarizationInferenceModelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *summarizerServiceClient) DeleteInferenceModel(ctx context.Context, in *DeleteInferenceModelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SummarizerService_DeleteSummarizationInferenceModel_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SummarizerService_DeleteInferenceModel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) ListSummarizationInferenceModels(ctx context.Context, in *ListSummarizationInferenceModelsRequest, opts ...grpc.CallOption) (*ListSummarizationInferenceModelsResponse, error) {
+func (c *summarizerServiceClient) ListInferenceModels(ctx context.Context, in *ListInferenceModelsRequest, opts ...grpc.CallOption) (*ListInferenceModelsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListSummarizationInferenceModelsResponse)
-	err := c.cc.Invoke(ctx, SummarizerService_ListSummarizationInferenceModels_FullMethodName, in, out, cOpts...)
+	out := new(ListInferenceModelsResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_ListInferenceModels_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) CreateSummarizationInferenceSecret(ctx context.Context, in *CreateSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error) {
+func (c *summarizerServiceClient) CreateInferenceSecret(ctx context.Context, in *CreateInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceSecret)
-	err := c.cc.Invoke(ctx, SummarizerService_CreateSummarizationInferenceSecret_FullMethodName, in, out, cOpts...)
+	out := new(InferenceSecret)
+	err := c.cc.Invoke(ctx, SummarizerService_CreateInferenceSecret_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) GetSummarizationInferenceSecret(ctx context.Context, in *GetSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error) {
+func (c *summarizerServiceClient) GetInferenceSecret(ctx context.Context, in *GetInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceSecret)
-	err := c.cc.Invoke(ctx, SummarizerService_GetSummarizationInferenceSecret_FullMethodName, in, out, cOpts...)
+	out := new(InferenceSecret)
+	err := c.cc.Invoke(ctx, SummarizerService_GetInferenceSecret_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) UpdateSummarizationInferenceSecret(ctx context.Context, in *UpdateSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error) {
+func (c *summarizerServiceClient) UpdateInferenceSecret(ctx context.Context, in *UpdateInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceSecret)
-	err := c.cc.Invoke(ctx, SummarizerService_UpdateSummarizationInferenceSecret_FullMethodName, in, out, cOpts...)
+	out := new(InferenceSecret)
+	err := c.cc.Invoke(ctx, SummarizerService_UpdateInferenceSecret_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) UpsertSummarizationInferenceSecret(ctx context.Context, in *UpsertSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*SummarizationInferenceSecret, error) {
+func (c *summarizerServiceClient) UpsertInferenceSecret(ctx context.Context, in *UpsertInferenceSecretRequest, opts ...grpc.CallOption) (*InferenceSecret, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferenceSecret)
-	err := c.cc.Invoke(ctx, SummarizerService_UpsertSummarizationInferenceSecret_FullMethodName, in, out, cOpts...)
+	out := new(InferenceSecret)
+	err := c.cc.Invoke(ctx, SummarizerService_UpsertInferenceSecret_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) DeleteSummarizationInferenceSecret(ctx context.Context, in *DeleteSummarizationInferenceSecretRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SummarizerService_DeleteSummarizationInferenceSecret_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *summarizerServiceClient) ListSummarizationInferenceSecrets(ctx context.Context, in *ListSummarizationInferenceSecretsRequest, opts ...grpc.CallOption) (*ListSummarizationInferenceSecretsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListSummarizationInferenceSecretsResponse)
-	err := c.cc.Invoke(ctx, SummarizerService_ListSummarizationInferenceSecrets_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *summarizerServiceClient) CreateSummarizationInferencePolicy(ctx context.Context, in *CreateSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferencePolicy)
-	err := c.cc.Invoke(ctx, SummarizerService_CreateSummarizationInferencePolicy_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *summarizerServiceClient) GetSummarizationInferencePolicy(ctx context.Context, in *GetSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferencePolicy)
-	err := c.cc.Invoke(ctx, SummarizerService_GetSummarizationInferencePolicy_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *summarizerServiceClient) UpdateSummarizationInferencePolicy(ctx context.Context, in *UpdateSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferencePolicy)
-	err := c.cc.Invoke(ctx, SummarizerService_UpdateSummarizationInferencePolicy_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *summarizerServiceClient) UpsertSummarizationInferencePolicy(ctx context.Context, in *UpsertSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*SummarizationInferencePolicy, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SummarizationInferencePolicy)
-	err := c.cc.Invoke(ctx, SummarizerService_UpsertSummarizationInferencePolicy_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *summarizerServiceClient) DeleteSummarizationInferencePolicy(ctx context.Context, in *DeleteSummarizationInferencePolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *summarizerServiceClient) DeleteInferenceSecret(ctx context.Context, in *DeleteInferenceSecretRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, SummarizerService_DeleteSummarizationInferencePolicy_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SummarizerService_DeleteInferenceSecret_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *summarizerServiceClient) ListSummarizationInferencePolicies(ctx context.Context, in *ListSummarizationInferencePoliciesRequest, opts ...grpc.CallOption) (*ListSummarizationInferencePoliciesResponse, error) {
+func (c *summarizerServiceClient) ListInferenceSecrets(ctx context.Context, in *ListInferenceSecretsRequest, opts ...grpc.CallOption) (*ListInferenceSecretsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListSummarizationInferencePoliciesResponse)
-	err := c.cc.Invoke(ctx, SummarizerService_ListSummarizationInferencePolicies_FullMethodName, in, out, cOpts...)
+	out := new(ListInferenceSecretsResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_ListInferenceSecrets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) CreateInferencePolicy(ctx context.Context, in *CreateInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InferencePolicy)
+	err := c.cc.Invoke(ctx, SummarizerService_CreateInferencePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) GetInferencePolicy(ctx context.Context, in *GetInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InferencePolicy)
+	err := c.cc.Invoke(ctx, SummarizerService_GetInferencePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpdateInferencePolicy(ctx context.Context, in *UpdateInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InferencePolicy)
+	err := c.cc.Invoke(ctx, SummarizerService_UpdateInferencePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpsertInferencePolicy(ctx context.Context, in *UpsertInferencePolicyRequest, opts ...grpc.CallOption) (*InferencePolicy, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InferencePolicy)
+	err := c.cc.Invoke(ctx, SummarizerService_UpsertInferencePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) DeleteInferencePolicy(ctx context.Context, in *DeleteInferencePolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, SummarizerService_DeleteInferencePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) ListInferencePolicies(ctx context.Context, in *ListInferencePoliciesRequest, opts ...grpc.CallOption) (*ListInferencePoliciesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInferencePoliciesResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_ListInferencePolicies_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -314,60 +299,45 @@ func (c *summarizerServiceClient) ListSummarizationInferencePolicies(ctx context
 // models, secrets, and policies. These objects configures the session
 // recording summarizer.
 type SummarizerServiceServer interface {
-	// CreateSummarizationInferenceModel creates a new
-	// SummarizationInferenceModel.
-	CreateSummarizationInferenceModel(context.Context, *CreateSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error)
-	// GetSummarizationInferenceModel retrieves an existing
-	// SummarizationInferenceModel by name.
-	GetSummarizationInferenceModel(context.Context, *GetSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error)
-	// UpdateSummarizationInferenceModel updates an existing
-	// SummarizationInferenceModel.
-	UpdateSummarizationInferenceModel(context.Context, *UpdateSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error)
-	// UpsertSummarizationInferenceModel creates a new
-	// SummarizationInferenceModel or updates an existing one.
-	UpsertSummarizationInferenceModel(context.Context, *UpsertSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error)
-	// DeleteSummarizationInferenceModel deletes an existing
-	// SummarizationInferenceModel by name.
-	DeleteSummarizationInferenceModel(context.Context, *DeleteSummarizationInferenceModelRequest) (*emptypb.Empty, error)
-	// ListSummarizationInferenceModels lists all SummarizationInferenceModels
-	// that match the request.
-	ListSummarizationInferenceModels(context.Context, *ListSummarizationInferenceModelsRequest) (*ListSummarizationInferenceModelsResponse, error)
-	// CreateSummarizationInferenceSecret creates a new
-	// SummarizationInferenceSecret.
-	CreateSummarizationInferenceSecret(context.Context, *CreateSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error)
-	// GetSummarizationInferenceSecret retrieves an existing
-	// SummarizationInferenceSecret by name.
-	GetSummarizationInferenceSecret(context.Context, *GetSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error)
-	// UpdateSummarizationInferenceSecret updates an existing
-	// SummarizationInferenceSecret.
-	UpdateSummarizationInferenceSecret(context.Context, *UpdateSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error)
-	// UpsertSummarizationInferenceSecret creates a new
-	// SummarizationInferenceSecret or updates an existing one.
-	UpsertSummarizationInferenceSecret(context.Context, *UpsertSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error)
-	// DeleteSummarizationInferenceSecret deletes an existing
-	// SummarizationInferenceSecret by name.
-	DeleteSummarizationInferenceSecret(context.Context, *DeleteSummarizationInferenceSecretRequest) (*emptypb.Empty, error)
-	// ListSummarizationInferenceSecrets lists all SummarizationInferenceSecrets
-	// that match the request.
-	ListSummarizationInferenceSecrets(context.Context, *ListSummarizationInferenceSecretsRequest) (*ListSummarizationInferenceSecretsResponse, error)
-	// CreateSummarizationInferencePolicy creates a new
-	// SummarizationInferencePolicy.
-	CreateSummarizationInferencePolicy(context.Context, *CreateSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error)
-	// GetSummarizationInferencePolicy retrieves an existing
-	// SummarizationInferencePolicy by name.
-	GetSummarizationInferencePolicy(context.Context, *GetSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error)
-	// UpdateSummarizationInferencePolicy updates an existing
-	// SummarizationInferencePolicy.
-	UpdateSummarizationInferencePolicy(context.Context, *UpdateSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error)
-	// UpsertSummarizationInferencePolicy creates a new
-	// SummarizationInferencePolicy or updates an existing one.
-	UpsertSummarizationInferencePolicy(context.Context, *UpsertSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error)
-	// DeleteSummarizationInferencePolicy deletes an existing
-	// SummarizationInferencePolicy by name.
-	DeleteSummarizationInferencePolicy(context.Context, *DeleteSummarizationInferencePolicyRequest) (*emptypb.Empty, error)
-	// ListSummarizationInferencePolicies lists all
-	// SummarizationInferencePolicies that match the request.
-	ListSummarizationInferencePolicies(context.Context, *ListSummarizationInferencePoliciesRequest) (*ListSummarizationInferencePoliciesResponse, error)
+	// CreateInferenceModel creates a new InferenceModel.
+	CreateInferenceModel(context.Context, *CreateInferenceModelRequest) (*InferenceModel, error)
+	// GetInferenceModel retrieves an existing InferenceModel by name.
+	GetInferenceModel(context.Context, *GetInferenceModelRequest) (*InferenceModel, error)
+	// UpdateInferenceModel updates an existing InferenceModel.
+	UpdateInferenceModel(context.Context, *UpdateInferenceModelRequest) (*InferenceModel, error)
+	// UpsertInferenceModel creates a new InferenceModel or updates an existing
+	// one.
+	UpsertInferenceModel(context.Context, *UpsertInferenceModelRequest) (*InferenceModel, error)
+	// DeleteInferenceModel deletes an existing InferenceModel by name.
+	DeleteInferenceModel(context.Context, *DeleteInferenceModelRequest) (*emptypb.Empty, error)
+	// ListInferenceModels lists all InferenceModels that match the request.
+	ListInferenceModels(context.Context, *ListInferenceModelsRequest) (*ListInferenceModelsResponse, error)
+	// CreateInferenceSecret creates a new InferenceSecret.
+	CreateInferenceSecret(context.Context, *CreateInferenceSecretRequest) (*InferenceSecret, error)
+	// GetInferenceSecret retrieves an existing InferenceSecret by name.
+	GetInferenceSecret(context.Context, *GetInferenceSecretRequest) (*InferenceSecret, error)
+	// UpdateInferenceSecret updates an existing InferenceSecret.
+	UpdateInferenceSecret(context.Context, *UpdateInferenceSecretRequest) (*InferenceSecret, error)
+	// UpsertInferenceSecret creates a new InferenceSecret or updates an existing
+	// one.
+	UpsertInferenceSecret(context.Context, *UpsertInferenceSecretRequest) (*InferenceSecret, error)
+	// DeleteInferenceSecret deletes an existing InferenceSecret by name.
+	DeleteInferenceSecret(context.Context, *DeleteInferenceSecretRequest) (*emptypb.Empty, error)
+	// ListInferenceSecrets lists all InferenceSecrets that match the request.
+	ListInferenceSecrets(context.Context, *ListInferenceSecretsRequest) (*ListInferenceSecretsResponse, error)
+	// CreateInferencePolicy creates a new InferencePolicy.
+	CreateInferencePolicy(context.Context, *CreateInferencePolicyRequest) (*InferencePolicy, error)
+	// GetInferencePolicy retrieves an existing InferencePolicy by name.
+	GetInferencePolicy(context.Context, *GetInferencePolicyRequest) (*InferencePolicy, error)
+	// UpdateInferencePolicy updates an existing InferencePolicy.
+	UpdateInferencePolicy(context.Context, *UpdateInferencePolicyRequest) (*InferencePolicy, error)
+	// UpsertInferencePolicy creates a new InferencePolicy or updates an existing
+	// one.
+	UpsertInferencePolicy(context.Context, *UpsertInferencePolicyRequest) (*InferencePolicy, error)
+	// DeleteInferencePolicy deletes an existing InferencePolicy by name.
+	DeleteInferencePolicy(context.Context, *DeleteInferencePolicyRequest) (*emptypb.Empty, error)
+	// ListInferencePolicies lists all InferencePolicies that match the request.
+	ListInferencePolicies(context.Context, *ListInferencePoliciesRequest) (*ListInferencePoliciesResponse, error)
 	mustEmbedUnimplementedSummarizerServiceServer()
 }
 
@@ -378,59 +348,59 @@ type SummarizerServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSummarizerServiceServer struct{}
 
-func (UnimplementedSummarizerServiceServer) CreateSummarizationInferenceModel(context.Context, *CreateSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateSummarizationInferenceModel not implemented")
+func (UnimplementedSummarizerServiceServer) CreateInferenceModel(context.Context, *CreateInferenceModelRequest) (*InferenceModel, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateInferenceModel not implemented")
 }
-func (UnimplementedSummarizerServiceServer) GetSummarizationInferenceModel(context.Context, *GetSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSummarizationInferenceModel not implemented")
+func (UnimplementedSummarizerServiceServer) GetInferenceModel(context.Context, *GetInferenceModelRequest) (*InferenceModel, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInferenceModel not implemented")
 }
-func (UnimplementedSummarizerServiceServer) UpdateSummarizationInferenceModel(context.Context, *UpdateSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateSummarizationInferenceModel not implemented")
+func (UnimplementedSummarizerServiceServer) UpdateInferenceModel(context.Context, *UpdateInferenceModelRequest) (*InferenceModel, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateInferenceModel not implemented")
 }
-func (UnimplementedSummarizerServiceServer) UpsertSummarizationInferenceModel(context.Context, *UpsertSummarizationInferenceModelRequest) (*SummarizationInferenceModel, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertSummarizationInferenceModel not implemented")
+func (UnimplementedSummarizerServiceServer) UpsertInferenceModel(context.Context, *UpsertInferenceModelRequest) (*InferenceModel, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertInferenceModel not implemented")
 }
-func (UnimplementedSummarizerServiceServer) DeleteSummarizationInferenceModel(context.Context, *DeleteSummarizationInferenceModelRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteSummarizationInferenceModel not implemented")
+func (UnimplementedSummarizerServiceServer) DeleteInferenceModel(context.Context, *DeleteInferenceModelRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteInferenceModel not implemented")
 }
-func (UnimplementedSummarizerServiceServer) ListSummarizationInferenceModels(context.Context, *ListSummarizationInferenceModelsRequest) (*ListSummarizationInferenceModelsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListSummarizationInferenceModels not implemented")
+func (UnimplementedSummarizerServiceServer) ListInferenceModels(context.Context, *ListInferenceModelsRequest) (*ListInferenceModelsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInferenceModels not implemented")
 }
-func (UnimplementedSummarizerServiceServer) CreateSummarizationInferenceSecret(context.Context, *CreateSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateSummarizationInferenceSecret not implemented")
+func (UnimplementedSummarizerServiceServer) CreateInferenceSecret(context.Context, *CreateInferenceSecretRequest) (*InferenceSecret, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateInferenceSecret not implemented")
 }
-func (UnimplementedSummarizerServiceServer) GetSummarizationInferenceSecret(context.Context, *GetSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSummarizationInferenceSecret not implemented")
+func (UnimplementedSummarizerServiceServer) GetInferenceSecret(context.Context, *GetInferenceSecretRequest) (*InferenceSecret, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInferenceSecret not implemented")
 }
-func (UnimplementedSummarizerServiceServer) UpdateSummarizationInferenceSecret(context.Context, *UpdateSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateSummarizationInferenceSecret not implemented")
+func (UnimplementedSummarizerServiceServer) UpdateInferenceSecret(context.Context, *UpdateInferenceSecretRequest) (*InferenceSecret, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateInferenceSecret not implemented")
 }
-func (UnimplementedSummarizerServiceServer) UpsertSummarizationInferenceSecret(context.Context, *UpsertSummarizationInferenceSecretRequest) (*SummarizationInferenceSecret, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertSummarizationInferenceSecret not implemented")
+func (UnimplementedSummarizerServiceServer) UpsertInferenceSecret(context.Context, *UpsertInferenceSecretRequest) (*InferenceSecret, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertInferenceSecret not implemented")
 }
-func (UnimplementedSummarizerServiceServer) DeleteSummarizationInferenceSecret(context.Context, *DeleteSummarizationInferenceSecretRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteSummarizationInferenceSecret not implemented")
+func (UnimplementedSummarizerServiceServer) DeleteInferenceSecret(context.Context, *DeleteInferenceSecretRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteInferenceSecret not implemented")
 }
-func (UnimplementedSummarizerServiceServer) ListSummarizationInferenceSecrets(context.Context, *ListSummarizationInferenceSecretsRequest) (*ListSummarizationInferenceSecretsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListSummarizationInferenceSecrets not implemented")
+func (UnimplementedSummarizerServiceServer) ListInferenceSecrets(context.Context, *ListInferenceSecretsRequest) (*ListInferenceSecretsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInferenceSecrets not implemented")
 }
-func (UnimplementedSummarizerServiceServer) CreateSummarizationInferencePolicy(context.Context, *CreateSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateSummarizationInferencePolicy not implemented")
+func (UnimplementedSummarizerServiceServer) CreateInferencePolicy(context.Context, *CreateInferencePolicyRequest) (*InferencePolicy, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateInferencePolicy not implemented")
 }
-func (UnimplementedSummarizerServiceServer) GetSummarizationInferencePolicy(context.Context, *GetSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSummarizationInferencePolicy not implemented")
+func (UnimplementedSummarizerServiceServer) GetInferencePolicy(context.Context, *GetInferencePolicyRequest) (*InferencePolicy, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInferencePolicy not implemented")
 }
-func (UnimplementedSummarizerServiceServer) UpdateSummarizationInferencePolicy(context.Context, *UpdateSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateSummarizationInferencePolicy not implemented")
+func (UnimplementedSummarizerServiceServer) UpdateInferencePolicy(context.Context, *UpdateInferencePolicyRequest) (*InferencePolicy, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateInferencePolicy not implemented")
 }
-func (UnimplementedSummarizerServiceServer) UpsertSummarizationInferencePolicy(context.Context, *UpsertSummarizationInferencePolicyRequest) (*SummarizationInferencePolicy, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertSummarizationInferencePolicy not implemented")
+func (UnimplementedSummarizerServiceServer) UpsertInferencePolicy(context.Context, *UpsertInferencePolicyRequest) (*InferencePolicy, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertInferencePolicy not implemented")
 }
-func (UnimplementedSummarizerServiceServer) DeleteSummarizationInferencePolicy(context.Context, *DeleteSummarizationInferencePolicyRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteSummarizationInferencePolicy not implemented")
+func (UnimplementedSummarizerServiceServer) DeleteInferencePolicy(context.Context, *DeleteInferencePolicyRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteInferencePolicy not implemented")
 }
-func (UnimplementedSummarizerServiceServer) ListSummarizationInferencePolicies(context.Context, *ListSummarizationInferencePoliciesRequest) (*ListSummarizationInferencePoliciesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListSummarizationInferencePolicies not implemented")
+func (UnimplementedSummarizerServiceServer) ListInferencePolicies(context.Context, *ListInferencePoliciesRequest) (*ListInferencePoliciesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInferencePolicies not implemented")
 }
 func (UnimplementedSummarizerServiceServer) mustEmbedUnimplementedSummarizerServiceServer() {}
 func (UnimplementedSummarizerServiceServer) testEmbeddedByValue()                           {}
@@ -453,326 +423,326 @@ func RegisterSummarizerServiceServer(s grpc.ServiceRegistrar, srv SummarizerServ
 	s.RegisterService(&SummarizerService_ServiceDesc, srv)
 }
 
-func _SummarizerService_CreateSummarizationInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSummarizationInferenceModelRequest)
+func _SummarizerService_CreateInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateInferenceModelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).CreateSummarizationInferenceModel(ctx, in)
+		return srv.(SummarizerServiceServer).CreateInferenceModel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_CreateSummarizationInferenceModel_FullMethodName,
+		FullMethod: SummarizerService_CreateInferenceModel_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).CreateSummarizationInferenceModel(ctx, req.(*CreateSummarizationInferenceModelRequest))
+		return srv.(SummarizerServiceServer).CreateInferenceModel(ctx, req.(*CreateInferenceModelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_GetSummarizationInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSummarizationInferenceModelRequest)
+func _SummarizerService_GetInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInferenceModelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).GetSummarizationInferenceModel(ctx, in)
+		return srv.(SummarizerServiceServer).GetInferenceModel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_GetSummarizationInferenceModel_FullMethodName,
+		FullMethod: SummarizerService_GetInferenceModel_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).GetSummarizationInferenceModel(ctx, req.(*GetSummarizationInferenceModelRequest))
+		return srv.(SummarizerServiceServer).GetInferenceModel(ctx, req.(*GetInferenceModelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_UpdateSummarizationInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateSummarizationInferenceModelRequest)
+func _SummarizerService_UpdateInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateInferenceModelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).UpdateSummarizationInferenceModel(ctx, in)
+		return srv.(SummarizerServiceServer).UpdateInferenceModel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_UpdateSummarizationInferenceModel_FullMethodName,
+		FullMethod: SummarizerService_UpdateInferenceModel_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).UpdateSummarizationInferenceModel(ctx, req.(*UpdateSummarizationInferenceModelRequest))
+		return srv.(SummarizerServiceServer).UpdateInferenceModel(ctx, req.(*UpdateInferenceModelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_UpsertSummarizationInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertSummarizationInferenceModelRequest)
+func _SummarizerService_UpsertInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertInferenceModelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).UpsertSummarizationInferenceModel(ctx, in)
+		return srv.(SummarizerServiceServer).UpsertInferenceModel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_UpsertSummarizationInferenceModel_FullMethodName,
+		FullMethod: SummarizerService_UpsertInferenceModel_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).UpsertSummarizationInferenceModel(ctx, req.(*UpsertSummarizationInferenceModelRequest))
+		return srv.(SummarizerServiceServer).UpsertInferenceModel(ctx, req.(*UpsertInferenceModelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_DeleteSummarizationInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteSummarizationInferenceModelRequest)
+func _SummarizerService_DeleteInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteInferenceModelRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).DeleteSummarizationInferenceModel(ctx, in)
+		return srv.(SummarizerServiceServer).DeleteInferenceModel(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_DeleteSummarizationInferenceModel_FullMethodName,
+		FullMethod: SummarizerService_DeleteInferenceModel_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).DeleteSummarizationInferenceModel(ctx, req.(*DeleteSummarizationInferenceModelRequest))
+		return srv.(SummarizerServiceServer).DeleteInferenceModel(ctx, req.(*DeleteInferenceModelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_ListSummarizationInferenceModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSummarizationInferenceModelsRequest)
+func _SummarizerService_ListInferenceModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInferenceModelsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).ListSummarizationInferenceModels(ctx, in)
+		return srv.(SummarizerServiceServer).ListInferenceModels(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_ListSummarizationInferenceModels_FullMethodName,
+		FullMethod: SummarizerService_ListInferenceModels_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).ListSummarizationInferenceModels(ctx, req.(*ListSummarizationInferenceModelsRequest))
+		return srv.(SummarizerServiceServer).ListInferenceModels(ctx, req.(*ListInferenceModelsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_CreateSummarizationInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSummarizationInferenceSecretRequest)
+func _SummarizerService_CreateInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateInferenceSecretRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).CreateSummarizationInferenceSecret(ctx, in)
+		return srv.(SummarizerServiceServer).CreateInferenceSecret(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_CreateSummarizationInferenceSecret_FullMethodName,
+		FullMethod: SummarizerService_CreateInferenceSecret_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).CreateSummarizationInferenceSecret(ctx, req.(*CreateSummarizationInferenceSecretRequest))
+		return srv.(SummarizerServiceServer).CreateInferenceSecret(ctx, req.(*CreateInferenceSecretRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_GetSummarizationInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSummarizationInferenceSecretRequest)
+func _SummarizerService_GetInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInferenceSecretRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).GetSummarizationInferenceSecret(ctx, in)
+		return srv.(SummarizerServiceServer).GetInferenceSecret(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_GetSummarizationInferenceSecret_FullMethodName,
+		FullMethod: SummarizerService_GetInferenceSecret_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).GetSummarizationInferenceSecret(ctx, req.(*GetSummarizationInferenceSecretRequest))
+		return srv.(SummarizerServiceServer).GetInferenceSecret(ctx, req.(*GetInferenceSecretRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_UpdateSummarizationInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateSummarizationInferenceSecretRequest)
+func _SummarizerService_UpdateInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateInferenceSecretRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).UpdateSummarizationInferenceSecret(ctx, in)
+		return srv.(SummarizerServiceServer).UpdateInferenceSecret(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_UpdateSummarizationInferenceSecret_FullMethodName,
+		FullMethod: SummarizerService_UpdateInferenceSecret_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).UpdateSummarizationInferenceSecret(ctx, req.(*UpdateSummarizationInferenceSecretRequest))
+		return srv.(SummarizerServiceServer).UpdateInferenceSecret(ctx, req.(*UpdateInferenceSecretRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_UpsertSummarizationInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertSummarizationInferenceSecretRequest)
+func _SummarizerService_UpsertInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertInferenceSecretRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).UpsertSummarizationInferenceSecret(ctx, in)
+		return srv.(SummarizerServiceServer).UpsertInferenceSecret(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_UpsertSummarizationInferenceSecret_FullMethodName,
+		FullMethod: SummarizerService_UpsertInferenceSecret_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).UpsertSummarizationInferenceSecret(ctx, req.(*UpsertSummarizationInferenceSecretRequest))
+		return srv.(SummarizerServiceServer).UpsertInferenceSecret(ctx, req.(*UpsertInferenceSecretRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_DeleteSummarizationInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteSummarizationInferenceSecretRequest)
+func _SummarizerService_DeleteInferenceSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteInferenceSecretRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).DeleteSummarizationInferenceSecret(ctx, in)
+		return srv.(SummarizerServiceServer).DeleteInferenceSecret(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_DeleteSummarizationInferenceSecret_FullMethodName,
+		FullMethod: SummarizerService_DeleteInferenceSecret_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).DeleteSummarizationInferenceSecret(ctx, req.(*DeleteSummarizationInferenceSecretRequest))
+		return srv.(SummarizerServiceServer).DeleteInferenceSecret(ctx, req.(*DeleteInferenceSecretRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_ListSummarizationInferenceSecrets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSummarizationInferenceSecretsRequest)
+func _SummarizerService_ListInferenceSecrets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInferenceSecretsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).ListSummarizationInferenceSecrets(ctx, in)
+		return srv.(SummarizerServiceServer).ListInferenceSecrets(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_ListSummarizationInferenceSecrets_FullMethodName,
+		FullMethod: SummarizerService_ListInferenceSecrets_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).ListSummarizationInferenceSecrets(ctx, req.(*ListSummarizationInferenceSecretsRequest))
+		return srv.(SummarizerServiceServer).ListInferenceSecrets(ctx, req.(*ListInferenceSecretsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_CreateSummarizationInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSummarizationInferencePolicyRequest)
+func _SummarizerService_CreateInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateInferencePolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).CreateSummarizationInferencePolicy(ctx, in)
+		return srv.(SummarizerServiceServer).CreateInferencePolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_CreateSummarizationInferencePolicy_FullMethodName,
+		FullMethod: SummarizerService_CreateInferencePolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).CreateSummarizationInferencePolicy(ctx, req.(*CreateSummarizationInferencePolicyRequest))
+		return srv.(SummarizerServiceServer).CreateInferencePolicy(ctx, req.(*CreateInferencePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_GetSummarizationInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSummarizationInferencePolicyRequest)
+func _SummarizerService_GetInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInferencePolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).GetSummarizationInferencePolicy(ctx, in)
+		return srv.(SummarizerServiceServer).GetInferencePolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_GetSummarizationInferencePolicy_FullMethodName,
+		FullMethod: SummarizerService_GetInferencePolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).GetSummarizationInferencePolicy(ctx, req.(*GetSummarizationInferencePolicyRequest))
+		return srv.(SummarizerServiceServer).GetInferencePolicy(ctx, req.(*GetInferencePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_UpdateSummarizationInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateSummarizationInferencePolicyRequest)
+func _SummarizerService_UpdateInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateInferencePolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).UpdateSummarizationInferencePolicy(ctx, in)
+		return srv.(SummarizerServiceServer).UpdateInferencePolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_UpdateSummarizationInferencePolicy_FullMethodName,
+		FullMethod: SummarizerService_UpdateInferencePolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).UpdateSummarizationInferencePolicy(ctx, req.(*UpdateSummarizationInferencePolicyRequest))
+		return srv.(SummarizerServiceServer).UpdateInferencePolicy(ctx, req.(*UpdateInferencePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_UpsertSummarizationInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertSummarizationInferencePolicyRequest)
+func _SummarizerService_UpsertInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertInferencePolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).UpsertSummarizationInferencePolicy(ctx, in)
+		return srv.(SummarizerServiceServer).UpsertInferencePolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_UpsertSummarizationInferencePolicy_FullMethodName,
+		FullMethod: SummarizerService_UpsertInferencePolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).UpsertSummarizationInferencePolicy(ctx, req.(*UpsertSummarizationInferencePolicyRequest))
+		return srv.(SummarizerServiceServer).UpsertInferencePolicy(ctx, req.(*UpsertInferencePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_DeleteSummarizationInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteSummarizationInferencePolicyRequest)
+func _SummarizerService_DeleteInferencePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteInferencePolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).DeleteSummarizationInferencePolicy(ctx, in)
+		return srv.(SummarizerServiceServer).DeleteInferencePolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_DeleteSummarizationInferencePolicy_FullMethodName,
+		FullMethod: SummarizerService_DeleteInferencePolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).DeleteSummarizationInferencePolicy(ctx, req.(*DeleteSummarizationInferencePolicyRequest))
+		return srv.(SummarizerServiceServer).DeleteInferencePolicy(ctx, req.(*DeleteInferencePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SummarizerService_ListSummarizationInferencePolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListSummarizationInferencePoliciesRequest)
+func _SummarizerService_ListInferencePolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInferencePoliciesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SummarizerServiceServer).ListSummarizationInferencePolicies(ctx, in)
+		return srv.(SummarizerServiceServer).ListInferencePolicies(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SummarizerService_ListSummarizationInferencePolicies_FullMethodName,
+		FullMethod: SummarizerService_ListInferencePolicies_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SummarizerServiceServer).ListSummarizationInferencePolicies(ctx, req.(*ListSummarizationInferencePoliciesRequest))
+		return srv.(SummarizerServiceServer).ListInferencePolicies(ctx, req.(*ListInferencePoliciesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -785,76 +755,76 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*SummarizerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateSummarizationInferenceModel",
-			Handler:    _SummarizerService_CreateSummarizationInferenceModel_Handler,
+			MethodName: "CreateInferenceModel",
+			Handler:    _SummarizerService_CreateInferenceModel_Handler,
 		},
 		{
-			MethodName: "GetSummarizationInferenceModel",
-			Handler:    _SummarizerService_GetSummarizationInferenceModel_Handler,
+			MethodName: "GetInferenceModel",
+			Handler:    _SummarizerService_GetInferenceModel_Handler,
 		},
 		{
-			MethodName: "UpdateSummarizationInferenceModel",
-			Handler:    _SummarizerService_UpdateSummarizationInferenceModel_Handler,
+			MethodName: "UpdateInferenceModel",
+			Handler:    _SummarizerService_UpdateInferenceModel_Handler,
 		},
 		{
-			MethodName: "UpsertSummarizationInferenceModel",
-			Handler:    _SummarizerService_UpsertSummarizationInferenceModel_Handler,
+			MethodName: "UpsertInferenceModel",
+			Handler:    _SummarizerService_UpsertInferenceModel_Handler,
 		},
 		{
-			MethodName: "DeleteSummarizationInferenceModel",
-			Handler:    _SummarizerService_DeleteSummarizationInferenceModel_Handler,
+			MethodName: "DeleteInferenceModel",
+			Handler:    _SummarizerService_DeleteInferenceModel_Handler,
 		},
 		{
-			MethodName: "ListSummarizationInferenceModels",
-			Handler:    _SummarizerService_ListSummarizationInferenceModels_Handler,
+			MethodName: "ListInferenceModels",
+			Handler:    _SummarizerService_ListInferenceModels_Handler,
 		},
 		{
-			MethodName: "CreateSummarizationInferenceSecret",
-			Handler:    _SummarizerService_CreateSummarizationInferenceSecret_Handler,
+			MethodName: "CreateInferenceSecret",
+			Handler:    _SummarizerService_CreateInferenceSecret_Handler,
 		},
 		{
-			MethodName: "GetSummarizationInferenceSecret",
-			Handler:    _SummarizerService_GetSummarizationInferenceSecret_Handler,
+			MethodName: "GetInferenceSecret",
+			Handler:    _SummarizerService_GetInferenceSecret_Handler,
 		},
 		{
-			MethodName: "UpdateSummarizationInferenceSecret",
-			Handler:    _SummarizerService_UpdateSummarizationInferenceSecret_Handler,
+			MethodName: "UpdateInferenceSecret",
+			Handler:    _SummarizerService_UpdateInferenceSecret_Handler,
 		},
 		{
-			MethodName: "UpsertSummarizationInferenceSecret",
-			Handler:    _SummarizerService_UpsertSummarizationInferenceSecret_Handler,
+			MethodName: "UpsertInferenceSecret",
+			Handler:    _SummarizerService_UpsertInferenceSecret_Handler,
 		},
 		{
-			MethodName: "DeleteSummarizationInferenceSecret",
-			Handler:    _SummarizerService_DeleteSummarizationInferenceSecret_Handler,
+			MethodName: "DeleteInferenceSecret",
+			Handler:    _SummarizerService_DeleteInferenceSecret_Handler,
 		},
 		{
-			MethodName: "ListSummarizationInferenceSecrets",
-			Handler:    _SummarizerService_ListSummarizationInferenceSecrets_Handler,
+			MethodName: "ListInferenceSecrets",
+			Handler:    _SummarizerService_ListInferenceSecrets_Handler,
 		},
 		{
-			MethodName: "CreateSummarizationInferencePolicy",
-			Handler:    _SummarizerService_CreateSummarizationInferencePolicy_Handler,
+			MethodName: "CreateInferencePolicy",
+			Handler:    _SummarizerService_CreateInferencePolicy_Handler,
 		},
 		{
-			MethodName: "GetSummarizationInferencePolicy",
-			Handler:    _SummarizerService_GetSummarizationInferencePolicy_Handler,
+			MethodName: "GetInferencePolicy",
+			Handler:    _SummarizerService_GetInferencePolicy_Handler,
 		},
 		{
-			MethodName: "UpdateSummarizationInferencePolicy",
-			Handler:    _SummarizerService_UpdateSummarizationInferencePolicy_Handler,
+			MethodName: "UpdateInferencePolicy",
+			Handler:    _SummarizerService_UpdateInferencePolicy_Handler,
 		},
 		{
-			MethodName: "UpsertSummarizationInferencePolicy",
-			Handler:    _SummarizerService_UpsertSummarizationInferencePolicy_Handler,
+			MethodName: "UpsertInferencePolicy",
+			Handler:    _SummarizerService_UpsertInferencePolicy_Handler,
 		},
 		{
-			MethodName: "DeleteSummarizationInferencePolicy",
-			Handler:    _SummarizerService_DeleteSummarizationInferencePolicy_Handler,
+			MethodName: "DeleteInferencePolicy",
+			Handler:    _SummarizerService_DeleteInferencePolicy_Handler,
 		},
 		{
-			MethodName: "ListSummarizationInferencePolicies",
-			Handler:    _SummarizerService_ListSummarizationInferencePolicies_Handler,
+			MethodName: "ListInferencePolicies",
+			Handler:    _SummarizerService_ListInferencePolicies_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
