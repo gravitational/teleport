@@ -76,9 +76,6 @@ const launcherPathTestCases: {
 ];
 
 describe('app launcher path is properly formed', () => {
-  const realLocation = window.location;
-  const assignMock = jest.fn();
-
   beforeEach(() => {
     global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
     jest.spyOn(api, 'get').mockResolvedValue({});
@@ -91,21 +88,11 @@ describe('app launcher path is properly formed', () => {
       subjectCookieValue: 'subject-cookie-value',
       fqdn: '',
     });
-
-    delete window.location;
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
   });
 
-  afterEach(() => {
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
-    assignMock.mockClear();
-  });
+  const windowLocation = {
+    replace: jest.fn(),
+  };
 
   test.each(launcherPathTestCases)(
     '$name',
@@ -113,13 +100,13 @@ describe('app launcher path is properly formed', () => {
       render(
         <Router history={createMockHistory(`grafana.localhost${query}`)}>
           <Route path={cfg.routes.appLauncher}>
-            <AppLauncher />
+            <AppLauncher windowLocation={windowLocation} />
           </Route>
         </Router>
       );
 
       await waitFor(() =>
-        expect(window.location.replace).toHaveBeenCalledWith(
+        expect(windowLocation.replace).toHaveBeenCalledWith(
           `https://grafana.localhost/${expectedPath}`
         )
       );
@@ -259,27 +246,9 @@ const appSessionTestCases: {
 ];
 
 describe('fqdn is matched', () => {
-  const realLocation = window.location;
-  const assignMock = jest.fn();
-
   beforeEach(() => {
-    global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
     jest.spyOn(api, 'get').mockResolvedValue({});
     jest.spyOn(api, 'post').mockResolvedValue({});
-
-    delete window.location;
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
-  });
-
-  afterEach(() => {
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
-    assignMock.mockClear();
   });
 
   test.each(appSessionTestCases)(
@@ -295,11 +264,14 @@ describe('fqdn is matched', () => {
         fqdn: returnedFqdn,
       });
       jest.spyOn(service, 'createAppSession');
+      const windowLocation = {
+        replace: jest.fn(),
+      };
 
       render(
         <Router history={createMockHistory(path)}>
           <Route path={cfg.routes.appLauncher}>
-            <AppLauncher />
+            <AppLauncher windowLocation={windowLocation} />
           </Route>
         </Router>
       );
@@ -313,7 +285,7 @@ describe('fqdn is matched', () => {
         });
       });
 
-      await waitFor(() => expect(window.location.replace).toHaveBeenCalled());
+      await waitFor(() => expect(windowLocation.replace).toHaveBeenCalled());
       expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
     }
   );
@@ -322,6 +294,9 @@ describe('fqdn is matched', () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'different.fqdn',
     });
+    const windowLocation = {
+      replace: jest.fn(),
+    };
 
     render(
       <Router
@@ -330,7 +305,7 @@ describe('fqdn is matched', () => {
         )}
       >
         <Route path={cfg.routes.appLauncher}>
-          <AppLauncher />
+          <AppLauncher windowLocation={windowLocation} />
         </Route>
       </Router>
     );
@@ -341,13 +316,16 @@ describe('fqdn is matched', () => {
         /failed to match applications with FQDN "test-app.test.teleport:443"/i
       )
     ).toBeInTheDocument();
-    expect(window.location.replace).not.toHaveBeenCalled();
+    expect(windowLocation.replace).not.toHaveBeenCalled();
   });
 
   test('invalid URL when constructing a new URL with a malformed FQDN', async () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'invalid.fqdn:3080:3090',
     });
+    const windowLocation = {
+      replace: jest.fn(),
+    };
 
     render(
       <Router
@@ -356,14 +334,14 @@ describe('fqdn is matched', () => {
         )}
       >
         <Route path={cfg.routes.appLauncher}>
-          <AppLauncher />
+          <AppLauncher windowLocation={windowLocation} />
         </Route>
       </Router>
     );
 
     await screen.findByText(/access denied/i);
     expect(screen.getByText(/Failed to parse URL:/i)).toBeInTheDocument();
-    expect(window.location.replace).not.toHaveBeenCalled();
+    expect(windowLocation.replace).not.toHaveBeenCalled();
   });
 });
 

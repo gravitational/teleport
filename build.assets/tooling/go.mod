@@ -15,7 +15,7 @@ require (
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/mod v0.25.0
 	golang.org/x/oauth2 v0.30.0
-	helm.sh/helm/v3 v3.18.3
+	helm.sh/helm/v3 v3.18.4
 	howett.net/plist v1.0.1
 	k8s.io/apiextensions-apiserver v0.33.2
 )

@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -31,8 +33,8 @@ type userGroupIndex string
 
 const userGroupNameIndex userGroupIndex = "name"
 
-func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex], error) {
-	if u == nil {
+func newUserGroupCollection(upstream services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex], error) {
+	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UserGroups")
 	}
 
@@ -44,21 +46,8 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 				userGroupNameIndex: types.UserGroup.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.UserGroup, error) {
-			var startKey string
-			var groups []types.UserGroup
-			for {
-				resp, next, err := u.ListUserGroups(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				groups = append(groups, resp...)
-				if next == "" {
-					break
-				}
-				startKey = next
-			}
-			return groups, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListUserGroups))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.UserGroup {
 			return &types.UserGroupV1{

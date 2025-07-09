@@ -104,7 +104,7 @@ export function BotInstanceDetails(props: {
       ) : undefined}
 
       {isError ? (
-        <Alert kind="danger">{`Error: ${error.message}`}</Alert>
+        <Alert kind="danger">Error: {error.message}</Alert>
       ) : undefined}
 
       {isSuccess && data.yaml ? (
@@ -132,15 +132,15 @@ const MonoText = styled(Text)`
 const InstanceId = styled.div`
   display: flex;
   align-items: center;
-  padding-left: 8px;
-  padding-right: 6px;
-  height: 32px;
-  border-radius: 16px;
+  padding-left: ${props => props.theme.space[2]}px;
+  padding-right: ${props => props.theme.space[2]}px;
+  height: ${props => props.theme.space[5]}px;
+  border-radius: ${props => props.theme.space[3]}px;
   background-color: ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
 `;
 
 const YamlContaner = styled(Flex)`
   flex: 1;
-  border-radius: 8px;
+  border-radius: ${props => props.theme.space[2]}px;
   background-color: ${({ theme }) => theme.colors.levels.elevated};
 `;

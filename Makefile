@@ -1929,3 +1929,9 @@ cli-docs-tsh:
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
 	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
+
+.PHONY: gen-docs
+gen-docs:
+	$(MAKE) -C integrations/terraform docs
+	$(MAKE) -C integrations/operator crd-docs
+	$(MAKE) -C examples/chart render-chart-ref

@@ -31,7 +31,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -1364,6 +1363,13 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	}
 }
 
+func identityFromArn(t *testing.T, arn string) awslib.Identity {
+	t.Helper()
+	identity, err := awslib.IdentityFromArn(arn)
+	require.NoError(t, err)
+	return identity
+}
+
 func TestAWSDocumentConfigurator(t *testing.T) {
 	var err error
 	ctx := context.Background()
@@ -1388,7 +1394,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 	config := ConfiguratorConfig{
 		awsCfg:    &aws.Config{},
 		iamClient: &iamMock{},
-		stsClient: &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		Identity:  identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
 		ssmClients: map[string]ssmClient{
 			"eu-central-1": &ssmMock{
 				t: t,
@@ -1429,7 +1435,7 @@ func TestAWSConfigurator(t *testing.T) {
 	config := ConfiguratorConfig{
 		awsCfg:        &aws.Config{},
 		iamClient:     &iamMock{},
-		stsClient:     &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		Identity:      identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
 		ssmClients:    map[string]ssmClient{"eu-central-1": &ssmMock{}},
 		ServiceConfig: &servicecfg.Config{},
 		Flags: configurators.BootstrapFlags{
@@ -1861,17 +1867,6 @@ func (p *policiesMock) Upsert(context.Context, *awslib.Policy) (string, error) {
 
 func (p *policiesMock) Attach(context.Context, string, awslib.Identity) error {
 	return p.attachError
-}
-
-type stsMock struct {
-	ARN               string
-	callerIdentityErr error
-}
-
-func (m *stsMock) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Arn: aws.String(m.ARN),
-	}, m.callerIdentityErr
 }
 
 type ssmMock struct {

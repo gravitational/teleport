@@ -423,7 +423,7 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "user with pod access request that no longer fullfills the role requirements",
+			name: "user with legacy pod access request that no longer fullfills the role requirements",
 			args: args{
 				user:      userWithLimitedAccess,
 				namespace: metav1.NamespaceDefault,
@@ -458,7 +458,42 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		},
-
+		{
+			name: "user with pod access request that no longer fullfills the role requirements",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.AccessRequestPrefixKindKubeNamespaced + "pods",
+							Name:            kubeCluster,
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						},
+					),
+				},
+			},
+			want: want{
+				listPodsResult: []string{},
+				listPodErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods is forbidden: User \"limited_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
 		{
 			name: "list default namespace pods for user with limited access",
 			args: args{
@@ -644,7 +679,17 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer("pods", "", types.KubeVerbWatch, false, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
+			mr := metaResource{
+				requestedResource: apiResource{
+					resourceKind: "pods",
+					apiGroup:     "",
+				},
+				resourceDefinition: &metav1.APIResource{
+					Namespaced: true,
+				},
+				verb: types.KubeVerbWatch,
+			}
+			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -1447,10 +1492,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 	// create a user with full access to all namespaces.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+	userWithFullAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithFullAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithFullAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1471,10 +1517,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	)
 
 	// create a user with limited access to kubernetes namespaces.
-	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithLimitedAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithLimitedAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1501,10 +1548,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	)
 
 	// create a user with limited access to kubernetes namespaces.
-	userWithSpecificAccess, _ := testCtx.CreateUserAndRole(
+	userWithSpecificAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithSpecificAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithSpecificAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1644,9 +1692,9 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					WithResourceAccessRequests(
 						types.ResourceID{
 							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubeNamespace,
+							Kind:            "kube:ns:*.*",
 							Name:            kubeCluster,
-							SubResourceName: "dev",
+							SubResourceName: "dev/*",
 						},
 					),
 				},
@@ -1838,7 +1886,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
@@ -2442,7 +2490,7 @@ func TestV7V8Match(t *testing.T) {
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 				},
 			}, nil),
@@ -2463,7 +2511,7 @@ func TestV7V8Match(t *testing.T) {
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 				},
 			}, nil),
@@ -2484,7 +2532,7 @@ func TestV7V8Match(t *testing.T) {
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 				},
 			}, nil),

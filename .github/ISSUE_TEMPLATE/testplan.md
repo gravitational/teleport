@@ -786,10 +786,53 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
   * [ ] Verify incompatible role, wildcard kind - cluster-wide
     * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
     * [ ] Verify access denied to any resource
-* [ ] Verify Access Request
-  * [ ] Verify the following scenarios for Resource Access Requests to Pods:
-    * [ ] Create a valid resource access request and validate if access to other pods is denied.
-    * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
+
+### Kubernetes Access Request
+
+* [ ] Verify that an access request to a `pods` resource grants access to `pods` and not any other resources
+* [ ] Create a role denying access to all `services` resources, use that role as `search_as_roles`, verify access to `services` is not allowed.
+* [ ] Verify resource restriction
+  * Create a role v8 restricted to request only for `pods` and `deployments` (`apps` api group) (i.e. `allow.request.kubernetes_resources`) with a target `search_as_role` granting all access to the cluster
+    * [ ] Verify you can search resources with `tsh request search`
+      * [ ] Verify you can list `pods` and `deployments` with `kubectl` after the request is granted using `tsh kube login`
+    * [ ] Verify you can't search other resources like `services` or `nodes`
+    * [ ] Verify you can request access to `pods` and `deployments`
+    * [ ] Verify you can't request access to `configmaps` nor `secrets`
+    * [ ] Verify creating access request from Web UI
+      * [ ] Verify no error are showing up
+      * [ ] Verify you can list the namespaces to make a request
+      * [ ] verify the request is successful
+* [ ] Verify CRD support (see "Kubernetes RBAC" section for `crontabs.stable.example.com` definition)
+  * [ ] Create a target role v8 with only access to `crontabs` (api group `stable.example.com`), use it as `seach_as_role`
+    * [ ] Verify you can search for the CRD via `tsh request search --kind/--kube-kind/--kube-api-group`
+    * [ ] Verify you can't search for `pods` nor `secrets`
+    * [ ] Verify you can request access to `crontabs`
+      * [ ] Verify you can list `crontabs` with `kubectl` after the request is granted using `tsh kube login`
+    * [ ] Verify you can't request access to `configmaps`
+  * [ ] Create a role v7 with a wildcard, use it as `search_as_role`
+    * [ ] Verify you can search for the CRD via `tsh request search --kind/--kube-kind/--kube-api-group`
+    * [ ] Verify you can request access to `crontabs`
+      * [ ] Verify you can list `crontabs` with `kubectl` after the request is granted using `tsh kube login`
+  * [ ] Update the base role to add resource restriction to `crontabs` (api group `stable.example.com`), still using a `search_as_role` granting all permissions
+    * [ ] Verify you can search for the CRD via `tsh request search --kind/--kube-kind/--kube-api-group`
+    * [ ] Verify you can't search for `pods` nor `secrets`
+    * [ ] Verify you can request access to `crontabs`
+      * [ ] Verify you can list `crontabs` with `kubectl` after the request is granted using `tsh kube login`
+    * [ ] verify you can't search for `pods`
+    * [ ] Verify you can't request access to `configmaps`
+* [ ] Verify wildcard support
+  * [ ] Verify requesting acecss to a full namesapce. Create a role with `search_as_role` granting all permissions
+    * [ ] Verify you can request access to all resources in a namesapce with `--resource '/TELEPORT_CLUSTER_NAME/kube:ns:*.*/K8S_CLSUTER_NAME/NAMESPACE_NAME/*`
+    * [ ] Verify you can access resources like `pods`, `secrets` and `deployments` with `kubectl` using `tsh kube login`
+    * [ ] Verify you can't request access to `nodes` or `persistentvolumes`
+  * [ ] Verify requesting acecss to all cluster-wide resources. Create a role with `search_as_role` granting all permissions
+    * [ ] Verify you can request access to all cluster-wide resources with `--resource '/TELEPORT_CLUSTER_NAME/kube:cw:*.*/K8S_CLSUTER_NAME/*`
+    * [ ] Verify you can access resources like `nodes` and `persistentvolumes` with `kubectl` using `tsh kube login`
+    * [ ] Verify you can't request access to `configmaps` or `services`
+* [ ] Verify tsh v17 support (TODO(@creack) Remove this section in v19)
+  * [ ] Using tsh v17, verify you can search for `pod` and `secret` (can use a role with wildcard permission)
+  * [ ] Using tsh v17, verify you can request access for `pod` and `secret`
+    * [ ] Verify you can list `pod` with `secret` with `kubectl` after the request is granted using `tsh kube login`
 
 ### Teleport with FIPS mode
 

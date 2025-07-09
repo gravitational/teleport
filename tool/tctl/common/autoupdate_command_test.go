@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -346,6 +347,88 @@ Group Name       State     Start Time          State Reason   Agent Count Up-to-
 dev              Done      2025-01-15 12:00:00 outside_window 1023        567        
 stage            Active    2025-01-15 14:00:00 in_window      0           0          
 prod (catch-all) Unstarted                     outside_window 789         0          
+`,
+		},
+		{
+			name: "rollout regular schedule halt-on-error with progress, with canary",
+			fixture: &autoupdatepb.AutoUpdateAgentRollout{
+				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+					StartVersion:   "1.2.3",
+					TargetVersion:  "1.2.4",
+					Schedule:       autoupdate.AgentsScheduleRegular,
+					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
+					Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				},
+				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+						{
+							Name:             "dev",
+							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 12, 00, 0, 0, time.UTC)),
+							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
+							LastUpdateTime:   nil,
+							LastUpdateReason: "outside_window",
+							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
+							ConfigStartHour:  8,
+							PresentCount:     1023,
+							UpToDateCount:    567,
+							InitialCount:     1012,
+						},
+						{
+							Name:             "stage",
+							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 14, 00, 0, 0, time.UTC)),
+							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
+							LastUpdateReason: "in_window",
+							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
+							ConfigStartHour:  14,
+							CanaryCount:      5,
+							Canaries: []*autoupdatepb.Canary{
+								{
+									UpdaterId: uuid.NewString(),
+									HostId:    uuid.NewString(),
+									Hostname:  "host-1",
+									Success:   true,
+								},
+								{
+									UpdaterId: uuid.NewString(),
+									HostId:    uuid.NewString(),
+									Hostname:  "host-2",
+									Success:   false,
+								},
+								{
+									UpdaterId: uuid.NewString(),
+									HostId:    uuid.NewString(),
+									Hostname:  "host-3",
+									Success:   true,
+								},
+							},
+						},
+						{
+							Name:             "prod",
+							StartTime:        nil,
+							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+							LastUpdateReason: "outside_window",
+							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
+							ConfigStartHour:  18,
+							PresentCount:     789,
+						},
+					},
+					State:        autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
+					StartTime:    timestamppb.New(time.Date(2025, 1, 15, 2, 0, 0, 0, time.UTC)),
+					TimeOverride: nil,
+				},
+			},
+			expectedOutput: `Agent autoupdate mode: enabled
+Rollout creation date: 2025-01-15 02:00:00
+Start version: 1.2.3
+Target version: 1.2.4
+Rollout state: Active
+Strategy: halt-on-error
+
+Group Name       State        Start Time          State Reason   Agent Count Up-to-date 
+---------------- ------------ ------------------- -------------- ----------- ---------- 
+dev              Done         2025-01-15 12:00:00 outside_window 1023        567        
+stage            Canary (2/5) 2025-01-15 14:00:00 in_window      0           0          
+prod (catch-all) Unstarted                        outside_window 789         0          
 `,
 		},
 	}

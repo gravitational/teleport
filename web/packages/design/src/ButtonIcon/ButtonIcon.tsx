@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentProps, ElementType } from 'react';
+import { ComponentProps, ElementType, Ref } from 'react';
 import styled, { CSSObject } from 'styled-components';
 
 import {
@@ -43,6 +43,7 @@ type ButtonIconProps<E extends ElementType> = ComponentProps<E> &
     size?: Size;
     /** If defined, changes the underlying component type. */
     as?: E;
+    ref?: Ref<HTMLButtonElement>;
   };
 
 const ButtonIcon = <E extends ElementType = 'button'>({

@@ -145,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -1061,6 +1062,24 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
+	}
+
+	// If PAM is enabled, make sure that Teleport was built with PAM support
+	// and the PAM library was found at runtime.
+	if cfg.SSH.PAM != nil && cfg.SSH.PAM.Enabled {
+		if !pam.BuildHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"Teleport binary was built without PAM support. To continue either download a \n" +
+				"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
+				"or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+		if !pam.SystemHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"system does not have the needed PAM library installed. To continue either \n" +
+				"install libpam or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
 	}
 
 	// create the data directory if it's missing

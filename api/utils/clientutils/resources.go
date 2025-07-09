@@ -20,6 +20,7 @@ package clientutils
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -28,26 +29,65 @@ import (
 
 // IterateResources is a helper that iterates through each resource from all
 // pages and passes them one by one to the provided callback.
+// Deprecated: Prefer using [Resources] instead.
+// TODO(tross): DELETE IN 19.0.0
 func IterateResources[T any](
 	ctx context.Context,
-	listPageFunc func(context.Context, int, string) ([]T, string, error),
+	pageFunc func(context.Context, int, string) ([]T, string, error),
 	callback func(T) error,
 ) error {
-	var pageToken string
-	for {
-		page, nextToken, err := listPageFunc(ctx, defaults.DefaultChunkSize, pageToken)
+	for item, err := range Resources(ctx, pageFunc) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for _, resource := range page {
-			if err := callback(resource); err != nil {
-				return trace.Wrap(err)
+
+		if err := callback(item); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// ResourcesWithPageSize returns an iterator over all resources from every page, limited to pageSize, produced from the pageFunc.
+// The iterator will only produce an error if one is encountered retrieving a page.
+func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error), pageSize int) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		var pageToken string
+		for {
+			page, nextToken, err := pageFunc(ctx, pageSize, pageToken)
+			if err != nil {
+				if trace.IsLimitExceeded(err) {
+					// Cut chunkSize in half if gRPC max message size is exceeded.
+					pageSize /= 2
+					// This is an extremely unlikely scenario, but better to cover it anyways.
+					if pageSize == 0 {
+						yield(*new(T), trace.Wrap(err, "resource is too large to retrieve"))
+						return
+					}
+
+					continue
+				}
+
+				yield(*new(T), err)
+				return
+			}
+			for _, resource := range page {
+				if !yield(resource, nil) {
+					return
+				}
+			}
+
+			pageToken = nextToken
+			if nextToken == "" {
+				return
 			}
 		}
-
-		if nextToken == "" {
-			return nil
-		}
-		pageToken = nextToken
 	}
+}
+
+// Resources returns an iterator over all resources from every page produced from the pageFunc.
+// The iterator will only produce an error if one is encountered retrieving a page.
+func Resources[T any](ctx context.Context, pageFunc func(context.Context, int, string) ([]T, string, error)) iter.Seq2[T, error] {
+	return ResourcesWithPageSize(ctx, pageFunc, defaults.DefaultChunkSize)
 }

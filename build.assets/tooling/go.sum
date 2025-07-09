@@ -153,8 +153,8 @@ gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0/go.mod h1:WDnlLJ4WF5VGsH/HVa
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-helm.sh/helm/v3 v3.18.3 h1:+cvyGKgs7Jt7BN3Klmb4SsG4IkVpA7GAZVGvMz6VO4I=
-helm.sh/helm/v3 v3.18.3/go.mod h1:wUc4n3txYBocM7S9RjTeZBN9T/b5MjffpcSsWEjSIpw=
+helm.sh/helm/v3 v3.18.4 h1:pNhnHM3nAmDrxz6/UC+hfjDY4yeDATQCka2/87hkZXQ=
+helm.sh/helm/v3 v3.18.4/go.mod h1:WVnwKARAw01iEdjpEkP7Ii1tT1pTPYfM1HsakFKM3LI=
 howett.net/plist v1.0.1 h1:37GdZ8tP09Q35o9ych3ehygcsL+HqKSwzctveSlarvM=
 howett.net/plist v1.0.1/go.mod h1:lqaXoTrLY4hg8tnEzNru53gicrbv7rrk+2xJA/7hw9g=
 k8s.io/apiextensions-apiserver v0.33.2 h1:6gnkIbngnaUflR3XwE1mCefN3YS8yTD631JXQhsU6M8=

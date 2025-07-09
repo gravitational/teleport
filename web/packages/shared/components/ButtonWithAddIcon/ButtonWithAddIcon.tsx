@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,31 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+import { ButtonText } from 'design';
+import { ButtonProps } from 'design/Button';
+import { Add as AddIcon } from 'design/Icon';
+import type { IconSize } from 'design/Icon/Icon';
 
-import (
-	"bytes"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils/testutils/golden"
-)
-
-func TestWriteSystemdUnitFile(t *testing.T) {
-	flags := SystemdFlags{
-		EnvironmentFile:          "/custom/env/dir/teleport",
-		PIDFile:                  "/custom/pid/dir/teleport.pid",
-		FileDescriptorLimit:      16384,
-		TeleportInstallationFile: "/custom/install/dir/teleport",
-	}
-
-	stdout := new(bytes.Buffer)
-	err := WriteSystemdUnitFile(flags, stdout)
-	require.NoError(t, err)
-	data := stdout.Bytes()
-	if golden.ShouldSet() {
-		golden.Set(t, data)
-	}
-	require.Equal(t, string(golden.Get(t)), stdout.String())
-}
+export const ButtonWithAddIcon = ({
+  Button = ButtonText,
+  label,
+  iconSize = 12,
+  compact = true,
+  pr = 2,
+  ...props
+}: ButtonProps<'button'> & {
+  Button?: React.ComponentType<ButtonProps<'button'>>;
+  label: string;
+  iconSize?: IconSize;
+}) => {
+  return (
+    <Button {...props} compact={compact} pr={pr}>
+      <AddIcon
+        className="icon-add"
+        size={iconSize}
+        css={`
+          margin-right: 3px;
+        `}
+      />
+      {label}
+    </Button>
+  );
+};

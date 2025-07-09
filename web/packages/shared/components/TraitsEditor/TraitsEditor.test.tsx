@@ -67,7 +67,7 @@ test('Add and remove Trait', async () => {
   );
   expect(screen.queryAllByTestId('trait-key')).toHaveLength(0);
 
-  const addButtonEl = screen.getByRole('button', { name: /Add user trait/i });
+  const addButtonEl = screen.getByRole('button', { name: /Add a user trait/i });
   expect(addButtonEl).toBeInTheDocument();
   fireEvent.click(addButtonEl);
 
