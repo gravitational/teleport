@@ -143,8 +143,7 @@ $ tsh login --proxy=leaf.example.com --user=email@example.com
 VNet does not officially support [web apps](connecting-apps.mdx) yet.
 However, since all web apps are served over TCP, it's possible to convert a web
 app to [a TCP app](tcp.mdx) to make it available via VNet.
-You'll need to change the `uri` of the application in the app resource or
-Application Service configuration file to use `tcp://` instead of `https://`.
+You'll need to change the `uri` of the application to use `tcp://` instead of `https://`.
 
 Exposing plain HTTP web apps or APIs via VNet is not recommended.
 Untrusted websites can potentially use DNS rebinding attacks to bypass the
@@ -155,13 +154,13 @@ implement one or more of the following mitigations for DNS rebinding attacks:
 - enforce a Host header allowlist at the HTTP server
 - block browser access to HTTP websites
 
-There are a few more caveats when converting a Teleport web app to a tcp app:
+There are a few more caveats when converting a Teleport web app to a TCP app:
 
 - The Teleport Web UI uses [HSTS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security).
   If the application is going to be served from a subdomain of a Proxy Service
   it must use HTTPS, it will not be accessible in browsers over plain HTTP.
-  It's possible to work around this by setting a custom `public_addr` that is
-  not a subdomain of the proxy address as explained above in this guide.
+  It's possible to work around this by setting a custom `public_addr` as explained
+  above in this guide to an address that is not a subdomain of the proxy address.
 - HTTPS Applications must handle their own TLS connections and have
   a valid certificate for the app `public_addr`.
 - [JWT Tokens](../jwt/introduction.mdx), [redirects](connecting-apps.mdx#rewrite-redirect) and
