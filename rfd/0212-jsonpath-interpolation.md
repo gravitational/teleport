@@ -45,14 +45,6 @@ The `jsonpath` function will be added as another standard trait expression
 function. It can be used in `login_rule` trait maps/expressions to interpolate
 a string(s) from arbitrary JSON claims.
 
-Note: the `jsonpath` function can *technically* be used for any "expression"
-in teleport, such as the role field `node_labels_expression`, assuming the
-value in the `jsonpath` expression is a marshalled JSON object. Therefore, it
-is possible to set a user trait like `{"labels":{"1":"a","2":"b"]}` and use
-`jsonpath` expressions on that trait. This is just a side effect of the
-implementation and will not be documented for use in practice, though it could
-be made into an evergreen feature with documentation if the need arises.
-
 #### JSONPath Libraries
 
 While the JSONPath query language has an [official RFC](https://www.rfc-editor.org/rfc/rfc9535.html)
