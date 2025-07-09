@@ -878,6 +878,135 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
 }
 
+func Test_AccessListMember_Validation(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	accessList := newAccessList(t, "test-access-list-1", clock)
+	accessList, err = service.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	accessListMember := newAccessListMember(t, accessList.GetName(), "test-access-list-member-1")
+
+	t.Run("modifying member fails if name is empty", func(t *testing.T) {
+		oldName := accessListMember.Spec.Name
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.Name = "" },
+			func(m *accesslist.AccessListMember) { m.Spec.Name = oldName },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "spec name")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if spec.name and metadata.name do not match", func(t *testing.T) {
+		oldName := accessListMember.Spec.Name
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.Name = "some_other_name" },
+			func(m *accesslist.AccessListMember) { m.Spec.Name = oldName },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "spec name")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if access_list is empty", func(t *testing.T) {
+		oldAccessList := accessListMember.Spec.AccessList
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.AccessList = "" },
+			func(m *accesslist.AccessListMember) { m.Spec.AccessList = oldAccessList },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "access_list field empty")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if joined is empty", func(t *testing.T) {
+		oldJoined := accessListMember.Spec.Joined
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.Joined = time.Time{} },
+			func(m *accesslist.AccessListMember) { m.Spec.Joined = oldJoined },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "joined field empty")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+
+	t.Run("modifying member fails if added_by is empty", func(t *testing.T) {
+		oldAddedBy := accessListMember.Spec.AddedBy
+		runAccessListMemberValidationSuite(
+			t, service, accessList, accessListMember,
+			func(m *accesslist.AccessListMember) { m.Spec.AddedBy = "" },
+			func(m *accesslist.AccessListMember) { m.Spec.AddedBy = oldAddedBy },
+			func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "added_by field is empty")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		)
+	})
+}
+
+func runAccessListMemberValidationSuite(
+	t *testing.T,
+	service *AccessListService,
+	accessList *accesslist.AccessList, member *accesslist.AccessListMember,
+	makeBad, makeGood func(*accesslist.AccessListMember),
+	errorCheck func(t *testing.T, err error),
+) {
+	t.Helper()
+	ctx := context.Background()
+
+	makeBad(member)
+
+	_, err := service.UpsertAccessListMember(ctx, member)
+	errorCheck(t, err)
+
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{member})
+	errorCheck(t, err)
+
+	makeGood(member)
+
+	member, err = service.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	makeBad(member)
+
+	_, err = service.UpdateAccessListMember(ctx, member)
+	errorCheck(t, err)
+
+	_, err = service.UpsertAccessListMember(ctx, member)
+	errorCheck(t, err)
+
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{member})
+	errorCheck(t, err)
+
+	makeGood(member)
+
+	err = service.DeleteAccessListMember(ctx, member.Spec.AccessList, member.Spec.Name)
+	require.NoError(t, err)
+}
+
 func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
