@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
-	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -519,14 +519,14 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 	botConfig := &embeddedtbot.BotConfig{
 		AuthServer:            addr,
 		AuthServerAddressMode: connection.AllowProxyAsAuthServer,
-		Onboarding: tbotconfig.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
-			Terraform: tbotconfig.TerraformOnboardingConfig{
+			Terraform: onboarding.TerraformOnboardingConfig{
 				AudienceTag: audienceTag,
 			},
-			Gitlab: tbotconfig.GitlabOnboardingConfig{
+			Gitlab: onboarding.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},
