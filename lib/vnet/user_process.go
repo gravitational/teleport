@@ -25,6 +25,7 @@ import (
 
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // ClientApplication is the common interface implemented by each VNet client
@@ -44,6 +45,9 @@ type ClientApplication interface {
 
 	// ReissueAppCert issues a new cert for the target app.
 	ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error)
+
+	// UserTLSCert returns the user TLS certificate for the given profile.
+	UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error)
 
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error)
@@ -67,6 +71,7 @@ type ClusterClient interface {
 	CurrentCluster() authclient.ClientI
 	ClusterName() string
 	RootClusterName() string
+	SessionSSHKeyRing(ctx context.Context, user string, target client.NodeDetails) (keyRing *client.KeyRing, completedMFA bool, err error)
 }
 
 // RunUserProcess is the entry point called by all VNet client applications
@@ -93,23 +98,38 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
 	})
-	osConfigProvider := NewLocalOSConfigProvider(&LocalOSConfigProviderConfig{
+	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
 	})
-	clientApplicationService := newClientApplicationService(&clientApplicationServiceConfig{
-		clientApplication:     clientApplication,
-		fqdnResolver:          fqdnResolver,
-		localOSConfigProvider: osConfigProvider,
+	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
+		clientApplication:            clientApplication,
+		fqdnResolver:                 fqdnResolver,
+		unifiedClusterConfigProvider: unifiedClusterConfigProvider,
+		clock:                        clock,
 	})
-	userProcess := &UserProcess{
-		clientApplication:        clientApplication,
-		osConfigProvider:         osConfigProvider,
-		clientApplicationService: clientApplicationService,
-		clock:                    clock,
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if err := userProcess.runPlatformUserProcess(ctx); err != nil {
+
+	processManager, processCtx := newProcessManager()
+	sshConfigurator := newSSHConfigurator(sshConfiguratorConfig{
+		clientApplication: clientApplication,
+		leafClusterCache:  leafClusterCache,
+	})
+	processManager.AddCriticalBackgroundTask("SSH configuration loop", func() error {
+		return trace.Wrap(sshConfigurator.runConfigurationLoop(processCtx))
+	})
+
+	userProcess := &UserProcess{
+		clientApplication:            clientApplication,
+		unifiedClusterConfigProvider: unifiedClusterConfigProvider,
+		clientApplicationService:     clientApplicationService,
+		clock:                        clock,
+		processManager:               processManager,
+	}
+	if err := userProcess.runPlatformUserProcess(processCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return userProcess, nil
@@ -120,9 +140,9 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 type UserProcess struct {
 	clientApplication ClientApplication
 
-	clock                    clockwork.Clock
-	osConfigProvider         *LocalOSConfigProvider
-	clientApplicationService *clientApplicationService
+	clock                        clockwork.Clock
+	unifiedClusterConfigProvider *UnifiedClusterConfigProvider
+	clientApplicationService     *clientApplicationService
 
 	processManager   *ProcessManager
 	networkStackInfo *vnetv1.NetworkStackInfo
@@ -143,6 +163,6 @@ func (p *UserProcess) NetworkStackInfo() *vnetv1.NetworkStackInfo {
 // GetTargetOSConfiguration returns the LocalOSConfigProvider which clients may
 // use to report the proxied DNS zones, run diagnostics, etc. The returned
 // *LocalOSConfigProvider will remain valid even if the UserProcess is closed.
-func (p *UserProcess) GetOSConfigProvider() *LocalOSConfigProvider {
-	return p.osConfigProvider
+func (p *UserProcess) GetUnifiedClusterConfigProvider() *UnifiedClusterConfigProvider {
+	return p.unifiedClusterConfigProvider
 }
