@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -52,23 +53,6 @@ const (
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
-
-var SupportedJoinMethods = []string{
-	string(types.JoinMethodAzure),
-	string(types.JoinMethodAzureDevops),
-	string(types.JoinMethodBitbucket),
-	string(types.JoinMethodCircleCI),
-	string(types.JoinMethodGCP),
-	string(types.JoinMethodGitHub),
-	string(types.JoinMethodGitLab),
-	string(types.JoinMethodIAM),
-	string(types.JoinMethodKubernetes),
-	string(types.JoinMethodSpacelift),
-	string(types.JoinMethodToken),
-	string(types.JoinMethodTPM),
-	string(types.JoinMethodTerraformCloud),
-	string(types.JoinMethodBoundKeypair),
-}
 
 // ReservedServiceNames are the service names reserved for internal use.
 var ReservedServiceNames = []string{
@@ -104,109 +88,12 @@ func validateServiceName(name string) error {
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
-// AzureOnboardingConfig holds configuration relevant to the "azure" join method.
-type AzureOnboardingConfig struct {
-	// ClientID of the managed identity to use. Required if the VM has more
-	// than one assigned identity.
-	ClientID string `yaml:"client_id,omitempty"`
-}
-
-// TerraformOnboardingConfig contains parameters for the "terraform" join method
-type TerraformOnboardingConfig struct {
-	// TokenTag is the name of the tag configured via the environment variable
-	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
-	// variant is used.
-	AudienceTag string `yaml:"audience_tag,omitempty"`
-}
-
-// GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
-type GitlabOnboardingConfig struct {
-	// TokenEnvVarName is the name of the environment variable that contains the
-	// GitLab ID token. This can be useful to override in cases where a single
-	// gitlab job needs to authenticate to multiple Teleport clusters.
-	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
-}
-
-// BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
-// method
-type BoundKeypairOnboardingConfig struct {
-	// RegistrationSecret is the name of the initial joining secret, if any. If
-	// not specified, a keypair must be created using `tbot keypair create` and
-	// registered with Teleport in advance.
-	RegistrationSecret string `yaml:"registration_secret,omitempty"`
-}
-
-// OnboardingConfig contains values relevant to how the bot authenticates with
-// the Teleport cluster.
-type OnboardingConfig struct {
-	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
-	// that contains the token
-	//
-	// You should use Token() instead - this has to be an exported field for YAML unmarshaling
-	// to work correctly, but this could be a path instead of a token
-	TokenValue string `yaml:"token,omitempty"`
-
-	// CAPath is an optional path to a CA certificate.
-	CAPath string `yaml:"ca_path,omitempty"`
-
-	// CAPins is a list of certificate authority pins, used to validate the
-	// connection to the Teleport auth server.
-	CAPins []string `yaml:"ca_pins,omitempty"`
-
-	// JoinMethod is the method the bot should use to exchange a token for the
-	// initial certificate
-	JoinMethod types.JoinMethod `yaml:"join_method"`
-
-	// Azure holds configuration relevant to the azure joining method.
-	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
-
-	// Terraform holds configuration relevant to the `terraform` join method.
-	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
-
-	// Gitlab holds configuration relevant to the `gitlab` join method.
-	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
-
-	// BoundKeypair holds configuration relevant to the `bound_keypair` join method
-	BoundKeypair BoundKeypairOnboardingConfig `yaml:"bound_keypair,omitempty"`
-}
-
-// HasToken gives the ability to check if there has been a token value stored
-// in the config
-func (conf *OnboardingConfig) HasToken() bool {
-	return conf.TokenValue != ""
-}
-
-// SetToken stores the value for --token or auth_token in the config
-//
-// In the case of the token value pointing to a file, this allows us to
-// fetch the value of the token when it's needed (when connecting for the first time)
-// instead of trying to read the file every time that teleport is launched.
-// This means we can allow temporary token files that are removed after teleport has
-// successfully connected the first time.
-func (conf *OnboardingConfig) SetToken(token string) {
-	conf.TokenValue = token
-}
-
-// Token returns token needed to join the auth server
-//
-// If the value stored points to a file, it will attempt to read the token value from the file
-// and return an error if it wasn't successful
-// If the value stored doesn't point to a file, it'll return the value stored
-func (conf *OnboardingConfig) Token() (string, error) {
-	token, err := utils.TryReadValueAsFile(conf.TokenValue)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return token, nil
-}
-
 // BotConfig is the bot's root config object.
 // This is currently at version "v2".
 type BotConfig struct {
-	Version    Version          `yaml:"version"`
-	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
-	Storage    *StorageConfig   `yaml:"storage,omitempty"`
+	Version    Version           `yaml:"version"`
+	Onboarding onboarding.Config `yaml:"onboarding,omitempty"`
+	Storage    *StorageConfig    `yaml:"storage,omitempty"`
 	// Deprecated: Use Services
 	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
 	Services ServiceConfigs `yaml:"services,omitempty"`
@@ -399,7 +286,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	// Therefore, we need to check its valid here, but enforce its presence
 	// elsewhere.
 	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
-		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+		if !slices.Contains(onboarding.SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
 		}
 	}
