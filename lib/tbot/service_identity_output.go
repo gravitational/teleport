@@ -62,7 +62,7 @@ type IdentityOutputService struct {
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath    func() (string, error)
-	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
+	alpnUpgradeCache  *internal.ALPNUpgradeCache
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
 }
@@ -230,7 +230,7 @@ type certAuthGetter interface {
 }
 
 type alpnTester interface {
-	isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
+	IsUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
 }
 
 func renderSSHConfig(
@@ -312,7 +312,7 @@ func renderSSHConfig(
 	// are using TLS routing.
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
-		connUpgradeRequired, err = alpnTester.isUpgradeRequired(
+		connUpgradeRequired, err = alpnTester.IsUpgradeRequired(
 			ctx, proxyAddr, botCfg.Insecure,
 		)
 		if err != nil {
