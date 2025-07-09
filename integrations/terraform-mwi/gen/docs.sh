@@ -60,7 +60,6 @@ info "Converting .md files to .mdx"
 cd "$TMPDIR/docs"
 find . -iname '*.md' -type f -exec sh -c 'i="$1"; mv "$i" "${i%.md}.mdx"' shell {} \;
 # renaming the resources and data-sources indexes because the names were reserved by the generator
-rm "$TMPDIR/docs/resources-index.mdx"
 mv "$TMPDIR/docs/ephemeral-resources-index.mdx" "$TMPDIR/docs/ephemeral-resources/ephemeral-resources.mdx"
 mv "$TMPDIR/docs/data-sources-index.mdx" "$TMPDIR/docs/data-sources/data-sources.mdx"
 
