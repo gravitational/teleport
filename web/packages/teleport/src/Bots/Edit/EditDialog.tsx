@@ -172,7 +172,7 @@ export function EditDialog(props: {
               {hasReadPermission && isSuccess && data ? (
                 <>
                   <Alert kind="info" width={'100%'}>
-                    Updates to a bot&apos;s identity take affect when tbot next
+                    Updates to a bot&apos;s identity take effect when tbot next
                     renews its certificates. By default, this happens every 20
                     minutes.
                   </Alert>
