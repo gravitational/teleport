@@ -50,7 +50,7 @@ works.
 
 ## Step 1/5. Install `tbot`
 
-**This step is completed on the Azure VM.**
+**This step is completed on the bot node.**
 
 First, `tbot` needs to be installed on the node that you wish to use Machine ID
 on.
@@ -68,6 +68,8 @@ Download and install the appropriate Teleport package for your platform:
 ## Step 3/5. Create a join token
 
 **This step is completed on your local machine.**
+
+{/* TODO: option for preregistered key? Tabs maybe? */}
 
 Create `bot-token.yaml`:
 
@@ -92,6 +94,8 @@ Use `tctl` to apply this file:
 ```code
 $ tctl create -f bot-token.yaml
 ```
+
+{/* TODO: fetch the registration secret for use in the next step. */}
 
 ## Step 4/5. Configure `tbot`
 
