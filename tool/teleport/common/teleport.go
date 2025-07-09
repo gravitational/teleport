@@ -231,6 +231,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	appStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
 	appStartCmd.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
+	appStartCmd.Flag("mcp-demo-server", "Enables the Teleport Demo MCP server.").BoolVar(&ccf.MCPDemoServer)
 	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
 
 	// "teleport db" command and its subcommands

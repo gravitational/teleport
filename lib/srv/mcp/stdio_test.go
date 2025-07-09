@@ -20,15 +20,13 @@ package mcp
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"os"
 	"path"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
-	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
 func Test_handleAuthErrStdio(t *testing.T) {
@@ -87,7 +84,7 @@ func Test_handleStdio(t *testing.T) {
 	defer close(handlerDoneCh)
 	go func() {
 		// Use mock server.
-		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeMockMCPServerRunner)
+		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeDemoServerRunner)
 		handlerDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
 	}()
@@ -99,11 +96,27 @@ func Test_handleStdio(t *testing.T) {
 		_, ok := event.(*apievents.MCPSessionStart)
 		assert.True(collect, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
+
+	// Some basic tests on the demo server.
 	resp, err := mcptest.InitializeClient(ctx, stdioClient)
 	require.NoError(t, err)
-	require.Equal(t, "test-server", resp.ServerInfo.Name)
+	require.Equal(t, "teleport-demo", resp.ServerInfo.Name)
 
-	mcptest.MustCallServerTool(t, ctx, stdioClient)
+	listToolsResult, err := stdioClient.ListTools(ctx, mcp.ListToolsRequest{})
+	require.NoError(t, err)
+	checkToolsListResult(t, listToolsResult, []string{
+		"teleport_user_info",
+		"teleport_demo_info",
+		"teleport_enroll_mcp_server_guide",
+	})
+
+	callToolResult, err := stdioClient.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "teleport_user_info",
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, callToolResult.Content, 1)
 
 	// Now close the client.
 	stdioClient.Close()
@@ -115,52 +128,6 @@ func Test_handleStdio(t *testing.T) {
 	event := emitter.LastEvent()
 	_, ok := event.(*apievents.MCPSessionEnd)
 	require.True(t, ok)
-}
-
-func makeMockMCPServerRunner(context.Context, *sessionHandler) (stdioServerRunner, error) {
-	serverStdin, writeToServer := io.Pipe()
-	readFromServer, serverStdout := io.Pipe()
-	return &mockStdioServerRunner{
-		serverStdin:    serverStdin,
-		serverStdout:   serverStdout,
-		writeToServer:  writeToServer,
-		readFromServer: readFromServer,
-		pipeClosers: []io.Closer{
-			serverStdin, writeToServer,
-			readFromServer, serverStdout,
-		},
-	}, nil
-}
-
-type mockStdioServerRunner struct {
-	serverStdin    io.ReadCloser
-	serverStdout   io.WriteCloser
-	writeToServer  io.WriteCloser
-	readFromServer io.ReadCloser
-	pipeClosers    []io.Closer
-}
-
-func (s *mockStdioServerRunner) getStdinPipe() (io.WriteCloser, error) {
-	return s.writeToServer, nil
-}
-
-func (s *mockStdioServerRunner) getStdoutPipe() (io.ReadCloser, error) {
-	return s.readFromServer, nil
-}
-
-func (s *mockStdioServerRunner) run(ctx context.Context) error {
-	slog.DebugContext(ctx, "running mock stdio server")
-	err := mcpserver.NewStdioServer(mcptest.NewServer()).Listen(ctx, s.serverStdin, s.serverStdout)
-	if err != nil && !mcputils.IsOKCloseError(err) {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *mockStdioServerRunner) close() {
-	for _, pipeCloser := range s.pipeClosers {
-		pipeCloser.Close()
-	}
 }
 
 // TestHandleSession_execMCPServer tests real server handler for stdio-based MCP

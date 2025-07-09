@@ -144,6 +144,14 @@ Fill out and run this command on a node to make the application available:
 
 Your application will be available at {{.app_public_addr}}.
 
+To run a Teleport demo MCP server for MCP access:
+
+> teleport app start \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}} \
+   --mcp-demo-server
+
 Please note:
 
   - This invitation token will expire in {{.minutes}} minutes.
