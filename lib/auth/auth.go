@@ -1365,12 +1365,20 @@ func (a *Server) RegisterUploadCompletionHook(hook events.UploadCompletionHook) 
 // CallUploadCompletionHooks calls the registered upload completion hooks for a
 // given session. The sessionEndEvent parameter is optional, but should be
 // specified if possible, as it may be used to skip reading the event stream.
-// If any hook fails with an error, this function will continue to call other
-// hooks. It then returns an aggregate of all errors returned by the hooks.
+// If it is not an event that indicates end of a session, this function will
+// fail with an error. If any hook fails with an error, this function will
+// continue to call other hooks. It then returns an aggregate of all errors
+// returned by the hooks.
 func (a *Server) CallUploadCompletionHooks(
 	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
 ) error {
-	completionHooks := a.getCompletionHooks()
+	if sessionEndEvent != nil && !events.IsSessionEndEvent(sessionEndEvent) {
+		return trace.BadParameter(
+			"sessionEndEvent has to be an event that indicates end of a session, got %T",
+			sessionEndEvent,
+		)
+	}
+	completionHooks := a.getUploadCompletionHooks()
 	if len(completionHooks) == 0 {
 		return nil
 	}
@@ -1383,13 +1391,11 @@ func (a *Server) CallUploadCompletionHooks(
 	return trace.NewAggregate(errs...)
 }
 
-// getCompletionHooks returns a copy of the upload completion hooks.
-func (a *Server) getCompletionHooks() []events.UploadCompletionHook {
+// getUploadCompletionHooks returns a copy of the upload completion hooks.
+func (a *Server) getUploadCompletionHooks() []events.UploadCompletionHook {
 	a.uploadCompletionHooksMu.RLock()
 	defer a.uploadCompletionHooksMu.RUnlock()
-	completionHooks := make([]events.UploadCompletionHook, len(a.uploadCompletionHooks))
-	copy(completionHooks, a.uploadCompletionHooks)
-	return completionHooks
+	return slices.Clone(a.uploadCompletionHooks)
 }
 
 // CloseContext returns the close context

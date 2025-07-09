@@ -122,7 +122,6 @@ import (
 	_ "github.com/stretchr/testify/mock"
 	_ "github.com/stretchr/testify/require"
 	_ "github.com/stretchr/testify/suite"
-	_ "github.com/vulcand/predicate"
 	_ "github.com/vulcand/predicate/builder"
 	_ "github.com/zitadel/oidc/v3/example/server/storage"
 	_ "github.com/zitadel/oidc/v3/pkg/client/rp"

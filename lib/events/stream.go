@@ -674,12 +674,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			// than necessary by the underlying purpose (session summarization), just
 			// for completeness' sake. The upload hook will only pick up the
 			// supported sessions anyway.
-			switch event.oneof.GetEvent().(type) {
-			case *apievents.OneOf_SessionEnd,
-				*apievents.OneOf_DatabaseSessionEnd,
-				*apievents.OneOf_WindowsDesktopSessionEnd,
-				*apievents.OneOf_AppSessionEnd,
-				*apievents.OneOf_MCPSessionEnd:
+			if IsSessionEndEvent(event.oneof) {
 				w.sessionEndEvent = event.oneof
 			}
 			if w.shouldUploadCurrentSlice() {
@@ -691,6 +686,20 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		}
 	}
+}
+
+// IsSessionEndEvent checks if the event is one of the event types that
+// indicate end of a session of any kind.
+func IsSessionEndEvent(event *apievents.OneOf) bool {
+	switch event.GetEvent().(type) {
+	case *apievents.OneOf_SessionEnd,
+		*apievents.OneOf_DatabaseSessionEnd,
+		*apievents.OneOf_WindowsDesktopSessionEnd,
+		*apievents.OneOf_AppSessionEnd,
+		*apievents.OneOf_MCPSessionEnd:
+		return true
+	}
+	return false
 }
 
 // shouldUploadCurrentSlice returns true when it's time to upload

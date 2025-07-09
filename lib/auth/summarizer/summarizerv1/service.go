@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package summarizerv1
 
 import (
@@ -10,49 +26,49 @@ import (
 
 // NewSummarizerService creates a new OSS version of the SummarizerService. It
 // returns a licensing error from every RPC.
-func NewSummarizerService() *ossSummarizerService {
-	return &ossSummarizerService{}
+func NewSummarizerService() *SummarizerService {
+	return &SummarizerService{}
 }
 
-// ossSummarizerService is an OSS version of the SummarizerService. It returns
+// SummarizerService is an OSS version of the SummarizerService. It returns
 // a licensing error from every RPC.
-type ossSummarizerService struct {
+type SummarizerService struct {
 	pb.UnimplementedSummarizerServiceServer
 }
 
 // CRUD operations for models
 
-func (s *ossSummarizerService) CreateSummarizationInferenceModel(
+func (s *SummarizerService) CreateSummarizationInferenceModel(
 	ctx context.Context, req *pb.CreateSummarizationInferenceModelRequest,
 ) (*pb.SummarizationInferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) GetSummarizationInferenceModel(
+func (s *SummarizerService) GetSummarizationInferenceModel(
 	ctx context.Context, req *pb.GetSummarizationInferenceModelRequest,
 ) (*pb.SummarizationInferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) UpdateSummarizationInferenceModel(
+func (s *SummarizerService) UpdateSummarizationInferenceModel(
 	ctx context.Context, req *pb.UpdateSummarizationInferenceModelRequest,
 ) (*pb.SummarizationInferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) UpsertSummarizationInferenceModel(
+func (s *SummarizerService) UpsertSummarizationInferenceModel(
 	ctx context.Context, req *pb.UpsertSummarizationInferenceModelRequest,
 ) (*pb.SummarizationInferenceModel, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) DeleteSummarizationInferenceModel(
+func (s *SummarizerService) DeleteSummarizationInferenceModel(
 	ctx context.Context, req *pb.DeleteSummarizationInferenceModelRequest,
 ) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) ListSummarizationInferenceModels(
+func (s *SummarizerService) ListSummarizationInferenceModels(
 	ctx context.Context, req *pb.ListSummarizationInferenceModelsRequest,
 ) (*pb.ListSummarizationInferenceModelsResponse, error) {
 	return nil, s.requireEnterprise()
@@ -60,37 +76,37 @@ func (s *ossSummarizerService) ListSummarizationInferenceModels(
 
 // CRUD operations for secrets
 
-func (s *ossSummarizerService) CreateSummarizationInferenceSecret(
+func (s *SummarizerService) CreateSummarizationInferenceSecret(
 	ctx context.Context, req *pb.CreateSummarizationInferenceSecretRequest,
 ) (*pb.SummarizationInferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) GetSummarizationInferenceSecret(
+func (s *SummarizerService) GetSummarizationInferenceSecret(
 	ctx context.Context, req *pb.GetSummarizationInferenceSecretRequest,
 ) (*pb.SummarizationInferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) UpdateSummarizationInferenceSecret(
+func (s *SummarizerService) UpdateSummarizationInferenceSecret(
 	ctx context.Context, req *pb.UpdateSummarizationInferenceSecretRequest,
 ) (*pb.SummarizationInferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) UpsertSummarizationInferenceSecret(
+func (s *SummarizerService) UpsertSummarizationInferenceSecret(
 	ctx context.Context, req *pb.UpsertSummarizationInferenceSecretRequest,
 ) (*pb.SummarizationInferenceSecret, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) DeleteSummarizationInferenceSecret(
+func (s *SummarizerService) DeleteSummarizationInferenceSecret(
 	ctx context.Context, req *pb.DeleteSummarizationInferenceSecretRequest,
 ) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) ListSummarizationInferenceSecrets(
+func (s *SummarizerService) ListSummarizationInferenceSecrets(
 	ctx context.Context, req *pb.ListSummarizationInferenceSecretsRequest,
 ) (*pb.ListSummarizationInferenceSecretsResponse, error) {
 	return nil, s.requireEnterprise()
@@ -98,42 +114,42 @@ func (s *ossSummarizerService) ListSummarizationInferenceSecrets(
 
 // CRUD operations for policies
 
-func (s *ossSummarizerService) CreateSummarizationInferencePolicy(
+func (s *SummarizerService) CreateSummarizationInferencePolicy(
 	ctx context.Context, req *pb.CreateSummarizationInferencePolicyRequest,
 ) (*pb.SummarizationInferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) GetSummarizationInferencePolicy(
+func (s *SummarizerService) GetSummarizationInferencePolicy(
 	ctx context.Context, req *pb.GetSummarizationInferencePolicyRequest,
 ) (*pb.SummarizationInferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) UpdateSummarizationInferencePolicy(
+func (s *SummarizerService) UpdateSummarizationInferencePolicy(
 	ctx context.Context, req *pb.UpdateSummarizationInferencePolicyRequest,
 ) (*pb.SummarizationInferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) UpsertSummarizationInferencePolicy(
+func (s *SummarizerService) UpsertSummarizationInferencePolicy(
 	ctx context.Context, req *pb.UpsertSummarizationInferencePolicyRequest,
 ) (*pb.SummarizationInferencePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) DeleteSummarizationInferencePolicy(
+func (s *SummarizerService) DeleteSummarizationInferencePolicy(
 	ctx context.Context, req *pb.DeleteSummarizationInferencePolicyRequest,
 ) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (s *ossSummarizerService) ListSummarizationInferencePolicies(
+func (s *SummarizerService) ListSummarizationInferencePolicies(
 	ctx context.Context, req *pb.ListSummarizationInferencePoliciesRequest,
 ) (*pb.ListSummarizationInferencePoliciesResponse, error) {
 	return nil, s.requireEnterprise()
 }
 
-func (*ossSummarizerService) requireEnterprise() error {
+func (*SummarizerService) requireEnterprise() error {
 	return trace.AccessDenied("session recording summarization is only available with an enterprise license")
 }
