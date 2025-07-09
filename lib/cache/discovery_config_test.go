@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
@@ -38,7 +40,7 @@ func TestDiscoveryConfig(t *testing.T) {
 	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
 		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
 			dc, err := discoveryconfig.NewDiscoveryConfig(
-				header.Metadata{Name: "mydc"},
+				header.Metadata{Name: name},
 				discoveryconfig.Spec{
 					DiscoveryGroup: "group001",
 				})
@@ -50,13 +52,11 @@ func TestDiscoveryConfig(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			results, _, err := p.discoveryConfigs.ListDiscoveryConfigs(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.discoveryConfigs.ListDiscoveryConfigs))
 		},
 		cacheGet: p.cache.GetDiscoveryConfig,
 		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			results, _, err := p.cache.ListDiscoveryConfigs(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDiscoveryConfigs))
 		},
 		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
 			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
