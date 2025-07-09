@@ -24,6 +24,7 @@
 package parse
 
 import (
+	"encoding/json"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -255,11 +256,19 @@ func JSONPath(inputs []string, path string) ([]string, error) {
 					if s, ok := v.(string); ok {
 						out = append(out, s)
 					} else {
-						return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted a list with type %T", v)
+						resultsJSON, err := json.Marshal(results)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
 					}
 				}
 			default:
-				return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, resulted in type %T", result)
+				resultsJSON, err := json.Marshal(results)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
 			}
 		}
 	}
