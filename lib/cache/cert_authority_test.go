@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -40,8 +39,28 @@ func TestCA(t *testing.T) {
 	t.Cleanup(p.Close)
 	ctx := context.Background()
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
+	userCA := suite.NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, userCA))
+	dbCA := suite.NewTestCA(types.DatabaseCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, dbCA))
+	dbClientCA := suite.NewTestCA(types.DatabaseClientCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, dbClientCA))
+	const totalCAs = 3
+
+	for range totalCAs {
+		select {
+		case <-p.eventsC:
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for cert authority create event")
+		}
+	}
+
+	userCAOut, err := p.cache.GetCertAuthority(ctx, userCA.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(userCA, userCAOut, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.trustS.DeleteCertAuthority(ctx, userCA.GetID())
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
@@ -49,21 +68,14 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	_, err = p.cache.GetCertAuthority(ctx, userCA.GetID(), false)
 	require.True(t, trace.IsNotFound(err))
+
+	// Make sure the db_client CA isn't returned when listing `db` CAs due to the common prefix.
+	dbCAs, err := p.cache.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1, "GetCertAuthorities returned an extra CA")
+	require.Equal(t, types.DatabaseCA, dbCAs[0].GetType())
 }
 
 func TestNodeCAFiltering(t *testing.T) {
@@ -81,10 +93,6 @@ func TestNodeCAFiltering(t *testing.T) {
 	err = p.clusterConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
-	nodeCacheBackend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
-
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
 		Events:                  p.cache,
@@ -97,7 +105,6 @@ func TestNodeCAFiltering(t *testing.T) {
 		SAMLIdPServiceProviders: p.cache.SAMLIdPServiceProviders,
 		UserGroups:              p.cache.UserGroups,
 		StaticHostUsers:         p.cache.StaticHostUsers,
-		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })

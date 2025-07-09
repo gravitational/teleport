@@ -139,6 +139,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -1046,6 +1047,24 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
+	}
+
+	// If PAM is enabled, make sure that Teleport was built with PAM support
+	// and the PAM library was found at runtime.
+	if cfg.SSH.PAM != nil && cfg.SSH.PAM.Enabled {
+		if !pam.BuildHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"Teleport binary was built without PAM support. To continue either download a \n" +
+				"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
+				"or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+		if !pam.SystemHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"system does not have the needed PAM library installed. To continue either \n" +
+				"install libpam or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
 	}
 
 	// create the data directory if it's missing
@@ -2660,6 +2679,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
 	cfg.AccessLists = services.AccessLists
@@ -5216,6 +5236,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.OnExit("tls.config.generator", func(a any) {
+		clientTLSConfigGenerator.Close()
+	})
+
 	sshGRPCTLSConfig.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
 	sshGRPCCreds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
@@ -5840,7 +5864,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload interface{}) {
+	process.OnExit("tls.config.generator", func(payload any) {
 		generator.Close()
 	})
 
@@ -6361,9 +6385,10 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	}
 
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentBackend,
-		Backend:   backend.NewSanitizer(bk),
-		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Component:  teleport.ComponentBackend,
+		Backend:    backend.NewSanitizer(bk),
+		Tracer:     process.TracingProvider.Tracer(teleport.ComponentBackend),
+		Registerer: process.metricsRegistry,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6718,18 +6743,6 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
-		}
-	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
-		// This case is used when loading a Teleport pre-11 agent with storage attached.
-		// In this case, we have to copy the "host_uuid" from the agent to the secret
-		// in case storage is removed later.
-		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
-		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
-			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-			// This is only required if PV storage is removed later.
-			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 	return nil
