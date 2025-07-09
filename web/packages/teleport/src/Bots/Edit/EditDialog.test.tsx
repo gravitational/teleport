@@ -24,6 +24,7 @@ import selectEvent from 'react-select-event';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -72,17 +73,12 @@ describe('EditDialog', () => {
   });
 
   it('should show a read unauthorised error state', async () => {
-    withFetchBotSuccess();
-    withFetchRolesSuccess({ items: ['test-role'] });
+    withFetchBotError();
     renderComponent({
       customAcl: makeAcl({
         bots: {
           ...defaultAccess,
           read: false,
-        },
-        roles: {
-          ...defaultAccess,
-          list: true,
         },
       }),
     });
@@ -95,24 +91,25 @@ describe('EditDialog', () => {
 
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
     expect(cancelButton).toBeEnabled();
-    fireEvent.click(cancelButton);
+
+    // For some reason, this test fails with "ForwardRef inside a test was not
+    // wrapped in act()" errors. Perhaps it's caused by the test finishing before
+    // the render has settled. The line below is a hack to get around this issue.
+    await act(() => new Promise(resolve => setTimeout(resolve, 0)));
   });
 
   it('should show an edit unauthorised error state', async () => {
     withFetchBotSuccess();
-    withFetchRolesSuccess({ items: ['test-role'] });
     renderComponent({
       customAcl: makeAcl({
         bots: {
           ...defaultAccess,
+          read: true,
           edit: false,
-        },
-        roles: {
-          ...defaultAccess,
-          list: true,
         },
       }),
     });
+    await waitForLoading();
 
     expect(
       screen.getByText('You do not have permission to edit this bot.', {
@@ -122,7 +119,6 @@ describe('EditDialog', () => {
 
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
     expect(cancelButton).toBeEnabled();
-    fireEvent.click(cancelButton);
   });
 
   it('should allow roles to be edited', async () => {
