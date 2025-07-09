@@ -33,7 +33,7 @@ This guide leverages ArgoCD's native Helm support to deploy the Teleport agent u
 - The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
   You can download this from our [installation page](../../../installation/installation.mdx).
   
-## Generate a join token
+## Step 1/2. Generate a join token
 
 Teleport agents use a join token to obtain certificates and connect to Teleport. See [joining docs](../../../reference/join-methods.mdx) for more information.
 The token must be valid only on first join, the Teleport Kube agent will store its
@@ -54,17 +54,7 @@ See the `teleport-kube-agent` [chart
 reference](../../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
 roles and token types that the chart supports.
 
-Edit the values file to add the `kubeClusterName` field:
-
-```yaml
-kubeClusterName: mycluster
-```
-
-## Step 2/X. Write Helm values.yaml
-
-Write the following values.yaml file and replace `joinParams.tokenName` and `proxyAddr`the value you collected previously ...
-
-## Install the `teleport-kube-agent` Helm chart via ArgoCD
+## Step 2/2. Configure and deploy the `teleport-kube-agent` Helm chart via ArgoCD
 
 1. Create a namespace for Teleport and configure its Pod Security Admission,
    which enforces security standards on pods in the namespace:
@@ -77,7 +67,7 @@ Write the following values.yaml file and replace `joinParams.tokenName` and `pro
    namespace/teleport labeled
    ```
 
-3. Create a new ArgoCD application using the following as a template.
+2. Create a new ArgoCD application using the following as a template.
 
 ``` yaml
 project: default
@@ -112,6 +102,6 @@ ignoreDifferences:
       - '.spec.template.spec.containers[] | select(.name == "teleport").image'
 ```
 
-4. Sync your changes to apply the configuration.
-5. To verify setup, navigate to the 'Resources' page in your Teleport
+3. Sync your changes to apply the configuration.
+4. To verify setup, navigate to the 'Resources' page in your Teleport
    cluster to confirm the kubernetes cluster is registered.
