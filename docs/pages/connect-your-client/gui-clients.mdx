@@ -6,6 +6,10 @@ description: How to configure graphical database clients for Teleport database a
 This guide describes how to configure popular graphical database clients to
 work with Teleport.
 
+If you are using Teleport Connect to access your database, you can follow the
+instructions in the app to connect your GUI client. See [Using Teleport
+Connect](./teleport-connect.mdx#connecting-to-a-database).
+
 ## Prerequisites
 
 - A running Teleport cluster. If you want to get started with Teleport, [sign
@@ -37,21 +41,22 @@ GUI clients need to present a certificate to the Teleport Database Service and
 check the database server certificate issued by a Teleport-protected database.
 There are three ways to do this:
 
-- **Authenticated tunnel (recommended):** The local proxy handles loading the
-  Teleport user's client certificate and checking the certificate issued by the
-  Teleport-protected database. The connection remains authenticated, and clients
-  only need to forward database protocol messages to it.
-- **Unauthenticated local proxy:** The local GUI client needs to load the
-  Teleport user's certificate and check database certificates. This requires
-  configuring the client to access TLS credentials, including the user
-  certificate and private key, and a certificate issued by the database's
-  certificate authority. 
+- **Authenticated tunnel (recommended):** `tsh` or Teleport Connect starts a
+  local proxy, which handles loading the Teleport user's client certificate and
+  checking the certificate issued by the Teleport-protected database. The
+  connection remains authenticated, and clients only need to forward database
+  protocol messages to it.
+- **Unauthenticated local proxy:** `tsh` or Teleport Connect starts a local
+  proxy for database traffic, including authentication from clients. The GUI
+  client needs to load the Teleport user's certificate and check database
+  certificates. This requires configuring the client to access TLS credentials,
+  including the user certificate and private key, and a certificate issued by
+  the database's certificate authority. 
 - **Using a remote host and port:** For self-hosted clusters with TLS
   multiplexing disabled on the Teleport Proxy Service, you can configure GUI
-  clients to communicate with a port on the Proxy Service reserved for
-  traffic in the protected database's protocol. We recommend TLS multiplexing
-  for a typical Teleport cluster, and it is enabled by default on Teleport
-  Cloud.
+  clients to communicate with a port on the Proxy Service reserved for traffic
+  in the protected database's protocol. We recommend TLS multiplexing for a
+  typical Teleport cluster, and it is enabled by default on Teleport Cloud.
 
 To access a Teleport-protected database with a GUI client, you will need to
 retrieve connection information to pass to your client.
