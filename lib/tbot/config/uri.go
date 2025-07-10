@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 const (
@@ -142,7 +143,7 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 // method constant.
 func MapURLSafeJoinMethod(name string) (types.JoinMethod, error) {
 	// When given a join method name that is already URL safe, just return it.
-	if slices.Contains(SupportedJoinMethods, name) {
+	if slices.Contains(onboarding.SupportedJoinMethods, name) {
 		return types.JoinMethod(name), nil
 	}
 
