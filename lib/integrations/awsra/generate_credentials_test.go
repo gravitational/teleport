@@ -154,3 +154,18 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 
 	return ca
 }
+
+func TestEncodeCredentialProcessFormat(t *testing.T) {
+	credentials := Credentials{
+		Version:         1,
+		AccessKeyID:     "mock-access-key-id",
+		SecretAccessKey: "mock-secret-access-key",
+		SessionToken:    "mock-session-token",
+		Expiration:      time.Date(2030, 6, 24, 0, 0, 0, 0, time.UTC),
+	}
+	encoded, err := credentials.EncodeCredentialProcessFormat()
+	require.NoError(t, err)
+
+	expected := `{"Version":1,"AccessKeyId":"mock-access-key-id","SecretAccessKey":"mock-secret-access-key","SessionToken":"mock-session-token","Expiration":"2030-06-24T00:00:00Z"}`
+	require.JSONEq(t, expected, encoded)
+}
