@@ -148,8 +148,25 @@ type JSONRPCResponse struct {
 // the corresponding go object.
 func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal([]byte(r.Result), &listResult); err != nil {
+	if err := json.Unmarshal(r.Result, &listResult); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &listResult, nil
 }
+
+// GetInitializeResult assumes the result is for mcp.MethodInitialize and
+// returns the corresponding go object.
+func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
+	var result mcp.InitializeResult
+	if err := json.Unmarshal(r.Result, &result); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &result, nil
+}
+
+const (
+	// MethodNotificationInitialized defines the method used for "initialized"
+	// notification. This notification is sent by the client after it receives
+	// the initialize response.
+	MethodNotificationInitialized = "notifications/initialized"
+)
