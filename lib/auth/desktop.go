@@ -102,7 +102,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		certReq.CRLDistributionPoints = []string{cdp}
 	} else if req.CRLEndpoint != "" {
 		// legacy clients will specify CRL endpoint instead of CRL domain
-		// DELETE IN v20 (zmb3)
+		// DELETE IN v21 (zmb3)
 		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
 		a.logger.DebugContext(ctx, "Generating Windows desktop cert with legacy CDP")
 	}

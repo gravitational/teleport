@@ -148,7 +148,7 @@ func TestGenerateCredentials(t *testing.T) {
 
 	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
 	require.NoError(t, err)
-	subjectId := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
+	subjectID := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
 
 	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestGenerateCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	testSid := "S-1-5-21-1329593140-2634913955-1900852804-500"
+	testSID := "S-1-5-21-1329593140-2634913955-1900852804-500"
 
 	for _, test := range []struct {
 		name               string
@@ -171,7 +171,7 @@ func TestGenerateCredentials(t *testing.T) {
 		},
 		{
 			name:               "with ad sid",
-			activeDirectorySID: testSid,
+			activeDirectorySID: testSID,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -192,7 +192,7 @@ func TestGenerateCredentials(t *testing.T) {
 
 			require.Equal(t, user, cert.Subject.CommonName)
 			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=`+subjectId+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+				`ldap:///CN=`+subjectID+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
 
 			foundKeyUsage := false
 			foundAltName := false
@@ -220,7 +220,7 @@ func TestGenerateCredentials(t *testing.T) {
 					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
 					require.NoError(t, err)
 					require.Equal(t, winpki.ADUserMappingInternalOID, adUserMapping.OtherName.OID)
-					require.Equal(t, []byte(testSid), adUserMapping.OtherName.Value.Value)
+					require.Equal(t, []byte(testSID), adUserMapping.OtherName.Value.Value)
 
 				}
 			}

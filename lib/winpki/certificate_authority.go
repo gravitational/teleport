@@ -21,7 +21,6 @@ package winpki
 import (
 	"context"
 	"encoding/base32"
-	"fmt"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -86,23 +85,24 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	}
 	for _, ca := range certAuthorities {
 		for _, keyPair := range ca.GetActiveKeys().TLS {
-			if len(keyPair.CRL) > 0 {
-				hasCRL = true
-				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				subjectId := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
-				issuer := fmt.Sprintf("%s_%s", subjectId, c.cfg.ClusterName)
-				if err := c.updateCRL(ctx, issuer, keyPair.CRL, caType); err != nil {
-					return trace.Wrap(err)
-				}
+			if len(keyPair.CRL) == 0 {
+				continue
+			}
+			hasCRL = true
+			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			subjectID := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
+			issuer := subjectID + "_" + c.cfg.ClusterName
+			if err := c.updateCRL(ctx, issuer, keyPair.CRL, caType); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 	}
 
 	// All authorities are missing CRL, let's fall back to legacy behavior
-	// TODO(probakowski): DELETE IN v20.0.0
+	// TODO(probakowski): DELETE IN v21.0.0
 	if !hasCRL {
 		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
 		if err != nil {

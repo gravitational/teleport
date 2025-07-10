@@ -270,6 +270,7 @@ func crlContainerDN(domain string, caType types.CertAuthType) string {
 	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(domain))
 }
 
+// CRLDN computes the distinguished name for a Teleport issuer in Windows environments.
 func CRLDN(issuerID string, activeDirectoryDomain string, caType types.CertAuthType) string {
 	return "CN=" + issuerID + "," + crlContainerDN(activeDirectoryDomain, caType)
 }

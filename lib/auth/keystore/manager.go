@@ -616,6 +616,7 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	}, nil
 }
 
+// GenerateCRL generates an empty x509 certificate revocation list.
 func GenerateCRL(caCert *x509.Certificate, signer crypto.Signer) ([]byte, error) {
 	revocationList := &x509.RevocationList{
 		Number:     big.NewInt(1),
