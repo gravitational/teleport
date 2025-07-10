@@ -211,6 +211,8 @@ spec:
         verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
+      - resources: ['access_monitoring_rule']
+        verbs: ['list', 'read']
     review_requests:
       roles: ['demo-role']
       where: 'contains(request.system_annotations["pagerduty_services"], "My Critical Service")'
