@@ -67,7 +67,7 @@ export function TraitsEditor({
   setConfiguredTraits,
   tooltipContent,
   label = 'User Traits',
-  addActionLabel = 'Add user trait',
+  addActionLabel = 'Add a user trait',
   addActionSubsequentLabel = 'Add another user trait',
   autoFocus = true,
 }: TraitEditorProps) {
