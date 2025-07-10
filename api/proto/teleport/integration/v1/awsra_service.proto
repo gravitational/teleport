@@ -36,20 +36,24 @@ service AWSRolesAnywhereService {
 
 // AWSRolesAnywherePingRequest is a request for doing an health check against the configured integration.
 message AWSRolesAnywherePingRequest {
-  // Integration is the AWS Roles Anywhere Integration name.
-  // Required if testing an existing integration, otherwise it should be empty and the other fields should be set.
-  string integration = 1;
+  oneof mode {
+    // Use an integration to perform the Ping operation.
+    string integration = 1;
+    // Use a Trust Anchor, Profile and Role to perform the Ping operation.
+    // This is useful when the integration is not configured.
+    AWSRolesAnywherePingRequestWithoutIntegration custom = 2;
+  }
+}
 
+// Identifies the Trust Anchor, Profile and Role to use for the Ping operation.
+message AWSRolesAnywherePingRequestWithoutIntegration {
   // The AWS Roles Anywhere Trust Anchor ARN to be used when generating the token.
-  // Required if integration is empty.
-  string trust_anchor_arn = 2;
+  string trust_anchor_arn = 1;
 
   // The AWS Roles Anywhere Profile ARN to be used when generating the token.
-  // Required if integration is empty.
   string profile_arn = 3;
 
   // The AWS Role ARN to be used when generating the token.
-  // Required if integration is empty.
   string role_arn = 4;
 }
 
@@ -69,8 +73,10 @@ message AWSRolesAnywherePingResponse {
 message ListRolesAnywhereProfilesRequest {
   // Integration is the AWS Roles Anywhere Integration name.
   string integration = 1;
-  // NextPageToken is used to paginate the results.
-  string next_page_token = 2;
+  // page_size is the size of the page to request.
+  int32 page_size = 2;
+  // next_page_token is the page token.
+  string next_page_token = 3;
 }
 
 // ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
