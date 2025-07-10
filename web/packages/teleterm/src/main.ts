@@ -88,8 +88,9 @@ async function initializeApp(): Promise<void> {
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', (error, origin) => {
-    logger.error(origin, error);
-    app.quit();
+    logger.error('Uncaught exception', origin, error);
+    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
+    app.exit(1);
   });
 
   let mainProcess: MainProcess;
@@ -178,14 +179,10 @@ async function initializeApp(): Promise<void> {
       allowList: rootClusterProxyHostAllowList,
     });
   })().catch(error => {
-    const message =
-      'Could not initialize tsh daemon client in the main process';
+    const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
-    dialog.showErrorBox(
-      'Error during main process startup',
-      `${message}: ${error}`
-    );
-    app.quit();
+    dialog.showErrorBox(message, ensureError(error).message);
+    app.exit(1);
   });
 
   app
@@ -204,13 +201,10 @@ async function initializeApp(): Promise<void> {
       windowsManager.createWindow();
     })
     .catch(error => {
-      const message = 'Could not initialize the app';
+      const message = 'Could not create the main app window';
       logger.error(message, error);
-      dialog.showErrorBox(
-        'Error during app initialization',
-        `${message}: ${error}`
-      );
-      app.quit();
+      dialog.showErrorBox(message, ensureError(error).message);
+      app.exit(1);
     });
 
   // Limit navigation capabilities to reduce the attack surface.
