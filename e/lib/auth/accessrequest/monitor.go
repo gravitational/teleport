@@ -7,7 +7,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
@@ -25,9 +24,7 @@ const (
 // that are used by the access plugins.
 type Client interface {
 	types.Events
-	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	review.Client
 }
 
 // Config specifies the access request monitoring service configuration.
