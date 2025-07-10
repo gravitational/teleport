@@ -60,7 +60,6 @@ import (
 
 // authCommandClient is aggregated client interface for auth command.
 type authCommandClient interface {
-	certificateSigner
 	authclient.ClientI
 }
 
