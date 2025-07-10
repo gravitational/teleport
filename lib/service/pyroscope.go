@@ -38,7 +38,7 @@ type pyroscopeLogger struct {
 type roundTripper struct {
 	base    http.RoundTripper
 	timeout time.Duration
-	logger  pyroscope.Logger
+	logger  *slog.Logger
 }
 
 
