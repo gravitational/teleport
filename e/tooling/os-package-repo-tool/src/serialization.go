@@ -59,7 +59,7 @@ func GetSafeLockName(lockName string) (string, error) {
 		}
 	}
 
-	return string(lockName), nil
+	return string(lockRunes), nil
 }
 
 type Serializer interface {
@@ -297,6 +297,8 @@ func (ks *kubernetesSerializer) waitForLock(ctx context.Context, lock *resourcel
 	// main context is cancelled and all cleanup tasks are complete.
 	electionCtx, releaseLockCallback := context.WithCancel(context.Background())
 
+	slog.InfoContext(ctx, "starting leader election", "identity", lock.LockConfig.Identity)
+
 	// Start leader election, waiting for the lock (leader lease) before continuing
 	go leaderElector.Run(electionCtx)
 
@@ -305,6 +307,7 @@ func (ks *kubernetesSerializer) waitForLock(ctx context.Context, lock *resourcel
 		// Ensure that the lease is relinquished in the event that it was received between when the context
 		// was cancelled, and this was hit
 		releaseLockCallback()
+		return nil, ctx.Err()
 	case <-elected:
 	}
 
