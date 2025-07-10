@@ -263,8 +263,6 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
-require github.com/go-piv/piv-go v1.11.0
-
 require (
 	cel.dev/expr v0.23.1 // indirect
 	cloud.google.com/go v0.121.2 // indirect
