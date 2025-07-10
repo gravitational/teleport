@@ -23,6 +23,7 @@ import path from 'node:path';
 import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
+import { ensureError } from 'shared/utils/error';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -91,15 +92,25 @@ async function initializeApp(): Promise<void> {
     app.quit();
   });
 
-  // init main process
-  const mainProcess = MainProcess.create({
-    settings,
-    logger,
-    configService,
-    appStateFileStorage,
-    configFileStorage,
-    windowsManager,
-  });
+  let mainProcess: MainProcess;
+  try {
+    mainProcess = MainProcess.create({
+      settings,
+      logger,
+      configService,
+      appStateFileStorage,
+      configFileStorage,
+      windowsManager,
+    });
+  } catch (error) {
+    const message = 'Could not initialize the main process';
+    logger.error(message, error);
+    dialog.showErrorBox(message, ensureError(error).message);
+    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
+    // execution. See https://github.com/gravitational/teleport/issues/56272.
+    app.exit(1);
+    return;
+  }
 
   //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
   app.on(
