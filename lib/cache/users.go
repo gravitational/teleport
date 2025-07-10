@@ -18,14 +18,12 @@ package cache
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -174,8 +172,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		}
 
 		if len(resp.Users) == pageSize {
-			key := backend.RangeEnd(backend.ExactKey(u.GetName())).String()
-			resp.NextPageToken = strings.Trim(key, string(backend.Separator))
+			resp.NextPageToken = u.GetName()
 			break
 		}
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,29 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+package systemd
 
-import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
+import (
+	"bytes"
+	"testing"
 
-test('buttonTextWithAddIcon', () => {
-  const onClick = jest.fn();
-  const label = 'Add Item';
+	"github.com/stretchr/testify/require"
 
-  const { rerender } = render(
-    <ButtonTextWithAddIcon label={label} onClick={() => onClick('click')} />
-  );
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
+)
 
-  expect(screen.getByText('Add Item')).toBeInTheDocument();
-  fireEvent.click(screen.getByText('Add Item'));
+func TestWriteUnitFile(t *testing.T) {
+	flags := Flags{
+		EnvironmentFile:          "/custom/env/dir/teleport",
+		PIDFile:                  "/custom/pid/dir/teleport.pid",
+		FileDescriptorLimit:      16384,
+		TeleportInstallationFile: "/custom/install/dir/teleport",
+		FIPS:                     true,
+	}
 
-  expect(onClick).toHaveBeenCalledWith('click');
-
-  rerender(
-    <ButtonTextWithAddIcon
-      label={label}
-      onClick={() => onClick('click')}
-      disabled={true}
-    />
-  );
-  expect(screen.getByText('Add Item')).toBeDisabled();
-});
+	stdout := new(bytes.Buffer)
+	err := WriteUnitFile(flags, stdout)
+	require.NoError(t, err)
+	data := stdout.Bytes()
+	if golden.ShouldSet() {
+		golden.Set(t, data)
+	}
+	require.Equal(t, string(golden.Get(t)), stdout.String())
+}

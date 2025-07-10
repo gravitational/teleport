@@ -28,6 +28,8 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -241,22 +243,8 @@ func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.Watc
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
-			var out []*dbobjectv1.DatabaseObject
-			var nextToken string
-			for {
-				var page []*dbobjectv1.DatabaseObject
-				var err error
-
-				page, nextToken, err = upstream.ListDatabaseObjects(ctx, 0, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListDatabaseObjects))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *dbobjectv1.DatabaseObject {
 			return &dbobjectv1.DatabaseObject{

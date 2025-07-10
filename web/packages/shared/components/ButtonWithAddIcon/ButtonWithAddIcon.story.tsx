@@ -18,12 +18,13 @@
 
 import { useState } from 'react';
 
+import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 
-import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
+import { ButtonWithAddIcon } from './ButtonWithAddIcon';
 
 export default {
-  title: 'Shared',
+  title: 'Shared/ButtonWithAddIcon',
 };
 
 export const Button = () => {
@@ -31,30 +32,51 @@ export const Button = () => {
   return (
     <Flex gap={2} width="300px" flexWrap={'wrap'}>
       <div>
-        <ButtonTextWithAddIcon label={'Add Item'} onClick={() => null} />
+        <ButtonWithAddIcon label={'Add Item'} onClick={() => null} />
       </div>
       <div>
-        <ButtonTextWithAddIcon
+        <ButtonWithAddIcon
           label={label}
           onClick={() => setLabel('Add More Item (click me)')}
         />
       </div>
       <div>
-        <ButtonTextWithAddIcon
+        <ButtonWithAddIcon
           label={'Add Item Disabled'}
           onClick={() => null}
           disabled={true}
         />
       </div>
       <div>
-        <ButtonTextWithAddIcon
+        <ButtonWithAddIcon
           label={'Add Item with Medium Icon Size'}
           onClick={() => null}
           iconSize={'medium'}
+        />
+      </div>
+      <div>
+        <ButtonWithAddIcon
+          Button={ButtonPrimary}
+          label={'Add Item'}
+          onClick={() => null}
+        />
+      </div>
+      <div>
+        <ButtonWithAddIcon
+          Button={ButtonSecondary}
+          label={'Add Item'}
+          onClick={() => null}
+        />
+      </div>
+      <div>
+        <ButtonWithAddIcon
+          Button={ButtonBorder}
+          label={'Add Item'}
+          onClick={() => null}
         />
       </div>
     </Flex>
   );
 };
 
-Button.storyName = 'ButtonTextWithAddIcon';
+Button.storyName = 'ButtonWithAddIcon';
