@@ -117,15 +117,21 @@ it's possible to reuse it as long as the following requirements are met:
 To enable the Identity Activity Center CloudTrail integration, you can use an existing
 CloudTrail trail or create a new one. Trails can be scoped to a single AWS account or
 configured as an AWS Organization trail to collect events from multiple accounts.
+If you already have an existing trail, we recommend using it to reduce the costs.
 
 For near real-time access to CloudTrail data, Amazon SNS notifications must be enabled for
 your trail. If SNS notifications are not already configured, go to your trail settings,
 enable **SNS notification delivery**, and create a new SNS topic.
 
+![Show Trail Settings](../../../img/access-graph/aws/trail-settings.png)
+
 After setting up the SNS topic, create a new Standard Amazon SQS queue and subscribe it
-to the SNS topic you just created. When configuring the subscription, make sure to enable
+to the SNS topic you just created. The queue must be uniquely used for trail SNS notifications.
+When configuring the subscription, make sure to enable
 the **Enable raw message delivery** option. This setting is required—without it, Identity
 Activity Center won't be able to parse the notifications correctly.
+
+![Show SNS Settings](../../../img/access-graph/aws/sns-settings.png)
 
 Although optional, enabling KMS encryption for both the SQS queue and the target S3 bucket
 is strongly recommended. Be sure to configure the necessary KMS key permissions in the

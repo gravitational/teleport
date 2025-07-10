@@ -19,8 +19,29 @@ address managed by VNet that will forward the connection to your application.
 
 ![Diagram showing VNet architecture](../../img/vnet/how-it-works.svg)
 
+VNet delivers an experience like a VPN for your TCP applications through this local virtual network, while maintaining all of Teleport's identity verification and zero trust features that traditional VPNs cannot provide.
+
 VNet is available on macOS and Windows in Teleport Connect and tsh, with plans
 for Linux support in a future version.
+
+<Admonition type="warning">
+VNet's VPN-like experience for app access means that any software running on
+the client machine can access Teleport apps at local DNS or IP addresses.
+
+**Avoid running VNet on shared or multi-user machines.**
+If multiple OS users share the same machine, any user could access Teleport TCP
+apps at their local VNet DNS or IP address.
+
+**Protect HTTP services behind VNet.**
+Untrusted websites can potentially use DNS rebinding attacks to bypass the
+browser’s Same-Origin Policy and issue plain HTTP requests to VNet IP addresses.
+If your Teleport cluster contains TCP apps serving plain HTTP APIs, it is
+strongly recommended to either avoid VNet or implement one or more of the
+following mitigations for DNS rebinding attacks:
+- upgrade these APIs to HTTPS or another protocol
+- enforce a Host header allowlist at the HTTP server
+- block browser access to HTTP websites
+</Admonition>
 
 ## Prerequisites
 
@@ -125,19 +146,14 @@ manually.
 
 ### Verifying that VNet receives DNS queries
 
-Start VNet with `tsh vnet -d`. Look at `/var/log/vnet.log` and note the IPv6 and IPv4 CIDR range used by VNet.
-
-```code
-From tsh vnet -d:
-INFO [VNET]      Running Teleport VNet. ipv6_prefix:fd60:67ec:4325:: vnet/vnet.go:317
-
-From /var/log/vnet.log:
-INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
-```
+Open Teleport Connect. From the Connections panel in the top left, select VNet. Make sure VNet is
+running, then select "Open Diag Report". Note the IPv6 prefix and the IPv4 CIDR range used by VNet.
 
 Send a query for a TCP app available in your cluster, replacing <Var
 name="tcp-app.teleport.example.com" /> with the name of your app:
 
+<Tabs>
+<TabItem label="macOS">
 ```code
 $ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />
 name: tcp-app.teleport.example.com
@@ -146,11 +162,24 @@ ipv6_address: fd60:67ec:4325::647a:547d
 name: tcp-app.teleport.example.com
 ip_address: 100.68.51.151
 ```
+</TabItem>
+<TabItem label="Windows">
+```code
+# In PowerShell.
+$ Resolve-DnsName <Var name="tcp-app.teleport.example.com" />
 
-The addresses reported by `dscacheutil` should belong to ranges reported by VNet above.
+Name                                           Type   TTL   Section    IPAddress
+----                                           ----   ---   -------    ---------
+tcp-app.teleport.example.com                   AAAA   10    Answer     fd60:67ec:4325::647a:547d
+tcp-app.teleport.example.com                   A      10    Answer     100.68.51.151
+```
+</TabItem>
+</Tabs>
+
+The returned addresses should belong to ranges listed in the VNet diag report.
 
 Querying for anything other than an address of a TCP app should return the address belonging to the
-Proxy Service.
+Proxy Service. Using macOS as an example:
 
 ```code
 $ dscacheutil -q host -a name dashboard.teleport.example.com
@@ -161,38 +190,47 @@ name: dashboard.teleport.example.com
 ip_address: 93.184.215.14
 ```
 
-Querying for both addresses should result in some output being emitted by `tsh vnet -d`.
+Querying for any of those hostnames should result in some output being emitted in the debug logs of
+VNet (see [Submitting an issue](#submitting-an-issue) on how to enable debug logs).
 
 ### Submitting an issue
 
 When [submitting an
 issue](https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug,vnet&template=bug_report.md),
-make sure to include VNet logs as well as [Teleport Connect
-logs](teleport-connect.mdx#submitting-an-issue).
+make sure to include a VNet diag report and debug logs from VNet and Teleport Connect.
 
-You can collect VNet logs using the instructions below:
+To save a diag report to a file, open Teleport Connect. From the Connections panel in the top left
+select VNet, then "Open Diag Report". In the new tab with the report that was opened click the "Save
+Report to File" icon.
+
+To collect VNet and Teleport Connect logs use the instructions below:
 
 <Tabs>
 <TabItem label="macOS">
-Logs from the VNet daemon are sent to [the unified logging system](https://support.apple.com/en-gb/guide/console/welcome/mac).
-
-To stream logs:
-
-```code
-$ log stream --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --level info
-```
-
-To dump logs captured so far to a file:
+To enable debug logs in VNet, first stop Teleport Connect and then run the following command. It
+enables debug logs just for the next invocation of VNet:
 
 ```code
-$ log show --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --info > vnet.log
+$ sudo launchctl debug system/com.gravitational.teleport.tsh.vnetd --environment TELEPORT_DEBUG=1
 ```
 
-The logs can also be inspected in [the Console
-app](https://support.apple.com/en-gb/guide/console/cnsl1012/1.1/mac/15.0). Info logs are not shown
-by default, so make sure to select "Include Info Messages" from the Action menu.
+Next, start capturing logs from VNet into a file:
 
-At the moment it's not possible to enable debug logs in the VNet daemon.
+```code
+$ log stream --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --level debug > vnet.log
+```
+
+Then start Teleport Connect using the following command to enable debug logs for Teleport Connect:
+
+```code
+$ open -a "Teleport Connect" --args --connect-debug
+```
+
+Next, attempt to reproduce the issue with VNet.
+
+To gather logs from Teleport Connect, from the app menu select Help → Open Logs Directory which
+opens `~/Library/Application Support/Teleport Connect/logs` in Finder. Attach all files together
+with `vnet.log` produced in the earlier step.
 
 {/* TODO: DELETE IN 21.0.0 */}
 Before version 18.0.0, VNet logs were saved in `/var/log/vnet.log`.
@@ -206,21 +244,46 @@ $ grep tsh /var/log/com.apple.xpc.launchd/launchd.log
 ```
 </TabItem>
 <TabItem label="Windows">
-Logs are saved to a custom log in Event Log called Teleport. To browse them, open [Event
-Viewer](https://learn.microsoft.com/en-us/shows/inside/event-viewer), select "Applications and
-Services Logs" in the sidebar on the left and choose "Teleport".
+To enable debug logs in VNet, first stop Teleport Connect. Then in the Start menu look for Command
+Prompt and from the right click menu select Run as administrator. The following command enables
+debug logs in VNet and immediately closes the admin command prompt to prevent you from starting
+Teleport Connect as an admin by mistake.
 
-To save them to a file, select "Save All Events As…" from the sidebar on the right.
+```code
+$ reg.exe ADD HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /t REG_MULTI_SZ /d TELEPORT_DEBUG=1 /f && exit
+```
 
-Alternatively, you can save them to a file with a PowerShell command:
+Next, from the Start menu open the Run app. Execute the following to start Teleport Connect with
+debug logs enabled:
+
+```code
+$ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
+```
+
+Next, attempt to reproduce the issue with VNet.
+
+Once that's done, execute the following command from the administrator Command Prompt to disable
+debug logs in VNet:
+
+```code
+$ reg.exe DELETE HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /f
+```
+
+The last step is collecting the logs. Let's start with the VNet logs. From the Start menu, open Event Viewer.
+From the sidebar on the left, select Event Viewer (Local) → Applications and Services Logs →
+Teleport. From the sidebar on the right, select "Save All Events As…". Save the logs as .evtx file.
+If Event Viewer asks about Display Information, choose "No display information".
+
+To gather logs from Teleport Connect, press `Alt` while in the app, then select Help → Open Logs
+Directory. This opens `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`. Attach all files
+together with the .evtx file from the previous step.
+
+Outside of submitting an issue, VNet logs can be quickly saved to a file with the following
+PowerShell command. However, when submitting an issue please attach the .evtx file instead.
 
 ```code
 $ Get-WinEvent -LogName Teleport -FilterXPath "*[System[Provider[@Name='vnet']]]" -Oldest | Format-Table -Property TimeCreated,LevelDisplayName,Message -Wrap | Out-File vnet.log
 ```
-
-To enable debug logs, search for "Edit the system environment variables" in the Start Menu. Select
-"Environment Variables…" and then add a new _system_ variable with the name `TELEPORT_DEBUG` and the
-value set to `1`, then restart VNet.
 
 {/* TODO: DELETE IN 21.0.0 */}
 Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connect\resources\bin\logs.txt`.

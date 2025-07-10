@@ -1133,6 +1133,36 @@ func TestPluginAWSICSettings(t *testing.T) {
 				require.Equal(t, "some-oidc-integration", oidc.IntegrationName)
 			},
 		},
+		{
+			name: "(role sync mode) empty value is not an error",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = ""
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.Empty(t, cfg.RolesSyncMode)
+			},
+		},
+		{
+			name: "(role sync mode) value is preserved",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = AWSICRolesSyncModeNone
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.Equal(t, AWSICRolesSyncModeNone, cfg.RolesSyncMode)
+			},
+		},
+		{
+			// Technically, an invalid Role Sync Mode *is* an error, its just not
+			// enforced when deserializing the plugin record. Validation is
+			// required at time of use.
+			name: "(role sync mode) invalid value is not an error",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.RolesSyncMode = "banana"
+			},
+			assertErr: require.NoError,
+		},
 	}
 
 	for _, tc := range testCases {

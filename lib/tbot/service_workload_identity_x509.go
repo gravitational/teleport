@@ -30,9 +30,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -42,7 +42,7 @@ import (
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
 type WorkloadIdentityX509Service struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.WorkloadIdentityX509Service
 	getBotIdentity getBotIdentityFn
@@ -99,6 +99,9 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "getting CRL set from cache")
 	}
+	renewalInterval := cmp.Or(
+		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
+	).RenewalInterval
 
 	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential
@@ -106,6 +109,8 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
+	renewalTimer := time.NewTimer(renewalInterval)
+	defer renewalTimer.Stop()
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
@@ -147,7 +152,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			}
 			crlSet = newCRLSet
 			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-renewalTimer.C:
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -162,6 +167,8 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				failures++
 				continue
 			}
+			// Reset the renewal timer to the configured interval.
+			renewalTimer.Reset(renewalInterval)
 		}
 		if err := s.render(
 			ctx, bundleSet, x509Cred, privateKey, crlSet,

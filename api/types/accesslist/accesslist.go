@@ -143,6 +143,11 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
+	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
+	// Access List, "scim" which represents an Access List created from SCIM group or "static"
+	// for Access Lists managed by IaC tools.
+	Type Type `json:"type" yaml:"type"`
+
 	// Title is a plaintext short description of the access list.
 	Title string `json:"title" yaml:"title"`
 
@@ -170,6 +175,33 @@ type Spec struct {
 
 	// OwnerGrants describes the access granted by ownership of this access list.
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
+}
+
+type Type string
+
+const (
+	// Default Access Lists are the default type supposed to be managed with the web UI. They
+	// require periodic audit reviews.
+	Default Type = ""
+	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
+	// reviews are not supported for them and the ownership is optional.
+	Static Type = "static"
+	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
+	// for them and the ownership is optional.
+	SCIM Type = "scim"
+)
+
+func NewTypeFromString(s string) (Type, error) {
+	switch s {
+	case string(Default):
+		return Default, nil
+	case string(Static):
+		return Static, nil
+	case string(SCIM):
+		return SCIM, nil
+	default:
+		return "", trace.BadParameter("unknown access_list type %q", s)
+	}
 }
 
 // Owner is an owner of an access list.
@@ -297,12 +329,21 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if _, err := NewTypeFromString(string(a.Spec.Type)); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if a.Spec.Title == "" {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
-		return trace.BadParameter("owners are missing")
+	switch a.Spec.Type {
+	case Static, SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
+		}
 	}
 
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
