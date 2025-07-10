@@ -318,7 +318,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}{
 		{
 			name:              "one month, first day",
-			accessListTypes:   []Type{"", Dynamic},
+			accessListTypes:   []Type{"", Default},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -327,7 +327,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, fifteenth day",
-			accessListTypes:   []Type{ImplicitDynamic, Dynamic},
+			accessListTypes:   []Type{Default},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -336,7 +336,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, last day",
-			accessListTypes:   []Type{ImplicitDynamic, Dynamic},
+			accessListTypes:   []Type{Default},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -345,7 +345,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{ImplicitDynamic, Dynamic},
+			accessListTypes:   []Type{Default},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
