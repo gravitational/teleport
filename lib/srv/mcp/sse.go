@@ -48,15 +48,15 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		return trace.Wrap(err, "setting up session handler")
 	}
 
-	session.logger.InfoContext(s.cfg.ParentContext, "Started handling stdio to SSE session", "base_url", logutils.StringerAttr(baseURL))
-	defer session.logger.InfoContext(s.cfg.ParentContext, "Completed handling stdio to SSE session")
+	session.logger.InfoContext(ctx, "Started handling stdio to SSE session", "base_url", logutils.StringerAttr(baseURL))
+	defer session.logger.InfoContext(ctx, "Completed handling stdio to SSE session")
 
 	// Initialize SSE stream.
 	sseResponseReader, sseRequestWriter, err := mcputils.ConnectSSEServer(ctx, baseURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	session.logger.DebugContext(s.cfg.ParentContext, "Received SSE endpoint", "endpoint_url", sseRequestWriter.GetEndpointURL())
+	session.logger.DebugContext(ctx, "Received SSE endpoint", "endpoint_url", sseRequestWriter.GetEndpointURL())
 	if mcpSessionID := sseRequestWriter.GetSessionID(); mcpSessionID != "" {
 		session.mcpSessionID.Store(&mcpSessionID)
 	}
@@ -68,7 +68,6 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	serverResponseReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
 		Transport:      sseResponseReader,
 		Logger:         stdoutLogger,
-		ParentContext:  s.cfg.ParentContext,
 		OnClose:        stopHandling,
 		OnParseError:   mcputils.LogAndIgnoreParseError(stdoutLogger),
 		OnNotification: session.onServerNotification(clientResponseWriter),
@@ -82,7 +81,6 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	clientRequestReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
 		Transport:      mcputils.NewStdioReader(sessionCtx.ClientConn),
 		Logger:         session.logger.With("stdio", "stdin"),
-		ParentContext:  s.cfg.ParentContext,
 		OnClose:        stopHandling,
 		OnParseError:   mcputils.ReplyParseError(clientResponseWriter),
 		OnRequest:      session.onClientRequest(clientResponseWriter, sseRequestWriter),

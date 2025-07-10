@@ -78,8 +78,6 @@ type MessageReaderConfig struct {
 	Transport TransportReader
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
-	// ParentContext is the parent's context. Used for logging during tear down.
-	ParentContext context.Context
 
 	// OnClose is an optional callback when reader finishes.
 	OnClose func()
@@ -110,9 +108,6 @@ func (c *MessageReaderConfig) CheckAndSetDefaults() error {
 	}
 	if c.OnRequest == nil && c.OnResponse == nil {
 		return trace.BadParameter("one of OnRequest or OnResponse must be set")
-	}
-	if c.ParentContext == nil {
-		return trace.BadParameter("missing parameter ParentContext")
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "mcp")
@@ -152,9 +147,9 @@ func (r *MessageReader) Run(ctx context.Context) {
 	case <-ctx.Done():
 	}
 
-	r.cfg.Logger.InfoContext(r.cfg.ParentContext, "Finished processing messages", "transport", r.cfg.Transport.Type())
+	r.cfg.Logger.InfoContext(ctx, "Finished processing messages", "transport", r.cfg.Transport.Type())
 	if err := r.cfg.Transport.Close(); err != nil && !IsOKCloseError(err) {
-		r.cfg.Logger.ErrorContext(r.cfg.ParentContext, "Failed to close reader", "error", err)
+		r.cfg.Logger.ErrorContext(ctx, "Failed to close reader", "error", err)
 	}
 	if r.cfg.OnClose != nil {
 		r.cfg.OnClose()

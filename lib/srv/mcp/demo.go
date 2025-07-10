@@ -21,6 +21,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 
@@ -52,7 +53,7 @@ func NewDemoServerApp() (types.Application, error) {
 		Labels:      map[string]string{types.TeleportInternalResourceType: types.DemoResource},
 		Description: "A demo MCP server that shows current user and session information",
 	}, types.AppSpecV3{
-		URI: types.SchemaMCPStdio + DemoServerName,
+		URI: fmt.Sprintf("%s://%s", types.SchemeMCPStdio, DemoServerName),
 	})
 	return app, trace.Wrap(err)
 }
