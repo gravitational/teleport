@@ -14,12 +14,15 @@ spec:
     onboarding:
       # If set to a public key in SSH authorized_keys format, the
       # joining client must have the corresponding private key to join. This
-      # keypair may be created using `tbot keypair create`.
+      # keypair may be created using `tbot keypair create`. If set,
+      # `registration_secret` and `must_register_before` are ignored.
       initial_public_key: ""
 
       # If set to a secret string value, a client may use this secret to perform
       # the first join without pre-registering a public key in
-      # `initial_public_key`.
+      # `initial_public_key`. If unset and no `initial_public_key` is provided,
+      # a random value will be generated automatically into
+      # `.status.bound_keypair.registration_secret`.
       registration_secret: ""
 
       # If set to an RFC 3339 timestamp, attempts to register via
