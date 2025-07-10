@@ -49,7 +49,7 @@ type WorkloadIdentityAWSRAService struct {
 	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
 	// used to issue WICs.
-	Selector WorkloadIdentitySelector `yaml:"selector"`
+	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
 
