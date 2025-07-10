@@ -39,7 +39,7 @@ func extractOutputDestination(node *yaml.Node) (destination.Destination, error) 
 	for i, subNode := range node.Content {
 		if subNode.Value == "destination" {
 			// Next node will be the contents
-			dest, err := unmarshalDestination(node.Content[i+1])
+			dest, err := unmarshalConfigContext{}.UnmarshalDestination(node.Content[i+1])
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
