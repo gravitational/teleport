@@ -61,7 +61,6 @@ import (
 // authCommandClient is aggregated client interface for auth command.
 type authCommandClient interface {
 	certificateSigner
-	crlGenerator // TODO(zmb3) remove this if it is no longer necessary
 	authclient.ClientI
 }
 
@@ -497,10 +496,6 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 	return nil
 }
 
-type crlGenerator interface {
-	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
-}
-
 // GenerateCRLForCA generates a certificate revocation list for a certificate
 // authority.
 func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authCommandClient) error {
@@ -578,7 +573,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	if certType == types.DatabaseClientCA && len(results) > 1 {
 		fmt.Fprintln(os.Stderr, "\nTo publish CRLs, run the following in Windows:")
 		for _, command := range commands {
-			fmt.Fprintln(os.Stderr, "  " + command)
+			fmt.Fprintln(os.Stderr, "  "+command)
 		}
 	}
 
