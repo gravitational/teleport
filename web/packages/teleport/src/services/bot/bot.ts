@@ -28,6 +28,7 @@ import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
 import { MfaChallengeResponse } from '../mfa';
+import { withGenericUnsupportedError } from '../version/unsupported';
 import {
   BotResponse,
   CreateBotJoinTokenRequest,
@@ -122,9 +123,13 @@ export async function editBot(
     throw new Error('cannot edit bot: roles.list permission required');
   }
 
-  return api.put(cfg.getBotUpdateUrl(name), req).then(res => {
+  try {
+    const res = await api.put(cfg.getBotUpdateUrl(name), req);
     return makeBot(res);
-  });
+  } catch (err: unknown) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
+  }
 }
 
 export function deleteBot(flags: FeatureFlags, name: string) {

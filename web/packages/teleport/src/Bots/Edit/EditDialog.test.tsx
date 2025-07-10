@@ -138,31 +138,28 @@ describe('EditDialog', () => {
     await waitForSaveButton();
 
     expect(onSuccess).toHaveBeenCalledTimes(1);
-    expect(onSuccess).toHaveBeenLastCalledWith(
-      {
-        description: '',
-        kind: 'bot',
-        labels: new Map(),
-        max_session_ttl: {
-          seconds: 43200,
-        },
-        name: 'test-bot-name',
-        namespace: '',
-        revision: '',
-        roles: ['admin', 'user', 'test-role'],
-        status: 'active',
-        subKind: '',
-        traits: [
-          {
-            name: 'trait-1',
-            values: ['value-1', 'value-2', 'value-3'],
-          },
-        ],
-        type: null,
-        version: 'v1',
+    expect(onSuccess).toHaveBeenLastCalledWith({
+      description: '',
+      kind: 'bot',
+      labels: new Map(),
+      max_session_ttl: {
+        seconds: 43200,
       },
-      false
-    );
+      name: 'test-bot-name',
+      namespace: '',
+      revision: '',
+      roles: ['admin', 'user', 'test-role'],
+      status: 'active',
+      subKind: '',
+      traits: [
+        {
+          name: 'trait-1',
+          values: ['value-1', 'value-2', 'value-3'],
+        },
+      ],
+      type: null,
+      version: 'v1',
+    });
   });
 
   it('should allow traits to be edited', async () => {
@@ -187,35 +184,32 @@ describe('EditDialog', () => {
     await waitForSaveButton();
 
     expect(onSuccess).toHaveBeenCalledTimes(1);
-    expect(onSuccess).toHaveBeenLastCalledWith(
-      {
-        description: '',
-        kind: 'bot',
-        labels: new Map(),
-        max_session_ttl: {
-          seconds: 43200,
-        },
-        name: 'test-bot-name',
-        namespace: '',
-        revision: '',
-        roles: ['admin', 'user'],
-        status: 'active',
-        subKind: '',
-        traits: [
-          {
-            name: 'trait-1',
-            values: ['value-1', 'value-2', 'value-3'],
-          },
-          {
-            name: 'logins',
-            values: ['test-value'],
-          },
-        ],
-        type: null,
-        version: 'v1',
+    expect(onSuccess).toHaveBeenLastCalledWith({
+      description: '',
+      kind: 'bot',
+      labels: new Map(),
+      max_session_ttl: {
+        seconds: 43200,
       },
-      false
-    );
+      name: 'test-bot-name',
+      namespace: '',
+      revision: '',
+      roles: ['admin', 'user'],
+      status: 'active',
+      subKind: '',
+      traits: [
+        {
+          name: 'trait-1',
+          values: ['value-1', 'value-2', 'value-3'],
+        },
+        {
+          name: 'logins',
+          values: ['test-value'],
+        },
+      ],
+      type: null,
+      version: 'v1',
+    });
   });
 
   it('should allow max session ttl to be edited', async () => {
@@ -235,31 +229,28 @@ describe('EditDialog', () => {
     await waitForSaveButton();
 
     expect(onSuccess).toHaveBeenCalledTimes(1);
-    expect(onSuccess).toHaveBeenLastCalledWith(
-      {
-        description: '',
-        kind: 'bot',
-        labels: new Map(),
-        max_session_ttl: {
-          seconds: 43200 + 30 * 60,
-        },
-        name: 'test-bot-name',
-        namespace: '',
-        revision: '',
-        roles: ['admin', 'user'],
-        status: 'active',
-        subKind: '',
-        traits: [
-          {
-            name: 'trait-1',
-            values: ['value-1', 'value-2', 'value-3'],
-          },
-        ],
-        type: null,
-        version: 'v1',
+    expect(onSuccess).toHaveBeenLastCalledWith({
+      description: '',
+      kind: 'bot',
+      labels: new Map(),
+      max_session_ttl: {
+        seconds: 43200 + 30 * 60,
       },
-      false
-    );
+      name: 'test-bot-name',
+      namespace: '',
+      revision: '',
+      roles: ['admin', 'user'],
+      status: 'active',
+      subKind: '',
+      traits: [
+        {
+          name: 'trait-1',
+          values: ['value-1', 'value-2', 'value-3'],
+        },
+      ],
+      type: null,
+      version: 'v1',
+    });
   });
 
   it('should show a save error state', async () => {
@@ -284,7 +275,7 @@ describe('EditDialog', () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
-  it('should show a save inconsistency warning', async () => {
+  it('should show a version mismatch warning', async () => {
     const onSuccess = jest.fn();
 
     withFetchBotSuccess();
@@ -296,27 +287,17 @@ describe('EditDialog', () => {
     await inputTrait('logins', ['test-value']);
     await inputMaxSessionDuration('12h 30m');
 
-    // Mock the server response to deliberately not match the request, triggering the warning on all fields
-    withSaveSuccess({
-      roles: ['admin', 'user'],
-      traits: [
-        {
-          name: 'trait-1',
-          values: ['value-1', 'value-2', 'value-3'],
-        },
-      ],
-      max_session_ttl: '12h',
-    });
+    withSaveVersionMismatch();
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
     fireEvent.click(saveButton);
     await waitForSaveButton();
 
-    expect(onSuccess).toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
 
     expect(
       screen.getByText(
-        'Some fields may not have updated correctly; max_session_ttl, roles, traits'
+        'Error: We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
       )
     ).toBeInTheDocument();
   });
@@ -352,6 +333,20 @@ function withFetchBotError(status = 500, message = 'something went wrong') {
 
 function withSaveError(status = 500, message = 'something went wrong') {
   server.use(editBotError(status, message));
+}
+
+function withSaveVersionMismatch() {
+  server.use(
+    editBotError(404, 'path not found', {
+      proxyVersion: {
+        major: 19,
+        minor: 0,
+        patch: 0,
+        preRelease: 'dev',
+        string: '18.0.0',
+      },
+    })
+  );
 }
 
 function withFetchBotSuccess() {

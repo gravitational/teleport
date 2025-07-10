@@ -19,8 +19,10 @@
 import { http, HttpResponse } from 'msw';
 
 import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
+import { JsonObject } from 'teleport/types';
 
 const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:botName?';
+const editBotPath = '/v2/webapi/sites/:cluster_id/machine-id/bot/:botName?';
 
 export const getBotSuccess = (overrides?: {
   name?: ApiBot['metadata']['name'];
@@ -72,7 +74,7 @@ export const getBotSuccess = (overrides?: {
  * @returns http handler to use in SetupServerApi.use()
  */
 export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
-  http.put<{ botName: string }>(botPath, async ({ request, params }) => {
+  http.put<{ botName: string }>(editBotPath, async ({ request, params }) => {
     const req = (await request.clone().json()) as EditBotRequest;
     const {
       roles = req.roles,
@@ -115,7 +117,11 @@ export const getBotError = (status: number, error: string | null = null) =>
     return HttpResponse.json({ error: { message: error } }, { status });
   });
 
-export const editBotError = (status: number, error: string | null = null) =>
-  http.put(botPath, () => {
-    return HttpResponse.json({ error: { message: error } }, { status });
+export const editBotError = (
+  status: number,
+  error: string | null = null,
+  fields: JsonObject = {}
+) =>
+  http.put(editBotPath, () => {
+    return HttpResponse.json({ error: { message: error }, fields }, { status });
   });

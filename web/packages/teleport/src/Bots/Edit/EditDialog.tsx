@@ -49,12 +49,11 @@ import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
 import { createGetBotQueryKey, useGetBot } from '../hooks';
-import { validateBotUpdate } from './validateBotUpdate';
 
 export function EditDialog(props: {
   botName: string;
   onCancel: () => void;
-  onSuccess: (bot: FlatBot, hasInconsistencies: boolean) => void;
+  onSuccess: (bot: FlatBot) => void;
 }) {
   const { botName, onCancel, onSuccess } = props;
   const queryClient = useQueryClient();
@@ -70,8 +69,6 @@ export function EditDialog(props: {
   const [selectedMaxSessionDuration, setSelectedMaxSessionDuration] = useState<
     string | null
   >(null);
-  const [inconsistentFields, setInconsistentFields] = useState<string[]>([]);
-
   const { isSuccess, data, error, isLoading } = useGetBot(
     { name: botName },
     {
@@ -88,24 +85,15 @@ export function EditDialog(props: {
     mutationFn: (params: EditBotRequest) => {
       return editBot(ctx.getFeatureFlags(), botName, params);
     },
-    onSuccess: (newData, variables) => {
+    onSuccess: newData => {
       const key = createGetBotQueryKey({ name: newData.name });
       queryClient.setQueryData(key, newData);
-
-      // Older APIs may not support updating some fields, check that applicable fields were updated and show a warning if not.
-      // TODO(nicholasmarais1158) DELETE IN v20.0.0
-      const fields = validateBotUpdate(data, variables, newData);
-
-      const hasInconsistencies = fields.length > 0;
-      if (hasInconsistencies) {
-        setInconsistentFields(fields.sort());
-      }
-
-      onSuccess(newData, hasInconsistencies);
 
       setSelectedRoles(null);
       setSelectedTraits(null);
       setSelectedMaxSessionDuration(null);
+
+      onSuccess(newData);
     },
   });
 
@@ -133,8 +121,6 @@ export function EditDialog(props: {
     selectedTraits !== null ||
     selectedMaxSessionDuration !== null;
 
-  const hasInconsistencies = inconsistentFields.length > 0;
-
   return (
     <Dialog open onClose={onCancel}>
       <DialogHeader>
@@ -149,7 +135,6 @@ export function EditDialog(props: {
                 hasEditPermission &&
                 isDirty &&
                 !isSubmitting &&
-                !hasInconsistencies &&
                 validator.validate()
               ) {
                 handleSubmit();
@@ -285,50 +270,23 @@ export function EditDialog(props: {
               {saveError ? (
                 <Alert kind="danger">Error: {saveError.message}</Alert>
               ) : undefined}
-
-              {hasInconsistencies ? (
-                <Alert
-                  kind="warning"
-                  primaryAction={{
-                    content: 'tclt Reference',
-                    href: 'https://goteleport.com/docs/reference/cli/tctl/#tctl-bots-update',
-                  }}
-                  details={`This can happen when the Teleport cluster has one or more nodes that are not up-to-date. Consider using tctl to perform the update instead, or try again.`}
-                  alignItems="flex-start"
-                >
-                  Some fields may not have updated correctly;{' '}
-                  {inconsistentFields.join(', ')}
-                </Alert>
-              ) : undefined}
             </DialogContent>
             <DialogFooter>
-              {hasInconsistencies ? (
-                <ButtonPrimary mr="3" onClick={onCancel}>
-                  Continue
-                </ButtonPrimary>
-              ) : (
-                <>
-                  <ButtonPrimary
-                    type="submit"
-                    mr="3"
-                    disabled={
-                      isLoading ||
-                      isSubmitting ||
-                      !hasEditPermission ||
-                      hasInconsistencies ||
-                      !isDirty
-                    }
-                  >
-                    Save
-                  </ButtonPrimary>
-                  <ButtonSecondary
-                    disabled={isLoading || isSubmitting || hasInconsistencies}
-                    onClick={onCancel}
-                  >
-                    Cancel
-                  </ButtonSecondary>
-                </>
-              )}
+              <ButtonPrimary
+                type="submit"
+                mr="3"
+                disabled={
+                  isLoading || isSubmitting || !hasEditPermission || !isDirty
+                }
+              >
+                Save
+              </ButtonPrimary>
+              <ButtonSecondary
+                disabled={isLoading || isSubmitting}
+                onClick={onCancel}
+              >
+                Cancel
+              </ButtonSecondary>
             </DialogFooter>
           </form>
         )}

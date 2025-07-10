@@ -41,7 +41,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
-import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { EditDialog } from '../Edit/EditDialog';
@@ -75,8 +74,8 @@ export function BotDetails() {
     setEditing(true);
   };
 
-  const handleEditSuccess = (_: FlatBot, hasInconsistencies: boolean) => {
-    setEditing(hasInconsistencies);
+  const handleEditSuccess = () => {
+    setEditing(false);
   };
 
   return (
