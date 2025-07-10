@@ -37,12 +37,12 @@ func NewAptRunner() (*AptRunner, error) {
 				"forky",    // 14
 			},
 			"ubuntu": { // See https://wiki.ubuntu.com/Releases for details
-				"xenial",   // 16.04 LTS
-				"bionic",   // 18.04 LTS
-				"focal",    // 20.04 LTS
-				"jammy",    // 22.04 LTS
-				"noble",    // 24.04 LTS
-				"oracular", // 24.10
+				"xenial", // 16.04 LTS
+				"bionic", // 18.04 LTS
+				"focal",  // 20.04 LTS
+				"jammy",  // 22.04 LTS
+				"noble",  // 24.04 LTS
+				"plucky", // 25.04
 			},
 		},
 	}
