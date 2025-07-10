@@ -144,7 +144,7 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 			uploadRate = &parsedRate
 		}
 	} else {
-		defaultRate := 60 * time.Second
+		const defaultRate = 60 * time.Second
 		uploadRate = &defaultRate
 		logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using Teleport default")
 	}
