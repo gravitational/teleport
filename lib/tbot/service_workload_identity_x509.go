@@ -97,6 +97,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "getting CRL set from cache")
 	}
+	renewalInterval := s.botCfg.RenewalInterval
 
 	jitter := retryutils.NewJitter()
 	var x509Cred *workloadidentityv1pb.Credential
@@ -104,6 +105,8 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
+	renewalTimer := time.NewTimer(renewalInterval)
+	defer renewalTimer.Stop()
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
@@ -145,7 +148,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			}
 			crlSet = newCRLSet
 			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
-		case <-time.After(s.botCfg.RenewalInterval):
+		case <-renewalTimer.C:
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -160,6 +163,8 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				failures++
 				continue
 			}
+			// Reset the renewal timer to the configured interval.
+			renewalTimer.Reset(renewalInterval)
 		}
 		if err := s.render(
 			ctx, bundleSet, x509Cred, privateKey, crlSet,
