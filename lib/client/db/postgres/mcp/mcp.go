@@ -165,12 +165,13 @@ func (s *Server) Close(ctx context.Context) error {
 	return trace.NewAggregate(errs...)
 }
 
-// QueryResult is the run query tool result.
+// RunQueryResult is the run query tool result.
 type RunQueryResult struct {
 	// Results is the executed queries results.
 	Results []QueryResult `json:"results"`
 	// ErrorMessage if the queries execution wasn't successful, this field
-	// contains the error message.
+	// contains the error message. The most common error will be connectivity
+	// issues.
 	ErrorMessage string `json:"error,omitempty"`
 }
 
@@ -182,7 +183,8 @@ type QueryResult struct {
 	// RowsCount number of rows affected by the query or returned as data.
 	RowsCount int `json:"rows_count"`
 	// ErrorMessage if the query contains any error, this field will contain the
-	// error message.
+	// error message. Given an execution of multiple queries, not all of them
+	// can fail.
 	ErrorMessage string `json:"error,omitempty"`
 }
 
