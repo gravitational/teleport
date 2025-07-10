@@ -91,8 +91,8 @@ func (o *SSHHostOutput) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SSHHostOutput) Describe() []FileDescription {
-	return []FileDescription{
+func (o *SSHHostOutput) Describe() []bot.FileDescription {
+	return []bot.FileDescription{
 		{
 			Name: SSHHostCertPath,
 		},

@@ -79,8 +79,8 @@ func (o *WorkloadIdentityJWTService) CheckAndSetDefaults() error {
 const JWTSVIDPath = "jwt_svid"
 
 // Describe returns the file descriptions for the WorkloadIdentityJWTService.
-func (o *WorkloadIdentityJWTService) Describe() []FileDescription {
-	fds := []FileDescription{
+func (o *WorkloadIdentityJWTService) Describe() []bot.FileDescription {
+	fds := []bot.FileDescription{
 		{
 			Name: JWTSVIDPath,
 		},
