@@ -6,7 +6,7 @@
 name: Check
 on:
   pull_request_review:
-    type: [submitted, edited, dismissed]
+    types: [submitted, edited, dismissed]
   pull_request:
     types: [opened, ready_for_review, synchronize, labeled, unlabeled]
 
