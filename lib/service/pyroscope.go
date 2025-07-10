@@ -104,7 +104,7 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 		hostname = "unknown"
 	}
 
-	httpTimeout := 60 * time.Second
+	const httpTimeout = 60 * time.Second
 
 	httpClient := &http.Client{
 		Timeout: httpTimeout,
