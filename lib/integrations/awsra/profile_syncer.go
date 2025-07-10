@@ -279,7 +279,8 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 
 	var nextPage *string
 	for {
-		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, nextPage)
+		const useAPIDefaultPageSize = 0
+		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, nextPage, useAPIDefaultPageSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}

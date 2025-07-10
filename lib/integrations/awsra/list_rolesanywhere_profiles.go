@@ -33,6 +33,8 @@ type ListRolesAnywhereProfilesRequest struct {
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
 	NextToken string
+	// PageSize is the maximum number of records to retrieve.
+	PageSize int
 }
 
 // ListRolesAnywhereProfilesResponse contains a page of Roles Anywhere Profiles.
@@ -79,7 +81,7 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 	if req.NextToken != "" {
 		nextToken = aws.String(req.NextToken)
 	}
-	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, nextToken)
+	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, nextToken, req.PageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,11 +92,17 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 	}, nil
 }
 
-func listRolesAnywhereProfilesPage(ctx context.Context, raClient RolesAnywhereProfilesLister, nextPage *string) ([]*integrationv1.RolesAnywhereProfile, *string, error) {
+func listRolesAnywhereProfilesPage(ctx context.Context, raClient RolesAnywhereProfilesLister, nextPage *string, pageSize int) ([]*integrationv1.RolesAnywhereProfile, *string, error) {
 	var ret []*integrationv1.RolesAnywhereProfile
+
+	var pageSizeRequest *int32
+	if pageSize > 0 {
+		pageSizeRequest = aws.Int32(int32(pageSize))
+	}
 
 	profilesListResp, err := raClient.ListProfiles(ctx, &rolesanywhere.ListProfilesInput{
 		NextToken: nextPage,
+		PageSize:  pageSizeRequest,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
