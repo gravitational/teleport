@@ -585,7 +585,6 @@ type Cache struct {
 	workloadIdentityCache        workloadIdentityCacher
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
-	botInstanceService           *services.BackendInfoService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
