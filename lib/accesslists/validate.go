@@ -26,8 +26,34 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
-// ValidateAccessListWithMembers validates a new or existing AccessList with a list of AccessListMembers.
-func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+// ValidateAccessListWithMembers validates AccessList with a list of its members. If the
+// existingAccessList is non-nil it also checks if this is a valid update transition.
+func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+	if err := validateAccessListUpdate(existingAccessList, accessList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAccessListNesting(ctx, accessList, members, g); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// validateAccessListUpdate checks if the AccessList update is valid. In particular it verifies
+// that immutable fields are not changed. It does nothing if the existingAccessList is nil.
+func validateAccessListUpdate(existingAccessList, accessList *accesslist.AccessList) error {
+	if existingAccessList == nil {
+		return nil
+	}
+	if !accessList.Spec.Type.Equals(existingAccessList.Spec.Type) {
+		return trace.BadParameter("access_list %q type %q cannot be changed to %q",
+			accessList.Metadata.Name, existingAccessList.Spec.Type, accessList.Spec.Type)
+	}
+	return nil
+}
+
+// validateAccessListNesting validates if nested AccessList owners and members meet max depth (of
+// 10) requirement and don't create cycles.
+func validateAccessListNesting(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
 	for _, owner := range accessList.Spec.Owners {
 		if owner.MembershipKind != accesslist.MembershipKindList {
 			continue
