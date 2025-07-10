@@ -41,6 +41,18 @@ type roundTripper struct {
 	logger  pyroscope.Logger
 }
 
+
+// CloseIdleConnections ensures idle connections of the wrapped
+// [http.RoundTripper] are closed.
+func (rt roundTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if tr, ok := rt.tripper.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
 func (l pyroscopeLogger) Infof(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
 		return
