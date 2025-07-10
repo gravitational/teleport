@@ -537,7 +537,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 				return trace.Wrap(err)
 			}
 		}
-		fmt.Println(string(crl))
+		fmt.Print(string(crl))
 		return nil
 	}
 
