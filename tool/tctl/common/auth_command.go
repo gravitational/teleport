@@ -174,7 +174,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
 	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
-	a.authCRL.Flag("out", "If set writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
+	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
