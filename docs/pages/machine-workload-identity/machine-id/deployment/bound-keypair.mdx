@@ -1,11 +1,11 @@
 ---
-title: Deploying Machine ID on Bare-metal with Bound Keypair
-description: "How to install and configure Machine ID on a bare-metal server with Bound Keypair joining"
+title: Deploying Machine ID with Bound Keypair Joining
+description: "How to install and configure Machine ID with Bound Keypair joining"
 ---
 
 In this guide, you will install Machine ID's agent, `tbot`, on an arbitrary
-node. This includes bare-metal machines, VMs, containers, or other hosts with
-persistent storage.
+node. This node could be a bare-metal machine, a VM, a container, or any other
+host - the only requirement is that the node has persistent storage.
 
 Note that this is a generic join method. A platform-specific join method may be
 available that is better suited to your environment; refer to the
@@ -15,7 +15,7 @@ available that is better suited to your environment; refer to the
 
 With Bound Keypair joining, instead of using a static token or relying solely on
 renewable certificates, Machine ID bots generate a unique keypair. Teleport is
-then configured to trust this public key.
+then configured to trust this public key for future joining attempts.
 
 Later, when the bot attempts to join the cluster, Teleport issues it a challenge
 that can only be completed using its private key. The bot returns the solved
@@ -32,6 +32,11 @@ including:
   cannot be usefully shared or duplicated
 - Configurable limits on how often - if at all - bots may be allowed to recover
   using this keypair.
+
+An important benefit to Bound Keypair joining is that all joining restrictions
+can be reconfigured at any time, and bots that expire or go offline can be
+recovered by making a server-side exemption without any client-side
+intervention.
 
 Refer to the [admin guide][guide] for further details on how this join method
 works.
@@ -69,33 +74,59 @@ Download and install the appropriate Teleport package for your platform:
 
 **This step is completed on your local machine.**
 
-{/* TODO: option for preregistered key? Tabs maybe? */}
+In this guide, we'll demonstrate joining a bot using a registration secret: this
+is a one-time use secret the bot can provide to Teleport to authenticate its
+first join. Once authenticated, the bot automatically generates a keypair and
+registers its public key with Teleport for use in all future join attempts.
 
-Create `bot-token.yaml`:
+Create `token-example.yaml`:
 
 ```yaml
 kind: token
 version: v2
 metadata:
-  # name will be specified in the `tbot` to use this token
-  name: example-bot
+  # This name will be used in tbot's `onboarding.token` field.
+  name: example
 spec:
   roles: [Bot]
   # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
   join_method: bound_keypair
+  bound_keypair:
+    recovery:
+      mode: standard
+      limit: 1
 ```
 
 Replace:
-- `example` with the name of the bot you created in the second step
+- `example` in `spec.bot_name` with the name of the bot you created in the
+  second step
+
+For this example, we don't need to set any additional options for the bound
+keypair token. We've allowed a single recovery attempt, which will be used to
+allow the bot's initial join, and Teleport will generate a registration secret
+automatically when the token is created as we have not preregistered a public
+key to use.
+
+<Admonition type="tip" title="Onboarding and Recovery">
+To learn more about the various onboarding and recovery options, refer to the
+[Reference and Admin Guide][guide].
+</Admonition>
 
 Use `tctl` to apply this file:
 
 ```code
-$ tctl create -f bot-token.yaml
+$ tctl create -f token-example.yaml
 ```
 
-{/* TODO: fetch the registration secret for use in the next step. */}
+Next, retrieve the generated registration secret, which will be needed for the
+next step:
+```code
+$ tctl get token/example --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
+```
+
+This assumes `jq` is installed. If not, run `tctl get token/example` and inspect
+the `.status.bound_keypair.registration_secret` field.
 
 ## Step 4/5. Configure `tbot`
 
@@ -108,14 +139,21 @@ version: v2
 proxy_server: example.teleport.sh:443
 onboarding:
   join_method: bound_keypair
-  token: example-bot
+  token: example
   bound_keypair:
-    registration_secret: <secret>
+    registration_secret: SECRET
 storage:
-  type: memory
+  type: directory
+  path: /var/lib/teleport/bot
 # outputs will be filled in during the completion of an access guide.
 outputs: []
 ```
+
+Replace the following:
+- `example.teleport.sh:443` with the address of your Teleport Proxy.
+- `example` with the name of the token created in the previous step, if you
+  changed it from `example`.
+- `SECRET` with the registration secret retrieved in the previous step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
