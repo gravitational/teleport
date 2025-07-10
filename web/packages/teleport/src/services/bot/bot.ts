@@ -19,6 +19,7 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
+  canUseV1Edit,
   makeBot,
   parseGetBotInstanceResponse,
   parseListBotInstancesResponse,
@@ -123,8 +124,12 @@ export async function editBot(
     throw new Error('cannot edit bot: roles.list permission required');
   }
 
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV1 = canUseV1Edit(req);
+  const path = useV1 ? cfg.getBotUrlWithName(name) : cfg.getBotUpdateUrl(name);
+
   try {
-    const res = await api.put(cfg.getBotUpdateUrl(name), req);
+    const res = await api.put(path, req);
     return makeBot(res);
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0

@@ -241,7 +241,7 @@ describe('BotDetails', () => {
       // Change something to enable the save button
       await inputMaxSessionDuration('12h 30m');
 
-      withSaveSuccess({
+      withSaveSuccess(2, {
         roles: ['role-1'],
         traits: [
           {
@@ -305,8 +305,11 @@ const withFetchSuccess = () => {
   server.use(getBotSuccess());
 };
 
-const withSaveSuccess = (overrides?: Partial<EditBotRequest>) => {
-  server.use(editBotSuccess(overrides));
+const withSaveSuccess = (
+  version: 1 | 2 = 2,
+  overrides?: Partial<EditBotRequest>
+) => {
+  server.use(editBotSuccess(version, overrides));
 };
 
 function withFetchRolesSuccess() {

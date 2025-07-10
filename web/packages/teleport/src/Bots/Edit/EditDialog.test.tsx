@@ -131,7 +131,7 @@ describe('EditDialog', () => {
 
     await inputRole('test-role');
 
-    withSaveSuccess();
+    withSaveSuccess(1);
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
     fireEvent.click(saveButton);
@@ -353,8 +353,11 @@ function withFetchBotSuccess() {
   server.use(getBotSuccess());
 }
 
-function withSaveSuccess(overrides?: Partial<EditBotRequest>) {
-  server.use(editBotSuccess(overrides));
+function withSaveSuccess(
+  version: 1 | 2 = 2,
+  overrides?: Partial<EditBotRequest>
+) {
+  server.use(editBotSuccess(version, overrides));
 }
 
 function withFetchRolesSuccess(options?: { items: string[] }) {

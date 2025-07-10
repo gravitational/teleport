@@ -22,7 +22,8 @@ import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
 import { JsonObject } from 'teleport/types';
 
 const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:botName?';
-const editBotPath = '/v2/webapi/sites/:cluster_id/machine-id/bot/:botName?';
+const editBotPathV1 = '/v1/webapi/sites/:cluster_id/machine-id/bot/:botName?';
+const editBotPathV2 = '/v2/webapi/sites/:cluster_id/machine-id/bot/:botName?';
 
 export const getBotSuccess = (overrides?: {
   name?: ApiBot['metadata']['name'];
@@ -73,44 +74,50 @@ export const getBotSuccess = (overrides?: {
  * @param overrides values to use instead of the values from the captured request
  * @returns http handler to use in SetupServerApi.use()
  */
-export const editBotSuccess = (overrides?: Partial<EditBotRequest>) =>
-  http.put<{ botName: string }>(editBotPath, async ({ request, params }) => {
-    const req = (await request.clone().json()) as EditBotRequest;
-    const {
-      roles = req.roles,
-      traits = req.traits,
-      max_session_ttl = req.max_session_ttl,
-    } = overrides ?? {};
+export const editBotSuccess = (
+  version: 1 | 2 = 2,
+  overrides?: Partial<EditBotRequest>
+) =>
+  http.put<{ botName: string }>(
+    version === 1 ? editBotPathV1 : editBotPathV2,
+    async ({ request, params }) => {
+      const req = (await request.clone().json()) as EditBotRequest;
+      const {
+        roles = req.roles,
+        traits = req.traits,
+        max_session_ttl = req.max_session_ttl,
+      } = overrides ?? {};
 
-    const maxSessionTtlSeconds =
-      max_session_ttl === '12h30m' ? 43200 + 30 * 60 : 43200;
+      const maxSessionTtlSeconds =
+        max_session_ttl === '12h30m' ? 43200 + 30 * 60 : 43200;
 
-    return HttpResponse.json({
-      status: 'active',
-      kind: 'bot',
-      subKind: '',
-      version: 'v1',
-      metadata: {
-        name: params.botName,
-        description: '',
-        labels: new Map(),
-        namespace: '',
-        revision: '',
-      },
-      spec: {
-        roles: roles ?? ['admin', 'user'],
-        traits: traits ?? [
-          {
-            name: 'trait-1',
-            values: ['value-1', 'value-2', 'value-3'],
-          },
-        ],
-        max_session_ttl: {
-          seconds: maxSessionTtlSeconds,
+      return HttpResponse.json({
+        status: 'active',
+        kind: 'bot',
+        subKind: '',
+        version: 'v1',
+        metadata: {
+          name: params.botName,
+          description: '',
+          labels: new Map(),
+          namespace: '',
+          revision: '',
         },
-      },
-    });
-  });
+        spec: {
+          roles: roles ?? ['admin', 'user'],
+          traits: traits ?? [
+            {
+              name: 'trait-1',
+              values: ['value-1', 'value-2', 'value-3'],
+            },
+          ],
+          max_session_ttl: {
+            seconds: maxSessionTtlSeconds,
+          },
+        },
+      });
+    }
+  );
 
 export const getBotError = (status: number, error: string | null = null) =>
   http.get(botPath, () => {
@@ -122,6 +129,6 @@ export const editBotError = (
   error: string | null = null,
   fields: JsonObject = {}
 ) =>
-  http.put(editBotPath, () => {
+  http.put(editBotPathV2, () => {
     return HttpResponse.json({ error: { message: error }, fields }, { status });
   });
