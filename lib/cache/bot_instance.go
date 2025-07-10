@@ -29,6 +29,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -82,17 +83,12 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 				botInstanceActiveAtIndex: keyForActiveAtIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
-			var out []*machineidv1.BotInstance
-			clientutils.IterateResources(ctx,
+			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
 					return upstream.ListBotInstances(ctx, "", limit, start, "", nil)
 				},
-				func(hcc *machineidv1.BotInstance) error {
-					out = append(out, hcc)
-					return nil
-				},
-			)
-			return out, nil
+			))
+			return out, trace.Wrap(err)
 		},
 		watch: w,
 	}, nil

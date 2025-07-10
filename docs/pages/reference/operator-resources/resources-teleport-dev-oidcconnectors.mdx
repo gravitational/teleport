@@ -44,6 +44,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |provider|string|Provider is the external identity provider.|
 |redirect_url|[]string|RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|
 |scope|[]string|Scope specifies additional scopes set by provider.|
+|user_matchers|[]string|UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|
 |username_claim|string|UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.|
 
 ### spec.claims_to_roles items
