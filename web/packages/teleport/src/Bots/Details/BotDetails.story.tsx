@@ -50,36 +50,24 @@ export const DetailsWithFetchSuccess: Story = {
     msw: {
       handlers: [
         getBotSuccess({
-          status: 'active',
-          kind: 'bot',
-          subKind: '',
-          version: 'v1',
-          metadata: {
-            name: 'ansible-worker',
-            description: '',
-            labels: new Map(),
-            namespace: '',
-            revision: '',
-          },
-          spec: {
-            roles: ['terraform-provider'],
-            traits: [
-              {
-                name: 'logins',
-                values: ['guest'],
-              },
-              {
-                name: 'db_names',
-                values: ['*'],
-              },
-              {
-                name: 'custom_idp',
-                values: ['val-1', 'val-2', 'val-3'],
-              },
-            ],
-            max_session_ttl: {
-              seconds: 43200,
+          name: 'ansible-worker',
+          roles: ['terraform-provider'],
+          traits: [
+            {
+              name: 'logins',
+              values: ['guest'],
             },
+            {
+              name: 'db_names',
+              values: ['*'],
+            },
+            {
+              name: 'custom_idp',
+              values: ['val-1', 'val-2', 'val-3'],
+            },
+          ],
+          max_session_ttl: {
+            seconds: 43200,
           },
         }),
         successGetRoles({
