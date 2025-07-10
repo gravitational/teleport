@@ -24,9 +24,9 @@ host](linux-demo.mdx).
 A **Teleport service** manages access to resources in your infrastructure, such
 as Kubernetes clusters, Windows desktops, internal web applications, etc.
 
-A single running `teleport` process can run one or more **Teleport services**,
-depending on the user's configuration. Read about all subcommands of `teleport`
-in our [CLI Reference](./reference/cli/teleport.mdx). The **"Enabled by Default"** column indicates whether each service is active by default when you run `teleport start` without specifying services.
+Each Teleport process can run one or more services. Different services enable different Teleport functions. For example, the ssh_service provides SSH access
+to a resource, and the database_service proxies connections to databases. Read about all subcommands of `teleport` in our [CLI Reference](./reference/cli/teleport.mdx). 
+The **"Enabled by Default"** column indicates whether each service is active by default when you run `teleport start` without specifying services.
 
 ## Teleport Agent services
 
