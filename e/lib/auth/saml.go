@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -153,7 +154,14 @@ func (sas *SAMLAuthService) createSAMLAuthRequest(ctx context.Context, req types
 
 	// see [auth.CreateGithubAuthRequest]
 	if !req.CreateWebSession {
-		if err := auth.ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+		ceremonyType := sso.CeremonyTypeLogin
+		if req.SSOTestFlow {
+			ceremonyType = sso.CeremonyTypeTest
+		} else if forMFA {
+			ceremonyType = sso.CeremonyTypeMFA
+		}
+
+		if err := sso.ValidateClientRedirect(req.ClientRedirectURL, ceremonyType, connector.GetClientRedirectSettings()); err != nil {
 			return nil, trace.Wrap(err, auth.InvalidClientRedirectErrorMessage)
 		}
 	}
