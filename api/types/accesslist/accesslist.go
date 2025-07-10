@@ -180,15 +180,21 @@ type Spec struct {
 type Type string
 
 const (
-	Dynamic Type = "dynamic"
-	Static  Type = "static"
-	SCIM    Type = "scim"
+	// Default Access Lists are the default type supposed to be managed with the web UI. They
+	// require periodic audit reviews.
+	Default Type = ""
+	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
+	// reviews are not supported for them and the ownership is optional.
+	Static Type = "static"
+	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
+	// for them and the ownership is optional.
+	SCIM Type = "scim"
 )
 
 func NewTypeFromString(s string) (Type, error) {
 	switch s {
-	case "", string(Dynamic):
-		return Dynamic, nil
+	case string(Default):
+		return Default, nil
 	case string(Static):
 		return Static, nil
 	case string(SCIM):
