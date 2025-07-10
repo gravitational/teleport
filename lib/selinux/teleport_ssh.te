@@ -183,9 +183,6 @@ allow teleport_ssh_t self:capability { chown dac_read_search dac_override fowner
 fs_search_cgroup_dirs(teleport_ssh_t);
 fs_rw_cgroup_files(teleport_ssh_t);
 
-# allow SSH shell process to start a Teleport process (needed to detirmine home dir)
-allow unconfined_t teleport_ssh_exec_t:file entrypoint;
-
 # host auth
 auth_use_nsswitch(teleport_ssh_t);
 allow teleport_ssh_t passwd_file_t:file read_file_perms;
