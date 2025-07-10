@@ -214,14 +214,19 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	validateAccessList := func() error {
 		var err error
 
+		existingAccessList, getResourceErr := a.service.GetResource(ctx, accessList.GetName())
+		if getResourceErr != nil && !trace.IsNotFound(getResourceErr) {
+			return trace.Wrap(err)
+		}
+
 		if op == opTypeUpdate {
-			existingList, err = a.service.GetResource(ctx, accessList.GetName())
-			if err != nil {
+			// In case of the update, the AccessList must already exist.
+			if getResourceErr != nil {
 				return trace.Wrap(err)
 			}
 			// Set memberOf / ownerOf to the existing values to prevent them from being updated.
-			accessList.Status.MemberOf = existingList.Status.MemberOf
-			accessList.Status.OwnerOf = existingList.Status.OwnerOf
+			accessList.Status.MemberOf = existingAccessList.Status.MemberOf
+			accessList.Status.OwnerOf = existingAccessList.Status.OwnerOf
 		} else {
 			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
 			accessList.Status.MemberOf = []string{}
@@ -233,7 +238,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 			return trace.Wrap(err)
 		}
 
-		return accesslists.ValidateAccessListWithMembers(ctx, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService})
+		return accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService})
 	}
 
 	updateAccessList := func() error {
@@ -679,20 +684,20 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	}
 
 	validateAccessList := func() error {
-		existingList, err := a.service.GetResource(ctx, accessList.GetName())
+		existingAccessList, err := a.service.GetResource(ctx, accessList.GetName())
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		if existingList != nil {
-			accessList.Status.MemberOf = existingList.Status.MemberOf
-			accessList.Status.OwnerOf = existingList.Status.OwnerOf
+		if existingAccessList != nil {
+			accessList.Status.MemberOf = existingAccessList.Status.MemberOf
+			accessList.Status.OwnerOf = existingAccessList.Status.OwnerOf
 		} else {
 			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
 			accessList.Status.MemberOf = []string{}
 			accessList.Status.OwnerOf = []string{}
 		}
 
-		if err := accesslists.ValidateAccessListWithMembers(ctx, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
 		}
 

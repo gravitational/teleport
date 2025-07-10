@@ -214,6 +214,10 @@ func (t Type) IsReviewable() bool {
 	}
 }
 
+func (t Type) Equals(other Type) bool {
+	return t == other
+}
+
 // Owner is an owner of an access list.
 type Owner struct {
 	// Name is the username of the owner.
