@@ -1,10 +1,9 @@
 ---
-title: Deploying Machine ID on AWS
+title: Deploying tbot on AWS
 description: How to install and configure Machine ID on an AWS EC2 instance
 ---
 
-This guide explains how to deploy Machine ID on Amazon Web Services by running
-the `tbot` binary and joining it to your Teleport cluster.
+This guide shows you how to deploy `tbot` on Amazon Web Services and connect it to your Teleport cluster.
 
 ## How it works
 
@@ -15,7 +14,7 @@ signed document from AWS using the assigned identity and send it to the Teleport
 Auth Service for verification. This allows the bot to join the cluster without
 the exchange of a long-lived secret.
 
-While this guide focuses on deploying Machine ID on an EC2 instance, it is also
+While this guide focuses on deploying `tbot` on an EC2 instance, it is also
 possible to use the `iam` join method with workloads running on an EKS
 Kubernetes cluster. To do so, you must configure [IAM Roles for Service Accounts
 (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)

@@ -176,6 +176,7 @@ This auth method has the following limitations:
 - `identity_file` (String, Sensitive) Teleport identity file content. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE`.
 - `identity_file_base64` (String, Sensitive) Teleport identity file content base64 encoded. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`.
 - `identity_file_path` (String) Teleport identity file path. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_PATH`.
+- `insecure` (Boolean) Skip proxy certificate verification when joining the Teleport cluster. This is not recommended for production use. This can also be set with the environment variable `TF_TELEPORT_INSECURE`.
 - `join_method` (String) Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_METHOD`.
 - `join_token` (String) Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_TOKEN`.
 - `key_base64` (String, Sensitive) Base64 encoded TLS auth key. This can also be set with the environment variable `TF_TELEPORT_KEY_BASE64`.

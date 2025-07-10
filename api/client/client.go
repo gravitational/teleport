@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net"
 	"slices"
@@ -88,6 +89,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -125,6 +127,7 @@ type AuthServiceClient struct {
 	auditlogpb.AuditLogServiceClient
 	userpreferencespb.UserPreferencesServiceClient
 	notificationsv1pb.NotificationServiceClient
+	recordingencryptionv1pb.RecordingEncryptionServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -531,10 +534,11 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	c.conn = conn
 	c.grpc = AuthServiceClient{
-		AuthServiceClient:            proto.NewAuthServiceClient(c.conn),
-		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
-		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
-		NotificationServiceClient:    notificationsv1pb.NewNotificationServiceClient(c.conn),
+		AuthServiceClient:                proto.NewAuthServiceClient(c.conn),
+		AuditLogServiceClient:            auditlogpb.NewAuditLogServiceClient(c.conn),
+		UserPreferencesServiceClient:     userpreferencespb.NewUserPreferencesServiceClient(c.conn),
+		NotificationServiceClient:        notificationsv1pb.NewNotificationServiceClient(c.conn),
+		RecordingEncryptionServiceClient: recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -2454,6 +2458,45 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 	return ch, e
 }
 
+// UploadEncryptedRecording streams encrypted recording parts to the auth
+// server to be saved in long term storage.
+func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	createRes, err := c.grpc.CreateUpload(ctx, &recordingencryptionv1pb.CreateUploadRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var uploadedParts []*recordingencryptionv1pb.Part
+	var partNumber int64
+	for part, err := range parts {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		uploadRes, err := c.grpc.UploadPart(ctx, &recordingencryptionv1pb.UploadPartRequest{
+			Upload:     createRes.Upload,
+			PartNumber: partNumber,
+			Part:       part,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		uploadedParts = append(uploadedParts, uploadRes.Part)
+		partNumber++
+	}
+
+	if _, err := c.grpc.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
+		Upload: createRes.Upload,
+		Parts:  uploadedParts,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // SearchEvents allows searching for events with a full pagination support.
 func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
@@ -3457,6 +3500,57 @@ func (c *Client) GetDatabaseObjects(ctx context.Context) ([]*dbobjectv1.Database
 			break
 		}
 		req.PageToken = resp.NextPageToken
+	}
+
+	return out, nil
+}
+
+// ListWindowsDesktops returns a page of registered Windows desktop hosts.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	resp, err := c.grpc.ListWindowsDesktops(ctx, &proto.ListWindowsDesktopsRequest{
+		Limit:                int32(req.Limit),
+		StartKey:             req.StartKey,
+		Labels:               req.Labels,
+		PredicateExpression:  req.PredicateExpression,
+		SearchKeywords:       req.SearchKeywords,
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &types.ListWindowsDesktopsResponse{
+		Desktops: make([]types.WindowsDesktop, 0, len(resp.Desktops)),
+		NextKey:  resp.NextKey,
+	}
+
+	for _, d := range resp.Desktops {
+		out.Desktops = append(out.Desktops, d)
+	}
+
+	return out, nil
+}
+
+// ListWindowsDesktopServices returns a page of Windows desktop services.
+func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	resp, err := c.grpc.ListResources(ctx, &proto.ListResourcesRequest{
+		Limit:               int32(req.Limit),
+		StartKey:            req.StartKey,
+		Labels:              req.Labels,
+		PredicateExpression: req.PredicateExpression,
+		SearchKeywords:      req.SearchKeywords,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := &types.ListWindowsDesktopServicesResponse{
+		DesktopServices: make([]types.WindowsDesktopService, 0, len(resp.Resources)),
+		NextKey:         resp.NextKey,
+	}
+
+	for _, r := range resp.Resources {
+		out.DesktopServices = append(out.DesktopServices, r.GetWindowsDesktopService())
 	}
 
 	return out, nil
