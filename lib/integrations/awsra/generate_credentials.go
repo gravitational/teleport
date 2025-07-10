@@ -24,6 +24,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -143,6 +144,17 @@ type Credentials struct {
 	// Otherwise, the serial number is logged.
 	// This field is not part of the credential_process schema.
 	SerialNumber string `json:"-"`
+}
+
+// EncodeCredentialProcessFormat encodes the credentials in the format expected by the AWS CLI credential_process.
+// See https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+func (c *Credentials) EncodeCredentialProcessFormat() (string, error) {
+	bs, err := json.Marshal(c)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return string(bs), nil
 }
 
 // GenerateCredentials generates AWS IAM Roles Anywhere credentials for the Application (IAM Roles Anywhere Profile) and Role ARN.
