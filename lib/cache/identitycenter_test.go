@@ -18,8 +18,6 @@ package cache
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -28,7 +26,6 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -50,10 +47,6 @@ func newIdentityCenterAccount(id string) *identitycenterv1.Account {
 
 // TestIdentityCenterAccount asserts that an Identoty Ceneter Account can be cached
 func TestIdentityCenterAccount(t *testing.T) {
-	slog.SetDefault(
-		slog.New(logutils.NewSlogTextHandler(
-			os.Stderr, logutils.SlogTextHandlerConfig{Level: slog.LevelDebug})))
-
 	t.Parallel()
 
 	fixturePack := newTestPack(t, ForAuth)
@@ -142,6 +135,7 @@ func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.Principal
 
 // TestIdentityCenterPrincipalAssignment asserts that an Identity Center PrincipalAssignment can be cached
 func TestIdentityCenterPrincipalAssignment(t *testing.T) {
+	t.Parallel()
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
@@ -226,6 +220,7 @@ func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssi
 // TestIdentityCenterAccountAssignment asserts that an Identity Center
 // AccountAssignment can be cached
 func TestIdentityCenterAccountAssignment(t *testing.T) {
+	t.Parallel()
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 

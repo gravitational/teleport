@@ -1008,27 +1008,6 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return user, nil
 }
 
-// ValidateClientRedirect checks a desktop client redirect URL for SSO logins
-// against some (potentially nil) settings from an auth connector; in the
-// current implementation, that means either "http" schema with a hostname of
-// "localhost", "127.0.0.1", or "::1" and a path of "/callback" (with any port),
-// or "https" schema with a hostname that matches one in the https_hostname
-// list, a path of "/callback" and either an empty port or explicitly 443. The
-// settings are ignored and only localhost URLs are allowed if we're using an
-// ephemeral connector (in the SSO testing flow). If the insecure_allowed_cidr_ranges
-// list is non-empty URLs in both the "http" and "https" schema are allowed
-// if the hostname is an IP address that is contained in a specified CIDR
-// range on any port.
-//
-// TODO(Joerger): Replaced by [sso.ValidateClientRedirect], remove once /e no longer depends on it
-func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
-	ceremonyType := sso.CeremonyTypeLogin
-	if ssoTestFlow {
-		ceremonyType = sso.CeremonyTypeTest
-	}
-	return sso.ValidateClientRedirect(clientRedirect, ceremonyType, settings)
-}
-
 // populateGithubClaims builds a GithubClaims using queried
 // user, organization and teams information.
 func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) (*types.GithubClaims, error) {

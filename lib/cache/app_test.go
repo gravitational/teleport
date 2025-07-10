@@ -41,7 +41,7 @@ func TestApps(t *testing.T) {
 	testResources(t, p, testFuncs[types.Application]{
 		newResource: func(name string) (types.Application, error) {
 			return types.NewAppV3(types.Metadata{
-				Name: "foo",
+				Name: name,
 			}, types.AppSpecV3{
 				URI: "localhost",
 			})
