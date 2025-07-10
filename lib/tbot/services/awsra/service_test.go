@@ -13,7 +13,8 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-package tbot
+
+package awsra
 
 import (
 	"context"
@@ -36,8 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -55,18 +56,18 @@ func Test_renderAWSCreds(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		cfg          *config.WorkloadIdentityAWSRAService
+		cfg          *Config
 		artifactName string
 		existingData []byte
 	}{
 		{
 			name:         "normal",
-			cfg:          &config.WorkloadIdentityAWSRAService{},
+			cfg:          &Config{},
 			artifactName: "aws_credentials",
 		},
 		{
 			name:         "merge with existing data",
-			cfg:          &config.WorkloadIdentityAWSRAService{},
+			cfg:          &Config{},
 			artifactName: "aws_credentials",
 			existingData: []byte(`[foo]
 aws_secret_access_key=existing
@@ -75,7 +76,7 @@ aws_session_token=existing`),
 		},
 		{
 			name:         "replace with existing data",
-			cfg:          &config.WorkloadIdentityAWSRAService{},
+			cfg:          &Config{},
 			artifactName: "aws_credentials",
 			existingData: []byte(`[default]
 aws_secret_access_key=existing
@@ -84,21 +85,21 @@ aws_session_token=existing`),
 		},
 		{
 			name: "with artifact name override",
-			cfg: &config.WorkloadIdentityAWSRAService{
+			cfg: &Config{
 				ArtifactName: "foo-xyzzy",
 			},
 			artifactName: "foo-xyzzy",
 		},
 		{
 			name: "with named profile",
-			cfg: &config.WorkloadIdentityAWSRAService{
+			cfg: &Config{
 				CredentialProfileName: "test-profile",
 			},
 			artifactName: "aws_credentials",
 		},
 		{
 			name: "overwrite existing data",
-			cfg: &config.WorkloadIdentityAWSRAService{
+			cfg: &Config{
 				CredentialProfileName:   "test-profile",
 				OverwriteCredentialFile: true,
 			},
@@ -121,7 +122,7 @@ aws_session_token=existing
 			}
 
 			tt.cfg.Destination = dest
-			svc := &WorkloadIdentityAWSRAService{
+			svc := &Service{
 				cfg: tt.cfg,
 			}
 
@@ -163,6 +164,7 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+
 			if tt.externalPKI {
 				setWorkloadIdentityX509CAOverride(ctx, t, process)
 			}
@@ -300,34 +302,47 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 			require.NoError(t, err)
 
 			tmpDir := t.TempDir()
-			onboarding, _ := makeBot(t, rootClient, "ra-test", role.GetName())
-			botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-				&config.WorkloadIdentityAWSRAService{
-					Selector: bot.WorkloadIdentitySelector{
-						Name: workloadIdentity.GetMetadata().GetName(),
-					},
-					Destination: &destination.Directory{
-						Path: tmpDir,
-					},
-					RoleARN:                roleArn,
-					ProfileARN:             profileArn,
-					TrustAnchorARN:         trustAnchorArn,
-					Region:                 "us-east-1",
-					SessionDuration:        2 * time.Hour,
-					SessionRenewalInterval: 30 * time.Minute,
-					EndpointOverride:       srv.URL,
-				},
-			}, defaultBotConfigOpts{
-				useAuthServer: true,
-				insecure:      true,
-			})
 
-			botConfig.Oneshot = true
-			b := New(botConfig, log)
+			proxyAddr, err := process.ProxyWebAddr()
+			require.NoError(t, err)
+
+			connCfg := connection.Config{
+				Address:     proxyAddr.Addr,
+				AddressKind: connection.AddressKindProxy,
+				Insecure:    true,
+			}
+
+			onboarding, _ := makeBot(t, rootClient, "ra-test", role.GetName())
+			b, err := bot.New(bot.Config{
+				Connection: connCfg,
+				Logger:     log,
+				Onboarding: *onboarding,
+				Services: []bot.ServiceBuilder{
+					ServiceBuilder(
+						&Config{
+							Selector: bot.WorkloadIdentitySelector{
+								Name: workloadIdentity.GetMetadata().GetName(),
+							},
+							Destination: &destination.Directory{
+								Path: tmpDir,
+							},
+							RoleARN:                roleArn,
+							ProfileARN:             profileArn,
+							TrustAnchorARN:         trustAnchorArn,
+							Region:                 "us-east-1",
+							SessionDuration:        2 * time.Hour,
+							SessionRenewalInterval: 30 * time.Minute,
+							EndpointOverride:       srv.URL,
+						},
+					),
+				},
+			})
+			require.NoError(t, err)
+
 			// Run Bot with 10 second timeout to catch hangs.
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			t.Cleanup(cancel)
-			require.NoError(t, b.Run(ctx))
+			require.NoError(t, b.OneShot(ctx))
 
 			got, err := os.ReadFile(filepath.Join(tmpDir, "aws_credentials"))
 			require.NoError(t, err)

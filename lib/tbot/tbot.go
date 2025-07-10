@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
+	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -236,8 +237,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, WorkloadIdentityJWTServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache()))
 		case *config.WorkloadIdentityAPIService:
 			services = append(services, WorkloadIdentityAPIServiceBuilder(b.cfg, svcCfg, setupTrustBundleCache(), setupCRLCache()))
-		case *config.WorkloadIdentityAWSRAService:
-			services = append(services, WorkloadIdentityAWSRAServiceBuilder(b.cfg, svcCfg))
+		case *awsra.Config:
+			services = append(services, awsra.ServiceBuilder(svcCfg))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
