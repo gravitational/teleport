@@ -85,6 +85,24 @@ Examples:
   Add all MCP servers to Claude Desktop
   $ tsh mcp config --all --client-config=claude
 
+  Add all MCP servers to Cursor
+  $ tsh mcp config --all --client-config=cursor
+
   Search MCP servers with labels and add to the specified JSON file
   $ tsh mcp config --labels env=dev --client-config=my-config.json`
+
+	mcpDBConfigHelp = `
+Examples:
+  Print sample configuration for exposing database as MCP server
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname my-db-resource
+
+  Add the database configuration to Claude Desktop
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=claude my-db-resource
+
+  Add the database configuration to Cursor
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=cursor my-db-resource
+
+  Add the database configuration to the specified JSON file
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=my-config.json my-db-resource
+`
 )

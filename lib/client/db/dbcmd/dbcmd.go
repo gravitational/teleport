@@ -281,7 +281,7 @@ func (c *CLICommandBuilder) getPostgresConnString() string {
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
 // Currently, the common options are: user, database, host, port and protocol.
 func (c *CLICommandBuilder) getMySQLCommonCmdOpts() []string {
-	args := make([]string, 0)
+	args := []string{"--skip-password"}
 	if c.db.Username != "" {
 		args = append(args, "--user", c.db.Username)
 	}

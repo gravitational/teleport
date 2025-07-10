@@ -57,6 +57,18 @@ func DefaultConfigPath() (string, error) {
 	}
 }
 
+// GlobalCursorPath returns the default path for Cursor global MCP configuration.
+//
+// https://docs.cursor.com/context/mcp#configuration-locations
+func GlobalCursorPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return filepath.Join(homeDir, ".cursor", "mcp.json"), nil
+}
+
 // MCPServer contains details to launch an MCP server.
 //
 // https://modelcontextprotocol.io/quickstart/user
@@ -136,10 +148,20 @@ func (c *Config) GetMCPServers() map[string]MCPServer {
 	return maps.Clone(c.mcpServers)
 }
 
-// PutMCPServer adds a new MCP server or replace an existing one.
+// PutMCPServer adds a new MCP server or replaces an existing one.
 func (c *Config) PutMCPServer(serverName string, server MCPServer) (err error) {
 	c.mcpServers[serverName] = server
-	c.configData, err = sjson.SetBytes(c.configData, c.mcpServerJSONPath(serverName), server)
+
+	// We require a custom marshal to improve MCP Resources URI readability when
+	// it includes query params. By default the encoding/json escapes some
+	// characters like `&` causing the final URI to be harder to read.
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(server); err != nil {
+		return trace.Wrap(err)
+	}
+	c.configData, err = sjson.SetRawBytes(c.configData, c.mcpServerJSONPath(serverName), b.Bytes())
 	return trace.Wrap(err)
 }
 
@@ -225,6 +247,17 @@ func LoadConfigFromDefaultPath() (*FileConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "finding Claude Desktop config path")
 	}
+	config, err := LoadConfigFromFile(configPath)
+	return config, trace.Wrap(err)
+}
+
+// LoadConfigFromGlobalCursor loads the Cursor global MCP server configuration.
+func LoadConfigFromGlobalCursor() (*FileConfig, error) {
+	configPath, err := GlobalCursorPath()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config, err := LoadConfigFromFile(configPath)
 	return config, trace.Wrap(err)
 }

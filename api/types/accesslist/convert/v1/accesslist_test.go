@@ -22,13 +22,19 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
 
 func TestWithOwnersIneligibleStatusField(t *testing.T) {
+	t.Parallel()
+
 	proto := []*accesslistv1.AccessListOwner{
 		{
 			Name:             "expired",
@@ -85,17 +91,69 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 }
 
 func TestRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name           string
+		modificationFn func(*accesslist.AccessList)
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:           "no-modifications",
+			modificationFn: func(accessList *accesslist.AccessList) {},
+		},
+		{
+			name: "with-subkind",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.ResourceHeader.SetSubKind("access-list-subkind")
+			},
+		},
+		{
+			name: "dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Default
+			},
+		},
+		{
+			name: "implicit-dynamic-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = ""
+			},
+		},
+		{
+			name: "static-type",
+			modificationFn: func(accessList *accesslist.AccessList) {
+				accessList.Spec.Type = accesslist.Static
+				accessList.Spec.Audit = accesslist.Audit{}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accessList := newAccessList(t, "access-list")
+			tc.modificationFn(accessList)
+
+			converted, err := FromProto(ToProto(accessList))
+			require.NoError(t, err)
+
+			require.Empty(t, cmp.Diff(accessList, converted))
+		})
+	}
+}
+
+func Test_FromProto_withBadType(t *testing.T) {
 	accessList := newAccessList(t, "access-list")
-	accessList.ResourceHeader.SetSubKind("access-list-subkind")
+	accessList.Spec.Type = "test_bad_type"
 
-	converted, err := FromProto(ToProto(accessList))
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(accessList, converted))
+	_, err := FromProto(ToProto(accessList))
+	require.Error(t, err)
+	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
+	t.Parallel()
+
 	t.Run("spec", func(t *testing.T) {
 		accessList := ToProto(newAccessList(t, "access-list"))
 		accessList.Spec = nil
@@ -117,7 +175,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Audit = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("recurrence", func(t *testing.T) {
@@ -134,30 +192,6 @@ func TestFromProtoNils(t *testing.T) {
 
 		_, err := FromProto(accessList)
 		require.NoError(t, err)
-	})
-
-	t.Run("membership-requires", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.MembershipRequires = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
-	})
-
-	t.Run("ownership-requires", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.OwnershipRequires = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
-	})
-
-	t.Run("grants", func(t *testing.T) {
-		accessList := ToProto(newAccessList(t, "access-list"))
-		accessList.Spec.Grants = nil
-
-		_, err := FromProto(accessList)
-		require.Error(t, err)
 	})
 
 	t.Run("owner_grants", func(t *testing.T) {
@@ -270,4 +304,126 @@ func TestNextAuditDateZeroTime(t *testing.T) {
 	convertedTwice := ToProto(converted)
 
 	require.Nil(t, convertedTwice.Spec.Audit.NextAuditDate)
+}
+
+func TestConvAccessList(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *accesslistv1.AccessList
+	}{
+		{
+			name: "basic conversion",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Title:       "test access list",
+					Description: "test description",
+					Owners: []*accesslistv1.AccessListOwner{
+						{
+							Name: "test-user1",
+						},
+					},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: &accesslistv1.AccessListGrants{
+						Roles: []string{"role1"},
+					},
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+		{
+			name: "nil grants",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Title:       "test access list",
+					Description: "test description",
+					Owners: []*accesslistv1.AccessListOwner{
+						{
+							Name: "test-user1",
+						},
+					},
+					Audit: &accesslistv1.AccessListAudit{
+						Recurrence: &accesslistv1.Recurrence{
+							Frequency:  1,
+							DayOfMonth: 1,
+						},
+						NextAuditDate: &timestamppb.Timestamp{
+							Seconds: 6,
+							Nanos:   1,
+						},
+						Notifications: &accesslistv1.Notifications{
+							Start: &durationpb.Duration{
+								Seconds: 1209600,
+							},
+						},
+					},
+					Grants: nil,
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+		{
+			name: "SCIM, Static access list allows for empty owners",
+			input: &accesslistv1.AccessList{
+				Header: &v1.ResourceHeader{
+					Version: "v1",
+					Kind:    types.KindAccessList,
+					Metadata: &v1.Metadata{
+						Name: "access-list",
+					},
+				},
+				Spec: &accesslistv1.AccessListSpec{
+					Type:        string(accesslist.SCIM),
+					Title:       "test access list",
+					Description: "test description",
+					Owners:      []*accesslistv1.AccessListOwner{},
+					Grants: &accesslistv1.AccessListGrants{
+						Roles: []string{"role1"},
+					},
+				},
+				Status: &accesslistv1.AccessListStatus{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acl, err := FromProto(tt.input)
+			require.NoError(t, err)
+
+			got := ToProto(acl)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.input, got)
+		})
+	}
 }

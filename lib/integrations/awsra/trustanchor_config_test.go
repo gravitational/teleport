@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 )
 
-var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 }
 
@@ -223,7 +223,7 @@ func TestConfigureRolesAnywhereTrustAnchor(t *testing.T) {
 			existingTrustAnchors: []ratypes.TrustAnchorDetail{{
 				Name: aws.String("mytrustanchor"),
 			}},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "is not owned by this integration")
 			},
 		},
@@ -233,7 +233,7 @@ func TestConfigureRolesAnywhereTrustAnchor(t *testing.T) {
 			existingProfiles: []ratypes.ProfileDetail{{
 				Name: aws.String("mysyncprofile"),
 			}},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "is not owned by this integration")
 			},
 		},
@@ -250,9 +250,7 @@ func TestConfigureRolesAnywhereTrustAnchor(t *testing.T) {
 			}
 
 			existingResourceTags := make(map[string][]ratypes.Tag, len(tt.existingRAResourceTags))
-			for resourceARN, resourceTags := range tt.existingRAResourceTags {
-				existingResourceTags[resourceARN] = resourceTags
-			}
+			maps.Copy(existingResourceTags, tt.existingRAResourceTags)
 
 			existingRoles := make(map[string]iamtypes.Role, len(tt.existingRoles))
 			for _, role := range tt.existingRoles {

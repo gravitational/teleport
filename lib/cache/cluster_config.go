@@ -41,6 +41,7 @@ func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind
 
 	return &collection[types.ClusterName, clusterNameIndex]{
 		store: newStore(
+			types.KindClusterName,
 			types.ClusterName.Clone,
 			map[clusterNameIndex]func(types.ClusterName) string{
 				clusterNameDefaultIndex: types.ClusterName.GetName,
@@ -103,6 +104,7 @@ func newClusterAuditConfigCollection(c services.ClusterConfiguration, w types.Wa
 
 	return &collection[types.ClusterAuditConfig, clusterAuditConfigIndex]{
 		store: newStore(
+			types.KindClusterAuditConfig,
 			types.ClusterAuditConfig.Clone,
 			map[clusterAuditConfigIndex]func(types.ClusterAuditConfig) string{
 				clusterAuditConfigNameIndex: types.ClusterAuditConfig.GetName,
@@ -169,6 +171,7 @@ func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w typ
 
 	return &collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]{
 		store: newStore(
+			types.KindClusterNetworkingConfig,
 			types.ClusterNetworkingConfig.Clone,
 			map[clusterNetworkingConfigIndex]func(types.ClusterNetworkingConfig) string{
 				clusterNetworkingConfigNameIndex: types.ClusterNetworkingConfig.GetName,
@@ -231,6 +234,7 @@ func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchK
 
 	return &collection[types.AuthPreference, authPreferenceIndex]{
 		store: newStore(
+			types.KindClusterAuthPreference,
 			types.AuthPreference.Clone,
 			map[authPreferenceIndex]func(types.AuthPreference) string{
 				authPreferenceNameIndex: types.AuthPreference.GetName,
@@ -287,6 +291,7 @@ func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w type
 
 	return &collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]{
 		store: newStore(
+			types.KindSessionRecordingConfig,
 			types.SessionRecordingConfig.Clone,
 			map[sessionRecordingConfigIndex]func(types.SessionRecordingConfig) string{
 				sessionRecordingConfigNameIndex: types.SessionRecordingConfig.GetName,
@@ -343,6 +348,7 @@ func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w 
 
 	return &collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]{
 		store: newStore(
+			types.KindAccessGraphSettings,
 			proto.CloneOf[*clusterconfigv1.AccessGraphSettings],
 			map[accessGraphSettingsIndex]func(*clusterconfigv1.AccessGraphSettings) string{
 				accessGraphSettingsNameIndex: func(r *clusterconfigv1.AccessGraphSettings) string {

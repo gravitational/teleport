@@ -17,10 +17,13 @@
  */
 
 import { Dispatch, SetStateAction } from 'react';
+import styled from 'styled-components';
 
-import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
-import { Add, Trash } from 'design/Icon';
-import { IconTooltip } from 'design/Tooltip';
+import { ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { buttonSizes } from 'design/ButtonIcon';
+import { Cross } from 'design/Icon';
+import { inputGeometry } from 'design/Input/Input';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
@@ -28,11 +31,13 @@ import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AllUserTraits } from 'teleport/services/user';
 
+import { ButtonWithAddIcon } from '../ButtonWithAddIcon';
+
 /**
  * traitsPreset is a list of system defined traits in Teleport.
  * The list is used to populate traits key option.
  */
-const traitsPreset = [
+export const traitsPreset = [
   'aws_role_arns',
   'azure_identities',
   'db_names',
@@ -46,7 +51,7 @@ const traitsPreset = [
   'logins',
   'windows_logins',
   'github_orgs',
-];
+] as const;
 
 /**
  * TraitsEditor supports add, edit or remove traits functionality.
@@ -104,21 +109,42 @@ export function TraitsEditor({
   }
 
   const addLabelText =
-    configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
+    configuredTraits.length > 0 ? 'Add another user trait' : 'Add a user trait';
 
   return (
-    <Box>
-      <Flex gap={2} alignItems="center" mb={2}>
-        <Text typography="body3">{label}</Text>
-        {tooltipContent && <IconTooltip>{tooltipContent}</IconTooltip>}
-      </Flex>
-      <Box>
-        {configuredTraits.map(({ traitKey, traitValues }, index) => {
-          return (
-            <Box mb={-1} key={index}>
-              <Flex alignItems="start">
-                <Box width="290px" minWidth="200px" mr={1}>
+    <Fieldset>
+      {label && (
+        <Legend>
+          <LabelContent tooltipContent={tooltipContent}>{label}</LabelContent>
+        </Legend>
+      )}
+      <LabelTable>
+        <colgroup>
+          {/* Column elements (for styling purposes, see LabelTable styles) */}
+          <col />
+          <col />
+          <col />
+        </colgroup>
+        {configuredTraits.length > 0 && (
+          <thead>
+            <tr>
+              <th scope="col">
+                <LabelContent required>Key</LabelContent>
+              </th>
+              <th scope="col">
+                <LabelContent required>Value</LabelContent>
+              </th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {configuredTraits.map(({ traitKey, traitValues }, index) => {
+            return (
+              <tr key={index}>
+                <td>
                   <FieldSelectCreatable
+                    size={inputSize}
+                    mb={0}
                     stylesConfig={customStyles}
                     data-testid="trait-key"
                     options={traitsPreset.map(r => ({
@@ -129,7 +155,6 @@ export function TraitsEditor({
                     autoFocus
                     isSearchable
                     value={traitKey}
-                    label="Key"
                     rule={requiredAll(
                       requiredField('Trait key is required'),
                       requireNoDuplicateTraits(configuredTraits)
@@ -144,14 +169,15 @@ export function TraitsEditor({
                     createOptionPosition="last"
                     isDisabled={isLoading}
                   />
-                </Box>
-                <Box width="400px" minWidth="200px" ml={3}>
+                </td>
+                <td>
                   <FieldSelectCreatable
+                    size={inputSize}
+                    mb={0}
                     stylesConfig={customStyles}
                     data-testid="trait-value"
                     ariaLabel="trait-values"
                     placeholder="Type a trait value and press enter"
-                    label="Values"
                     isMulti
                     isSearchable
                     isClearable={false}
@@ -169,54 +195,45 @@ export function TraitsEditor({
                     }
                     isDisabled={isLoading}
                   />
-                </Box>
-                <ButtonIcon
-                  ml={1}
-                  size={1}
-                  mt={4}
-                  title="Remove Trait"
-                  aria-label="Remove Trait"
-                  onClick={() => removeTraitPair(index)}
-                  css={`
-                    &:disabled {
-                      opacity: 0.65;
-                      pointer-events: none;
-                    }
-                  `}
-                  disabled={isLoading}
-                >
-                  <Trash size="medium" />
-                </ButtonIcon>
-              </Flex>
-            </Box>
-          );
-        })}
-      </Box>
-      <Box mt={1}>
-        <ButtonBorder
-          onClick={addNewTraitPair}
-          css={`
-            padding-left: 12px;
-            &:disabled {
-              .icon-add {
-                opacity: 0.35;
-              }
-              pointer-events: none;
-            }
-          `}
-          disabled={isLoading}
-        >
-          <Add
-            className="icon-add"
-            size={12}
-            css={`
-              margin-right: 3px;
-            `}
-          />
-          {addLabelText}
-        </ButtonBorder>
-      </Box>
-    </Box>
+                </td>
+                <td>
+                  <Flex
+                    alignItems="center"
+                    height={inputGeometry[inputSize].height}
+                  >
+                    <ButtonIcon
+                      size={buttonIconSize}
+                      title="Remove Trait"
+                      aria-label="Remove Trait"
+                      onClick={() => removeTraitPair(index)}
+                      css={`
+                        &:disabled {
+                          opacity: 0.65;
+                          pointer-events: none;
+                        }
+                      `}
+                      disabled={isLoading}
+                    >
+                      <Cross color="text.muted" size="small" />
+                    </ButtonIcon>
+                  </Flex>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </LabelTable>
+      <ButtonWithAddIcon
+        Button={ButtonSecondary}
+        label={addLabelText}
+        onClick={addNewTraitPair}
+        disabled={isLoading}
+        size="small"
+        pr={3}
+        compact={false}
+        inputAlignment
+      />
+    </Fieldset>
   );
 }
 
@@ -297,3 +314,55 @@ const customStyles = {
     textOverflow: 'ellipsis',
   }),
 };
+
+const inputSize = 'medium';
+const buttonIconSize = 0;
+
+const Legend = styled.legend`
+  margin: 0 0 ${props => props.theme.space[1]}px 0;
+  padding: 0;
+  ${props => props.theme.typography.body3}
+`;
+
+const Fieldset = styled.fieldset`
+  border: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const LabelTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  /*
+   * Using fixed layout seems to be the only way to prevent the internal input
+   * padding from somehow influencing the column width. As the padding is
+   * variable (and reflects the error state), we'd rather avoid column width
+   * changes while editing.
+   */
+  table-layout: fixed;
+
+  & th {
+    padding: 0 0 ${props => props.theme.space[1]}px 0;
+  }
+
+  col:nth-child(3) {
+    /*
+     * The fixed layout is good for stability, but it forces us to explicitly
+     * define the width of the delete button column. Set it to the width of an
+     * icon button.
+     */
+    width: ${buttonSizes[buttonIconSize].width};
+  }
+
+  & td {
+    padding: 0;
+    /* Keep the inputs top-aligned to support error messages */
+    vertical-align: top;
+    padding-bottom: ${props => props.theme.space[2]}px;
+
+    &:nth-child(1),
+    &:nth-child(2) {
+      padding-right: ${props => props.theme.space[2]}px;
+    }
+  }
+`;

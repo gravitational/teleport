@@ -21,9 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -31,19 +35,34 @@ type windowsDesktopServiceIndex string
 
 const windowsDesktopServiceNameIndex windowsDesktopServiceIndex = "name"
 
-func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
-	if p == nil {
+func newWindowsDesktopServiceCollection(upstream services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
+	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
 	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
 		store: newStore(
+			types.KindWindowsDesktopService,
 			types.WindowsDesktopService.Clone,
 			map[windowsDesktopServiceIndex]func(types.WindowsDesktopService) string{
 				windowsDesktopServiceNameIndex: types.WindowsDesktopService.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktopService, error) {
-			return p.GetWindowsDesktopServices(ctx)
+			resources, err := client.GetResourcesWithFilters(ctx, upstream, proto.ListResourcesRequest{ResourceType: types.KindWindowsDesktopService})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			desktopSvcs := make([]types.WindowsDesktopService, 0, len(resources))
+			for _, resource := range resources {
+				desktopSvc, ok := resource.(types.WindowsDesktopService)
+				if !ok {
+					return nil, trace.BadParameter("unexpected resource %T", resource)
+				}
+				desktopSvcs = append(desktopSvcs, desktopSvc)
+			}
+
+			return desktopSvcs, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktopService {
 			return &types.WindowsDesktopServiceV3{
@@ -151,7 +170,12 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 			break
 		}
 
-		resp.DesktopServices = append(resp.DesktopServices, svc.Clone())
+		switch match, err := services.MatchResourceByFilters(svc, filter, nil /* ignore dup matches */); {
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case match:
+			resp.DesktopServices = append(resp.DesktopServices, svc.Clone())
+		}
 	}
 
 	return &resp, nil
@@ -161,13 +185,14 @@ type windowsDesktopIndex string
 
 const windowsDesktopNameIndex windowsDesktopIndex = "name"
 
-func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex], error) {
-	if d == nil {
-		return nil, trace.BadParameter("missing parameter Apps")
+func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter WindowsDesktops")
 	}
 
 	return &collection[types.WindowsDesktop, windowsDesktopIndex]{
 		store: newStore(
+			types.KindWindowsDesktop,
 			types.WindowsDesktop.Copy,
 			map[windowsDesktopIndex]func(types.WindowsDesktop) string{
 				windowsDesktopNameIndex: func(u types.WindowsDesktop) string {
@@ -175,7 +200,33 @@ func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) 
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktop, error) {
-			return d.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+			var start string
+			var desktops []types.WindowsDesktop
+			for {
+				req := types.ListWindowsDesktopsRequest{
+					// A non zero limit is required by older versions.
+					Limit:    defaults.DefaultChunkSize,
+					StartKey: start,
+				}
+
+				resp, err := upstream.ListWindowsDesktops(ctx, req)
+				if err != nil {
+					// TODO(tross): DELETE in V21.0.0
+					if trace.IsNotImplemented(err) {
+						return upstream.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				desktops = append(desktops, resp.Desktops...)
+				start = resp.NextKey
+				if resp.NextKey == "" {
+					break
+				}
+			}
+
+			return desktops, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktop {
 			return &types.WindowsDesktopV3{
@@ -207,9 +258,17 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-
 		desktops, err := c.Config.WindowsDesktops.GetWindowsDesktops(ctx, filter)
 		return desktops, trace.Wrap(err)
+	}
+
+	if filter.HostID != "" && filter.Name != "" {
+		match, err := rg.store.get(windowsDesktopNameIndex, filter.HostID+"/"+filter.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return []types.WindowsDesktop{match}, nil
 	}
 
 	out := make([]types.WindowsDesktop, 0, rg.store.len())
@@ -293,25 +352,14 @@ func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops
 
 	return &collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
 		store: newStore(
+			types.KindDynamicWindowsDesktop,
 			types.DynamicWindowsDesktop.Copy,
 			map[dynamicWindowsDesktopIndex]func(types.DynamicWindowsDesktop) string{
 				dynamicWindowsDesktopNameIndex: types.DynamicWindowsDesktop.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
-			var desktops []types.DynamicWindowsDesktop
-			var next string
-			for {
-				d, token, err := upstream.ListDynamicWindowsDesktops(ctx, 0, next)
-				if err != nil {
-					return nil, err
-				}
-				desktops = append(desktops, d...)
-				if token == "" {
-					break
-				}
-				next = token
-			}
-			return desktops, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListDynamicWindowsDesktops))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.DynamicWindowsDesktop {
 			return &types.DynamicWindowsDesktopV1{

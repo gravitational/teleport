@@ -192,6 +192,9 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// JoinToken contains the name of the join token used when a Machine ID bot
+	// joins. It is empty for other identity types.
+	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -382,6 +385,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:        devExts,
 		BotName:                 id.BotName,
 		BotInstanceID:           id.BotInstanceID,
+		JoinToken:               id.JoinToken,
 	}
 }
 
@@ -580,6 +584,10 @@ var (
 
 	// ADStatusOID is an extension OID used to indicate that we're connecting to AD-joined desktop.
 	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
+
+	// JoinTokenOID is an extension OID that contains the name of the join token
+	// used when a bot joins.
+	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
 )
 
 // Device Trust OIDs.
@@ -886,6 +894,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.JoinToken != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  JoinTokenASN1ExtensionOID,
+				Value: id.JoinToken,
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1173,6 +1189,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.JoinToken = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1244,9 +1265,15 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		}
 	}
 
-	userKind := events.UserKind_USER_KIND_HUMAN
-	if id.BotName != "" {
+	_, systemRoleCheckErr := types.NewTeleportRoles(id.Groups)
+	var userKind events.UserKind
+	switch {
+	case id.BotName != "":
 		userKind = events.UserKind_USER_KIND_BOT
+	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil && len(id.Groups) > 0:
+		userKind = events.UserKind_USER_KIND_SYSTEM
+	default:
+		userKind = events.UserKind_USER_KIND_HUMAN
 	}
 
 	return events.UserMetadata{

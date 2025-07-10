@@ -69,6 +69,7 @@ type AutoUpdateCommand struct {
 	groups             []string
 
 	clear bool
+	force bool
 
 	// used for testing purposes
 	now func() time.Time
@@ -101,6 +102,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 	c.agentsReportCmd = agentsCmd.Command("report", "Aggregates the agent autoupdate reports and displays agent count per version and per update group.")
 	c.agentsStartUpdateCmd = agentsCmd.Command("start-update", "Starts updating one or many groups.")
 	c.agentsStartUpdateCmd.Arg("groups", "Groups to start updating.").StringsVar(&c.groups)
+	c.agentsStartUpdateCmd.Flag("force", "Skips progressive deployment mechanism such as canaries or backpressure.").BoolVar(&c.force)
 	c.agentsMarkDoneCmd = agentsCmd.Command("mark-done", "Marks one or many groups as done updating.")
 	c.agentsMarkDoneCmd.Arg("groups", "Groups to mark as done updating.").StringsVar(&c.groups)
 	c.agentsRollbackCmd = agentsCmd.Command("rollback", "Rolls back one or many groups.")
@@ -401,9 +403,22 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 			if i == len(groups)-1 {
 				groupName = groupName + " (catch-all)"
 			}
+			state := userFriendlyState(group.GetState())
+
+			// If this is the canary state, we annotate the group state with the canary progress
+			if group.GetState() == autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
+				successCount := 0
+				for _, canary := range group.Canaries {
+					if canary.Success {
+						successCount++
+					}
+				}
+				state = fmt.Sprintf("%s (%d/%d)", state, successCount, group.CanaryCount)
+			}
+
 			table.AddRow([]string{
 				groupName,
-				userFriendlyState(group.GetState()),
+				state,
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason(),
 				strconv.FormatUint(groupCount, 10),
@@ -440,7 +455,11 @@ func (c *AutoUpdateCommand) agentsStartUpdateCommand(ctx context.Context, client
 		return trace.BadParameter("no groups specified")
 	}
 
-	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, groups, autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED)
+	state := autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED
+	if c.force {
+		state = autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE
+	}
+	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, groups, state)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -521,6 +540,8 @@ func userFriendlyState[T autoupdatev1pb.AutoUpdateAgentGroupState | autoupdatev1
 		return "Done"
 	case 4:
 		return "Rolledback"
+	case 5:
+		return "Canary"
 	default:
 		// If we don't know anything about this state, we display its integer
 		return fmt.Sprintf("Unknown state (%d)", state)
