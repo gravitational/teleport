@@ -36,11 +36,14 @@ type mcpCommands struct {
 	config  *mcpConfigCommand
 	list    *mcpListCommand
 	connect *mcpConnectCommand
+
+	platformStart *mcpPlatformStartCommand
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 	mcp := app.Command("mcp", "View and control proxied MCP servers.")
 	db := mcp.Command("db", "Database access for MCP servers.")
+	platform := mcp.Command("platform", "MCP servers for Teleport APIs")
 	return &mcpCommands{
 		dbStart:  newMCPDBCommand(db, cf),
 		dbConfig: newMCPDBconfigCommand(db, cf),
@@ -48,6 +51,8 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 		list:    newMCPListCommand(mcp, cf),
 		config:  newMCPConfigCommand(mcp, cf),
 		connect: newMCPConnectCommand(mcp, cf),
+
+		platformStart: newMCPPlatformStartCommand(platform, cf),
 	}
 }
 

@@ -1858,6 +1858,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.list.run()
 	case mcpCmd.config.FullCommand():
 		err = mcpCmd.config.run()
+	case mcpCmd.platformStart.FullCommand():
+		err = mcpCmd.platformStart.run()
 	default:
 		// Handle commands that might not be available.
 		switch {

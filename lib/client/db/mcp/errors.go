@@ -23,17 +23,15 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/utils"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 )
 
 // FormatErrorMessage formats the database MCP error messages.
 // format.
 func FormatErrorMessage(err error) error {
 	switch {
-	case errors.Is(err, apiclient.ErrClientCredentialsHaveExpired) || utils.IsCertExpiredError(err):
-		return trace.BadParameter(ReloginRequiredErrorMessage)
+	case clientmcp.IsSessionExpiredError(err):
+		return trace.BadParameter(clientmcp.ReloginRequiredErrorMessage)
 	case strings.Contains(err.Error(), "connection reset by peer") || errors.Is(err, io.ErrClosedPipe):
 		return trace.BadParameter(LocalProxyConnectionErrorMessage)
 	}
@@ -42,12 +40,6 @@ func FormatErrorMessage(err error) error {
 }
 
 const (
-	// ReloginRequiredErrorMessage is the message returned to the MCP client
-	// when the tsh session expired.
-	ReloginRequiredErrorMessage = `It looks like your Teleport session expired,
-you must relogin (using "tsh login" on a terminal) before continue using this
-tool. After that, there is no need to update or relaunch the MCP client - just
-try using it again.`
 	// LocalProxyConnectionErrorMessage is the message returned to the MCP client when
 	// the database client cannot connect to the local proxy.
 	LocalProxyConnectionErrorMessage = `Teleport MCP server is having issue while
@@ -65,7 +57,7 @@ of databases on the MCP command is correct.`
 var (
 	// WrongDatabaseURIFormatError is the message returned to the MCP client
 	// when it sends a malformed database resource URI.
-	WrongDatabaseURIFormatError = trace.BadParameter("Malformed database resource URI. Database resources must follow the format: %q", mcp.SampleDatabaseResource)
+	WrongDatabaseURIFormatError = trace.BadParameter("Malformed database resource URI. Database resources must follow the format: %q", clientmcp.SampleDatabaseResource)
 	// DatabaseNotFoundError is the message returned to the MCP client when the
 	// requested database is not available as MCP resource.
 	DatabaseNotFoundError = trace.NotFound(`Database not found. Only registered databases
