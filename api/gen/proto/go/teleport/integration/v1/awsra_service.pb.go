@@ -38,18 +38,11 @@ const (
 // AWSRolesAnywherePingRequest is a request for doing an health check against the configured integration.
 type AWSRolesAnywherePingRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Integration is the AWS Roles Anywhere Integration name.
-	// Required if testing an existing integration, otherwise it should be empty and the other fields should be set.
-	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	// The AWS Roles Anywhere Trust Anchor ARN to be used when generating the token.
-	// Required if integration is empty.
-	TrustAnchorArn string `protobuf:"bytes,2,opt,name=trust_anchor_arn,json=trustAnchorArn,proto3" json:"trust_anchor_arn,omitempty"`
-	// The AWS Roles Anywhere Profile ARN to be used when generating the token.
-	// Required if integration is empty.
-	ProfileArn string `protobuf:"bytes,3,opt,name=profile_arn,json=profileArn,proto3" json:"profile_arn,omitempty"`
-	// The AWS Role ARN to be used when generating the token.
-	// Required if integration is empty.
-	RoleArn       string `protobuf:"bytes,4,opt,name=role_arn,json=roleArn,proto3" json:"role_arn,omitempty"`
+	// Types that are valid to be assigned to Mode:
+	//
+	//	*AWSRolesAnywherePingRequest_Integration
+	//	*AWSRolesAnywherePingRequest_Custom
+	Mode          isAWSRolesAnywherePingRequest_Mode `protobuf_oneof:"mode"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -84,28 +77,108 @@ func (*AWSRolesAnywherePingRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{0}
 }
 
+func (x *AWSRolesAnywherePingRequest) GetMode() isAWSRolesAnywherePingRequest_Mode {
+	if x != nil {
+		return x.Mode
+	}
+	return nil
+}
+
 func (x *AWSRolesAnywherePingRequest) GetIntegration() string {
 	if x != nil {
-		return x.Integration
+		if x, ok := x.Mode.(*AWSRolesAnywherePingRequest_Integration); ok {
+			return x.Integration
+		}
 	}
 	return ""
 }
 
-func (x *AWSRolesAnywherePingRequest) GetTrustAnchorArn() string {
+func (x *AWSRolesAnywherePingRequest) GetCustom() *AWSRolesAnywherePingRequestWithoutIntegration {
+	if x != nil {
+		if x, ok := x.Mode.(*AWSRolesAnywherePingRequest_Custom); ok {
+			return x.Custom
+		}
+	}
+	return nil
+}
+
+type isAWSRolesAnywherePingRequest_Mode interface {
+	isAWSRolesAnywherePingRequest_Mode()
+}
+
+type AWSRolesAnywherePingRequest_Integration struct {
+	// Use an integration to perform the Ping operation.
+	Integration string `protobuf:"bytes,1,opt,name=integration,proto3,oneof"`
+}
+
+type AWSRolesAnywherePingRequest_Custom struct {
+	// Use a Trust Anchor, Profile and Role to perform the Ping operation.
+	// This is useful when the integration is not configured.
+	Custom *AWSRolesAnywherePingRequestWithoutIntegration `protobuf:"bytes,2,opt,name=custom,proto3,oneof"`
+}
+
+func (*AWSRolesAnywherePingRequest_Integration) isAWSRolesAnywherePingRequest_Mode() {}
+
+func (*AWSRolesAnywherePingRequest_Custom) isAWSRolesAnywherePingRequest_Mode() {}
+
+// Identifies the Trust Anchor, Profile and Role to use for the Ping operation.
+type AWSRolesAnywherePingRequestWithoutIntegration struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The AWS Roles Anywhere Trust Anchor ARN to be used when generating the token.
+	TrustAnchorArn string `protobuf:"bytes,1,opt,name=trust_anchor_arn,json=trustAnchorArn,proto3" json:"trust_anchor_arn,omitempty"`
+	// The AWS Roles Anywhere Profile ARN to be used when generating the token.
+	ProfileArn string `protobuf:"bytes,3,opt,name=profile_arn,json=profileArn,proto3" json:"profile_arn,omitempty"`
+	// The AWS Role ARN to be used when generating the token.
+	RoleArn       string `protobuf:"bytes,4,opt,name=role_arn,json=roleArn,proto3" json:"role_arn,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) Reset() {
+	*x = AWSRolesAnywherePingRequestWithoutIntegration{}
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWSRolesAnywherePingRequestWithoutIntegration) ProtoMessage() {}
+
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AWSRolesAnywherePingRequestWithoutIntegration.ProtoReflect.Descriptor instead.
+func (*AWSRolesAnywherePingRequestWithoutIntegration) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) GetTrustAnchorArn() string {
 	if x != nil {
 		return x.TrustAnchorArn
 	}
 	return ""
 }
 
-func (x *AWSRolesAnywherePingRequest) GetProfileArn() string {
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) GetProfileArn() string {
 	if x != nil {
 		return x.ProfileArn
 	}
 	return ""
 }
 
-func (x *AWSRolesAnywherePingRequest) GetRoleArn() string {
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) GetRoleArn() string {
 	if x != nil {
 		return x.RoleArn
 	}
@@ -129,7 +202,7 @@ type AWSRolesAnywherePingResponse struct {
 
 func (x *AWSRolesAnywherePingResponse) Reset() {
 	*x = AWSRolesAnywherePingResponse{}
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[1]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -141,7 +214,7 @@ func (x *AWSRolesAnywherePingResponse) String() string {
 func (*AWSRolesAnywherePingResponse) ProtoMessage() {}
 
 func (x *AWSRolesAnywherePingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[1]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -154,7 +227,7 @@ func (x *AWSRolesAnywherePingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AWSRolesAnywherePingResponse.ProtoReflect.Descriptor instead.
 func (*AWSRolesAnywherePingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AWSRolesAnywherePingResponse) GetAccountId() string {
@@ -190,15 +263,17 @@ type ListRolesAnywhereProfilesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Integration is the AWS Roles Anywhere Integration name.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	// NextPageToken is used to paginate the results.
-	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// page_size is the size of the page to request.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// next_page_token is the page token.
+	NextPageToken string `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListRolesAnywhereProfilesRequest) Reset() {
 	*x = ListRolesAnywhereProfilesRequest{}
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[2]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -210,7 +285,7 @@ func (x *ListRolesAnywhereProfilesRequest) String() string {
 func (*ListRolesAnywhereProfilesRequest) ProtoMessage() {}
 
 func (x *ListRolesAnywhereProfilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[2]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -223,7 +298,7 @@ func (x *ListRolesAnywhereProfilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRolesAnywhereProfilesRequest.ProtoReflect.Descriptor instead.
 func (*ListRolesAnywhereProfilesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListRolesAnywhereProfilesRequest) GetIntegration() string {
@@ -231,6 +306,13 @@ func (x *ListRolesAnywhereProfilesRequest) GetIntegration() string {
 		return x.Integration
 	}
 	return ""
+}
+
+func (x *ListRolesAnywhereProfilesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
 }
 
 func (x *ListRolesAnywhereProfilesRequest) GetNextPageToken() string {
@@ -253,7 +335,7 @@ type ListRolesAnywhereProfilesResponse struct {
 
 func (x *ListRolesAnywhereProfilesResponse) Reset() {
 	*x = ListRolesAnywhereProfilesResponse{}
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[3]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -265,7 +347,7 @@ func (x *ListRolesAnywhereProfilesResponse) String() string {
 func (*ListRolesAnywhereProfilesResponse) ProtoMessage() {}
 
 func (x *ListRolesAnywhereProfilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[3]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -278,7 +360,7 @@ func (x *ListRolesAnywhereProfilesResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ListRolesAnywhereProfilesResponse.ProtoReflect.Descriptor instead.
 func (*ListRolesAnywhereProfilesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListRolesAnywhereProfilesResponse) GetProfiles() []*RolesAnywhereProfile {
@@ -316,7 +398,7 @@ type RolesAnywhereProfile struct {
 
 func (x *RolesAnywhereProfile) Reset() {
 	*x = RolesAnywhereProfile{}
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[4]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +410,7 @@ func (x *RolesAnywhereProfile) String() string {
 func (*RolesAnywhereProfile) ProtoMessage() {}
 
 func (x *RolesAnywhereProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[4]
+	mi := &file_teleport_integration_v1_awsra_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +423,7 @@ func (x *RolesAnywhereProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RolesAnywhereProfile.ProtoReflect.Descriptor instead.
 func (*RolesAnywhereProfile) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RolesAnywhereProfile) GetArn() string {
@@ -390,10 +472,13 @@ var File_teleport_integration_v1_awsra_service_proto protoreflect.FileDescriptor
 
 const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/integration/v1/awsra_service.proto\x12\x17teleport.integration.v1\"\xa5\x01\n" +
-	"\x1bAWSRolesAnywherePingRequest\x12 \n" +
-	"\vintegration\x18\x01 \x01(\tR\vintegration\x12(\n" +
-	"\x10trust_anchor_arn\x18\x02 \x01(\tR\x0etrustAnchorArn\x12\x1f\n" +
+	"+teleport/integration/v1/awsra_service.proto\x12\x17teleport.integration.v1\"\xab\x01\n" +
+	"\x1bAWSRolesAnywherePingRequest\x12\"\n" +
+	"\vintegration\x18\x01 \x01(\tH\x00R\vintegration\x12`\n" +
+	"\x06custom\x18\x02 \x01(\v2F.teleport.integration.v1.AWSRolesAnywherePingRequestWithoutIntegrationH\x00R\x06customB\x06\n" +
+	"\x04mode\"\x95\x01\n" +
+	"-AWSRolesAnywherePingRequestWithoutIntegration\x12(\n" +
+	"\x10trust_anchor_arn\x18\x01 \x01(\tR\x0etrustAnchorArn\x12\x1f\n" +
 	"\vprofile_arn\x18\x03 \x01(\tR\n" +
 	"profileArn\x12\x19\n" +
 	"\brole_arn\x18\x04 \x01(\tR\aroleArn\"\x8d\x01\n" +
@@ -402,10 +487,11 @@ const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12#\n" +
-	"\rprofile_count\x18\x04 \x01(\x05R\fprofileCount\"l\n" +
+	"\rprofile_count\x18\x04 \x01(\x05R\fprofileCount\"\x89\x01\n" +
 	" ListRolesAnywhereProfilesRequest\x12 \n" +
-	"\vintegration\x18\x01 \x01(\tR\vintegration\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x96\x01\n" +
+	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12&\n" +
+	"\x0fnext_page_token\x18\x03 \x01(\tR\rnextPageToken\"\x96\x01\n" +
 	"!ListRolesAnywhereProfilesResponse\x12I\n" +
 	"\bprofiles\x18\x01 \x03(\v2-.teleport.integration.v1.RolesAnywhereProfileR\bprofiles\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xab\x02\n" +
@@ -435,27 +521,29 @@ func file_teleport_integration_v1_awsra_service_proto_rawDescGZIP() []byte {
 	return file_teleport_integration_v1_awsra_service_proto_rawDescData
 }
 
-var file_teleport_integration_v1_awsra_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_integration_v1_awsra_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_integration_v1_awsra_service_proto_goTypes = []any{
-	(*AWSRolesAnywherePingRequest)(nil),       // 0: teleport.integration.v1.AWSRolesAnywherePingRequest
-	(*AWSRolesAnywherePingResponse)(nil),      // 1: teleport.integration.v1.AWSRolesAnywherePingResponse
-	(*ListRolesAnywhereProfilesRequest)(nil),  // 2: teleport.integration.v1.ListRolesAnywhereProfilesRequest
-	(*ListRolesAnywhereProfilesResponse)(nil), // 3: teleport.integration.v1.ListRolesAnywhereProfilesResponse
-	(*RolesAnywhereProfile)(nil),              // 4: teleport.integration.v1.RolesAnywhereProfile
-	nil,                                       // 5: teleport.integration.v1.RolesAnywhereProfile.TagsEntry
+	(*AWSRolesAnywherePingRequest)(nil),                   // 0: teleport.integration.v1.AWSRolesAnywherePingRequest
+	(*AWSRolesAnywherePingRequestWithoutIntegration)(nil), // 1: teleport.integration.v1.AWSRolesAnywherePingRequestWithoutIntegration
+	(*AWSRolesAnywherePingResponse)(nil),                  // 2: teleport.integration.v1.AWSRolesAnywherePingResponse
+	(*ListRolesAnywhereProfilesRequest)(nil),              // 3: teleport.integration.v1.ListRolesAnywhereProfilesRequest
+	(*ListRolesAnywhereProfilesResponse)(nil),             // 4: teleport.integration.v1.ListRolesAnywhereProfilesResponse
+	(*RolesAnywhereProfile)(nil),                          // 5: teleport.integration.v1.RolesAnywhereProfile
+	nil,                                                   // 6: teleport.integration.v1.RolesAnywhereProfile.TagsEntry
 }
 var file_teleport_integration_v1_awsra_service_proto_depIdxs = []int32{
-	4, // 0: teleport.integration.v1.ListRolesAnywhereProfilesResponse.profiles:type_name -> teleport.integration.v1.RolesAnywhereProfile
-	5, // 1: teleport.integration.v1.RolesAnywhereProfile.tags:type_name -> teleport.integration.v1.RolesAnywhereProfile.TagsEntry
-	0, // 2: teleport.integration.v1.AWSRolesAnywhereService.AWSRolesAnywherePing:input_type -> teleport.integration.v1.AWSRolesAnywherePingRequest
-	2, // 3: teleport.integration.v1.AWSRolesAnywhereService.ListRolesAnywhereProfiles:input_type -> teleport.integration.v1.ListRolesAnywhereProfilesRequest
-	1, // 4: teleport.integration.v1.AWSRolesAnywhereService.AWSRolesAnywherePing:output_type -> teleport.integration.v1.AWSRolesAnywherePingResponse
-	3, // 5: teleport.integration.v1.AWSRolesAnywhereService.ListRolesAnywhereProfiles:output_type -> teleport.integration.v1.ListRolesAnywhereProfilesResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 0: teleport.integration.v1.AWSRolesAnywherePingRequest.custom:type_name -> teleport.integration.v1.AWSRolesAnywherePingRequestWithoutIntegration
+	5, // 1: teleport.integration.v1.ListRolesAnywhereProfilesResponse.profiles:type_name -> teleport.integration.v1.RolesAnywhereProfile
+	6, // 2: teleport.integration.v1.RolesAnywhereProfile.tags:type_name -> teleport.integration.v1.RolesAnywhereProfile.TagsEntry
+	0, // 3: teleport.integration.v1.AWSRolesAnywhereService.AWSRolesAnywherePing:input_type -> teleport.integration.v1.AWSRolesAnywherePingRequest
+	3, // 4: teleport.integration.v1.AWSRolesAnywhereService.ListRolesAnywhereProfiles:input_type -> teleport.integration.v1.ListRolesAnywhereProfilesRequest
+	2, // 5: teleport.integration.v1.AWSRolesAnywhereService.AWSRolesAnywherePing:output_type -> teleport.integration.v1.AWSRolesAnywherePingResponse
+	4, // 6: teleport.integration.v1.AWSRolesAnywhereService.ListRolesAnywhereProfiles:output_type -> teleport.integration.v1.ListRolesAnywhereProfilesResponse
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_integration_v1_awsra_service_proto_init() }
@@ -463,13 +551,17 @@ func file_teleport_integration_v1_awsra_service_proto_init() {
 	if File_teleport_integration_v1_awsra_service_proto != nil {
 		return
 	}
+	file_teleport_integration_v1_awsra_service_proto_msgTypes[0].OneofWrappers = []any{
+		(*AWSRolesAnywherePingRequest_Integration)(nil),
+		(*AWSRolesAnywherePingRequest_Custom)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_awsra_service_proto_rawDesc), len(file_teleport_integration_v1_awsra_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
