@@ -26,7 +26,7 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-func TestRemoteOSConfigProvider(t *testing.T) {
+func TestOSConfigProvider(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {
 		desc                 string
@@ -101,7 +101,7 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 			}
 			// Keep track of new DNS addresses the osConfigProvider tried to add.
 			var addedDNSAddrs []string
-			remoteOSConfigProvider, err := newRemoteOSConfigProvider(remoteOSConfigProviderConfig{
+			osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 				clt:        targetOSConfigGetter,
 				tunName:    tc.tunName,
 				ipv6Prefix: tc.ipv6Prefix,
@@ -113,7 +113,7 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			targetOSConfig, err := remoteOSConfigProvider.targetOSConfig(ctx)
+			targetOSConfig, err := osConfigProvider.targetOSConfig(ctx)
 			if tc.expectErr != nil {
 				require.ErrorIs(t, err, tc.expectErr)
 				return
