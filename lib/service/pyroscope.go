@@ -87,7 +87,6 @@ func (rt roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	threshold := rt.timeout * 90 / 100
 	if duration > threshold {
 		rt.logger.DebugContext(req.Context(), "Pyroscope upload exceeded threshold", "upload_duration", duration, "upload_threshold", threshold, "upload_url", logutils.StringerAttr(req.URL))
-			duration, threshold, req.URL.String())
 	}
 
 	return resp, err
