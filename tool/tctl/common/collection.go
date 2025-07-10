@@ -1626,15 +1626,16 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
 	// using gogo/jsonpb for the type.
 	const (
-		credOauth2AccessToken             = "oauth2_access_token"
-		credBearerToken                   = "bearer_token"
-		credIdSecret                      = "id_secret"
-		credStaticCredentialsRef          = "static_credentials_ref"
-		settingsSlackAccessPlugin         = "slack_access_plugin"
-		settingsOpsgenie                  = "opsgenie"
-		settingsOpenAI                    = "openai"
-		settingsOkta                      = "okta"
-		settingsJamf                      = "jamf"
+		credOauth2AccessToken     = "oauth2_access_token"
+		credBearerToken           = "bearer_token"
+		credIdSecret              = "id_secret"
+		credStaticCredentialsRef  = "static_credentials_ref"
+		settingsSlackAccessPlugin = "slack_access_plugin"
+		settingsOpsgenie          = "opsgenie"
+		settingsOpenAI            = "openai"
+		settingsOkta              = "okta"
+		settingsJamf              = "jamf"
+		// TODO: Add support for intune here.
 		settingsPagerDuty                 = "pager_duty"
 		settingsMattermost                = "mattermost"
 		settingsJira                      = "jira"

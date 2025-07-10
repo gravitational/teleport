@@ -6896,6 +6896,8 @@ message PluginSpecV1 {
     PluginNetIQSettings net_iq = 19;
     // Settings for the GitHub plugin.
     PluginGithubSettings github = 20;
+    // Settings for the Intune plugin.
+    PluginIntuneSettings intune = 21;
 
     // Note: If you add a new settings type, please also update the custom JSON for oneof filed
     // in the `tctl get/edit plugin` plugin command. You can find it in:
@@ -7032,6 +7034,14 @@ message PluginJamfSettings {
   option (gogoproto.equal) = true;
   // Jamf service spec
   JamfSpecV1 jamf_spec = 1;
+}
+
+// Defines settings for Intune plugin.
+message PluginIntuneSettings {
+  option (gogoproto.equal) = true;
+
+  // TODO: Comment.
+  string tenant = 1;
 }
 
 // Defines settings for the Okta plugin.
