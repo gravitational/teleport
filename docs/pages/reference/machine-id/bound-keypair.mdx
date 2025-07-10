@@ -315,6 +315,7 @@ consider these use cases:
 
   While this approach makes downtime likely, it does ensure a human verifies the
   state of the bot node on each recovery.
+
 - If you want human intervention for each recovery, but want to avoid downtime,
   you can increase this value by 2. The first attempt will be consumed
   immediately, but the bot will have one recovery attempt for automatic future
@@ -322,6 +323,7 @@ consider these use cases:
 
   A human user can periodically audit the recovery count and bot node to ensure
   a recovery attempt is always available and the node is behaving as expected.
+
 - Any larger value will increase the amount of time required between human
   intervention. You can select your tolerance for automatic bot recoveries as
   desired.
@@ -559,7 +561,7 @@ of the previous 10 keypairs. This means server-side recovery may impossible if
 the keypair expected by the restored Teleport cluster has been rotated out of
 the client-side history, or if the client-side history has been lost or deleted.
 
-[ephemeral]: ../architecture/machine-id-architecture.mdx#ephemeral
+[ephemeral]: ../architecture/machine-id-architecture.mdx#ephemeral-token
 [dynamic]: ../architecture/machine-id-architecture.mdx#dynamic-join-tokens-eg-aws-iam
 [rbac]: ../access-controls/roles.mdx
 [token]: ../join-methods.mdx#ephemeral-tokens
