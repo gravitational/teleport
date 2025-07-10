@@ -27,7 +27,7 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     return {
       backgroundColor: theme.colors.spotBackground[0],
       color: theme.colors.text.main,
-      fontWeight: 400,
+      fontWeight: theme.fontWeights.regular,
     };
   }
 
@@ -59,7 +59,7 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
       borderStyle: 'solid',
       backgroundColor: 'transparent',
       color: theme.colors.text.main,
-      fontWeight: 400,
+      fontWeight: theme.fontWeights.regular,
     };
   }
 

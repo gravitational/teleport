@@ -37,14 +37,20 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { EditBotRequest } from 'teleport/services/bot/types';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
-import { getBotError, getBotSuccess } from 'teleport/test/helpers/bots';
+import {
+  editBotSuccess,
+  getBotError,
+  getBotSuccess,
+} from 'teleport/test/helpers/bots';
+import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { BotDetails } from './BotDetails';
 
 const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
   server.listen();
 });
 
@@ -100,7 +106,7 @@ describe('BotDetails', () => {
     const pageHeader = screen.getByTestId('page-header');
     expect(pageHeader).toBeInTheDocument();
 
-    expect(within(pageHeader).getByText('test-bot')).toBeInTheDocument();
+    expect(within(pageHeader).getByText('test-bot-name')).toBeInTheDocument();
   });
 
   it('should show bot metadata', async () => {
@@ -113,7 +119,7 @@ describe('BotDetails', () => {
       .closest('section');
     expect(panel).toBeInTheDocument();
 
-    expect(within(panel!).getByText('test-bot')).toBeInTheDocument();
+    expect(within(panel!).getByText('test-bot-name')).toBeInTheDocument();
     expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
@@ -148,27 +154,141 @@ describe('BotDetails', () => {
   });
 
   it('should show an unauthorised error state', async () => {
-    render(<BotDetails />, {
-      wrapper: makeWrapper({
-        customAcl: makeAcl({
-          bots: {
-            ...defaultAccess,
-            read: false,
-          },
-        }),
+    renderComponent({
+      customAcl: makeAcl({
+        bots: {
+          ...defaultAccess,
+          read: false,
+        },
       }),
     });
     expect(
-      screen.getByText('You do not have permission to view this bot.')
+      screen.getByText('You do not have permission to view this bot.', {
+        exact: false,
+      })
     ).toBeInTheDocument();
+  });
+
+  describe('Edit', () => {
+    it('should disable edit action if no edit permission', async () => {
+      withFetchSuccess();
+      renderComponent({
+        customAcl: makeAcl({
+          bots: {
+            ...defaultAccess,
+            read: true,
+          },
+        }),
+      });
+      await waitForLoading();
+
+      expect(screen.getByText('Edit Bot')).toBeDisabled();
+      expect(screen.getByText('Edit')).toBeDisabled();
+    });
+
+    it('should show edit form on edit action', async () => {
+      withFetchSuccess();
+      renderComponent();
+      await waitForLoading();
+
+      withFetchRolesSuccess();
+      const editButton = screen.getByRole('button', { name: 'Edit Bot' });
+      fireEvent.click(editButton);
+
+      expect(
+        screen.getByText('Bot name cannot be changed')
+      ).toBeInTheDocument();
+
+      const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+      fireEvent.click(cancelButton);
+
+      expect(
+        screen.queryByText('Bot name cannot be changed')
+      ).not.toBeInTheDocument();
+    });
+
+    it("should update the bot's details on edit success", async () => {
+      withFetchSuccess();
+      renderComponent();
+      await waitForLoading();
+
+      let configPanel = screen
+        .getByRole('heading', { name: 'Metadata' })
+        .closest('section');
+      expect(configPanel).toBeInTheDocument();
+      expect(within(configPanel!).getByText('12h')).toBeInTheDocument();
+
+      let rolesPanel = screen
+        .getByRole('heading', { name: 'Roles' })
+        .closest('section');
+      expect(rolesPanel).toBeInTheDocument();
+      expect(within(rolesPanel!).getByText('admin')).toBeInTheDocument();
+      expect(within(rolesPanel!).getByText('user')).toBeInTheDocument();
+
+      let traitsPanel = screen
+        .getByRole('heading', { name: 'Traits' })
+        .closest('section');
+      expect(traitsPanel).toBeInTheDocument();
+      expect(within(traitsPanel!).getByText('trait-1')).toBeInTheDocument();
+      expect(within(traitsPanel!).getByText('value-1')).toBeInTheDocument();
+      expect(within(traitsPanel!).getByText('value-2')).toBeInTheDocument();
+      expect(within(traitsPanel!).getByText('value-3')).toBeInTheDocument();
+
+      withFetchRolesSuccess();
+      const editButton = screen.getByRole('button', { name: 'Edit Bot' });
+      fireEvent.click(editButton);
+
+      // Change something to enable the save button
+      await inputMaxSessionDuration('12h 30m');
+
+      withSaveSuccess(2, {
+        roles: ['role-1'],
+        traits: [
+          {
+            name: 'trait-2',
+            values: ['value-3'],
+          },
+        ],
+        max_session_ttl: '12h30m',
+      });
+      const saveButton = screen.getByRole('button', { name: 'Save' });
+      fireEvent.click(saveButton);
+      await waitForElementToBeRemoved(() =>
+        screen.queryByRole('button', { name: 'Save' })
+      );
+
+      configPanel = screen
+        .getByRole('heading', { name: 'Metadata' })
+        .closest('section');
+      expect(configPanel).toBeInTheDocument();
+      expect(within(configPanel!).getByText('12h 30m')).toBeInTheDocument();
+
+      rolesPanel = screen
+        .getByRole('heading', { name: 'Roles' })
+        .closest('section');
+      expect(rolesPanel).toBeInTheDocument();
+      expect(within(rolesPanel!).getByText('role-1')).toBeInTheDocument();
+
+      traitsPanel = screen
+        .getByRole('heading', { name: 'Traits' })
+        .closest('section');
+      expect(traitsPanel).toBeInTheDocument();
+      expect(within(traitsPanel!).getByText('trait-2')).toBeInTheDocument();
+      expect(within(traitsPanel!).getByText('value-3')).toBeInTheDocument();
+    });
   });
 });
 
-const renderComponent = async (options?: {
+async function inputMaxSessionDuration(duration: string) {
+  const ttlInput = screen.getByLabelText('Max session duration');
+  fireEvent.change(ttlInput, { target: { value: duration } });
+}
+
+const renderComponent = (options?: {
   history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
-  render(<BotDetails />, {
+  return render(<BotDetails />, {
     wrapper: makeWrapper(options),
   });
 };
@@ -181,35 +301,25 @@ const withFetchError = (status = 500, message = 'something went wrong') => {
   server.use(getBotError(status, message));
 };
 
-const withFetchSuccess = async () => {
+const withFetchSuccess = () => {
+  server.use(getBotSuccess());
+};
+
+const withSaveSuccess = (
+  version: 1 | 2 = 2,
+  overrides?: Partial<EditBotRequest>
+) => {
+  server.use(editBotSuccess(version, overrides));
+};
+
+function withFetchRolesSuccess() {
   server.use(
-    getBotSuccess({
-      status: 'active',
-      kind: 'bot',
-      subKind: '',
-      version: 'v1',
-      metadata: {
-        name: 'test-bot',
-        description: '',
-        labels: new Map(),
-        namespace: '',
-        revision: '',
-      },
-      spec: {
-        roles: ['admin', 'user'],
-        traits: [
-          {
-            name: 'trait-1',
-            values: ['value-1', 'value-2', 'value-3'],
-          },
-        ],
-        max_session_ttl: {
-          seconds: 43200,
-        },
-      },
+    successGetRoles({
+      items: [],
+      startKey: '',
     })
   );
-};
+}
 
 function makeWrapper(options?: {
   history?: ReturnType<typeof createMemoryHistory>;
@@ -223,6 +333,11 @@ function makeWrapper(options?: {
       bots: {
         ...defaultAccess,
         read: true,
+        edit: true,
+      },
+      roles: {
+        ...defaultAccess,
+        list: true,
       },
     }),
   } = options ?? {};

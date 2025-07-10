@@ -32,6 +32,7 @@ export function Panel(
       label: string;
       onClick: () => void;
       icon?: ReactNode;
+      disabled?: boolean;
     };
     testId?: string;
   }
@@ -49,7 +50,7 @@ export function Panel(
             {title}
           </Text>
           {action ? (
-            <ActionButton onClick={action.onClick}>
+            <ActionButton onClick={action.onClick} disabled={action.disabled}>
               {action.icon}
               {action.label}
             </ActionButton>
