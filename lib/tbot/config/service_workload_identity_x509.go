@@ -108,8 +108,8 @@ func (o *WorkloadIdentityX509Service) CheckAndSetDefaults() error {
 }
 
 // Describe returns the file descriptions for the WorkloadIdentityX509Service.
-func (o *WorkloadIdentityX509Service) Describe() []FileDescription {
-	fds := []FileDescription{
+func (o *WorkloadIdentityX509Service) Describe() []bot.FileDescription {
+	fds := []bot.FileDescription{
 		{
 			Name: SVIDPEMPath,
 		},

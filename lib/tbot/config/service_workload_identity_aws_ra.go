@@ -159,8 +159,8 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 }
 
 // Describe returns the file descriptions for the WorkloadIdentityJWTService.
-func (o *WorkloadIdentityAWSRAService) Describe() []FileDescription {
-	fds := []FileDescription{
+func (o *WorkloadIdentityAWSRAService) Describe() []bot.FileDescription {
+	fds := []bot.FileDescription{
 		{
 			Name: JWTSVIDPath,
 		},

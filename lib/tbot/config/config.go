@@ -479,7 +479,7 @@ func (ctx unmarshalConfigContext) UnmarshalDestination(node *yaml.Node) (destina
 type Initable interface {
 	GetDestination() destination.Destination
 	Init(ctx context.Context) error
-	Describe() []FileDescription
+	Describe() []bot.FileDescription
 }
 
 func (conf *BotConfig) GetInitables() []Initable {
