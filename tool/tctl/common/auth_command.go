@@ -576,7 +576,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 	}
 
 	if certType == types.DatabaseClientCA && len(results) > 1 {
-		fmt.Fprintln(os.Stderr, "To publish CRLs use commands:")
+		fmt.Fprintln(os.Stderr, "To publish CRLs, run the following in Windows:")
 		for _, command := range commands {
 			fmt.Fprintln(os.Stderr, command)
 		}
