@@ -37,6 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -126,9 +127,9 @@ type ProtoStreamerConfig struct {
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
-	// CompletionHook is a function that will be called when an upload is
-	// completed.
-	CompletionHook UploadCompletionHook
+	// Summarizer is used to summarize the session recording. It can be nil if
+	// summarization is not needed.
+	Summarizer summarizerv1.SummarizerService
 }
 
 // UploadCompletionHook is a function to be called after an upload is
@@ -187,7 +188,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ForceFlush:        s.cfg.ForceFlush,
 		RetryConfig:       s.cfg.RetryConfig,
 		Encrypter:         s.cfg.Encrypter,
-		CompletionHook:    s.cfg.CompletionHook,
+		Summarizer:        s.cfg.Summarizer,
 	})
 }
 
@@ -218,7 +219,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts: parts,
 		RetryConfig:    s.cfg.RetryConfig,
 		Encrypter:      s.cfg.Encrypter,
-		CompletionHook: s.cfg.CompletionHook,
+		Summarizer:     s.cfg.Summarizer,
 	})
 }
 
@@ -253,9 +254,9 @@ type ProtoStreamConfig struct {
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
-	// CompletionHook is a function that will be called when this upload is
-	// completed.
-	CompletionHook UploadCompletionHook
+	// Summarizer is used to summarize the session recording. It can be nil if
+	// summarization is not needed.
+	Summarizer summarizerv1.SummarizerService
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -565,7 +566,7 @@ type sliceWriter struct {
 	// nil if the stream hasn't ended yet, and it may also be nil if the stream
 	// picked up after an auth server start from a point where the session end
 	// event has already been uploaded. If captured, it will be passed to the
-	// upload completion hook.
+	// summarizer.
 	sessionEndEvent *apievents.OneOf
 }
 
@@ -789,16 +790,16 @@ func (w *sliceWriter) submitEvent(event protoEvent) error {
 // completeStream waits for in-flight uploads to finish
 // and completes the stream
 func (w *sliceWriter) completeStream() {
+	log := slog.With(
+		"upload", w.proto.cfg.Upload.ID,
+		"session", w.proto.cfg.Upload.SessionID,
+	)
 	for range w.activeUploads {
 		select {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Failed to upload part",
-					"error", err,
-					"upload", w.proto.cfg.Upload.ID,
-					"session", w.proto.cfg.Upload.SessionID,
-				)
+				log.WarnContext(w.proto.cancelCtx, "Failed to upload part", "error", err)
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -814,22 +815,16 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload",
-				"error", err,
-				"upload", w.proto.cfg.Upload.ID,
-				"session", w.proto.cfg.Upload.SessionID,
-			)
+			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+			return
 		}
 
-		if w.proto.cfg.CompletionHook != nil {
-			err := trace.Wrap(w.proto.cfg.CompletionHook(
-				w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent))
-			if err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Completion hook failed",
-					"error", err,
-					"upload", w.proto.cfg.Upload.ID,
-					"session", w.proto.cfg.Upload.SessionID,
-				)
+		if w.proto.cfg.Summarizer != nil {
+			if err = w.proto.cfg.Summarizer.Summarize(
+				w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent,
+			); err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
+				return
 			}
 		}
 	}

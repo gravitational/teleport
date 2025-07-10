@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -124,7 +125,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -471,12 +471,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
-	if cfg.Summarizer == nil {
+	if cfg.SummarizerResources == nil {
 		summarizer, err := local.NewSummarizerService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
 		}
-		cfg.Summarizer = summarizer
+		cfg.SummarizerResources = summarizer
+	}
+	if cfg.SummarizerWrapper == nil {
+		cfg.SummarizerWrapper = summarizerv1.NewSummarizerWrapper()
 	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
@@ -605,7 +608,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
-		Summarizer:                      cfg.Summarizer,
+		SummarizerResources:             cfg.SummarizerResources,
 	}
 
 	as := Server{
@@ -629,6 +632,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 		logger:                  cfg.Logger,
+		summarizerWrapper:       cfg.SummarizerWrapper,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -847,7 +851,7 @@ type Services struct {
 	services.VnetConfigService
 	RecordingEncryptionManager
 	events.MultipartHandler
-	services.Summarizer
+	services.SummarizerResources
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1216,12 +1220,6 @@ type Server struct {
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
 
-	// uploadCompletionHooksMu is a mutex to protect the [uploadCompletionHooks].
-	uploadCompletionHooksMu sync.RWMutex
-	// uploadCompletionHooks are a list of hooks that will be called when a
-	// session recording upload completes.
-	uploadCompletionHooks []events.UploadCompletionHook
-
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
@@ -1264,6 +1262,11 @@ type Server struct {
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
+
+	// summarizerWrapper is a wrapper around the summarizer service. It is used
+	// to set the summarizer instance used by the streamer after the streamer has
+	// been created. The summarizer itself summarizes session recordings.
+	summarizerWrapper *summarizerv1.SummarizerWrapper
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1354,48 +1357,12 @@ func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Unlock()
 }
 
-// RegisterUploadCompletionHook registers a hook that will be called when a
-// session recording upload completes.
-func (a *Server) RegisterUploadCompletionHook(hook events.UploadCompletionHook) {
-	a.uploadCompletionHooksMu.Lock()
-	defer a.uploadCompletionHooksMu.Unlock()
-	a.uploadCompletionHooks = append(a.uploadCompletionHooks, hook)
-}
-
-// CallUploadCompletionHooks calls the registered upload completion hooks for a
-// given session. The sessionEndEvent parameter is optional, but should be
-// specified if possible, as it may be used to skip reading the event stream.
-// If it is not an event that indicates end of a session, this function will
-// fail with an error. If any hook fails with an error, this function will
-// continue to call other hooks. It then returns an aggregate of all errors
-// returned by the hooks.
-func (a *Server) CallUploadCompletionHooks(
-	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
-) error {
-	if sessionEndEvent != nil && !events.IsSessionEndEvent(sessionEndEvent) {
-		return trace.BadParameter(
-			"sessionEndEvent has to be an event that indicates end of a session, got %T",
-			sessionEndEvent,
-		)
-	}
-	completionHooks := a.getUploadCompletionHooks()
-	if len(completionHooks) == 0 {
-		return nil
-	}
-
-	var errs []error
-	for _, hook := range completionHooks {
-		errs = append(errs, trace.Wrap(hook(ctx, sessionID, sessionEndEvent)))
-	}
-
-	return trace.NewAggregate(errs...)
-}
-
-// getUploadCompletionHooks returns a copy of the upload completion hooks.
-func (a *Server) getUploadCompletionHooks() []events.UploadCompletionHook {
-	a.uploadCompletionHooksMu.RLock()
-	defer a.uploadCompletionHooksMu.RUnlock()
-	return slices.Clone(a.uploadCompletionHooks)
+// SetSummarizerService sets an implementation of the summarizer service used
+// by this server and its underlying services.
+func (a *Server) SetSummarizerService(s summarizerv1.SummarizerService) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.summarizerWrapper.SummarizerService = s
 }
 
 // CloseContext returns the close context

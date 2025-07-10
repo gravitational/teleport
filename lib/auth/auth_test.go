@@ -82,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -5096,91 +5095,4 @@ func TestCreateAuthPreference(t *testing.T) {
 			test.assertion(t, created, err)
 		})
 	}
-}
-
-func TestCallsRegisteredUploadHooks(t *testing.T) {
-	server, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, server.Close()) })
-
-	// Register two upload completion hooks.
-	endEvent := &apievents.OneOf{Event: &apievents.OneOf_SessionEnd{SessionEnd: &apievents.SessionEnd{}}}
-	called1 := false
-	called2 := false
-	// The first hook will return an error in session 1.
-	server.AuthServer.RegisterUploadCompletionHook(
-		func(ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf) error {
-			called1 = true
-
-			if sessionID != "session3" {
-				assert.Equal(t, endEvent, sessionEndEvent, "session end event should match")
-			} else {
-				assert.Nil(t, sessionEndEvent, "session end event should be nil for session3")
-			}
-
-			switch string(sessionID) {
-			case "session1":
-				return errors.New("oops")
-			case "session2", "session3":
-				return nil
-			default:
-				assert.Fail(t, "session ID should match")
-				return nil
-			}
-		})
-	// The second hook will always succeed.
-	server.AuthServer.RegisterUploadCompletionHook(
-		func(ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf) error {
-			called2 = true
-
-			if sessionID != "session3" {
-				assert.Equal(t, endEvent, sessionEndEvent, "session end event should match")
-			} else {
-				assert.Nil(t, sessionEndEvent, "session end event should be nil for session3")
-			}
-
-			switch string(sessionID) {
-			case "session1", "session2", "session3": // OK
-			default:
-				assert.Fail(t, "session ID should match")
-			}
-			return nil
-		})
-
-	// Call the hooks, one of them should fail.
-	err = server.AuthServer.CallUploadCompletionHooks(context.Background(), session.ID("session1"), endEvent)
-	assert.EqualError(t, err, "oops", "error from first hook should be returned")
-	assert.True(t, called1, "first hook should have been called")
-	assert.True(t, called2, "second hook should have been called")
-
-	// Call the hooks, both should succeed.
-	called1 = false
-	called2 = false
-	err = server.AuthServer.CallUploadCompletionHooks(context.Background(), session.ID("session2"), endEvent)
-	assert.NoError(t, err)
-	assert.True(t, called1, "first hook should have been called")
-	assert.True(t, called2, "second hook should have been called")
-
-	// Attempt to call the hooks with an illegal event type, none of them should
-	// be called.
-	called1 = false
-	called2 = false
-	err = server.AuthServer.CallUploadCompletionHooks(
-		context.Background(),
-		session.ID("session2"),
-		&apievents.OneOf{
-			Event: &apievents.OneOf_ClientDisconnect{ClientDisconnect: &apievents.ClientDisconnect{}},
-		},
-	)
-	assert.Error(t, err)
-	assert.False(t, called1, "first hook should not have been called")
-	assert.False(t, called2, "second hook should not have been called")
-
-	// Call the hooks with a nil event, both should succeed.
-	called1 = false
-	called2 = false
-	err = server.AuthServer.CallUploadCompletionHooks(context.Background(), session.ID("session3"), nil)
-	assert.NoError(t, err)
-	assert.True(t, called1, "first hook should have been called")
-	assert.True(t, called2, "second hook should have been called")
 }

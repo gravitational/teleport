@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// summarizerService implements the [services.Summarizer] interface and manages
+// summarizerService implements the [services.SummarizerResources] interface and manages
 // summarization configuration resources in the backend.
 type summarizerService struct {
 	modelService  *generic.ServiceWrapper[*summarizerv1.InferenceModel]
@@ -36,7 +36,7 @@ type summarizerService struct {
 	policyService *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
 }
 
-var _ services.Summarizer = (*summarizerService)(nil)
+var _ services.SummarizerResources = (*summarizerService)(nil)
 
 func (s *summarizerService) CreateInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
@@ -174,7 +174,7 @@ const (
 
 // NewSummarizerService returns a service that manages summarization
 // configuration resources in the backend.
-func NewSummarizerService(b backend.Backend) (services.Summarizer, error) {
+func NewSummarizerService(b backend.Backend) (services.SummarizerResources, error) {
 	modelService, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*summarizerv1.InferenceModel]{
 			Backend:       b,

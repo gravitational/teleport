@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -392,8 +393,13 @@ type InitConfig struct {
 	// MultipartHandler handles multipart uploads.
 	MultipartHandler events.MultipartHandler
 
-	// Summarizer manages summarization inference configuration resources.
-	Summarizer services.Summarizer
+	// SummarizerResources manages summarization inference configuration resources.
+	SummarizerResources services.SummarizerResources
+
+	// SummarizerWrapper is a wrapper around the summarizer service. It is used
+	// to set the summarizer instance used by the streamer after the streamer has
+	// been created. The summarizer itself summarizes session recordings.
+	SummarizerWrapper *summarizerv1.SummarizerWrapper
 }
 
 // Init instantiates and configures an instance of AuthServer

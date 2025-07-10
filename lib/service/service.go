@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
@@ -158,7 +159,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
@@ -2158,6 +2158,8 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	summarizerWrapper := summarizerv1.NewSummarizerWrapper()
+
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
 	if cfg.Auth.NoAudit {
@@ -2195,17 +2197,9 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader:  uploadHandler,
-			Encrypter: encryptedIO,
-			CompletionHook: func(ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf) error {
-				// Call the local auth service to handle upload completion hooks. This
-				// is necessary to trigger the session summarizer (an enterprise
-				// feature).
-				if la := process.getLocalAuth(); la != nil {
-					return la.CallUploadCompletionHooks(ctx, sessionID, sessionEndEvent)
-				}
-				return nil
-			},
+			Uploader:   uploadHandler,
+			Encrypter:  encryptedIO,
+			Summarizer: summarizerWrapper,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2325,6 +2319,7 @@ func (process *TeleportProcess) initAuthService() error {
 			MultipartHandler:        uploadHandler,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
+			SummarizerWrapper:       summarizerWrapper,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil

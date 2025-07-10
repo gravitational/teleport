@@ -20,136 +20,169 @@ import (
 	"context"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// NewSummarizerService creates a new OSS version of the SummarizerService. It
-// returns a licensing error from every RPC.
-func NewSummarizerService() *SummarizerService {
-	return &SummarizerService{}
+// SummarizerService summarizes session recordings using language model
+// inference. It contains gRPC methods for CRUD operations on the configuration
+// resources, as well as the actual summarization method.
+type SummarizerService interface {
+	// Summarize summarizes a session recording with a given ID. The
+	// sessionEndEvent is optional, but should be specified if possible, as it
+	// lets us skip reading the session stream just to find the end event.
+	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error
+	pb.SummarizerServiceServer
 }
 
-// SummarizerService is an OSS version of the SummarizerService. It returns
+func NewSummarizerWrapper() *SummarizerWrapper {
+	return &SummarizerWrapper{
+		SummarizerService: &unimplementedSummarizer{},
+	}
+}
+
+// SummarizerWrapper is a wrapper around the SummarizerService interface. Its
+// purpose is to allow substituting the wrapped service after a dependent
+// service has been configured with the wrapper as the service implementation.
+type SummarizerWrapper struct {
+	SummarizerService
+}
+
+// NewSummarizerService creates a new OSS version of the SummarizerService. It
+// returns a licensing error from every RPC.
+func NewSummarizerService() SummarizerService {
+	return &unimplementedSummarizer{}
+}
+
+// unimplementedSummarizer is an OSS version of the unimplementedSummarizer. It returns
 // a licensing error from every RPC.
-type SummarizerService struct {
+type unimplementedSummarizer struct {
 	pb.UnimplementedSummarizerServiceServer
+}
+
+func (s *unimplementedSummarizer) Summarize(
+	ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf,
+) error {
+	return requireEnterprise()
 }
 
 // CRUD operations for models
 
-func (s *SummarizerService) CreateInferenceModel(
+func (s *unimplementedSummarizer) CreateInferenceModel(
 	ctx context.Context, req *pb.CreateInferenceModelRequest,
 ) (*pb.InferenceModel, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) GetInferenceModel(
+func (s *unimplementedSummarizer) GetInferenceModel(
 	ctx context.Context, req *pb.GetInferenceModelRequest,
 ) (*pb.InferenceModel, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) UpdateInferenceModel(
+func (s *unimplementedSummarizer) UpdateInferenceModel(
 	ctx context.Context, req *pb.UpdateInferenceModelRequest,
 ) (*pb.InferenceModel, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) UpsertInferenceModel(
+func (s *unimplementedSummarizer) UpsertInferenceModel(
 	ctx context.Context, req *pb.UpsertInferenceModelRequest,
 ) (*pb.InferenceModel, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) DeleteInferenceModel(
+func (s *unimplementedSummarizer) DeleteInferenceModel(
 	ctx context.Context, req *pb.DeleteInferenceModelRequest,
 ) (*emptypb.Empty, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) ListInferenceModels(
+func (s *unimplementedSummarizer) ListInferenceModels(
 	ctx context.Context, req *pb.ListInferenceModelsRequest,
 ) (*pb.ListInferenceModelsResponse, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
 // CRUD operations for secrets
 
-func (s *SummarizerService) CreateInferenceSecret(
+func (s *unimplementedSummarizer) CreateInferenceSecret(
 	ctx context.Context, req *pb.CreateInferenceSecretRequest,
 ) (*pb.InferenceSecret, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) GetInferenceSecret(
+func (s *unimplementedSummarizer) GetInferenceSecret(
 	ctx context.Context, req *pb.GetInferenceSecretRequest,
 ) (*pb.InferenceSecret, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) UpdateInferenceSecret(
+func (s *unimplementedSummarizer) UpdateInferenceSecret(
 	ctx context.Context, req *pb.UpdateInferenceSecretRequest,
 ) (*pb.InferenceSecret, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) UpsertInferenceSecret(
+func (s *unimplementedSummarizer) UpsertInferenceSecret(
 	ctx context.Context, req *pb.UpsertInferenceSecretRequest,
 ) (*pb.InferenceSecret, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) DeleteInferenceSecret(
+func (s *unimplementedSummarizer) DeleteInferenceSecret(
 	ctx context.Context, req *pb.DeleteInferenceSecretRequest,
 ) (*emptypb.Empty, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) ListInferenceSecrets(
+func (s *unimplementedSummarizer) ListInferenceSecrets(
 	ctx context.Context, req *pb.ListInferenceSecretsRequest,
 ) (*pb.ListInferenceSecretsResponse, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
 // CRUD operations for policies
 
-func (s *SummarizerService) CreateInferencePolicy(
+func (s *unimplementedSummarizer) CreateInferencePolicy(
 	ctx context.Context, req *pb.CreateInferencePolicyRequest,
 ) (*pb.InferencePolicy, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) GetInferencePolicy(
+func (s *unimplementedSummarizer) GetInferencePolicy(
 	ctx context.Context, req *pb.GetInferencePolicyRequest,
 ) (*pb.InferencePolicy, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) UpdateInferencePolicy(
+func (s *unimplementedSummarizer) UpdateInferencePolicy(
 	ctx context.Context, req *pb.UpdateInferencePolicyRequest,
 ) (*pb.InferencePolicy, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) UpsertInferencePolicy(
+func (s *unimplementedSummarizer) UpsertInferencePolicy(
 	ctx context.Context, req *pb.UpsertInferencePolicyRequest,
 ) (*pb.InferencePolicy, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) DeleteInferencePolicy(
+func (s *unimplementedSummarizer) DeleteInferencePolicy(
 	ctx context.Context, req *pb.DeleteInferencePolicyRequest,
 ) (*emptypb.Empty, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (s *SummarizerService) ListInferencePolicies(
+func (s *unimplementedSummarizer) ListInferencePolicies(
 	ctx context.Context, req *pb.ListInferencePoliciesRequest,
 ) (*pb.ListInferencePoliciesResponse, error) {
-	return nil, s.requireEnterprise()
+	return nil, requireEnterprise()
 }
 
-func (*SummarizerService) requireEnterprise() error {
-	return trace.AccessDenied("session recording summarization is only available with an enterprise license")
+func requireEnterprise() error {
+	return trace.AccessDenied(
+		"session recording summarization is only available with an enterprise license that supports Teleport Identity Security")
 }

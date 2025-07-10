@@ -23,9 +23,9 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 )
 
-// Summarizer is a service that provides methods to manage summarization
+// SummarizerResources is a service that provides methods to manage summarization
 // inference configuration resources in the backend.
-type Summarizer interface {
+type SummarizerResources interface {
 	// CreateInferenceModel creates a new summarization inference model in the
 	// backend.
 	CreateInferenceModel(ctx context.Context, model *summarizerv1.InferenceModel) (*summarizerv1.InferenceModel, error)
