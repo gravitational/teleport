@@ -61,9 +61,20 @@ type WebsocketUpgradeConn struct {
 	readMutex  sync.Mutex
 	writeMutex sync.Mutex
 
-	logContext            context.Context
-	logger                *slog.Logger
-	once                  sync.Once
+	logContext context.Context
+	logger     *slog.Logger
+	// closeMessageOnce is used to ensure that the close message is sent only once.
+	// There are two different paths that can lead to sending a close frame:
+	// 1. When the connection is closed using the Close method - initiated by the
+	// 	local actor.
+	// 2. When a close frame is received from the other side - initiated by the
+	// 	remote actor.
+	// In both cases, the behavior is didferent:
+	// - In the first case, we send a close frame and wait for a close frame.
+	// - In the second case, we just send a close frame and do not wait for a response.
+	// The closeMessageOnce ensures that the two paths do not interfere with each other,
+	// and we do not send multiple close frames.
+	closeMessageOnce      sync.Once
 	supportsCloseProtocol bool
 	connType              connectionType
 	protocol              string
@@ -151,7 +162,7 @@ func (c *WebsocketUpgradeConn) readLocked(b []byte) (int, error) {
 			if c.supportsCloseProtocol {
 				// Run the close protocol only once to avoid sending frames again
 				// when closing the connection.
-				c.once.Do(func() {
+				c.closeMessageOnce.Do(func() {
 					if err := c.writeFrame(
 						ws.NewCloseFrame(
 							ws.NewCloseFrameBody(ws.StatusNormalClosure, ""),
@@ -196,7 +207,7 @@ func (c *WebsocketUpgradeConn) websocketCloseProtocol(closeCode ws.StatusCode, c
 	if !c.supportsCloseProtocol {
 		return
 	}
-	c.once.Do(func() {
+	c.closeMessageOnce.Do(func() {
 		// Set a deadline to reset any previously set deadline.
 		// Also, this is important to ensure that the connection
 		// won't hang indefinitely if the client does not respond to the close frame.

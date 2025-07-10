@@ -54,7 +54,7 @@ func NewWebSocketALPNClientConn(ctx context.Context, cfg WebSocketALPNClientConn
 		NetDial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return cfg.Dialer(ctx, network, addr)
 		},
-		TLSConfig: cfg.TLSConfig.Clone(),
+		TLSConfig: cloneTLSConfigAndSetServerName(cfg.TLSConfig.Clone(), cfg.URL.Hostname()),
 	}
 
 	uCopy := *cfg.URL
@@ -81,4 +81,15 @@ func NewWebSocketALPNClientConn(ctx context.Context, cfg WebSocketALPNClientConn
 		hs:       hs,
 		connType: clientConnection,
 	}), nil
+}
+
+func cloneTLSConfigAndSetServerName(tlsConfig *tls.Config, serverName string) *tls.Config {
+	tlsConfig = tlsConfig.Clone()
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{}
+	}
+	if tlsConfig.ServerName == "" {
+		tlsConfig.ServerName = serverName
+	}
+	return tlsConfig
 }
