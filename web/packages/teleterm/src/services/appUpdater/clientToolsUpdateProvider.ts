@@ -30,7 +30,7 @@ import {
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
 const CHECKSUM_FETCH_TIMEOUT = 5_000;
-// Example: 60ce9fcaa4104c5746e31b576814b38f376136c08ea73dd5fe943f09725a00cf  Teleport Connect-17.5.4-mac.zip
+// Example: 99a2fe26681073de56de4229dd9cd6655fef22759579b7b9bc359e018ea1007099a2fe26681073de56de4229dd9cd6655fef22759579b7b9bc359e018ea10070  Teleport Connect-17.5.4-mac.zip
 const CHECKSUM_FORMAT = /^.+\s+.+$/;
 
 /**
@@ -69,7 +69,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
 
     const { baseUrl, version } = clientTools;
     const fileUrl = `https://${baseUrl}/${makeDownloadFilename(this.nativeUpdater, version)}`;
-    const sha256 = await fetchChecksum(fileUrl);
+    const sha512 = await fetchChecksum(fileUrl);
 
     return {
       version: version,
@@ -81,8 +81,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
           // Effective only on Windows.
           isAdminRightsRequired: true,
           url: fileUrl,
-          // @ts-expect-error sha2 field doesn't exist in the types but is supported.
-          sha2: sha256,
+          sha512,
         },
       ],
     };
@@ -130,7 +129,7 @@ function makeDownloadFilename(updater: AppUpdater, version: string): string {
 }
 
 async function fetchChecksum(fileUrl: string): Promise<string> {
-  const checksumUrl = `${fileUrl}.sha256`;
+  const checksumUrl = `${fileUrl}.sha512`;
   const checksum = await fetch(checksumUrl, {
     signal: AbortSignal.timeout(CHECKSUM_FETCH_TIMEOUT),
   });
