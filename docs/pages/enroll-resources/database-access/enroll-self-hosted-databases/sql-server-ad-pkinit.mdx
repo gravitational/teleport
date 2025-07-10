@@ -177,7 +177,7 @@ Teleport CRL to your Active Directory domain (using the path to the exported
 certutil -dspublish -f <PathToCRLFile.crl> TeleportDB
 ```
 
-If you use HSM, run commands printed at the end of the CRL export. They will in form of:
+If you use HSM, run commands printed at the end of the CRL export. They will be in the form of:
 
 ```powershell
 certutil -dspublish -f <PathToCRLFile.crl> TeleportDB <CRLCommonName>
