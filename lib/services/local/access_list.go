@@ -228,7 +228,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 			return trace.Wrap(err)
 		}
 
-		return accesslists.ValidateAccessListWithMembers(ctx, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService})
+		return accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService})
 	}
 
 	updateAccessList := func() error {
@@ -683,7 +683,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		}
 		preserveAccessListFields(existingAccessList, accessList)
 
-		if err := accesslists.ValidateAccessListWithMembers(ctx, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
 		}
 

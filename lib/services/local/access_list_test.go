@@ -153,6 +153,72 @@ func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	)
 }
 
+func Test_AccessList_validation_noTypeChange(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	type testCase struct {
+		name         string
+		accessList   *accesslist.AccessList
+		illegalTypes []accesslist.Type
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:         "from default",
+			accessList:   newAccessList(t, "test-default-access-list-1", clock),
+			illegalTypes: []accesslist.Type{accesslist.Static, accesslist.SCIM},
+		},
+		{
+			name:         "from static",
+			accessList:   newAccessList(t, "test-static-access-list-1", clock, withType(accesslist.Static)),
+			illegalTypes: []accesslist.Type{accesslist.Default, accesslist.SCIM},
+		},
+		{
+			name:         "from scim",
+			accessList:   newAccessList(t, "test-scim-access-list-1", clock, withType(accesslist.SCIM)),
+			illegalTypes: []accesslist.Type{accesslist.Default, accesslist.Static},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accessList, err := service.UpsertAccessList(ctx, tc.accessList)
+			require.NoError(t, err)
+
+			for _, typ := range tc.illegalTypes {
+				t.Run(string(typ), func(t *testing.T) {
+					accessList.Spec.Type = typ
+					if !typ.IsReviewable() {
+						accessList.Spec.Audit = accesslist.Audit{}
+					}
+
+					_, err := service.UpdateAccessList(ctx, accessList)
+					require.Error(t, err)
+					require.ErrorContains(t, err, "cannot be changed")
+					require.True(t, trace.IsBadParameter(err))
+
+					_, err = service.UpsertAccessList(ctx, accessList)
+					require.Error(t, err)
+					require.ErrorContains(t, err, "cannot be changed")
+					require.True(t, trace.IsBadParameter(err))
+
+					_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, nil)
+					require.Error(t, err)
+					require.ErrorContains(t, err, "cannot be changed")
+					require.True(t, trace.IsBadParameter(err))
+				})
+			}
+		})
+	}
+}
+
 // TestAccessList_EntitlementLimits asserts that any limits on creating
 // AccessLists are correctly enforced at Upsert time.
 func TestAccessList_EntitlementLimits(t *testing.T) {
