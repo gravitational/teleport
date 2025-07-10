@@ -25,10 +25,10 @@ import (
 	"time"
 
 	"github.com/grafana/pyroscope-go"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
 )
 
 // TODO: Replace logger when pyroscope uses slog
