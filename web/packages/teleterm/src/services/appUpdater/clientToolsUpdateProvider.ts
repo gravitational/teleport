@@ -72,7 +72,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     const sha512 = await fetchChecksum(fileUrl);
 
     return {
-      version: version,
+      version,
       releaseDate: '',
       path: '',
       sha512: '',
