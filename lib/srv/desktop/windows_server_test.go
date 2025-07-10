@@ -148,7 +148,7 @@ func TestGenerateCredentials(t *testing.T) {
 
 	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
 	require.NoError(t, err)
-	subjectID := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
+	commonName := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + clusterName
 
 	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestGenerateCredentials(t *testing.T) {
 
 			require.Equal(t, user, cert.Subject.CommonName)
 			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=`+subjectID+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+				`ldap:///CN=`+commonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
 
 			foundKeyUsage := false
 			foundAltName := false
