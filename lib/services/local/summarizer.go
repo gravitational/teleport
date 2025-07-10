@@ -20,12 +20,13 @@ import (
 	"context"
 	"iter"
 
+	"github.com/gravitational/trace"
+
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/trace"
 )
 
 // summarizerService implements the [services.SummarizerResources] interface and manages

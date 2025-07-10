@@ -19,11 +19,12 @@ package summarizerv1
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // SummarizerService summarizes session recordings using language model
