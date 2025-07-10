@@ -308,7 +308,7 @@ are signed.
 
 Phase 2 will use The Upgrade Framework (TUF) to implement secure updates.
 
-## Teleport Connect automatic updates *(added on 2025-06-27 by @gzdunek)*
+## Teleport Connect automatic updates *(added on 2025-07-10 by @gzdunek)*
 
 Teleport Connect is built with Electron and therefore cannot use the CLI update 
 mechanisms, which simply re-executes a command with a different tool version. 
@@ -429,14 +429,9 @@ A custom updater function will be implemented using electron-updater's `Provider
 interface. This function will return version metadata including:
 * Version number
 * Download URL
-* SHA-256 checksum
+* SHA-512 checksum
 
->️ Note: `electron-updater` seems to support only SHA-512 checksums, but actually 
-> it supports SHA-256 too, via `sha2` field.
-> This field doesn't seem deprecated in the source code, but for some reason is 
-> not available in types. To avoid complicating our release process with the new 
-> checksum type, SHA-256 checksums will be used.
-> `electron-updater` refuses to install an update if no checksum is provided.
+>️ Note: The release process will generate both SHA-256 and SHA-512 checksums.
 
 To fetch the client tool version from clusters, a new RPC to tsh daemon will be 
 added:
