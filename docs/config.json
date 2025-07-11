@@ -829,6 +829,11 @@
       "source": "/reference/architecture/proxy-peering/",
       "destination": "/admin-guides/management/operations/proxy-peering/",
       "permanent": true
+    },
+    {
+      "source": "/identity-security/teleport-policy/",
+      "destination": "/identity-security/",
+      "permanent": true
     }
   ]
 }
