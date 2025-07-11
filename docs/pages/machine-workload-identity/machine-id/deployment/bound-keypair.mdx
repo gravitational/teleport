@@ -1,20 +1,28 @@
 ---
 title: Deploying Machine ID with Bound Keypair Joining
-description: "How to install and configure Machine ID with Bound Keypair joining"
+description: "How to install and configure Machine ID with Bound Keypair Joining"
 ---
 
 In this guide, you will install Machine ID's agent, `tbot`, on an arbitrary
-node. This node could be a bare-metal machine, a VM, a container, or any other
-host - the only requirement is that the node has persistent storage.
+host using Bound Keypair Joining. This host could be a bare-metal machine, a
+VM, a container, or any other host - the only requirement is that the host has
+persistent storage.
 
-Note that this is a generic join method. A platform-specific join method may be
-available that is better suited to your environment; refer to the
-[deployment guides](./deployment.mdx) for a full list of options.
+Bound Keypair Joining is an improved alternative to
+[secret-based join methods][secret] and can function as a drop-in replacement.
+It is more secure than static token joining, and is more flexible than ephemeral
+token joining with renewable certificates: when its certificates expire, it can
+perform an automated recovery to ensure the bot can rejoin even after an
+extended outage.
+
+Note that platform-specific join methods may be available that are better suited
+to your environment; refer to the [deployment guides](./deployment.mdx) for a
+full list of options.
 
 ## How it works
 
-With Bound Keypair joining, instead of using a static token or relying solely on
-renewable certificates, Machine ID bots generate a unique keypair. Teleport is
+With Bound Keypair Joining, Machine ID bots generate a unique keypair which is
+persistently stored in their internal data directory. Teleport is
 then configured to trust this public key for future joining attempts.
 
 Later, when the bot attempts to join the cluster, Teleport issues it a challenge
@@ -23,17 +31,17 @@ challenge, attesting to its own identity, and is conditionally allowed to join
 the cluster.
 
 As self attestation is inherently less secure than the external verification
-that would be provided by a cloud provider like AWS or a dedicated TPM, bound
-keypair joining enforces a number of additional checks to prevent abuse,
+that would be provided by a cloud provider like AWS or a dedicated TPM, Bound
+Keypair Joining enforces a number of additional checks to prevent abuse,
 including:
 - Join state verification to ensure the keypair cannot be usefully shared or
   duplicated
 - Certificate generation counter checks to ensure regular bot certificates
   cannot be usefully shared or duplicated
 - Configurable limits on how often - if at all - bots may be allowed to recover
-  using this keypair.
+  using this keypair
 
-An important benefit to Bound Keypair joining is that all joining restrictions
+An important benefit to Bound Keypair Joining is that all joining restrictions
 can be reconfigured at any time, and bots that expire or go offline can be
 recovered by making a server-side exemption without any client-side
 intervention.
@@ -49,7 +57,7 @@ works.
 - The `tsh` and `tctl` clients
 - (!docs/pages/includes/tctl.mdx!)
 - This guide assumes the bot node has mutable persistent storage for internal
-  bot data. While it is possible to use Bound Keypair joining can on immutable
+  bot data. While it is possible to use Bound Keypair Joining can on immutable
   hosts (like CI runs), doing so will reduce security guarantees; see the
   [admin guide][guide] for further information.
 
@@ -98,9 +106,8 @@ spec:
       limit: 1
 ```
 
-Replace:
-- `example` in `spec.bot_name` with the name of the bot you created in the
-  second step
+Replace `example` in `spec.bot_name` with the name of the bot you created in the
+second step.
 
 For this example, we don't need to set any additional options for the bound
 keypair token. We've allowed a single recovery attempt, which will be used to
@@ -171,4 +178,5 @@ Replace the following:
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
 
+[secret]: ../../../reference/join-methods.mdx#secret-vs-delegated
 [guide]: ../../../reference/machine-id/bound-keypair.mdx
