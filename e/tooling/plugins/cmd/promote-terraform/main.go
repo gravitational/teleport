@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	files, err := getArtifactFiles(args.artifactDirectoryPath)
+	files, err := getArtifactFiles(args.artifactDirectoryPath, args.variant)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to list artifacts directory", "path", args.artifactDirectoryPath, "error", err)
 		os.Exit(1)
@@ -227,7 +227,7 @@ func setupRegistryDirectory(registryDirectoryPath string) (*registryPaths, error
 }
 
 // Gets all the files in the provided path that are Terraform provider artifacts.
-func getArtifactFiles(artifactDirectoryPath string) ([]string, error) {
+func getArtifactFiles(artifactDirectoryPath string, variant string) ([]string, error) {
 	fsObjects, err := os.ReadDir(artifactDirectoryPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to list file in artifact directory %q", artifactDirectoryPath)
@@ -241,7 +241,7 @@ func getArtifactFiles(artifactDirectoryPath string) ([]string, error) {
 			continue
 		}
 
-		if !registry.IsProviderTarball(fsObjectPath) {
+		if !registry.IsProviderTarball(fsObjectPath, variant) {
 			slog.DebugContext(context.Background(), "Skipping Terraform provider file", "path", fsObjectPath)
 			continue
 		}

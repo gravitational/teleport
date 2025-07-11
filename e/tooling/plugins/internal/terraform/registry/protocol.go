@@ -29,6 +29,12 @@ type Versions struct {
 // Save formats and writes the version list to the supplied filesystem
 // location.
 func (idx *Versions) Save(filename string) error {
+	// Create the directory if it doesn't exist - otherwise we'll crash out
+	// the first time we try to upload a new package to the repository.
+	if err := os.MkdirAll(filepath.Dir(filename), 0700); err != nil {
+		return trace.Wrap(err, "Creating download dir")
+	}
+
 	indexFile, err := os.Create(filename)
 	if err != nil {
 		return trace.Wrap(err)

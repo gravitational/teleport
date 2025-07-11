@@ -104,7 +104,7 @@ jobs:
         run: |
           aws s3 cp "s3://$TERRAFORM_REGISTRY_BUCKET/" "$LOCAL_TERRAFORM_REGISTRY_PATH" --recursive
 
-      - name: Run the terraform-publish tool
+      - name: Run the terraform-publish tool for teleport
         env:
           TERRAFORM_REGISTRY_URL: ${{ env.TERRAFORM_REGISTRY_URL }}
           SIGNING_KEY: ${{ env.TERRAFORM_SIGNING_KEY }}
@@ -117,6 +117,21 @@ jobs:
             --registry-url "$TERRAFORM_REGISTRY_URL" \
             --namespace gravitational \
             --name teleport
+
+      - name: Run the terraform-publish tool for teleportmwi
+        env:
+          TERRAFORM_REGISTRY_URL: ${{ env.TERRAFORM_REGISTRY_URL }}
+          SIGNING_KEY: ${{ env.TERRAFORM_SIGNING_KEY }}
+        run: |
+          go run -C e/tooling/plugins ./cmd/promote-terraform \
+            --tag "$ARTIFACT_TAG" \
+            --artifact-directory-path "$LOCAL_ARTIFACTS_PATH" \
+            --registry-directory-path "$LOCAL_TERRAFORM_REGISTRY_PATH" \
+            --protocol 6 \
+            --registry-url "$TERRAFORM_REGISTRY_URL" \
+            --namespace gravitational \
+            --name teleportmwi \
+            --variant mwi
 
       - name: Upload the Terraform repo to S3
         env:

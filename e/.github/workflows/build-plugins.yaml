@@ -132,6 +132,17 @@ jobs:
             make -C integrations/terraform release ARCH=universal
           fi
 
+      - name: Build the MWI terraform provider release tarballs
+        env:
+          APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
+        run: |
+          make -C integrations/terraform-mwi release ARCH=amd64
+          make -C integrations/terraform-mwi release ARCH=arm64
+          if [[ "$OS" == "darwin" ]]; then
+            make -C integrations/terraform-mwi release ARCH=universal
+          fi
+
       - name: Build the event handler release tarballs
         env:
           APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}

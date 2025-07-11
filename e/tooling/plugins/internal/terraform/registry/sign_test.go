@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -114,4 +115,39 @@ func TestRepackProvider(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, content, string(actualContent))
 	})
+}
+
+func TestIsProviderTarball(t *testing.T) {
+	tests := []struct {
+		fn      string
+		variant string
+		want    bool
+	}{
+		{
+			fn:      "/tmp/artifacts/terraform-provider-teleportmwi-v19.0.0-dev.noahmwitf.4-darwin-amd64-bin.tar.gz",
+			variant: "mwi",
+			want:    true,
+		},
+		{
+			fn:      "/tmp/artifacts/terraform-provider-teleport-v19.0.0-dev.noahmwitf.4-darwin-amd64-bin.tar.gz",
+			variant: "",
+			want:    true,
+		},
+		{
+			fn:      "/tmp/artifacts/terraform-provider-teleportmwi-v19.0.0-dev.noahmwitf.4-darwin-amd64-bin.tar.gz",
+			variant: "",
+			want:    false,
+		},
+		{
+			fn:      "/tmp/artifacts/terraform-provider-teleport-v19.0.0-dev.noahmwitf.4-darwin-amd64-bin.tar.gz",
+			variant: "mwi",
+			want:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s - %s", tt.fn, tt.variant), func(t *testing.T) {
+			got := IsProviderTarball(tt.fn, tt.variant)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

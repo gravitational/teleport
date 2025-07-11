@@ -17,6 +17,7 @@ type args struct {
 	providerNamespace     string
 	providerName          string
 	verbosity             int
+	variant               string
 }
 
 func parseCommandLine() *args {
@@ -60,6 +61,11 @@ func parseCommandLine() *args {
 	app.Flag("verbose", "Output more trace output").
 		Short('v').
 		CounterVar(&result.verbosity)
+
+	app.Flag(
+		"variant",
+		"Terraform provider variant, e.g. 'mwi' for the MWI provider or unspecified for standard",
+	).StringVar(&result.variant)
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 

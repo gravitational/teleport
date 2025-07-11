@@ -26,13 +26,16 @@ type FileNames struct {
 
 // IsProviderTarball tests if  a given string is a Houston-compatible filename
 // indicating a terraform-provider plugin type
-func IsProviderTarball(fn string) bool {
+//
+// Variant selects a specific variant of the provider, e.g. "mwi" for the MWI
+// terraform provider or an empty string for the standard Teleport provider.
+func IsProviderTarball(fn string, variant string) bool {
 	info, err := filename.Parse(fn)
 	if err != nil {
 		return false
 	}
 
-	return info.Type == "terraform-provider"
+	return info.Type == "terraform-provider" && info.Variant == variant
 }
 
 func makeFileNames(dstDir string, info filename.Info) FileNames {
