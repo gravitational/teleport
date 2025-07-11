@@ -1414,11 +1414,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			if r.GetName() == clusterName {
 				return trace.BadParameter("trusted cluster has same name as local cluster (%q)", clusterName)
 			}
-		case types.Role:
-			// Some options are only available with enterprise subscription
-			if err := checkRoleFeatureSupport(r); err != nil {
-				return trace.Wrap(err)
-			}
 		default:
 			// No validation checks for this resource type
 		}

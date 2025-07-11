@@ -1,406 +1,306 @@
-Teleport provides connectivity, authentication, access controls and audit for infrastructure.
-
-Here is why you might use Teleport:
-
-* Set up SSO for all of your cloud infrastructure [1].
-* Protect access to cloud and on-prem services using mTLS endpoints and short-lived certificates.
-* Establish tunnels to access services behind NATs and firewalls.
-* Provide an audit log with session recording and replay for various protocols.
-* Unify Role-Based Access Control (RBAC) and enforce the principle of least privilege with  [access requests](https://goteleport.com/features/access-requests/).
-
-[1] The open source version supports only GitHub SSO.
-
-Teleport works with SSH, Kubernetes, databases, RDP, and web services.
-
-* Architecture: https://goteleport.com/docs/reference/architecture/
-* Getting Started: https://goteleport.com/docs/get-started/
-
-<div align="center">
-   <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.png" width=750/>
-   </a>
-   <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/download">
-      <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
-      </a>
-      <a href="https://golang.org/">
-      <img src="https://img.shields.io/github/go-mod/go-version/gravitational/teleport?color=7fd5ea" />
-      </a>
-      <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
-      <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
-      </a>
-      <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
-      <img src="https://img.shields.io/badge/AGPL-3.0-red.svg" />
-      </a>
-   </div>
-</div>
-</br>
-
-## Table of Contents
-
-1. [Introduction](#introduction)
-1. [Installing and Running](#installing-and-running)
-1. [Docker](#docker)
-1. [Building Teleport](#building-teleport)
-1. [Why Did We Build Teleport?](#why-did-we-build-teleport)
-1. [More Information](#more-information)
-1. [Support and Contributing](#support-and-contributing)
-1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
-1. [Who Built Teleport?](#who-built-teleport)
-1. [License](#license)
-
-## Introduction
-
-Teleport includes an identity-aware access proxy, a CA that issues short-lived certificates, a unified access control system and a tunneling system to access resources behind the firewall.
-
-We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
-
-* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
-* [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
-* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
-* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
-* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
-
-You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/).
-
-Teleport focuses on best practices for infrastructure security:
-
-- No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
-- Two-factor authentication (2FA) for everything.
-- Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
-- Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
-
-Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
-
-|Project Links| Description
-|---|----
-| [Teleport Website](https://goteleport.com/) | The official website of the project. |
-| [Documentation](https://goteleport.com/docs/) | Admin guide, user manual and more. |
-| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
-| [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
-| [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
-| [Cloud-hosted](https://goteleport.com/pricing) | We offer Enterprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
+خب من میخواستم تلپورت رو اون بخشی که نیاز داشتم رو تغیر بدم و بیلد کنم و روی کلاسترم بالا بیارم ولی خب چندباری تلاش ناموفق داشتم
+اینسری چیشد؟
 
 
-## Installing and Running
-
-To set up a single-instance Teleport cluster, follow our [getting started
-guide](https://goteleport.com/docs/get-started). You can then register your
-servers, Kubernetes clusters, and other infrastructure with your Teleport
-cluster.
-
-You can also get started with Teleport Enterprise Cloud, a managed Teleport
-deployment that makes it easier to enable secure access to your infrastructure.
-
-[Sign up for a free trial](https://goteleport.com/signup) of Teleport Enterprise
-Cloud.
-
-Follow our guide to [registering your first
-server](https://goteleport.com/docs/get-started/)
-with Teleport Enterprise Cloud.
-
-## Docker
-
-### Deploy Teleport
-
-If you wish to deploy Teleport inside a Docker container see the
-[installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
-
-### For Local Testing and Development
-
-To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
-
-## Building Teleport
-
-The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in TypeScript.
-
-If your intention is to build and deploy for use in a production infrastructure
-a released tag should be used.  The default branch, `master`, is the current
-development branch for an upcoming major version.  Get the latest release tags
-listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v16.0.0` gets release v16.0.0.
-
-### Dockerized Build
-
-It is often easiest to build with Docker, which ensures that all required
-tooling is available for the build. To execute a dockerized build, ensure
-that docker is installed and running, and execute:
-
-```
-make -C build.assets build-binaries
-```
-
-### Local Build
-
-#### Dependencies
-
-Ensure you have installed correct versions of necessary dependencies:
-* `Go` version from
-  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-* If you wish to build the Rust-powered features like Desktop Access, see the
-  `Rust` and `Cargo` versions in
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
-  (search for `RUST_VERSION`)
-* For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
-  `pkg-config` installed locally
-* To build the web UI:
-  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
-  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
-  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-  * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
-  * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
-    on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
-
-For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md).
-
-#### Perform a build
-
->**Important**
->
->* The Go compiler is somewhat sensitive to the amount of memory: you will need
-   **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
-   without swap will **not** work.
->* This will build the latest version of Teleport, **regardless** of whether it
-   is stable. If you want to build the latest stable release, run `git checkout`
-   and `git submodule update --recursive` to the corresponding tag (for example,
->* run `git checkout v8.0.0`) **before** performing a build.
-
-Get the source
-
-```shell
+خب ابتدا باید از روی گیتهاب کلونش میکردم
 git clone https://github.com/gravitational/teleport.git
-cd teleport
-```
+git checkout v17.5.4
 
-To perform a build
+بعد از اینکار که انجام شد میبایست تغیرات لازم رو میدادم روی اپیلیکیشنم تا بتونم اون قابلیت های مورد نیازم رو فعال کنم توش
 
-```shell
-make full
-```
 
-`tsh` dynamically links against libfido2 by default, to support development
-environments, as long as the library itself can be found:
+#TODO: چگونه پیدا کردم  تغیرات دادم؟
 
-```shell
-$ brew install libfido2 pkg-config  # Replace with your package manager of choice
 
-$ make build/tsh
-> libfido2 found, setting FIDO2=dynamic
-> (...)
-```
+خب بعد از اینکه این مرحله بخیر گذشت 
+باید پیش نیاز های اولیه رو برای بیلد نصب میکردم و خب من شروع کردم با  استفاده از MAKEFILE دونه دونه جلو میرفتم ارور میخوردم و نصب میکردم
+مثلا 
+pnpm, nodejs 22 , cargo....
+و خب ورژن هاشم نمیدونستم و خب شاید اذیت کننده میشد 
+برای همین یکم داکیومنت هاشو خوندم و اینجا دیدم که پیش نیاز هاش نوشته شده که باید نصب شه
+https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk
 
-Release binaries are linked statically against libfido2. You may switch the
-linking mode using the FIDO2 variable:
 
-```shell
-make build/tsh FIDO2=dynamic # dynamic linking
-make build/tsh FIDO2=static  # static linking, for an easy setup use `make enter`
-                             # or `build.assets/macos/build-fido2-macos.sh`.
-make build/tsh FIDO2=off     # doesn't link libfido2 in any way
-```
+ولی من میخواستم ایمیج هایی که روی چارتمه رو بوجود بیارم ولی اینکار راحت نبود برای همین یه ایده داشتم
+برم ببینم ایمیج های اصلی چی هستند؟
+بعد ببینم با چه کامندی ران میشن و بعدش  بگردم ببینم کدوم داکر فایل های بین دریایی از داکر فایل توی ریپو برام قراره بیلد شن و کمک کننده به من هستند
+( این کارا روی یک وی ام ubuntu 24 انجام شده)
 
-`tsh` builds with Touch ID support require access to an Apple Developer account.
-If you are a Teleport maintainer, ask the team for access.
+خب برای اینکار به هلم چارت تلپورت مراجعه کردم
+https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/values.yaml
 
-#### Build output and run locally
-
-If the build succeeds, the installer will place the binaries in the `build` directory.
-
-Before starting, create default data directories:
-
-```shell
-sudo mkdir -p -m0700 /var/lib/teleport
-sudo chown $USER /var/lib/teleport
-```
-
-#### Running Teleport in a hot reload mode
-
-To speed up your development process, you can run Teleport using
-[`CompileDaemon`](https://github.com/githubnemo/CompileDaemon). This will build
-and run the Teleport binary, and then rebuild and restart it whenever any Go
-source files change.
-
-1. Install CompileDaemon:
-
-    ```shell
-    go install github.com/githubnemo/CompileDaemon@latest
-    ```
-
-    Note that we use `go install` instead of the suggested `go get`, because we
-    don't want CompileDaemon to become a dependency of the project.
-
-1. Build and run the Teleport binary:
-
-    ```shell
-    make teleport-hot-reload
-    ```
-
-    By default, this runs a `teleport start` command. If you want to customize
-    the command, for example by providing a custom config file location, you can
-    use the `TELEPORT_ARGS` parameter:
-
-    ```shell
-    make teleport-hot-reload TELEPORT_ARGS='start --config=/path/to/config.yaml'
-    ```
-
-Note that you still need to run [`make grpc`](api/proto/README.md) if you modify
-any Protocol Buffers files to regenerate the generated Go sources; regenerating
-these sources should in turn cause the CompileDaemon to rebuild and restart
-Teleport.
-
-### Web UI
-
-The Teleport Web UI resides in the [web](web) directory.
-
-#### Rebuilding Web UI for development
-
-To rebuild the Teleport UI package, run the following command:
+بعد دیدم برای image: چه مقادیری استفاده شده.
+ایمیج هایی که پیدا کردم 
+public.ecr.aws/gravitational/teleport-operator
+public.ecr.aws/gravitational/teleport-distroless
+این دوتا بودن البته یکی دوتا ایمیج دیگم بودن که برای enterprise اش بودن و من نمیخاستمشون
+بعدایمیج هارو پول کردم.
 
 ```bash
-make docker-ui
+➜  build git:(api/v17.5.4) ✗ docker image inspect public.ecr.aws/gravitational/teleport-distroless:15 | grep Config -A 10
+
+        "Config": {
+            "Cmd": null,
+            "Entrypoint": [
+                "/usr/bin/dumb-init",
+                "/usr/local/bin/teleport",
+                "start",
+                "-c",
+                "/etc/teleport/teleport.yaml"
+            ],
 ```
-
-Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.
-
-To enable speedy iterations on the Web UI, you can run a [local web-dev server](web#web-ui).
-
-You can also tell Teleport to load the Web UI assets from the source directory.
-To enable this behavior, set the environment variable `DEBUG=1` and rebuild with the default target:
 
 ```bash
-# Run Teleport as a single-node cluster in development mode:
-DEBUG=1 ./build/teleport start -d
+➜  build git:(api/v17.5.4) ✗ docker image inspect public.ecr.aws/gravitational/teleport-operator:15 | grep Config -A 10
+
+        "Config": {
+            "Cmd": null,
+            "Entrypoint": [
+                "/teleport-operator"
+            ],
 ```
 
-Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `web` README](web#readme).
+خب بدش رفتم مثلا یکی از کامند هارو توی کل پروژه سرچ کردم ببینم کدوم داکر فایل هامه که میتونم بیلدشون نم
+/usr/local/bin/teleport
+ایول این روش جواب داد
+به چی رسییدیم؟
+به دو داکر فایل زیر
+teleport/build.assets/charts/Dockerfile-distroless
+teleport/integrations/operator/Dockerfile
 
-### Managing dependencies
 
-All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
+خیلی عالی شد الان برای  ایمیج public.ecr.aws/gravitational/teleport-distroless باید فایل زیر رو بیلد کنم
+teleport/build.assets/charts/Dockerfile-distroless
 
-#### Add a new dependency
 
-Latest version:
+و برای public.ecr.aws/gravitational/teleport-operator هم فایل زیر رو باید بیلد کنم
+teleport/integrations/operator/Dockerfile
+
+
+یچیزی که خیلی کمکم کرد این بود که pnpm ام برای گرفتن پکیج هاش 403 میخورد و من بخاطر همین از یه میرر چینی استفاده کردم
+pnpm set registry https://registry.npmmirror.com
+
+اینم تو وارنگینگ هاش بود که اگه نصب نکنی و بیلد کنی نمیتونی از 2fa استفاده کنی و یچیزایی مثل google auth و استفاده از yubi key رو نشه استفاده کرد
+sudo apt install libfido2-dev
+
+
+یه مرحله ای که باید یادمون نره اینه که من برای تست اولیه make full میزدم و خب میرفتم تو دیوار
+و میگفت اوپتیمایزیشن cargo برای بیلد است های وب میره تو دیوار 
+خب من چون دانش کافی نداشتم گفتم یکم با تف این قضیه رو حل کنم برای همین اوپتیمیزیشن رو غیرفعال کردم :|
+ابتدا فایل های لازم رو پیدا کردم
+
+➜  teleport git:(api/v17.5.4) ✗ find . -name Cargo.toml
+./web/packages/shared/libs/ironrdp/Cargo.toml
+./lib/srv/desktop/rdp/rdpclient/Cargo.toml
+./Cargo.toml
+./tool/fdpass-teleport/Cargo.toml
+./node_modules/.pnpm/@swc+plugin-styled-components@3.0.2/node_modules/@swc/plugin-styled-components/Cargo.toml
+
+از بین این ها سه فایل زیر مهم بودن چون packge توشون تعریف شده بود
+./web/packages/shared/libs/ironrdp/Cargo.toml
+./lib/srv/desktop/rdp/rdpclient/Cargo.toml
+./tool/fdpass-teleport/Cargo.toml
+
+```yaml
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+```
+این رو بهش اضافه کردم و بوم مشکلم حل شد.
+
+
+خب بعدش باید میرفتیم که ایمیج اول ینی  distroless رو بیلد کنیم
+بعد از اینکه هزارتا راه رفته و نرفته رو تست کردم فهمیدم باید مراحل زیر رو طی کرد.
+
+چرا به این نتیجه رسیدم؟
+چون make deb من نمیرفت باینری فایل هارو از لوکال من بیاره و دانلودش میکرد برای همنی و خب منم نتونستم اسکریپتشو تغیر بدم 
+برای همین مسیر سخت زیر رو طی کردم
+
 
 ```bash
-go get github.com/new/dependency
+make release
 ```
 
-and update the source to use this dependency.
-
-
-To get a specific version, use `go get github.com/new/dependency@version` instead.
-
-#### Set dependency to a specific version
+```
+cp ./build.assets/build-package.sh ./build.assets/build-common.sh  build.assets/charts/Dockerfile-distroless ./build.assets/charts/fetch-debs build
+cd build
+```
 
 ```bash
-go get github.com/new/dependency@version
+➜  build git:(api/v17.5.4) ✗ ls -lash artifacts 
+total 393M
+4.0K drwxrwxr-x 2 ubuntu ubuntu 4.0K Jul  4 08:42 .
+4.0K drwxrwxr-x 3 ubuntu ubuntu 4.0K Jul  4 08:46 ..
+197M -rw-rw-r-- 1 ubuntu ubuntu 197M Jul  4 08:42 teleport-v17.5.4-linux-amd64-bin.tar.gz
+197M -rw-rw-r-- 1 ubuntu ubuntu 197M Jul  4 08:42 teleport-v17.5.4-linux-amd64-centos7-bin.tar.gz
 ```
 
-#### Update dependency to the latest version
+```
+./build-package.sh -t oss -v 17.5.4 -p deb -a amd64 -s $(pwd)/artifacts/
+```
 
+خب این برای ما فایل های .deb میسازه که بنظر تا اینجای کار خوب پیشرفته
 ```bash
-go get -u github.com/new/dependency
+➜  build git:(api/v17.5.4) ✗ ls                
+artifacts  build-common.sh  build-package.sh  fdpass-teleport  fetch-debs  tbot  tctl  teleport  teleport_17.5.4_amd64.deb  teleport_17.5.4_amd64.deb.sha256  teleport-update  tsh
 ```
 
-#### Update all dependencies
+```Dockerfile-distroless
+FROM ubuntu:24.04
 
-```bash
-go get -u all
+ENV DEBIAN_FRONTEND=noninteractive
+
+# نصب پکیج‌های مورد نیاز برای نصب پکیج deb و اجرای Teleport
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    dumb-init \
+    libpam0g \
+    libaudit1 \
+    libcap-ng0 \
+    libfido2-1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ورژن و فایل .deb را به صورت آرگومان دریافت می‌کنیم
+ARG TELEPORT_VERSION
+ARG TELEPORT_RELEASE_INFIX=
+ARG TARGETARCH=amd64
+ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}_${TARGETARCH}.deb
+
+# کپی فایل deb
+COPY ${TELEPORT_DEB_FILE_NAME} /tmp/
+
+# نصب Teleport
+RUN dpkg -i /tmp/${TELEPORT_DEB_FILE_NAME} && rm -f /tmp/${TELEPORT_DEB_FILE_NAME}
+
+# پوشه‌های مورد نیاز
+RUN mkdir -p /etc/teleport /var/lib/teleport
+
+# سیگنال برای shutdown مرتب
+STOPSIGNAL SIGQUIT
+
+# اجرای Teleport با dumb-init
+ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 ```
 
-#### Debugging dependencies
+```
+docker buildx build -f Dockerfile-distroless -t irania9o/teleport-distroless:17.5.4 --build-arg TELEPORT_VERSION=17.5.4 .
+```
+خب کارمون با اولی تموم شد لازمه بریم دومی رو بیلد کنیم تا بتونیم تازه بعدش بریم روی کلاسترمون اجراش کنیم.
 
-Why is a specific package imported?
+```
+docker build -f integrations/operator/Dockerfile -t test:latest .
+```
+یا
+```
+cd integrations/operator/
+make docker-build
+```
+داکر فایلمو یکم تغییر دارم
+```Dockerfile
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
 
-`go mod why $pkgname`
+# BUILDPLATFORM is provided by Docker/buildx
+FROM --platform=$BUILDPLATFORM docker.arvancloud.ir/debian:12 as builder
+ARG BUILDARCH
 
-Why is a specific module imported?
+## Install dependencies.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    unzip \
+    # x86_64 dependencies and build tools
+    build-essential \
+    # ARM dependencies
+    libc6-dev-armhf-cross \
+    gcc-arm-linux-gnueabihf \
+    # ARM64 dependencies
+    libc6-dev-arm64-cross \
+    gcc-aarch64-linux-gnu \
+    # i386 dependencies
+    libc6-dev-i386-cross \
+    gcc-i686-linux-gnu
 
-`go mod why -m $modname`
+# Install Go.
+#ARG GOLANG_VERSION
+#RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+#    chmod a+w /var/lib && \
+#    chmod a-w /
+#ENV GOPATH="/go" \
+#    GOROOT="/opt/go" \
+#    PATH="$PATH:/opt/go/bin:/go/bin"
+ARG GOLANG_VERSION
+COPY ../../../go1.23.10.linux-amd64.tar.gz /opt/
 
-Why is a specific version of a module imported?
+RUN mkdir -p /opt && cd /opt && \
+    tar -xzf go1.23.10.linux-amd64.tar.gz && \
+    rm go1.23.10.linux-amd64.tar.gz && \
+    chmod a+w /var/lib && \
+    chmod a-w /
 
-`go mod graph | grep $modname`
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin"
 
-### Devbox Build (experimental)
 
-**Note**: Devbox support is still experimental. It's very possible things may not work as intended.
+# Install protoc.
+ARG PROTOC_VERSION # eg, "3.20.2"
+RUN VERSION="$PROTOC_VERSION" && \
+  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
 
-Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
-the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
-then run:
+## Build the operator
 
-`devbox shell`
+WORKDIR /go/src/github.com/gravitational/teleport
 
-This will install Teleport's various build dependencies and drop you into a shell with these
-dependencies. From here, you can build Teleport normally.
+# Copy the Go Modules manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
+COPY vendor/ ./vendor/
 
-#### flake.nix
+# We have to copy the API before `go mod download` because go.mod has a replace directive for it
+COPY api/ api/
 
-A nix flake is located in `build.assets/flake` that allows for installation of Teleport's less
-common build tooling. If this flake is updated, run:
+# Download and Cache dependencies before building and copying source
+# This will prevent re-downloading the operator's dependencies if they have not changed as this
+# `run` layer will be cached
+#ENV GOPROXY=https://goproxy.cn,direct
+#ENV GOPROXY=https://goproxy.io,direct
+#RUN go mod download -x
 
-`devbox install`
+COPY *.go ./
+COPY lib/ lib/
+COPY gen/ gen/
+COPY entitlements/ entitlements/
+COPY integrations/lib/embeddedtbot/ integrations/lib/embeddedtbot/
+COPY integrations/operator/apis/ integrations/operator/apis/
+COPY integrations/operator/controllers/ integrations/operator/controllers/
+COPY integrations/operator/main.go integrations/operator/main.go
+COPY integrations/operator/namespace.go integrations/operator/namespace.go
+COPY integrations/operator/config.go integrations/operator/config.go
 
-in order to make sure the changes in the flake are reflected in the local devbox shell.
+# Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
+#  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
+# TARGETOS and TARGETARCH are provided by Docker/buildx, but must be explicitly listed here
+ARG COMPILER_NAME
+ARG TARGETOS
+ARG TARGETARCH
 
-## Why did We Build Teleport?
+RUN go mod verify
 
-The Teleport creators used to work together at Rackspace. We noticed that most cloud computing users struggle with setting up and configuring infrastructure security because popular tools, while flexible, are complex to understand and expensive to maintain. Additionally, most organizations use multiple infrastructure form factors such as several cloud providers, multiple cloud accounts, servers in colocation, and even smart devices. Some of those devices run on untrusted networks, behind third-party firewalls. This only magnifies complexity and increases operational overhead.
+# Build the program
+# CGO is required for github.com/gravitational/teleport/lib/system
+RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
+    CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -mod=vendor -tags "kustomize_disable_go_plugin_support" -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
 
-We had a choice, either start a security consulting business or build a solution that's dead-easy to use and understand. A real-time representation of all of your servers in the same room as you, as if they were magically _teleported_. Thus, Teleport was born!
+# Create the image with the build operator on the $TARGETPLATFORM
+# TARGETPLATFORM is provided by Docker/buildx
+FROM --platform=$TARGETPLATFORM $BASE_IMAGE
+WORKDIR /
+COPY --from=builder /go/bin/teleport-operator .
 
-## More Information
-
-* [Teleport Getting Started](https://goteleport.com/docs/get-started/)
-* [Teleport
-  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
-* [Reference](https://goteleport.com/docs/reference/)
-* [FAQ](https://goteleport.com/docs/faq)
-
-## Support and Contributing
-
-We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in GitHub, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
-
-* Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
-* If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in GitHub.
-* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
-
-## Is Teleport Secure and Production-Ready?
-
-Yes -- Teleport is production-ready and designed to protect and facilitate
-access to the most precious and mission-critical applications.
-
-Teleport has completed several security audits from nationally and
-internationally recognized technology security companies.
-
-We publicize some of our audit results, security philosophy and related
-information on our [trust page](https://trust.goteleport.com/).
-
-You can see the list of companies that use Teleport in production on the Teleport
-[product page](https://goteleport.com/case-study/).
-
-## Who Built Teleport?
-
-Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
-about Teleport and our history](https://goteleport.com/about/).
-
-## License
-
-Teleport is distributed in multiple forms with different licensing implications.
-
-The Teleport API module (all code in this repository under `/api`) is available
-under the [Apache 2.0 license](./api/LICENSE).
-
-The remainder of the source code in this repository is available under the
-[GNU Affero General Public License](./LICENSE). Users compiling Teleport
-from source must comply with the terms of this license.
-
-Teleport Community Edition builds distributed on http://goteleport.com/download
-are available under a [modified Apache 2.0 license](./build.assets/LICENSE-community).
+ENTRYPOINT ["/teleport-operator"]
+```

@@ -806,11 +806,9 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 		},
 	}
 
-	if enterprise {
-		conditions[teleport.SystemOktaAccessRoleName] = types.RoleConditions{
-			AppLabels:   types.Labels{types.OriginLabel: []string{types.OriginOkta}},
-			GroupLabels: types.Labels{types.OriginLabel: []string{types.OriginOkta}},
-		}
+	conditions[teleport.SystemOktaAccessRoleName] = types.RoleConditions{
+		AppLabels:   types.Labels{types.OriginLabel: []string{types.OriginOkta}},
+		GroupLabels: types.Labels{types.OriginLabel: []string{types.OriginOkta}},
 	}
 
 	return conditions
@@ -819,63 +817,52 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 // defaultAllowAccessRequestConditions has the access request conditions that should be set as default when they were
 // not explicitly defined.
 func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.AccessRequestConditions {
-	if enterprise {
-		return map[string]*types.AccessRequestConditions{
-			teleport.PresetRequesterRoleName: {
-				SearchAsRoles: []string{
-					teleport.PresetAccessRoleName,
-					teleport.PresetGroupAccessRoleName,
-					teleport.SystemIdentityCenterAccessRoleName,
-				},
+	return map[string]*types.AccessRequestConditions{
+		teleport.PresetRequesterRoleName: {
+			SearchAsRoles: []string{
+				teleport.PresetAccessRoleName,
+				teleport.PresetGroupAccessRoleName,
+				teleport.SystemIdentityCenterAccessRoleName,
 			},
-			teleport.SystemOktaRequesterRoleName: {
-				SearchAsRoles: []string{
-					teleport.SystemOktaAccessRoleName,
-				},
-				MaxDuration: types.NewDuration(MaxAccessDuration),
+		},
+		teleport.SystemOktaRequesterRoleName: {
+			SearchAsRoles: []string{
+				teleport.SystemOktaAccessRoleName,
 			},
-		}
+			MaxDuration: types.NewDuration(MaxAccessDuration),
+		},
 	}
-
-	return map[string]*types.AccessRequestConditions{}
 }
 
 // defaultAllowAccessReviewConditions has the access review conditions that should be set as default when they were
 // not explicitly defined.
 func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.AccessReviewConditions {
-	if enterprise {
-		return map[string]*types.AccessReviewConditions{
-			teleport.PresetReviewerRoleName: {
-				PreviewAsRoles: []string{
-					teleport.PresetAccessRoleName,
-					teleport.PresetGroupAccessRoleName,
-					teleport.SystemIdentityCenterAccessRoleName,
-				},
-				Roles: []string{
-					teleport.PresetAccessRoleName,
-					teleport.PresetGroupAccessRoleName,
-					teleport.SystemIdentityCenterAccessRoleName,
-				},
+	return map[string]*types.AccessReviewConditions{
+		teleport.PresetReviewerRoleName: {
+			PreviewAsRoles: []string{
+				teleport.PresetAccessRoleName,
+				teleport.PresetGroupAccessRoleName,
+				teleport.SystemIdentityCenterAccessRoleName,
 			},
-		}
+			Roles: []string{
+				teleport.PresetAccessRoleName,
+				teleport.PresetGroupAccessRoleName,
+				teleport.SystemIdentityCenterAccessRoleName,
+			},
+		},
 	}
-
-	return map[string]*types.AccessReviewConditions{}
 }
 
 func defaultAllowAccountAssignments(enterprise bool) map[string][]types.IdentityCenterAccountAssignment {
-	if enterprise {
-		return map[string][]types.IdentityCenterAccountAssignment{
-			teleport.SystemIdentityCenterAccessRoleName: {
-				{
-					Account:       types.Wildcard,
-					PermissionSet: types.Wildcard,
-				},
+	return map[string][]types.IdentityCenterAccountAssignment{
+		teleport.SystemIdentityCenterAccessRoleName: {
+			{
+				Account:       types.Wildcard,
+				PermissionSet: types.Wildcard,
 			},
-		}
+		},
 	}
 
-	return map[string][]types.IdentityCenterAccountAssignment{}
 }
 
 // AddRoleDefaults adds default role attributes to a preset role.

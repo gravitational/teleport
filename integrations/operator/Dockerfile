@@ -1,12 +1,13 @@
 ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
 
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM docker.io/debian:12 as builder
+FROM --platform=$BUILDPLATFORM docker.arvancloud.ir/debian:12 as builder
 ARG BUILDARCH
 
 ## Install dependencies.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    git \
     ca-certificates \
     unzip \
     # x86_64 dependencies and build tools
@@ -22,13 +23,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-i686-linux-gnu
 
 # Install Go.
+#ARG GOLANG_VERSION
+#RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+#    chmod a+w /var/lib && \
+#    chmod a-w /
+#ENV GOPATH="/go" \
+#    GOROOT="/opt/go" \
+#    PATH="$PATH:/opt/go/bin:/go/bin"
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+COPY ../../../go1.23.10.linux-amd64.tar.gz /opt/
+
+RUN mkdir -p /opt && cd /opt && \
+    tar -xzf go1.23.10.linux-amd64.tar.gz && \
+    rm go1.23.10.linux-amd64.tar.gz && \
     chmod a+w /var/lib && \
     chmod a-w /
+
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin"
+
 
 # Install protoc.
 ARG PROTOC_VERSION # eg, "3.20.2"
@@ -46,6 +60,7 @@ WORKDIR /go/src/github.com/gravitational/teleport
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY vendor/ ./vendor/
 
 # We have to copy the API before `go mod download` because go.mod has a replace directive for it
 COPY api/ api/
@@ -53,7 +68,9 @@ COPY api/ api/
 # Download and Cache dependencies before building and copying source
 # This will prevent re-downloading the operator's dependencies if they have not changed as this
 # `run` layer will be cached
-RUN go mod download
+#ENV GOPROXY=https://goproxy.cn,direct
+#ENV GOPROXY=https://goproxy.io,direct
+#RUN go mod download -x
 
 COPY *.go ./
 COPY lib/ lib/
@@ -73,11 +90,13 @@ ARG COMPILER_NAME
 ARG TARGETOS
 ARG TARGETARCH
 
+RUN go mod verify
+
 # Build the program
 # CGO is required for github.com/gravitational/teleport/lib/system
 RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
     CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -tags "kustomize_disable_go_plugin_support" -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
+    go build -mod=vendor -tags "kustomize_disable_go_plugin_support" -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx

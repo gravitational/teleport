@@ -370,7 +370,7 @@ type defaultModules struct {
 	loadDynamicValues sync.Once
 }
 
-var teleportBuildType = BuildOSS
+var teleportBuildType = BuildEnterprise
 
 // BuildType returns build type (OSS, Community or Enterprise)
 func (p *defaultModules) BuildType() string {
@@ -379,23 +379,23 @@ func (p *defaultModules) BuildType() string {
 
 // IsEnterpriseBuild returns false for [defaultModules].
 func (p *defaultModules) IsEnterpriseBuild() bool {
-	return false
+	return true
 }
 
 // IsOSSBuild returns true for [defaultModules].
 func (p *defaultModules) IsOSSBuild() bool {
-	return true
+	return false
 }
 
 // PrintVersion prints the Teleport version.
 func (p *defaultModules) PrintVersion() {
-	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
+	fmt.Printf("ICE Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
 // LicenseExpiry returns the expiry date of the enterprise license, if applicable.
 // Returns the zero value for time.Time for OSS.
 func (p *defaultModules) LicenseExpiry() time.Time {
-	return time.Time{}
+	return time.Now().AddDate(100, 0, 0)
 }
 
 // Features returns supported features for default modules which is applied for OSS users
@@ -407,13 +407,34 @@ func (p *defaultModules) Features() Features {
 
 	return Features{
 		AutomaticUpgrades: p.automaticUpgrades,
-		SupportType:       proto.SupportType_SUPPORT_TYPE_FREE,
+		SupportType:       proto.SupportType_SUPPORT_TYPE_PREMIUM,
 		Entitlements: map[entitlements.EntitlementKind]EntitlementInfo{
-			entitlements.App:                {Enabled: true, Limit: 0},
-			entitlements.DB:                 {Enabled: true, Limit: 0},
-			entitlements.Desktop:            {Enabled: true, Limit: 0},
-			entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
-			entitlements.K8s:                {Enabled: true, Limit: 0},
+			entitlements.AccessLists:                {Enabled: true, Limit: 0},
+			entitlements.AccessMonitoring:           {Enabled: true, Limit: 0},
+			entitlements.AccessRequests:             {Enabled: true, Limit: 0},
+			entitlements.App:                        {Enabled: true, Limit: 0},
+			entitlements.CloudAuditLogRetention:     {Enabled: true, Limit: 0},
+			entitlements.DB:                         {Enabled: true, Limit: 0},
+			entitlements.Desktop:                    {Enabled: true, Limit: 0},
+			entitlements.DeviceTrust:                {Enabled: true, Limit: 0},
+			entitlements.ExternalAuditStorage:       {Enabled: true, Limit: 0},
+			entitlements.FeatureHiding:              {Enabled: true, Limit: 0},
+			entitlements.HSM:                        {Enabled: true, Limit: 0},
+			entitlements.Identity:                   {Enabled: true, Limit: 0},
+			entitlements.JoinActiveSessions:         {Enabled: true, Limit: 0},
+			entitlements.K8s:                        {Enabled: true, Limit: 0},
+			entitlements.MobileDeviceManagement:     {Enabled: true, Limit: 0},
+			entitlements.OIDC:                       {Enabled: true, Limit: 0},
+			entitlements.OktaSCIM:                   {Enabled: true, Limit: 0},
+			entitlements.OktaUserSync:               {Enabled: true, Limit: 0},
+			entitlements.Policy:                     {Enabled: true, Limit: 0},
+			entitlements.SAML:                       {Enabled: true, Limit: 0},
+			entitlements.SessionLocks:               {Enabled: true, Limit: 0},
+			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 0},
+			entitlements.UpsellAlert:                {Enabled: true, Limit: 0},
+			entitlements.UsageReporting:             {Enabled: true, Limit: 0},
+			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
 		},
 	}
 }

@@ -1,39 +1,34 @@
-ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+FROM ubuntu:24.04
 
-FROM debian:12 AS staging
-RUN apt-get update
-COPY fetch-debs ./
-RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
+ENV DEBIAN_FRONTEND=noninteractive
 
-FROM debian:12 AS teleport
-# Install the teleport binary from an architecture-specific debian package. Note
-# that we cannot simply pass a ready-made package filename in as a build-arg, as
-# this dockerfile is used for a multiarch build and any build-args will be
-# re-used for multiple ${TARGETARCH}es. In order to get around this we pass
-# various components of the architecture-specific debian package filename in as
-# individual build args and re-assemble it *inside* the build.
+# نصب پکیج‌های مورد نیاز برای نصب پکیج deb و اجرای Teleport
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    dumb-init \
+    libpam0g \
+    libaudit1 \
+    libcap-ng0 \
+    libfido2-1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# NOTE that TELEPORT_RELEASE_INFIX *must* include the leading dash if set.
-ARG TELEPORT_RELEASE_INFIX
+# ورژن و فایل .deb را به صورت آرگومان دریافت می‌کنیم
 ARG TELEPORT_VERSION
-# TARGETARCH is supplied by the `buildx` mechanics
-ARG TARGETARCH
+ARG TELEPORT_RELEASE_INFIX=
+ARG TARGETARCH=amd64
 ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}_${TARGETARCH}.deb
-COPY $TELEPORT_DEB_FILE_NAME ./$TELEPORT_DEB_FILE_NAME
-RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
-    mkdir -p /opt/staging/etc/teleport && \
-    mkdir -p /opt/staging/var/lib/dpkg/status.d/ && \
-    mkdir -p /opt/staging/usr/local/bin && \
-    mv /opt/staging/DEBIAN/control /opt/staging/var/lib/dpkg/status.d/teleport && \
-    mv /opt/staging/opt/teleport/system/bin/* /opt/staging/usr/local/bin/ && \
-    rm -f /opt/staging/usr/local/bin/teleport-update && \
-    rm -rf /opt/staging/DEBIAN
 
-FROM $BASE_IMAGE
-COPY --from=teleport /opt/staging /
-COPY --from=staging /opt/staging/root /
-COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
-# Attempt a graceful shutdown by default
-# See https://goteleport.com/docs/reference/signals/ for signal reference.
+# کپی فایل deb
+COPY ${TELEPORT_DEB_FILE_NAME} /tmp/
+
+# نصب Teleport
+RUN dpkg -i /tmp/${TELEPORT_DEB_FILE_NAME} && rm -f /tmp/${TELEPORT_DEB_FILE_NAME}
+
+# پوشه‌های مورد نیاز
+RUN mkdir -p /etc/teleport /var/lib/teleport
+
+# سیگنال برای shutdown مرتب
 STOPSIGNAL SIGQUIT
+
+# اجرای Teleport با dumb-init
 ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

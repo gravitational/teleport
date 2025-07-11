@@ -4544,11 +4544,6 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 			types.TeleportDowngradedLabel, downgradeReason)
 	}
 
-	// Some options are only available with enterprise subscription
-	if err := checkRoleFeatureSupport(role); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// access predicate syntax is not checked as part of normal role validation in order
 	// to allow the available namespaces to be extended without breaking compatibility with
 	// older nodes/proxies (which do not need to ever evaluate said predicates).
@@ -4656,39 +4651,6 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 
 	upserted, err := a.authServer.UpsertRole(ctx, role)
 	return upserted, trace.Wrap(err)
-}
-
-func checkRoleFeatureSupport(role types.Role) error {
-	features := modules.GetModules().Features()
-	options := role.GetOptions()
-	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
-
-	// source IP pinning doesn't have a dedicated feature flag,
-	// it is available to all enterprise users
-	if modules.GetModules().BuildType() != modules.BuildEnterprise && role.GetOptions().PinSourceIP {
-		return trace.AccessDenied("role option pin_source_ip is only available in enterprise subscriptions")
-	}
-
-	switch {
-	case !features.AccessControls && options.MaxSessions > 0:
-		return trace.AccessDenied(
-			"role option max_sessions is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows &&
-		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
-		return trace.AccessDenied(
-			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
-	case !features.AdvancedAccessWorkflows && len(allowReq.Thresholds) != 0:
-		return trace.AccessDenied(
-			"role field allow.request.thresholds is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
-		return trace.AccessDenied(
-			"role field allow.review_requests is only available in enterprise subscriptions")
-	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
-		return trace.AccessDenied(
-			"role field allow.search_as_roles is only available in enterprise subscriptions")
-	default:
-		return nil
-	}
 }
 
 // GetRole returns role by name
