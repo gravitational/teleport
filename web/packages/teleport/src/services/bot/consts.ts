@@ -95,6 +95,8 @@ export function makeBot(bot: ApiBot): FlatBot {
 
     roles: bot?.spec?.roles || [],
     traits: bot?.spec?.traits || [],
+
+    max_session_ttl: bot?.spec?.max_session_ttl,
   };
 }
 
