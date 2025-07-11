@@ -25,12 +25,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -39,6 +41,27 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func DatabaseTunnelServiceBuilder(botCfg *config.BotConfig, cfg *config.DatabaseTunnelService) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &DatabaseTunnelService{
+			botCfg:             botCfg,
+			cfg:                cfg,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
 
 var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
 
@@ -227,9 +250,6 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	}()
 	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
-	if s.statusReporter == nil {
-		s.statusReporter = readyz.NoopReporter()
-	}
 	s.statusReporter.Report(readyz.Healthy)
 
 	select {

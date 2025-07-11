@@ -24,18 +24,41 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
+
+func ApplicationOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.ApplicationOutput) bot.ServiceBuilder {
+	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+		svc := &ApplicationOutputService{
+			botAuthClient:      deps.Client,
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			botCfg:             botCfg,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+		}
+		svc.log = deps.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
+		)
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		return svc, nil
+	}
+}
 
 // ApplicationOutputService generates the artifacts necessary to connect to a
 // HTTP or TCP application using Teleport.
@@ -46,7 +69,7 @@ type ApplicationOutputService struct {
 	cfg                *config.ApplicationOutput
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
-	reloadBroadcaster  *internal.ChannelBroadcaster
+	reloadCh           <-chan struct{}
 	statusReporter     readyz.Reporter
 	identityGenerator  *identity.Generator
 	clientBuilder      *client.Builder
@@ -64,9 +87,6 @@ func (s *ApplicationOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *ApplicationOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.Subscribe()
-	defer unsubscribe()
-
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
@@ -74,7 +94,7 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		RetryLimit:      renewalRetryLimit,
 		Log:             s.log,
-		ReloadCh:        reloadCh,
+		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 		StatusReporter:  s.statusReporter,
 	})
