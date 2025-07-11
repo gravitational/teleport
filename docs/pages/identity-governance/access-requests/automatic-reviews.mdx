@@ -1,6 +1,6 @@
 ---
 title: Configure Automatic Reviews
-description: Describes how to configure Access Monitoring Rules for Automatic Reviews.
+description: Describes how to configure Access Automation Rules for Automatic Reviews.
 ---
 
 Teleport supports automatic reviews of role Access Requests. This
@@ -14,11 +14,11 @@ still allowing users to receive temporary access without manual approval.
 
 ## How it works
 
-Automatic reviews are triggered by Access Monitoring Rules. These rules instruct
+Automatic reviews are triggered by Access Automation Rules. These rules instruct
 Teleport to monitor Access Requests and automatically submit a review
 when certain conditions (such as requested roles or user traits) are met.
 
-For example, an Access Monitoring Rule can perform an automatic Access Request
+For example, an Access Automation Rule can perform an automatic Access Request
 approval when a user with the Teleport traits or IdP attribute `team: demo`
 requests access to the `access` role.
 
@@ -92,12 +92,12 @@ does not support wildcard or regular expressions.
   by the IdP.
 </Admonition>
 
-## Step 3/4. Create Access Monitoring Rule
+## Step 3/4. Create automatic review rule
 
 Next, define the automatic review rule via the Teleport Web UI.
 
-1. Go to **Identity Governance** -> **Access Requests** -> **View Access Monitoring Rules**
-2. Click **Create Access Monitoring Rule** -> **Automatic Review Rule**
+1. Go to **Identity Governance** -> **Access Requests** -> **Set Up Access Automation Rules**
+2. Click **Create New Access Automation Rule** -> **Automatic Review Rule**
 3. Configure the rule and set:
    - **Name of roles to match**: `access`
    - **User Traits**: `team: demo`
@@ -106,14 +106,14 @@ Next, define the automatic review rule via the Teleport Web UI.
 
 ![Create Automatic Review Rule Editor](../../../img/access-controls/automatic-reviews/create-automatic-review-rule.png)
 
-This Access Monitoring Rule will ensure that Access Requests for the `access`
+This automatic review rule will ensure that Access Requests for the `access`
 role will be automatically reviewed for approval if the Teleport user traits
 requirements are satisfied. In this case, any user with the traits `team: demo`
 will satisfy the requirement.
 
 ## Step 4/4. Verify automatic review rule
 
-To verify the new Access Monitoring Rule, create an Access Request via the Teleport
+To verify the new automatic review rule, create an Access Request via the Teleport
 Web UI.
 1. Log in as `demo-access-requester`
 2. Go to **Access Requests** and click **New Access Request**
@@ -146,7 +146,8 @@ other than a role.
 
 ## Next Steps
 
-- For more configuration options with Access Monitoring Rules, refer to the
+- Access Automation Rules are configured using an underlying `access_monitoring_rule`
+  resource. For more details about the `access_monitoring_rule` resource, refer to the
   [Access Monitoring Rules Reference](../../reference/access-controls/access-monitoring-rules.mdx).
 - For configuration with Teleport Terraform Provider, refer to the
   [Terraform Resources Index](../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
