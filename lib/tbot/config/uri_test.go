@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 func TestParseJoinURI(t *testing.T) {
@@ -105,7 +106,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+proxy+token://asdf@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "asdf",
 					JoinMethod: types.JoinMethodToken,
 				},
@@ -116,10 +117,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+proxy+bound-keypair://some-token:secret@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodBoundKeypair,
-					BoundKeypair: BoundKeypairOnboardingConfig{
+					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 						RegistrationSecret: "secret",
 					},
 				},
@@ -130,10 +131,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+azure://some-token:client-id@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodAzure,
-					Azure: AzureOnboardingConfig{
+					Azure: onboarding.AzureOnboardingConfig{
 						ClientID: "client-id",
 					},
 				},
@@ -144,10 +145,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+gitlab://some-token:var-name@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodGitLab,
-					Gitlab: GitlabOnboardingConfig{
+					Gitlab: onboarding.GitlabOnboardingConfig{
 						TokenEnvVarName: "var-name",
 					},
 				},
@@ -158,7 +159,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+azure-devops://some-token@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodAzureDevops,
 				},
@@ -169,10 +170,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+terraform-cloud://some-token:tag@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodTerraformCloud,
-					Terraform: TerraformOnboardingConfig{
+					Terraform: onboarding.TerraformOnboardingConfig{
 						AudienceTag: "tag",
 					},
 				},
@@ -201,10 +202,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri: "tbot+auth+bound-keypair://asdf:secret@example.com:1234",
 			inputConfig: &BotConfig{
 				ProxyServer: "example.com",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "token",
 					JoinMethod: types.JoinMethodBoundKeypair,
-					BoundKeypair: BoundKeypairOnboardingConfig{
+					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 						RegistrationSecret: "secret2",
 					},
 				},

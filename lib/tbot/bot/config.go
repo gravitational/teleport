@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 )
@@ -79,3 +80,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+// UnmarshalConfigContext is passed to the UnmarshalConfig method implemented by
+// service config structs. It provides a way to unmarshal fields that may be
+// dynamically registered (like the Kubernetes Secret Destination, which is only
+// available if you import the k8s package) without maintaining a global registry.
+type UnmarshalConfigContext = internal.UnmarshalConfigContext
