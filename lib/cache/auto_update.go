@@ -26,6 +26,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -242,24 +244,8 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateAgentReport, error) {
-			var discoveryConfigs []*autoupdatev1.AutoUpdateAgentReport
-			var nextToken string
-			for {
-				var page []*autoupdatev1.AutoUpdateAgentReport
-				var err error
-
-				page, nextToken, err = upstream.ListAutoUpdateAgentReports(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				discoveryConfigs = append(discoveryConfigs, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return discoveryConfigs, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAutoUpdateAgentReports))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateAgentReport {
 			return &autoupdatev1.AutoUpdateAgentReport{

@@ -31,7 +31,7 @@ func TestInstallers(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Installer]{
 		newResource: func(name string) (types.Installer, error) {
-			return types.NewInstallerV1("test", "test.sh")
+			return types.NewInstallerV1(name, "test.sh")
 		},
 		create: p.clusterConfigS.SetInstaller,
 		list: func(ctx context.Context) ([]types.Installer, error) {

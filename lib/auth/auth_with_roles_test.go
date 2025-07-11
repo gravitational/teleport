@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
 	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
@@ -760,6 +761,109 @@ func TestGithubAuthCompat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	// Set up a new Integration for AWS Roles Anywhere.
+	awsRAIntegration := "awsra-integration"
+	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
+		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
+		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+			Enabled:                       true,
+			ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+			ProfileAcceptsRoleSessionName: true,
+			RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	// Set up a new AWS App created from a Roles Anywhere Profile.
+	appName := "my-aws-access"
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:         constants.AWSConsoleURL,
+					Integration: awsRAIntegration,
+					PublicAddr:  "my-app.example.com",
+					AWS: &types.AppAWS{
+						RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+							ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
+							AcceptRoleSessionName: true,
+						},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	// Mock the credential generation function to return fixed credentials.
+	// This is required because the generator calls AWS endpoints to convert a teleport created certificate into valid AWS credentials.
+	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+
+	// Set up a user with the necessary roles to access the AWS App.
+	username := "aws-access-user"
+	roleARN := "arn:aws:iam::123456789012:role/MyRole"
+	awsAccessRole, err := CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWSRoleARNs: []string{roleARN},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(ctx, srv.Auth(), username, awsAccessRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create credentials for the AWS App
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	pub, err := keys.MarshalPublicKey(priv.Public())
+	require.NoError(t, err)
+
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       app.GetApp().GetName(),
+			AWSRoleARN: roleARN,
+		},
+	})
+	require.NoError(t, err)
+
+	// Parse the Identity and check the AWS Role ARN and credentials.
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
+	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
@@ -3391,10 +3495,24 @@ func TestApps(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err := devClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{devApp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -3417,18 +3535,41 @@ func TestApps(t *testing.T) {
 	// Dev should only be able to delete dev app.
 	err = devClt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
+	apps, err = devClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, apps)
+
+	out, next, err = devClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should be able to delete all.
 	err = adminClt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, apps)
+
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
 }
 
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the

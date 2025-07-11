@@ -1063,6 +1063,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS IAM Roles Anywhere Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
+	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/ping", h.WithClusterAuth(h.awsRolesAnywherePing))
+	h.POST("/webapi/sites/:site/integrations/aws-ra/:name/listprofiles", h.WithClusterAuth(h.awsRolesAnywhereListProfiles))
 
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
@@ -1619,6 +1621,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
 	return webclient.PingResponse{
 		Auth:              authSettings,
@@ -1627,7 +1630,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
 	}, nil
@@ -1665,6 +1668,14 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Now we modulate the autoupdate answer on a per-request basis.
+	// We don't want to cache one answer per updater UUID, so we take the
+	// cached result and just override what we must.
+	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
+	if updaterID != "" {
+		resp.AutoUpdate = h.automaticUpdateSettings184(r.Context(), group, updaterID)
 	}
 	return resp, nil
 }

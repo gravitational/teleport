@@ -138,6 +138,7 @@ const cfg = {
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
+    identifierFirstLoginEnabled: false,
   },
 
   proxyCluster: 'localhost',
@@ -183,6 +184,7 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    bot: '/web/bot/:name',
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
@@ -469,6 +471,8 @@ const cfg = {
 
     defaultConnectorPath: '/v1/webapi/authconnector/default',
 
+    authConnectorsPath: '/v1/webapi/authconnectors',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -720,6 +724,10 @@ const cfg = {
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotDetailsRoute(name: string) {
+    return generatePath(cfg.routes.bot, { name });
   },
 
   getBotInstancesRoute() {

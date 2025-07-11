@@ -181,7 +181,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Apps
+	Apps services.Applications
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -391,6 +391,14 @@ type InitConfig struct {
 
 	// MultipartHandler handles multipart uploads.
 	MultipartHandler events.MultipartHandler
+
+	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
+	// a locking operation for backend objects.
+	// This setting is particularly useful in test environments,
+	// as it can help accelerate operations such as updating the access list,
+	// especially when the list is also being modified concurrently by the background
+	// eligibility handler.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -710,7 +718,11 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	}
 
 	// Collect CAs from integrations to avoid deleting them.
-	err := clientutils.IterateResources(ctx, asrv.Services.ListIntegrations, func(ig types.Integration) error {
+	for ig, err := range clientutils.Resources(ctx, asrv.Services.ListIntegrations) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
 		switch {
 		case trace.IsNotImplemented(err):
@@ -722,9 +734,6 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
 		}
 		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
