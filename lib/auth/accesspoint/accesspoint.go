@@ -73,7 +73,7 @@ type Config struct {
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
-	Apps                    services.Apps
+	Applications            services.Applications
 	ClusterConfig           services.ClusterConfiguration
 	CrownJewels             services.CrownJewels
 	DatabaseObjects         services.DatabaseObjects
@@ -168,7 +168,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
-		Apps:                    cfg.Apps,
+		Apps:                    cfg.Applications,
 		ClusterConfig:           cfg.ClusterConfig,
 		AutoUpdateService:       cfg.AutoUpdateService,
 		CrownJewels:             cfg.CrownJewels,
