@@ -3,8 +3,8 @@ title: Bound Keypair Joining
 description: "Bound Keypair Joining: Reference and admin guide"
 ---
 
-Bound Keypair is a new join method designed to provide the best features of
-[dynamic join methods][dynamic] join methods - like AWS, GCP, or Azure - but in
+Bound Keypair is a join method designed to provide the best features of
+[delegated join methods][s-vs-d] join methods - like AWS, GCP, or Azure - but in
 on-prem or otherwise unsupported environments where no external verification is
 available.
 
@@ -18,29 +18,32 @@ Specifically, this join method:
   cases
 
 <Admonition type="tip" title="Preview Note">
-Bound Keypair joining is available in v18.1.0 and is intended to replace `token`
+Bound Keypair Joining is available in v18.1.0 and is intended to replace `token`
 joining as the default recommended join method in Teleport v19.0.0.
 </Admonition>
 
-## Use Cases
+## Use cases
 
-Bound Keypair joining can be used in any environment and is designed to function
+Bound Keypair Joining can be used in any environment and is designed to function
 as a drop-in replacement for the traditional [`token`][ephemeral] join method in
 all situations where it is used today. This includes bare-metal and on-prem
 hardware where TPMs are not available, or cloud providers not currently
-supported by a delegated join method.
+supported by a [delegated join method][delegated].
 
-As a drop-in replacement for `token` joining, Bound Keypair joining is also a
-good replacement for local experimentation for testing, and can be easily
+Similar to `token` joining, Bound Keypair Joining is also a good replacement for
+local experimentation for testing, with minimal configuration needed to onboard
+a bot initially. When ready to deploy to production, it's trivial to adjust
+onboarding and recovery settings to select your desired balance between
+resiliency and security.
 
 Additionally, with [`insecure` recovery](#disabling-join-state-verification) and
 in situations that can accommodate the security complications, Bound Keypair
-joining can be used to join bots in otherwise unsupported CI/CD providers by
+Joining can be used to join bots in otherwise unsupported CI/CD providers by
 persisting the bot's keypair in the platform keystore.
 
 ## Limitations
 
-While Bound Keypair joining does enable or simplify a number use cases, it does
+While Bound Keypair Joining does enable or simplify a number use cases, it does
 have limitations that may make it unfit in some instances.
 
 In particular, the [secure recovery modes](#recovery) introduce some deployment
@@ -59,11 +62,19 @@ used with care.
 
 ## Concepts
 
-### Bound Keypair
+### Bound keypair
 
 The term "bound keypair" refers to both the type of credential and way it's used
 in Teleport: first, a bot generates a standard public/private keypair; next,
 Teleport is configured to trust the public key, binding it to a token.
+
+While bots using Bound Keypair Joining will receive regular, short-lived
+Teleport certificates, and will refresh them regularly in a similar manner to
+[renewable certificates][renewable], they also make use of an additional
+public/private keypair that is not tied directly to a certificate. Critically,
+this means the keypair does not have an expiration date, and that any trust
+relationship established between Teleport and a Bound Keypair bot is controlled
+by server-side configuration within Teleport and not due to the passage of time.
 
 Once this trust relationship has been established, bots can - in a sense - serve
 as their own identity authority, similar to how cloud providers can attest to
@@ -72,7 +83,7 @@ unique cryptographic challenge which the bot signs using its private key, and
 the result is verified using the key registered with Teleport.
 
 As this self attestation is not by itself a sufficient security guarantee, Bound
-Keypair joining makes use of additional server-side rules to control whether or
+Keypair Joining makes use of additional server-side rules to control whether or
 not a join attempt will be allowed, including:
 - Limiting the number of [recovery attempts](#recovery) and optionally requiring
   (server-side) human intervention for each recovery.
@@ -158,7 +169,7 @@ values:
   security checks and should be used with care.
   [See below](#disabling-join-state-verification) for more information.
 
-### Join State Verification
+### Join state verification
 
 A **join state document** is an additional piece of information provided to
 joining bots alongside their usual Teleport certificate bundle. It contains
@@ -185,13 +196,13 @@ credentials in use by the attacker.
 Note that join state verification is disabled when the token's
 `spec.bound_keypair.recovery.mode` is set to `insecure`.
 
-## Token Resource Examples
+## Token resource examples
 
 Bound Keypair tokens can be configured using Teleport's existing `token`
 resource using the `bound_keypair` join method. For a complete reference, refer
 to the [provision token reference](../join-methods.mdx#bound-keypair-bound_keypair).
 
-### Minimal Token
+### Minimal token
 
 A minimal bound keypair token does not require any special configuration beyond
 specifying the `bound_keypair` join method value:
@@ -229,7 +240,7 @@ $ tbot configure identity \
 $ tbot start -c tbot.yaml
 ```
 
-### Preregistered Key Example
+### Preregistered key example
 
 To use a preregistered key instead of a registration secret, a keypair needs to
 be generated on the bot node. To do so, run the following commands:
@@ -291,7 +302,7 @@ Note the following:
   Typically, you might create tokens on your local machine and run `tbot` on a
   remote server.
 
-## Admin Reference
+## Admin reference
 
 ### Allowing additional recovery attempts
 
@@ -465,7 +476,7 @@ version: v2
 Note the different locks and lock targets shown above: bots can be targeted by
 any of their Teleport user name (`bot-example`), the bot instance ID (a UUID),
 or the join token name. Locks created automatically for bots using Bound Keypair
-joining will typically use a `join_token` target, but a lock targeting any of
+Joining will typically use a `join_token` target, but a lock targeting any of
 these values could be created manually.
 
 Note that locks may have a message field containing details about why the lock
@@ -507,11 +518,11 @@ If you do suspect the bot's credentials may have been compromised, you may also
 want to [request a keypair rotation](#requesting-a-keypair-rotation) in
 addition to taking other steps to ensure the node is properly secured.
 
-### Disabling Join State Verification
+### Disabling join state verification
 
 It is occasionally useful to intentionally disable join state verification. For
 example, this can enable use with:
-- CI/CD providers without an explicit [dynamic join method][dynamic].
+- CI/CD providers without an explicit [delegated join method][delegated].
 - Nodes with immutable storage that cannot store an updated join state document
   after each join.
 
@@ -562,6 +573,8 @@ the keypair expected by the restored Teleport cluster has been rotated out of
 the client-side history, or if the client-side history has been lost or deleted.
 
 [ephemeral]: ../architecture/machine-id-architecture.mdx#ephemeral-token
-[dynamic]: ../architecture/machine-id-architecture.mdx#dynamic-join-tokens-eg-aws-iam
+[delegated]: ../join-methods.mdx#delegated-join-methods
 [rbac]: ../access-controls/roles.mdx
 [token]: ../join-methods.mdx#ephemeral-tokens
+[renewable]: ../join-methods.mdx#renewable-vs-non-renewable
+[s-vs-d]: ../join-methods.mdx#secret-vs-delegated
