@@ -69,7 +69,7 @@ type AccessLists interface {
 	DeleteAccessList(context.Context, string) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
-	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+	UpsertAccessListWithMembers(context.Context, accesslist.UpsertAccessListWithMembersRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
