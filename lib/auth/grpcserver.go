@@ -5576,6 +5576,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	integrationv1pb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
 
+	integrationAWSRolesAnywhereServiceServer, err := integrationv1.NewAWSRolesAnywhereService(&integrationv1.AWSRolesAnywhereServiceConfig{
+		Authorizer:         cfg.Authorizer,
+		IntegrationService: integrationServiceServer,
+		Clock:              cfg.AuthServer.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	integrationv1pb.RegisterAWSRolesAnywhereServiceServer(server, integrationAWSRolesAnywhereServiceServer)
+
 	userTask, err := usertasksv1.NewService(usertasksv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
