@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Notification } from './Notification';
+export { Notification, BottomRightNotificationContainer } from './Notification';
+export * from './useNotifications';
 export type {
   NotificationItem,
   NotificationItemContent,

@@ -17,15 +17,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import styled from 'styled-components';
 
 import { Alert, Box, Button, Flex, Link } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import {
+  BottomRightNotificationContainer,
   Notification,
-  NotificationItem,
-  NotificationSeverity,
+  useNotifications,
 } from 'shared/components/Notification';
 import {
   InfoExternalTextLink,
@@ -96,18 +95,8 @@ const useNewRoleEditor = storageService.getUseNewRoleEditor();
 export function Roles(props: State & RolesProps) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-
-  function addNotification(content: string, severity: NotificationSeverity) {
-    setNotifications(notifications => [
-      ...notifications,
-      { id: crypto.randomUUID(), content, severity },
-    ]);
-  }
-
-  function removeNotification(id: string) {
-    setNotifications(n => n.filter(item => item.id !== id));
-  }
+  const { notifications, addNotification, removeNotification } =
+    useNotifications();
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -290,16 +279,15 @@ export function Roles(props: State & RolesProps) {
         />
       )}
 
-      <NotificationContainer>
+      <BottomRightNotificationContainer>
         {notifications.map(item => (
           <Notification
-            mb={3}
             key={item.id}
             item={item}
             onRemove={() => removeNotification(item.id)}
           />
         ))}
-      </NotificationContainer>
+      </BottomRightNotificationContainer>
     </FeatureBox>
   );
 }
@@ -356,9 +344,3 @@ function InfoGuide() {
     </Box>
   );
 }
-
-const NotificationContainer = styled.div`
-  position: absolute;
-  bottom: ${props => props.theme.space[2]}px;
-  right: ${props => props.theme.space[5]}px;
-`;
