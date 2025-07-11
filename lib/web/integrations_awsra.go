@@ -144,7 +144,66 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	return nil, trace.Wrap(err)
 }
 
-// awsRolesAnywhereListProfiles lists Roles Anywhere Profiles accessible by the integration.
+// awsRolesAnywherePing performs an health check for the integration.
+// It returns the caller identity and the number of AWS Roles Anywhere Profiles that are active.
+// If a trust anchor is provided in the body, it will be used to check the connection ignoring the integration.
+// Otherwise, the integration is used to check the connection.
+func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	var req ui.AWSRolesAnywherePingRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingRequest := &integrationv1.AWSRolesAnywherePingRequest{}
+
+	// When creating an integration, the Ping is called with an empty integration, but Trust Anchor, Profile and Role ARNs must be provided.
+	// This allow us to check if the integration is properly configured before creating it.
+	switch {
+	case req.TrustAnchorARN != "":
+		if req.SyncRoleARN == "" || req.SyncProfileARN == "" {
+			return nil, trace.BadParameter("sync role and sync profile ARNs must be provided when trust anchor ARN is provided")
+		}
+
+		pingRequest.Mode = &integrationv1.AWSRolesAnywherePingRequest_Custom{
+			Custom: &integrationv1.AWSRolesAnywherePingRequestWithoutIntegration{
+				TrustAnchorArn: req.TrustAnchorARN,
+				RoleArn:        req.SyncRoleARN,
+				ProfileArn:     req.SyncProfileARN,
+			},
+		}
+
+	default:
+		pingRequest.Mode = &integrationv1.AWSRolesAnywherePingRequest_Integration{
+			Integration: integrationName,
+		}
+	}
+
+	pingResp, err := clt.IntegrationAWSRolesAnywhereClient().AWSRolesAnywherePing(ctx, pingRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSRolesAnywherePingResponse{
+		ProfileCount: int(pingResp.GetProfileCount()),
+		AccountID:    pingResp.GetAccountId(),
+		ARN:          pingResp.GetArn(),
+		UserID:       pingResp.GetUserId(),
+	}, nil
+}
+
+// awsRolesAnywhereListProfiles lists profiles Roles Anywhere Profiles accessible by the integration.
 func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
