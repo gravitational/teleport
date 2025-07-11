@@ -277,10 +277,16 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 		return trace.Wrap(err)
 	}
 
+	profileNameFilters := integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileNameFilters
+
 	var nextPage *string
 	for {
-		const useAPIDefaultPageSize = 0
-		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, nextPage, useAPIDefaultPageSize)
+		listReq := listRolesAnywhereProfilesRequest{
+			raClient: raClient,
+			nextPage: nextPage,
+			filters:  profileNameFilters,
+		}
+		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, listReq)
 		if err != nil {
 			return trace.Wrap(err)
 		}
