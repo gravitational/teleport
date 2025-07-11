@@ -1304,8 +1304,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	// It is safe to return raw allow SearchAsRoles here because in the Web UI,
-	// the value of AllowedSearchAsRoles is only used to check if
-	// user has an access to the Access Request feature.
+	// only the length of AllowedSearchAsRoles is checked to determine if
+	// user has access to the Access Request feature.
 	userContext.AllowedSearchAsRoles = accessChecker.GetOriginalAllowSearchAsRoles()
 
 	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)

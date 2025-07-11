@@ -3429,6 +3429,7 @@ func (set RoleSet) GetOriginalAllowSearchAsRoles() []string {
 	return apiutils.Deduplicate(allow)
 }
 
+// RolesGetter defines an interface to fetch all roles from the cluster.
 type RolesGetter interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 }
@@ -3445,8 +3446,8 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 	if err != nil {
 		return outAllowed, trace.Wrap(err)
 	}
-	var matcher roleMatcher
 
+	var matcher roleMatcher
 	for _, role := range set {
 		if slices.ContainsFunc(allowFilters, func(filter SearchAsRolesOption) bool {
 			return !filter(role)
@@ -3457,8 +3458,8 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 
 		allow, deny, err := buildMatchers(role.GetSearchAsRoles(types.Allow), role.GetSearchAsRoles(types.Deny))
 		if err != nil {
-			// let the loop continue with matcher collected before error.
-			slog.ErrorContext(ctx, "SearchAsRoles matcher build failure", "error", err)
+			// Let the loop continue with matcher collected before error.
+			slog.ErrorContext(ctx, "SearchAsRoles matcher build failed", "error", err)
 		}
 		matcher.allowSearch = append(matcher.allowSearch, allow...)
 		matcher.denySearch = append(matcher.denySearch, deny...)
@@ -3593,7 +3594,7 @@ func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Contex
 	for _, role := range set {
 		for _, kr := range role.GetRequestKubernetesResources(types.Deny) {
 			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Deny) {
-				// let the caller continue with an empty SearchAsRoles.
+				// Let the caller continue with an empty SearchAsRoles.
 				return nil, nil
 			}
 		}

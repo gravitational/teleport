@@ -10333,3 +10333,129 @@ func TestNewEnumerationResultFromEntities(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAllowedSearchAsRoles(t *testing.T) {
+	ctx := context.Background()
+	localCluster := "cluster"
+	const rickyRequester = "rickyRequester"
+	roles := map[string]types.Role{
+		"cloud-dev-ops":    mustRole(t, "cloud-dev-ops"),
+		"cloud-dev-admin":  mustRole(t, "cloud-dev-admin"),
+		"cloud-dev-secops": mustRole(t, "cloud-stage-secops"),
+		"dev":              mustRole(t, "dev"),
+		"infra-ops":        mustRole(t, "infra-ops"),
+	}
+
+	type requester struct {
+		allowed, denied []string
+	}
+
+	tests := []struct {
+		name          string
+		requester     requester
+		expectedRoles []string
+	}{
+		{
+			name: "matching search roles",
+			requester: requester{
+				allowed: []string{"cloud-dev-ops", "infra-ops"},
+			},
+			expectedRoles: []string{"cloud-dev-ops", "infra-ops"},
+		},
+		{
+			name: "with allow regexp",
+			requester: requester{
+				allowed: []string{"cloud-*"},
+			},
+			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin", "cloud-stage-secops"},
+		},
+		{
+			name: "with allow regexp narrowed",
+			requester: requester{
+				allowed: []string{"cloud-dev-*"},
+			},
+			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin"},
+		},
+		{
+			name: "matching deny",
+			requester: requester{
+				allowed: []string{"infra-ops", "dev"},
+				denied:  []string{"dev"},
+			},
+			expectedRoles: []string{"infra-ops"},
+		},
+		{
+			name: "with deny regexp",
+			requester: requester{
+				allowed: []string{"cloud-*", "dev"},
+				denied:  []string{"cloud-*"},
+			},
+			expectedRoles: []string{"dev"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &mockGetter{
+				roles: func() map[string]types.Role {
+					roles["req"] = mustRequestSearchAsRole(t, "req", tt.requester.allowed, tt.requester.denied)
+					return roles
+				}(),
+				users: map[string]types.User{
+					rickyRequester: mustUser(t, rickyRequester, []string{"req"}),
+				},
+			}
+
+			var roleNames []string
+			for v := range g.roles {
+				roleNames = append(roleNames, v)
+			}
+
+			accessChecker, err := NewAccessChecker(&AccessInfo{
+				Roles:    roleNames,
+				Username: rickyRequester,
+			}, localCluster, g)
+			require.NoError(t, err)
+			roles, err := accessChecker.GetAllowedSearchAsRoles(ctx, g)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.expectedRoles, roles)
+		})
+	}
+}
+
+func mustUser(t *testing.T, name string, roles []string) types.User {
+	t.Helper()
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetRoles(roles)
+	require.NoError(t, err)
+	return user
+}
+
+func mustRole(t *testing.T, name string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
+
+func mustRequestSearchAsRole(t *testing.T, name string, allowed, denied []string) types.Role {
+	t.Helper()
+	role, err := types.NewRole(name, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: allowed,
+			},
+		},
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: denied,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
