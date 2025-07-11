@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 type SSHHostOutputService struct {
@@ -50,10 +51,14 @@ type SSHHostOutputService struct {
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
 	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 }
 
 func (s *SSHHostOutputService) String() string {
-	return fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *SSHHostOutputService) OneShot(ctx context.Context) error {
@@ -73,6 +78,7 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

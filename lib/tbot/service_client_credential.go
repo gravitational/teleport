@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
@@ -26,6 +27,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // ClientCredentialOutputService produces credentials which can be used to
@@ -41,10 +43,14 @@ type ClientCredentialOutputService struct {
 	getBotIdentity     getBotIdentityFn
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
+	statusReporter     readyz.Reporter
 }
 
 func (s *ClientCredentialOutputService) String() string {
-	return "client-credential-output"
+	return cmp.Or(
+		s.cfg.Name,
+		"client-credential-output",
+	)
 }
 
 func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {
@@ -64,6 +70,7 @@ func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

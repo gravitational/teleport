@@ -29,6 +29,9 @@ const ExampleServiceType = "example"
 // not intended to be used and exists to demonstrate how a user configurable
 // service integrates with the tbot service manager.
 type ExampleService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
+
 	Message string `yaml:"message"`
 }
 
@@ -36,7 +39,12 @@ func (s *ExampleService) Type() string {
 	return ExampleServiceType
 }
 
-func (s *ExampleService) MarshalYAML() (interface{}, error) {
+// GetName returns the user-given name of the service, used for validation purposes.
+func (s *ExampleService) GetName() string {
+	return s.Name
+}
+
+func (s *ExampleService) MarshalYAML() (any, error) {
 	type raw ExampleService
 	return withTypeHeader((*raw)(s), ExampleServiceType)
 }

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // DatabaseOutputService generates the artifacts necessary to connect to a
@@ -47,10 +48,14 @@ type DatabaseOutputService struct {
 	log                *slog.Logger
 	reloadBroadcaster  *channelBroadcaster
 	resolver           reversetunnelclient.Resolver
+	statusReporter     readyz.Reporter
 }
 
 func (s *DatabaseOutputService) String() string {
-	return fmt.Sprintf("database-output (%s)", s.cfg.Destination.String())
+	return cmp.Or(
+		s.cfg.Name,
+		fmt.Sprintf("database-output (%s)", s.cfg.Destination.String()),
+	)
 }
 
 func (s *DatabaseOutputService) OneShot(ctx context.Context) error {
@@ -70,6 +75,7 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 		log:             s.log,
 		reloadCh:        reloadCh,
 		identityReadyCh: s.botIdentityReadyCh,
+		statusReporter:  s.statusReporter,
 	})
 	return trace.Wrap(err)
 }

@@ -30,6 +30,8 @@ const DatabaseTunnelServiceType = "database-tunnel"
 
 // DatabaseTunnelService opens an authenticated tunnel for Database Access.
 type DatabaseTunnelService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which database tunnel should listen. Example:
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
@@ -53,6 +55,11 @@ type DatabaseTunnelService struct {
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
 	Listener net.Listener `yaml:"-"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *DatabaseTunnelService) GetName() string {
+	return o.Name
 }
 
 func (s *DatabaseTunnelService) Type() string {
