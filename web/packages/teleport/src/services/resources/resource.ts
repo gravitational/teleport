@@ -129,6 +129,13 @@ class ResourceService {
     return await api.get(cfg.getRoleUrl({ action: 'list', params }), signal);
   }
 
+  async fetchRequestableRoles(params?: UrlListRolesParams): Promise<{
+    items: RoleResource[];
+    startKey: string;
+  }> {
+    return await api.get(cfg.getListRequestableRolesUrl(params));
+  }
+
   fetchPresetRoles() {
     return api
       .get(cfg.getPresetRolesUrl())
