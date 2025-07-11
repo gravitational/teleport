@@ -789,3 +789,36 @@ Expression | Result
 ---------- | ------
 `union(set("a"), set("b"))` | `("a", "b")`
 `union(set("a", "b"), set("b", "c"))` | `("a", "b", "c")`
+
+### `jsonpath`
+
+#### Signature
+
+```go
+func jsonpath(input set, path string) set
+```
+
+#### Description
+
+`jsonpath` uses the provided JSONPath query to transform arbitrary JSON data.
+This query must result in a list of string values.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input JSON objects as strings
+`path` | `string` | The JSONPath query to run on each input value
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a set of all JSON values queried from the input set using the provided JSONPath. If the JSONPath query results in a non-string value, an error is returned.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`jsonpath(set('{"teams":["dev","security"]}'),"$.teams.*")` | `("devs", "security")`
+`jsonpath(set('{"teams":[{"name":"dev","roles":["access","viewer"]},{"name":"admin","roles":"admin"}]}'), "$.teams[?(@.name == 'dev')].roles.*")` | `("access", "viewer")`
