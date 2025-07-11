@@ -36,6 +36,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -983,6 +984,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Sets the default connector in the auth preference.
 	h.PUT("/webapi/authconnector/default", h.WithAuth(h.setDefaultConnectorHandle))
+	// Returns auth connectors that match a given username.
+	h.POST("/webapi/authconnectors", h.WithLimiter(h.getUserMatchedAuthConnectors))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
@@ -1759,12 +1762,18 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	authProviders := []webclient.WebConfigAuthProvider{}
 
+	// identifierFirstLoginEnabled is true if at least one auth connector has a defined `user_matchers` field.
+	var identifierFirstLoginEnabled bool
+
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve OIDC connectors", "error", err)
 	}
 	for _, item := range oidcConnectors {
+		if item.GetUserMatchers() != nil {
+			identifierFirstLoginEnabled = true
+		}
 		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
 			Type:        webclient.WebConfigAuthProviderOIDCType,
 			WebAPIURL:   webclient.WebConfigAuthProviderOIDCURL,
@@ -1779,6 +1788,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve SAML connectors", "error", err)
 	}
 	for _, item := range samlConnectors {
+		if item.GetUserMatchers() != nil {
+			identifierFirstLoginEnabled = true
+		}
 		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
 			Type:        webclient.WebConfigAuthProviderSAMLType,
 			WebAPIURL:   webclient.WebConfigAuthProviderSAMLURL,
@@ -1793,6 +1805,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve GitHub connectors", "error", err)
 	}
 	for _, item := range githubConnectors {
+		if item.GetUserMatchers() != nil {
+			identifierFirstLoginEnabled = true
+		}
 		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
 			Type:        webclient.WebConfigAuthProviderGitHubType,
 			WebAPIURL:   webclient.WebConfigAuthProviderGitHubURL,
@@ -1823,16 +1838,17 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:            authProviders,
-			SecondFactor:         types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-			LocalAuthEnabled:     cap.GetAllowLocalAuth(),
-			AllowPasswordless:    cap.GetAllowPasswordless(),
-			AuthType:             authType,
-			DefaultConnectorName: defaultConnectorName,
-			PreferredLocalMFA:    cap.GetPreferredLocalMFA(),
-			LocalConnectorName:   localConnectorName,
-			PrivateKeyPolicy:     cap.GetPrivateKeyPolicy(),
-			MOTD:                 cap.GetMessageOfTheDay(),
+			Providers:                   authProviders,
+			SecondFactor:                types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			LocalAuthEnabled:            cap.GetAllowLocalAuth(),
+			AllowPasswordless:           cap.GetAllowPasswordless(),
+			AuthType:                    authType,
+			DefaultConnectorName:        defaultConnectorName,
+			PreferredLocalMFA:           cap.GetPreferredLocalMFA(),
+			LocalConnectorName:          localConnectorName,
+			PrivateKeyPolicy:            cap.GetPrivateKeyPolicy(),
+			MOTD:                        cap.GetMessageOfTheDay(),
+			IdentifierFirstLoginEnabled: identifierFirstLoginEnabled,
 		}
 	}
 
@@ -1913,6 +1929,150 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
+}
+
+// getUserMatchedAuthConnectorsReq is the request body for getting user-matched auth connectors.
+type getUserMatchedAuthConnectorsReq struct {
+	// Username is the username to match against the auth connectors.
+	Username string `json:"username"`
+}
+
+// getUserMatchedAuthConnectorsResponse is the response body for getting user-matched auth connectors.
+type getUserMatchedAuthConnectorsResponse struct {
+	Connectors []webclient.WebConfigAuthProvider `json:"connectors"`
+}
+
+// globMatch performs simple a simple glob-style match test on a string.
+// - '*' matches zero or more characters.
+// It returns true if a match is detected.
+func globMatch(pattern, str string) (bool, error) {
+	pattern = utils.GlobToRegexp(pattern)
+	matched, err := regexp.MatchString(pattern, str)
+	return matched, trace.Wrap(err)
+}
+
+// userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
+func userMatchesConnector(username string, connector interface {
+	GetUserMatchers() []string
+}) (isMatch bool, isFallback bool, err error) {
+	matchers := connector.GetUserMatchers()
+	for _, pattern := range matchers {
+		matched, err := globMatch(pattern, username)
+		if err != nil {
+			return false, false, trace.Wrap(err)
+		}
+		if matched {
+			// If the pattern is exactly "*", it matches all users and is considered a fallback.
+			// This match will only be returned to the user if the user doesn't match any other connectors via more explicit matchers.
+			// We continue here since there could be other matchers for this connector that are more specific, and if any of them match, this should not be treated as a fallback.
+			if pattern == "*" {
+				isFallback = true
+				continue
+			}
+			return true, false, nil
+		}
+	}
+	if isFallback {
+		return true, true, nil
+	}
+	return false, false, nil
+}
+
+// getUserMatchedAuthConnectors returns auth connectors that match the given username.
+func (h *Handler) getUserMatchedAuthConnectors(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+	var req *getUserMatchedAuthConnectorsReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	githubConns, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlConns, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	oidcConns, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var matchedConnectors []webclient.WebConfigAuthProvider
+	var fallbackConnectors []webclient.WebConfigAuthProvider
+
+	// Match GitHub connectors
+	for _, conn := range githubConns {
+		if matches, isFallback, err := userMatchesConnector(req.Username, conn); err != nil {
+			return nil, trace.Wrap(err)
+		} else if matches {
+			provider := webclient.WebConfigAuthProvider{
+				Type:        webclient.WebConfigAuthProviderGitHubType,
+				WebAPIURL:   webclient.WebConfigAuthProviderGitHubURL,
+				Name:        conn.GetName(),
+				DisplayName: conn.GetDisplay(),
+			}
+
+			if isFallback {
+				fallbackConnectors = append(fallbackConnectors, provider)
+			} else {
+				matchedConnectors = append(matchedConnectors, provider)
+			}
+		}
+	}
+
+	// Match SAML connectors
+	for _, conn := range samlConns {
+		if matches, isFallback, err := userMatchesConnector(req.Username, conn); err != nil {
+			return nil, trace.Wrap(err)
+		} else if matches {
+			provider := webclient.WebConfigAuthProvider{
+				Type:        webclient.WebConfigAuthProviderSAMLType,
+				WebAPIURL:   webclient.WebConfigAuthProviderSAMLURL,
+				Name:        conn.GetName(),
+				DisplayName: conn.GetDisplay(),
+			}
+
+			if isFallback {
+				fallbackConnectors = append(fallbackConnectors, provider)
+			} else {
+				matchedConnectors = append(matchedConnectors, provider)
+			}
+		}
+	}
+
+	// Match OIDC connectors
+	for _, conn := range oidcConns {
+		if matches, isFallback, err := userMatchesConnector(req.Username, conn); err != nil {
+			return nil, trace.Wrap(err)
+		} else if matches {
+			provider := webclient.WebConfigAuthProvider{
+				Type:        webclient.WebConfigAuthProviderOIDCType,
+				WebAPIURL:   webclient.WebConfigAuthProviderOIDCURL,
+				Name:        conn.GetName(),
+				DisplayName: conn.GetDisplay(),
+			}
+			if isFallback {
+				fallbackConnectors = append(fallbackConnectors, provider)
+			} else {
+				matchedConnectors = append(matchedConnectors, provider)
+			}
+		}
+	}
+
+	// Use specific matches if available, otherwise use fallback matches.
+	var connectors []webclient.WebConfigAuthProvider
+	if len(matchedConnectors) > 0 {
+		connectors = matchedConnectors
+	} else {
+		connectors = fallbackConnectors
+	}
+
+	return &getUserMatchedAuthConnectorsResponse{
+		Connectors: connectors,
+	}, nil
 }
 
 // setEntitlementsWithLegacyLogic ensures entitlements on webCfg are backwards compatible
