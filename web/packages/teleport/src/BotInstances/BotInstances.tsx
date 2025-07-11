@@ -17,11 +17,13 @@
  */
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
+import { formatSortType, parseSortType } from 'design/DataTable/sort';
+import { SortType } from 'design/DataTable/types';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Mark } from 'design/Mark/Mark';
 import {
@@ -31,6 +33,7 @@ import {
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
+import { EmptyState } from 'teleport/Bots/List/EmptyState/EmptyState';
 import {
   FeatureBox,
   FeatureHeader,
@@ -39,28 +42,37 @@ import {
 import cfg from 'teleport/config';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
+import useTeleport from 'teleport/useTeleport';
 
 import { BotInstancesList } from './List/BotInstancesList';
 
 export function BotInstances() {
   const history = useHistory();
-  const location = useLocation();
+  const location = useLocation<{ prevPageTokens?: readonly string[] }>();
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
+  const sort = queryParams.get('sort') || 'active_at_latest:desc';
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const canListInstances = flags.listBotInstances;
 
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
-    queryKey: ['bot_instances', 'list', searchTerm, pageToken],
+    enabled: canListInstances,
+    queryKey: ['bot_instances', 'list', searchTerm, pageToken, sort],
     queryFn: () =>
       listBotInstances({
         pageSize: 20,
         pageToken,
         searchTerm,
+        sort,
       }),
     placeholderData: keepPreviousData,
     staleTime: 30_000, // Cached pages are valid for 30 seconds
   });
 
+  const { prevPageTokens = [] } = location.state ?? {};
   const hasNextPage = !!data?.next_page_token;
   const hasPrevPage = !!pageToken;
 
@@ -68,26 +80,55 @@ export function BotInstances() {
     const search = new URLSearchParams(location.search);
     search.set('page', data?.next_page_token ?? '');
 
-    history.push({
-      pathname: `${location.pathname}`,
-      search: search.toString(),
-    });
-  }, [data?.next_page_token, history, location.pathname, location.search]);
+    history.replace(
+      {
+        pathname: location.pathname,
+        search: search.toString(),
+      },
+      {
+        prevPageTokens: [...prevPageTokens, pageToken],
+      }
+    );
+  }, [
+    data?.next_page_token,
+    history,
+    location.pathname,
+    location.search,
+    pageToken,
+    prevPageTokens,
+  ]);
 
   const handleFetchPrev = useCallback(() => {
-    history.goBack();
-  }, [history]);
+    const prevTokens = [...prevPageTokens];
+    const nextToken = prevTokens.pop();
 
-  const handleSearchChange = useCallback((term: string) => {
     const search = new URLSearchParams(location.search);
-    search.set('search', term);
-    search.set('page', '');
+    search.set('page', nextToken ?? '');
 
-    history.push({
-      pathname: `${location.pathname}`,
-      search: search.toString(),
-    });
-  }, []);
+    history.replace(
+      {
+        pathname: location.pathname,
+        search: search.toString(),
+      },
+      {
+        prevPageTokens: prevTokens,
+      }
+    );
+  }, [history, location.pathname, location.search, prevPageTokens]);
+
+  const handleSearchChange = useCallback(
+    (term: string) => {
+      const search = new URLSearchParams(location.search);
+      search.set('search', term);
+      search.set('page', '');
+
+      history.replace({
+        pathname: `${location.pathname}`,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
 
   const onItemSelected = useCallback(
     (item: BotInstanceSummary) => {
@@ -100,6 +141,45 @@ export function BotInstances() {
     },
     [history]
   );
+
+  const sortType = useMemo<SortType>(
+    () =>
+      parseSortType(sort) ?? {
+        fieldName: 'active_at_latest',
+        dir: 'DESC',
+      },
+    [sort]
+  );
+
+  const handleSortChanged = useCallback(
+    (sortType: SortType) => {
+      const formattedSortType = formatSortType(sortType);
+
+      const search = new URLSearchParams(location.search);
+      search.set('sort', formattedSortType);
+      search.set('page', '');
+
+      history.replace({
+        pathname: location.pathname,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const hasUnsupportedSortError = isUnsupportedSortError(error);
+
+  if (!canListInstances) {
+    return (
+      <FeatureBox>
+        <Alert kind="info" mt={4}>
+          You do not have permission to access Bot instances. Missing role
+          permissions: <code>bot_instance.list</code>
+        </Alert>
+        <EmptyState />
+      </FeatureBox>
+    );
+  }
 
   return (
     <FeatureBox>
@@ -114,7 +194,21 @@ export function BotInstances() {
         </Box>
       ) : undefined}
 
-      {isError ? (
+      {isError && hasUnsupportedSortError ? (
+        <Alert
+          kind="warning"
+          primaryAction={{
+            content: 'Reset sort',
+            onClick: () => {
+              handleSortChanged({ fieldName: 'bot_name', dir: 'ASC' });
+            },
+          }}
+        >
+          {`Error: ${error.message}`}
+        </Alert>
+      ) : undefined}
+
+      {isError && !hasUnsupportedSortError ? (
         <Alert kind="danger">{`Error: ${error.message}`}</Alert>
       ) : undefined}
 
@@ -127,6 +221,8 @@ export function BotInstances() {
           onSearchChange={handleSearchChange}
           searchTerm={searchTerm}
           onItemSelected={onItemSelected}
+          sortType={sortType}
+          onSortChanged={handleSortChanged}
         />
       ) : undefined}
     </FeatureBox>
@@ -185,4 +281,8 @@ const InfoGuideReferenceLinks = {
     title: 'Use tctl to manage bot instances',
     href: 'https://goteleport.com/docs/reference/cli/tctl/#tctl-bots-instances-add',
   },
+};
+
+const isUnsupportedSortError = (error: Error | null) => {
+  return error?.message && error.message.includes('unsupported sort');
 };
