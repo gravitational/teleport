@@ -105,11 +105,41 @@ func (cfg *LDAPConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// LDAPClient is an LDAP client designed for Active Directory environments.
+// It uses mutual TLS for authentication, and has the ability to discover
+// LDAP servers from DNS if an explicit address is not provided.
+//
+// LDAPClient does not implement any form of credential refresh or certificate
+// rotation. It is no longer useful after its certificate expires.
+// For this reason, callers are encouraged to create clients on-demand rather
+// than keeping them open for long periods of time.
+type LDAPClient struct {
+	cfg  *LDAPConfig
+	conn *ldap.Conn
+}
+
+// DialLDAP creates a new LDAP client using the provided TLS config for client credentials.
+func DialLDAP(ctx context.Context, cfg *LDAPConfig, credentials *tls.Config) (*LDAPClient, error) {
+	conn, err := cfg.createConnection(ctx, credentials)
+	if err != nil {
+		return nil, trace.Wrap(err, "connecting to LDAP server")
+	}
+
+	return &LDAPClient{
+		cfg:  cfg,
+		conn: conn,
+	}, nil
+}
+
+func (l *LDAPClient) Close() error {
+	return l.conn.Close()
+}
+
 // DomainDN returns the distinguished name for an Active Directory Domain.
 func DomainDN(domain string) string {
 	var sb strings.Builder
-	parts := strings.Split(domain, ".")
-	for _, p := range parts {
+	parts := strings.SplitSeq(domain, ".")
+	for p := range parts {
 		if sb.Len() > 0 {
 			sb.WriteString(",")
 		}
@@ -125,9 +155,6 @@ const (
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
 )
-
-// classContainer is the object class for containers in Active Directory
-const classContainer = "container"
 
 // searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
 // so in most cases the 1000 search page size will result in the optimal amount of requests made to
@@ -166,13 +193,7 @@ func convertLDAPError(err error) error {
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (c *LDAPConfig) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
-	client, err := c.createConnection(ctx, ldapTlsConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating LDAP client")
-	}
-	defer client.Close()
-
+func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
 	req := ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
@@ -185,7 +206,7 @@ func (c *LDAPConfig) ReadWithFilter(ctx context.Context, dn string, filter strin
 		nil, // no Controls
 	)
 
-	res, err := client.SearchWithPaging(req, searchPageSize)
+	res, err := l.conn.SearchWithPaging(req, searchPageSize)
 	if err != nil {
 		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
@@ -201,8 +222,8 @@ func (c *LDAPConfig) ReadWithFilter(ctx context.Context, dn string, filter strin
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPConfig) Read(ctx context.Context, dn string, class string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
-	return c.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs, ldapTlsConfig)
+func (l *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []string) ([]*ldap.Entry, error) {
+	return l.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
@@ -213,29 +234,23 @@ func (c *LDAPConfig) Read(ctx context.Context, dn string, class string, attrs []
 // attributes for similar entries using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPConfig) Create(ctx context.Context, dn string, class string, attrs map[string][]string, ldapTlsConfig *tls.Config) error {
-	client, err := c.createConnection(ctx, ldapTlsConfig)
-	if err != nil {
-		return trace.Wrap(err, "creating LDAP client")
-	}
-	defer client.Close()
-
+func (l *LDAPClient) Create(ctx context.Context, dn string, class string, attrs map[string][]string) error {
 	req := ldap.NewAddRequest(dn, nil)
 	for k, v := range attrs {
 		req.Attribute(k, v)
 	}
 	req.Attribute("objectClass", []string{class})
 
-	if err := client.Add(req); err != nil {
+	if err := l.conn.Add(req); err != nil {
 		return trace.Wrap(convertLDAPError(err), "error creating LDAP object %q", dn)
 	}
 	return nil
 }
 
-// CreateContainer creates an LDAP container entry if
-// it doesn't already exist.
-func (c *LDAPConfig) CreateContainer(ctx context.Context, dn string, ldapTlsConfig *tls.Config) error {
-	err := c.Create(ctx, dn, classContainer, nil, ldapTlsConfig)
+// CreateContainer creates an LDAP container entry if it doesn't already exist.
+func (l *LDAPClient) CreateContainer(ctx context.Context, dn string) error {
+	const classContainer = "container"
+	err := l.Create(ctx, dn, classContainer, nil /* attrs */)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
@@ -252,19 +267,13 @@ func (c *LDAPConfig) CreateContainer(ctx context.Context, dn string, ldapTlsConf
 //
 // You can browse LDAP on the Windows host to find attributes of existing
 // entries using ADSIEdit.msc.
-func (c *LDAPConfig) Update(ctx context.Context, dn string, replaceAttrs map[string][]string, ldapTlsConfig *tls.Config) error {
-	client, err := c.createConnection(ctx, ldapTlsConfig)
-	if err != nil {
-		return trace.Wrap(err, "creating LDAP client")
-	}
-	defer client.Close()
-
+func (l *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[string][]string) error {
 	req := ldap.NewModifyRequest(dn, nil)
 	for k, v := range replaceAttrs {
 		req.Replace(k, v)
 	}
 
-	if err := client.Modify(req); err != nil {
+	if err := l.conn.Modify(req); err != nil {
 		return trace.Wrap(convertLDAPError(err), "updating %q", dn)
 	}
 	return nil
@@ -298,19 +307,19 @@ func crlKeyName(caType types.CertAuthType) string {
 // createConnection dials an LDAP server using the provided TLS config.
 // The server is either obtained directly from the configuration or
 // discovered via DNS.
-func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Config) (*ldap.Conn, error) {
-	dnsDialer := net.Dialer{
-		Timeout: ldapDialTimeout,
-	}
-
+func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Config) (*ldap.Conn, error) {
 	servers := []string{c.Addr}
+	dialer := net.Dialer{Timeout: ldapDialTimeout}
+
 	if c.LocateServer.Enabled {
-		var resolver *net.Resolver
-		resolverAddr := os.Getenv("TELEPORT_DESKTOP_ACCESS_RESOLVER_IP")
 		dial := func(dialCtx context.Context, network, address string) (net.Conn, error) {
-			return dnsDialer.DialContext(dialCtx, network, address)
+			return dialer.DialContext(dialCtx, network, address)
 		}
-		if resolverAddr != "" {
+
+		// In development environments, the system's default resolver is unlikely to be
+		// able to resolve the Active Directory SRV records needed for server location,
+		// so we allow overriding the resolver.
+		if resolverAddr := os.Getenv("TELEPORT_LDAP_RESOLVER"); resolverAddr != "" {
 			c.Logger.DebugContext(ctx, "Using custom DNS resolver address", "address", resolverAddr)
 			// Check if resolver address has a port
 			host, port, err := net.SplitHostPort(resolverAddr)
@@ -318,13 +327,14 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Co
 				host = resolverAddr
 				port = "53"
 			}
-			customResolverAddr := net.JoinHostPort(host, port)
 
+			customResolverAddr := net.JoinHostPort(host, port)
 			dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-				return dnsDialer.DialContext(ctx, network, customResolverAddr)
+				return dialer.DialContext(ctx, network, customResolverAddr)
 			}
 		}
-		resolver = &net.Resolver{
+
+		resolver := &net.Resolver{
 			PreferGo: true,
 			Dial:     dial,
 		}
@@ -342,8 +352,8 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Co
 	for _, server := range servers {
 		conn, err := ldap.DialURL(
 			"ldaps://"+server,
-			ldap.DialWithDialer(&dnsDialer),
-			ldap.DialWithTLSConfig(ldapTlsConfig),
+			ldap.DialWithDialer(&dialer),
+			ldap.DialWithTLSConfig(ldapTLSConfig),
 		)
 
 		if err != nil {

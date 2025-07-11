@@ -1116,8 +1116,13 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			return nil, nil, trace.Wrap(err)
 		}
 
-		entries, err := s.cfg.LDAPConfig.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid}, tc)
+		ldapClient, err := winpki.DialLDAP(ctx, &s.cfg.LDAPConfig, tc)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		defer ldapClient.Close()
 
+		entries, err := ldapClient.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

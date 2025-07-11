@@ -22,6 +22,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"strconv"
 
 	"github.com/gravitational/trace"
 )
@@ -51,10 +52,11 @@ func locateLDAPServer(ctx context.Context, domain string, site string, resolver 
 	var result []string
 	for _, record := range records {
 		addrs := []string{record.Target}
-		// If TELEPORT_DESKTOP_ACCESS_RESOLVER_IP is set, we resolve the target
-		// IP address because this is likely a development environment without
-		// proper DNS records.
-		if os.Getenv("TELEPORT_DESKTOP_ACCESS_RESOLVER_IP") != "" {
+
+		// In development enviroments, the hostnames returned from the SRV records are
+		// unlikely to resolve with the system resolver, so get an IP address now while
+		// we're using DNS from AD.
+		if resolve, _ := strconv.ParseBool(os.Getenv("TELEPORT_LDAP_RESOLVE_SERVER")); resolve {
 			var err error
 			addrs, err = resolver.LookupHost(ctx, record.Target)
 			if err != nil {
@@ -62,6 +64,8 @@ func locateLDAPServer(ctx context.Context, domain string, site string, resolver 
 			}
 		}
 		for _, addr := range addrs {
+			// SRV records will likely return the insecure LDAP port,
+			// so we ignore it and hard code the LDAPS port.
 			result = append(result, net.JoinHostPort(addr, "636"))
 		}
 	}
