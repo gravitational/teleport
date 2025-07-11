@@ -2664,3 +2664,7 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	out.BotName = trimStr(m.BotName, maxFieldsSize)
 	return out
 }
+
+func (m *SCIMResourceEvent) TrimToMaxSize(int) AuditEvent {
+	return m
+}

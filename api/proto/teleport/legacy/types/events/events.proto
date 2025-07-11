@@ -4829,6 +4829,7 @@ message OneOf {
     events.BoundKeypairRecovery BoundKeypairRecovery = 220;
     events.BoundKeypairRotation BoundKeypairRotation = 221;
     events.BoundKeypairJoinStateVerificationFailed BoundKeypairJoinStateVerificationFailed = 222;
+    events.SCIMResourceEvent SCIMResourceEvent = 223;
   }
 }
 
@@ -8803,4 +8804,41 @@ message BoundKeypairJoinStateVerificationFailed {
   string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
   // BotName is the name of the bot attempting to join, if any.
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+}
+
+// SCIMResourceEvent records an event on a SCIM resource
+message SCIMResourceEvent {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Integration is the name of the integration/access plugin that the SCIM
+  // service was operating on for this event.
+  string Integration = 3;
+
+  // ResourceType is the SCIM resource type of the Teleport resource involved in
+  // this event. Valid values include, but are not limited to, "user" and
+  // "group".
+  string ResourceType = 4;
+
+  // TeleportID is the name of the Teleport resource involved in this event.
+  string TeleportID = 5;
+
+  // ExternalID is the ID used by the external SCIM client to to refer to the
+  // resource affected by this event.
+  string ExternalID = 6;
+
+  // Display is a human-readable name or identifier for the Teleport resource
+  // affected by the event.
+  string Display = 7;
 }
