@@ -355,8 +355,13 @@ func onConfigure(
 		out = f
 	}
 
-	// Ensure they have provided a join method to use in the configuration.
-	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+	// Ensure they have provided either a valid joining URI, or a
+	// join method to use in the configuration.
+	if cfg.JoinURI != "" {
+		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
+			return trace.Wrap(err, "invalid joining URI")
+		}
+	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return trace.BadParameter("join method must be provided")
 	}
 

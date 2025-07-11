@@ -782,6 +782,17 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer func() { apitracing.EndSpan(span, err) }()
 
+	if b.cfg.JoinURI != "" {
+		parsed, err := config.ParseJoinURI(b.cfg.JoinURI)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing joining URI")
+		}
+
+		if err := parsed.ApplyToConfig(b.cfg); err != nil {
+			return nil, trace.Wrap(err, "applying joining URI to bot config")
+		}
+	}
+
 	_, addrKind := b.cfg.Address()
 	switch addrKind {
 	case config.AddressKindUnspecified:

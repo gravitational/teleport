@@ -966,8 +966,18 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 
 ### Teleport Plugins
 
-- [ ] Test receiving a message via Teleport Slackbot
-- [ ] Test receiving a new Jira Ticket via Teleport Jira
+- [ ] Datadog
+- [ ] Discord
+- [ ] Email
+- [ ] Jamf
+- [ ] Jira
+- [ ] Mattermost
+- [ ] Microsoft Entra ID
+- [ ] Microsoft Teams
+- [ ] Opsgenie
+- [ ] PagerDuty
+- [ ] ServiceNow
+- [ ] Slack
 
 ### Teleport Operator
 

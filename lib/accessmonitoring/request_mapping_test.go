@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestEvaluateCondition(t *testing.T) {
@@ -138,6 +140,101 @@ func TestEvaluateCondition(t *testing.T) {
 				set().contains_all(access_request.spec.roles)`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{},
+			},
+			match: false,
+		},
+		{
+			description: "(union) single resource has label",
+			condition: `
+				access_request.spec.resource_labels_union["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(union) multiple resources have label",
+			condition: `
+				access_request.spec.resource_labels_union["env"].
+					contains_all(set("test", "dev"))`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "dev"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(intersection) single resource has label",
+			condition: `
+				access_request.spec.resource_labels_intersection["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(intersection) multiple resources have label",
+			condition: `
+				access_request.spec.resource_labels_intersection["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(intersection) multiple resource labels do not intersect",
+			condition: `
+				access_request.spec.resource_labels_intersection["env"].
+					contains("test")`,
+			env: AccessRequestExpressionEnv{
+				RequestedResources: []types.ResourceWithLabels{
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "test"},
+						},
+					},
+					&types.ServerV2{
+						Metadata: types.Metadata{
+							Labels: map[string]string{"env": "dev"},
+						},
+					},
+				},
 			},
 			match: false,
 		},

@@ -180,12 +180,9 @@ type Spec struct {
 type Type string
 
 const (
-	// ImplicitDynamic type is for backward compatibility. It has the same semantics as
-	// [Dynamic].
-	ImplicitDynamic Type = ""
-	// Dynamic Access Lists are the default type supposed to be managed with the web UI. They
+	// Default Access Lists are the default type supposed to be managed with the web UI. They
 	// require periodic audit reviews.
-	Dynamic Type = "dynamic"
+	Default Type = ""
 	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
 	// reviews are not supported for them and the ownership is optional.
 	Static Type = "static"
@@ -196,8 +193,8 @@ const (
 
 func NewTypeFromString(s string) (Type, error) {
 	switch s {
-	case string(ImplicitDynamic), string(Dynamic):
-		return Dynamic, nil
+	case string(Default):
+		return Default, nil
 	case string(Static):
 		return Static, nil
 	case string(SCIM):
@@ -210,10 +207,11 @@ func NewTypeFromString(s string) (Type, error) {
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
-	case ImplicitDynamic, Dynamic:
+	case Default:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // Owner is an owner of an access list.
