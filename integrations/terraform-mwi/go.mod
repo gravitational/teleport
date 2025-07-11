@@ -568,4 +568,4 @@ replace (
 // (using our fork of github.com/hashicorp/terraform-plugin-docs)
 tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
-replace github.com/hashicorp/terraform-plugin-docs => ../../../terraform-plugin-docs
+replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250708171626-e77ce9bd4dd8
