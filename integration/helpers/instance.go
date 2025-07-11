@@ -460,7 +460,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 	siteTunnel, err := i.Tunnel.GetSite(siteName)
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "siter", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "site", siteName)
 		return nil
 	}
 	siteAPI, err := siteTunnel.GetClient()

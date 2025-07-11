@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -370,7 +371,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1238,9 +1239,9 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
-	// OverrideAWSCredentialGeneration overrides the generation of AWS credentials for AWS Apps which use the Roles Anywhere Integration.
+	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
-	OverrideAWSCredentialGeneration func() string
+	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -3471,9 +3472,12 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	var awsCredentialProcessCredentials string
-	if a.OverrideAWSCredentialGeneration != nil {
-		awsCredentialProcessCredentials = a.OverrideAWSCredentialGeneration()
+	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	switch {
+	case errors.Is(err, errNotIntegrationApp):
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
 
 	identity := tlsca.Identity{
@@ -6464,6 +6468,9 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		}
 
 		for _, al := range response {
+			if !al.IsReviewable() {
+				continue
+			}
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
 			if daysDiff <= 15 {
