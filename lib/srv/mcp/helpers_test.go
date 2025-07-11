@@ -284,6 +284,12 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 
 	var result mcp.ListToolsResult
 	require.NoError(t, json.Unmarshal(mcpResponse.Result, &result))
+	checkToolsListResult(t, &result, wantTools)
+}
+
+func checkToolsListResult(t *testing.T, result *mcp.ListToolsResult, wantTools []string) {
+	t.Helper()
+	require.NotNil(t, result)
 	var actualNames []string
 	for _, tool := range result.Tools {
 		actualNames = append(actualNames, tool.Name)
