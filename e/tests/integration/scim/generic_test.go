@@ -198,7 +198,12 @@ func TestSCIMPluginWebHandler(t *testing.T) {
 	)
 	webClient := createWebClientForUser(t, sut, "alice-admin")
 
-	uiPluginResp := installSCIMPlugin(t, webClient)
+	resp, err := doPluginsStaticAuth(t, webClient, "connector-that-does-not-exist")
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	uiPluginResp := installSCIMPlugin(t, webClient, "okta-pre-created-test")
 	assertOAuthAccess(t, sut.ProxyAddr, uiPluginResp)
 	checkPluginStatus(t, webClient, types.PluginStatusCode_RUNNING)
 }
@@ -209,17 +214,8 @@ func createWebClientForUser(t *testing.T, sut *common.SUT, user string) *helpers
 	return helpers.LoginWebClient(t, sut.ProxyAddr, user, pass)
 }
 
-func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack) ui.Plugin {
-	form := url.Values{
-		"type":              {types.PluginTypeSCIM},
-		"samlConnectorName": {"okta-pre-created-test"},
-	}
-	endpoint := webClient.Endpoint("enterprise", "plugins", "staticauth")
-	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(form.Encode()))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := webClient.Do(req)
+func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack, samlConnectorName string) ui.Plugin {
+	resp, err := doPluginsStaticAuth(t, webClient, samlConnectorName)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -231,6 +227,19 @@ func installSCIMPlugin(t *testing.T, webClient *helpers.WebClientPack) ui.Plugin
 	require.NotEmpty(t, pluginResp.Credentials.OAuthCreds.ClientSecret)
 	require.NotEmpty(t, pluginResp.Credentials.OAuthCreds.ClientID)
 	return pluginResp
+}
+
+func doPluginsStaticAuth(t *testing.T, webClient *helpers.WebClientPack, samlConnectorName string) (*http.Response, error) {
+	form := url.Values{
+		"type":              {types.PluginTypeSCIM},
+		"samlConnectorName": {samlConnectorName},
+	}
+	endpoint := webClient.Endpoint("enterprise", "plugins", "staticauth")
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := webClient.Do(req)
+	return resp, err
 }
 
 func assertOAuthAccess(t *testing.T, proxyAddr string, plugin ui.Plugin) {

@@ -189,7 +189,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("missing validator for plugin type %q", plugin.GetType())
 	}
 
-	if err := handler.validatePlugin(plugin); err != nil {
+	if err := handler.validatePlugin(ctx, plugin, s.authServer); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -306,7 +306,7 @@ func (s *Service) pluginToProtobufStruct(ctx context.Context, plugin types.Plugi
 type pluginHandler interface {
 	// validatePlugin checks that the supplied plugin resource is valid for a given plugin
 	// type.
-	validatePlugin(*types.PluginV1) error
+	validatePlugin(context.Context, *types.PluginV1, *auth.Server) error
 
 	// updatePlugin updates the [newP] plugin based on the implications of any changes
 	// between the [oldP] and [newP] plugin resources. In most cases this will be simply
@@ -319,7 +319,7 @@ type pluginHandler interface {
 type defaultHandler struct{}
 
 // updatePlugin implements [pluginHandler] for the default handler.
-func (defaultHandler) validatePlugin(*types.PluginV1) error {
+func (defaultHandler) validatePlugin(context.Context, *types.PluginV1, *auth.Server) error {
 	return nil
 }
 
@@ -338,7 +338,7 @@ type pluginHandlerFn struct {
 
 // validatePlugin implements [pluginHandler] for [pluginHandlerFn]. Invokes the
 // contained function on the supplied Plugin resource.
-func (h pluginHandlerFn) validatePlugin(p *types.PluginV1) error {
+func (h pluginHandlerFn) validatePlugin(ctx context.Context, p *types.PluginV1, server *auth.Server) error {
 	return h.fn(p)
 }
 
@@ -347,6 +347,7 @@ var defaultPluginHandlers = map[types.PluginType]pluginHandler{
 	types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraTenantID},
 	types.PluginTypeEmail:             pluginHandlerFn{fn: validateEmailPlugin},
 	types.PluginTypeAWSIdentityCenter: awsicPluginHandler{},
+	types.PluginTypeSCIM:              scimPluginHandler{},
 
 	// Any plugin resource type using the default handler implicitly passes
 	// validation. Consider adding explicit validation for this plugin type to
@@ -365,7 +366,6 @@ var defaultPluginHandlers = map[types.PluginType]pluginHandler{
 	types.PluginTypeOpenAI:     defaultHandler{},
 	types.PluginTypeOpsgenie:   defaultHandler{},
 	types.PluginTypePagerDuty:  defaultHandler{},
-	types.PluginTypeSCIM:       defaultHandler{},
 	types.PluginTypeServiceNow: defaultHandler{},
 	types.PluginTypeSlack:      defaultHandler{},
 }
@@ -419,7 +419,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		}
 	}
 
-	if err := handler.validatePlugin(inPlugin); err != nil {
+	if err := handler.validatePlugin(ctx, inPlugin, s.authServer); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

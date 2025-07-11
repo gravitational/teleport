@@ -1,12 +1,14 @@
 package pluginsv1
 
 import (
+	"context"
 	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/auth"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 )
@@ -16,7 +18,7 @@ import (
 type awsicPluginHandler struct{}
 
 // validatePlugin implements [pluginHandler] for the [awsicPluginHandler].
-func (awsicPluginHandler) validatePlugin(plugin *types.PluginV1) error {
+func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.PluginV1, server *auth.Server) error {
 	settings := plugin.Spec.GetAwsIc()
 	if settings == nil {
 		return trace.BadParameter("missing AWS IC settings")

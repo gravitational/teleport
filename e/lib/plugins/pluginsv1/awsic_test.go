@@ -60,7 +60,7 @@ func TestIdentityCenterValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			p := newIdentityCenterPluginResource()
 			test.mutate(p.Spec.GetAwsIc())
-			test.expectError(t, awsicPluginHandler{}.validatePlugin(p))
+			test.expectError(t, awsicPluginHandler{}.validatePlugin(t.Context(), p, nil))
 		})
 	}
 }
