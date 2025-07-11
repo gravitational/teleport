@@ -136,6 +136,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5340,6 +5341,102 @@ Outer:
 	}
 
 	return filtered, nextKey, nil
+}
+
+// ListRequestableRoles returns a paginated list of roles that the user can request.
+func (a *Server) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	user, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userState, err := a.GetUserOrLoginState(ctx, user.GetIdentity().Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := a.GetRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract only the user's roles from the full list of roles.
+	var userRoles []types.Role
+	userRoleNames := userState.GetRoles()
+	for _, role := range roles {
+		if slices.Contains(userRoleNames, role.GetName()) {
+			userRoles = append(userRoles, role)
+		}
+	}
+
+	// Build allow/deny matchers for role requests from the user's current roles
+	var allowMatchers, denyMatchers []parse.Matcher
+	userTraits := userState.GetTraits()
+
+	for _, userRole := range userRoles {
+		allow := userRole.GetAccessRequestConditions(types.Allow)
+		if allow.Roles != nil || len(allow.ClaimsToRoles) > 0 {
+			allowMatchers, err = services.AppendRoleMatchers(allowMatchers, allow.Roles, allow.ClaimsToRoles, userTraits)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		deny := userRole.GetAccessRequestConditions(types.Deny)
+		if deny.Roles != nil || len(deny.ClaimsToRoles) > 0 {
+			denyMatchers, err = services.AppendRoleMatchers(denyMatchers, deny.Roles, deny.ClaimsToRoles, userTraits)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	matchFunc := func(role *types.RoleV6) (bool, error) {
+		// Skip any roles the user already has.
+		if slices.Contains(userRoleNames, role.GetName()) {
+			return false, nil
+		}
+
+		// Apply any RoleFilters if defined.
+		if req.Filter != nil && !req.Filter.Match(role) {
+			return false, nil
+		}
+
+		// Check if the user can request this role.
+		roleName := role.GetName()
+		for _, denyMatcher := range denyMatchers {
+			if denyMatcher.Match(roleName) {
+				return false, nil
+			}
+		}
+		for _, allowMatcher := range allowMatchers {
+			if allowMatcher.Match(roleName) {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}
+
+	// Create a ListRolesRequest so we can leverage our existing IterateRoles pagination logic.
+	// We don't need to pass the req.Filters here since we're already doing that work in our MatchFunc above.
+	listRolesReq := &proto.ListRolesRequest{
+		Limit:    req.Limit,
+		StartKey: req.StartKey,
+	}
+	out, nextKey, err := a.IterateRoles(ctx, listRolesReq, matchFunc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListRequestableRolesResponse{
+		Roles:   out,
+		NextKey: nextKey,
+	}, nil
 }
 
 // ListAccessRequests is an access request getter with pagination and sorting options.

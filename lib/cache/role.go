@@ -130,6 +130,16 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	return &resp, nil
 }
 
+// ListRequestableRoles returns a paginated list of roles that the user can request. This does not actually utilize the cache.
+func (c *Cache) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRequestableRoles")
+	defer span.End()
+
+	// Delegate to the service directly and bypass cache, since requestable roles vary per user and therefore can't be in a shared cached.
+	resp, err := c.Config.Access.ListRequestableRoles(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
 // GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
