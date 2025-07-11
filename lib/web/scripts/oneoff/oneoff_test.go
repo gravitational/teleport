@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -326,7 +327,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 		})
 		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})

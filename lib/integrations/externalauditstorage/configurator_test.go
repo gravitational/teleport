@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -180,7 +181,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 func TestCredentialsCache(t *testing.T) {
 	ctx := t.Context()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -336,7 +337,7 @@ func TestCredentialsCache(t *testing.T) {
 func TestDraftConfigurator(t *testing.T) {
 	ctx := t.Context()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

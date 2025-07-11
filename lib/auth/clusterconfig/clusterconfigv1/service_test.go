@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -655,7 +656,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Cloud: true,
@@ -683,7 +684,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				}, nil
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Cloud: true,
@@ -716,7 +717,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Cloud: true,

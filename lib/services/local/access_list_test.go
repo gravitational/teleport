@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -313,7 +314,7 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 					// target because the `newAccessListService()` fixture also sets the
 					// test modules, and that would clobber our test setup if we went
 					// first
-					modules.SetTestModules(t, &modules.TestModules{
+					modulestest.SetTestModules(t, modulestest.Modules{
 						TestBuildType: modules.BuildEnterprise,
 						TestFeatures: modules.Features{
 							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -1307,7 +1308,7 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity:    {Enabled: igsEnabled},

@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -487,7 +488,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 
 func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -2377,7 +2378,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 }
 
 func TestGenerateUserCertIPPinning(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newAuthSuite(t)
 
@@ -3007,7 +3008,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				MockAttestationData: tt.mockAttestationData,
 			})
 
@@ -4624,7 +4625,7 @@ func TestCleanupNotifications(t *testing.T) {
 func TestCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
