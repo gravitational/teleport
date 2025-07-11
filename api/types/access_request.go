@@ -141,6 +141,10 @@ type AccessRequest interface {
 	SetRequestKind(AccessRequestKind)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
+	// GetLongTermResourceGrouping gets the long-term resource grouping, if present.
+	GetLongTermResourceGrouping() *LongTermResourceGrouping
+	// SetLongTermResourceGrouping sets the long-term resource grouping.
+	SetLongTermResourceGrouping(*LongTermResourceGrouping)
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -540,6 +544,16 @@ func (r *AccessRequestV3) GetRequestKind() AccessRequestKind {
 // SetRequestKind sets the kind (short/long-term) of request.
 func (r *AccessRequestV3) SetRequestKind(kind AccessRequestKind) {
 	r.Spec.RequestKind = kind
+}
+
+// GetLongTermResourceGrouping gets the long-term resource grouping, if present.
+func (r *AccessRequestV3) GetLongTermResourceGrouping() *LongTermResourceGrouping {
+	return r.Spec.LongTermGrouping
+}
+
+// SetLongTermResourceGrouping sets the long-term resource grouping suggestion.
+func (r *AccessRequestV3) SetLongTermResourceGrouping(grouping *LongTermResourceGrouping) {
+	r.Spec.LongTermGrouping = grouping
 }
 
 // IsLongTerm checks if the request kind is long-term.
