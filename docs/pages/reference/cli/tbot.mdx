@@ -275,7 +275,7 @@ specific section for details when using a YAML config file or legacy output.
 | `--[no-]fips`           | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
 | `--log-format`          | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`. |
 | `-a/--auth-server`      | Address of the Teleport Auth Service. Prefer using `--proxy-server` where possible. |
-| `--proxy-server`        | Address of the Teleport Proxy Server. |
+| `--proxy-server`        | Address of the Teleport Proxy Service. |
 | `--token`               | A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect. |
 | `--ca-pin`              | CA pin to validate the Teleport Auth Service; used on first connect. |
 | `--certificate-ttl`     | TTL of short-lived machine certificates. |
@@ -725,7 +725,7 @@ a new keypair.
 | Flag | Description |
 |------|-------------|
 | `--storage`      | A destination URI to be used for bot internal storage. Required. |
-| `--proxy-server` | A Teleport Proxy address. Required. |
+| `--proxy-server` | A Teleport Proxy Service address. Required. |
 | `--overwrite`    | If set, always generate a new key. If unset, the existing public key will be printed if one already exists in the destination specified by `--storage` |
 
 ### Examples
