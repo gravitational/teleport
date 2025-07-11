@@ -47,6 +47,10 @@ func GetSafeLockName(lockName string) (string, error) {
 	}
 
 	for i, lockRune := range lockRunes {
+		if lockRune > unicode.MaxASCII {
+			return "", trace.Errorf("unicode %q is not ASCII", lockRune)
+		}
+
 		// Make all letters lowercase
 		if unicode.IsUpper(lockRune) {
 			lockRunes[i] = unicode.ToLower(lockRune)
@@ -54,7 +58,7 @@ func GetSafeLockName(lockName string) (string, error) {
 		}
 
 		// Replace symbols with `-`
-		if !unicode.IsLetter(lockRune) && unicode.IsDigit(lockRune) && lockRune != '-' {
+		if !unicode.IsLetter(lockRune) && !unicode.IsDigit(lockRune) && lockRune != '-' && lockRune != '.' {
 			lockRunes[i] = '-'
 		}
 	}
