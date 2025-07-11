@@ -1572,7 +1572,7 @@ func (m *requestValidator) filterRequestableRole(ctx context.Context, identity t
 		return nil, trace.Wrap(err)
 	}
 
-	resourceViewingRoles := make([]string, len(m.userState.GetRoles())+len(m.roles.allowedSearch))
+	resourceViewingRoles := make([]string, 0, len(m.userState.GetRoles())+len(m.roles.allowedSearch))
 	resourceViewingRoles = append(m.userState.GetRoles(), m.roles.allowedSearch...)
 	accessChecker, err := NewAccessChecker(&AccessInfo{
 		Roles:              resourceViewingRoles,
@@ -1937,8 +1937,7 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 }
 
 type roleMatcher struct {
-	allowRequest, denyRequest []parse.Matcher
-	allowSearch, denySearch   []parse.Matcher
+	allowRequest, denyRequest, allowSearch, denySearch []parse.Matcher
 }
 
 // canRequestRole checks if a given role can be requested.
@@ -1959,6 +1958,7 @@ func (m roleMatcher) canRequestRole(name string) bool {
 // canSearchAsRole check if a given role can be requested through a search-based
 // access request
 func (m roleMatcher) canSearchAsRole(name string) bool {
+	fmt.Println("canSearchAsRole: ", name)
 	for _, deny := range m.denySearch {
 		if deny.Match(name) {
 			return false
