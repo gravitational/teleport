@@ -3525,6 +3525,18 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	var iterOut []types.Application
+	for app, err := range clt.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, iterOut)
+
 	// Create both apps.
 	err = clt.CreateApp(ctx, app1)
 	require.NoError(t, err)
@@ -3535,6 +3547,22 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	iterOut = nil
+	for app, err := range clt.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, iterOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -3572,6 +3600,22 @@ func TestAppsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err = clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	iterOut = nil
+	for app, err := range clt.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, cmp.Diff([]types.Application{app2}, iterOut,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Try to delete an app that doesn't exist.
 	err = clt.DeleteApp(ctx, "doesnotexist")
 	require.IsType(t, trace.NotFound(""), err)
@@ -3579,9 +3623,22 @@ func TestAppsCRUD(t *testing.T) {
 	// Delete all apps.
 	err = clt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	out, next, err = clt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	iterOut = nil
+	for app, err := range clt.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, iterOut)
 }
 
 // TestAppServersCRUD tests application server resource operations.

@@ -73,7 +73,7 @@ type Config struct {
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
-	Apps                    services.Apps
+	Apps                    services.Applications
 	ClusterConfig           services.ClusterConfiguration
 	CrownJewels             services.CrownJewels
 	DatabaseObjects         services.DatabaseObjects
