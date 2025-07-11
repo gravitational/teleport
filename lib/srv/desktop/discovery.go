@@ -149,6 +149,19 @@ func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
+	tc, err := s.tlsConfigForLDAP()
+	if err != nil {
+		s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
+		return nil
+	}
+
+	ldapClient, err := winpki.DialLDAP(s.closeCtx, &s.cfg.LDAPConfig, tc)
+	if err != nil {
+		s.cfg.Logger.WarnContext(s.closeCtx, "could not dial LDAP server", "error", err)
+		return nil
+	}
+	defer ldapClient.Close()
+
 	result := make(map[string]types.WindowsDesktop)
 	for _, discoveryConfig := range s.cfg.Discovery {
 		filter := s.ldapSearchFilter(discoveryConfig.Filters)
@@ -158,13 +171,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		attrs = append(attrs, computerAttributes...)
 		attrs = append(attrs, discoveryConfig.LabelAttributes...)
 
-		tc, err := s.tlsConfigForLDAP()
-		if err != nil {
-			s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
-			return nil
-		}
-
-		entries, err := s.cfg.LDAPConfig.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs, tc)
+		entries, err := ldapClient.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs)
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
 			return nil

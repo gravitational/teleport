@@ -102,28 +102,32 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 	containerDN := crlContainerDN(c.cfg.Domain, caType)
 	crlDN := crlDN(c.cfg.ClusterName, c.cfg.Domain, caType)
 
+	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
+	if err != nil {
+		return trace.Wrap(err, "dialing LDAP server")
+	}
+	defer ldapClient.Close()
+
 	// Create the parent container.
-	if err := c.cfg.LC.CreateContainer(ctx, containerDN, tc); err != nil {
+	if err := ldapClient.CreateContainer(ctx, containerDN); err != nil {
 		return trace.Wrap(err, "creating CRL container")
 	}
 
 	// Create the CRL object itself.
-	if err := c.cfg.LC.Create(
+	if err := ldapClient.Create(
 		ctx,
 		crlDN,
 		"cRLDistributionPoint",
 		map[string][]string{"certificateRevocationList": {string(crlDER)}},
-		tc,
 	); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
 		// CRL already exists, update it.
-		if err := c.cfg.LC.Update(
+		if err := ldapClient.Update(
 			ctx,
 			crlDN,
 			map[string][]string{"certificateRevocationList": {string(crlDER)}},
-			tc,
 		); err != nil {
 			return trace.Wrap(err)
 		}
