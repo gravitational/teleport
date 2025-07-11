@@ -8358,6 +8358,20 @@ message AWSRolesAnywhereProfileSyncConfig {
   bool ProfileAcceptsRoleSessionName = 3 [(gogoproto.jsontag) = "profile_accepts_role_session_name"];
   // RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
   string RoleARN = 4 [(gogoproto.jsontag) = "role_arn"];
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be synchronized as application servers.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example:
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  repeated string ProfileNameFilters = 5 [(gogoproto.jsontag) = "profile_name_filters"];
 }
 
 // AWSRAIntegrationStatusV1 contains the status properties for the AWS IAM Roles Anywhere SubKind Integration.
