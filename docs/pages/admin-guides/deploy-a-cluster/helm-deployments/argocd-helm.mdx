@@ -1,6 +1,6 @@
 ---
 title: Guides for running Teleport using Helm via ArgoCD
-description: How to install and configure Teleport in Kubernetes using Helm and ArgoCD
+description: How to install and configure Teleport Kubernetes agent using Helm and ArgoCD
 ---
 
 Teleport can provide secure, unified access to your Kubernetes clusters. This
@@ -17,13 +17,7 @@ This guide leverages ArgoCD's native Helm support to deploy the Teleport agent u
 
 ## Prerequisites
 
-- A registered domain name. This is required for Teleport to set up TLS via
-  Let's Encrypt and for Teleport clients to verify the Proxy Service host.
-
 - An existing Kubernetes cluster you wish to provide access to via Teleport.
-
-- At least one Teleport Agent running in your cluster publicly reachable with
-  valid TLS certificates
 
  - (!docs/pages/includes/tctl.mdx!)
 
@@ -36,7 +30,7 @@ This guide leverages ArgoCD's native Helm support to deploy the Teleport agent u
 ## Step 1/2. Generate a join token
 
 Teleport agents use a join token to obtain certificates and connect to Teleport. See [joining docs](../../../reference/join-methods.mdx) for more information.
-The token must be valid only on first join, the Teleport Kube agent will store its
+The token is only used to join initially, the Teleport Kube agent will store its
 certificates in Kubernetes and won't need a token to join again in the future.
 In this section, we will create a token for the agent to join the Teleport cluster.
 ```code
@@ -46,9 +40,6 @@ $ tctl tokens add --type=kube,app --ttl=5m
 You can specify the following token types:
 
 (!docs/pages/includes/token-types.mdx!)
-
-Ensure you update the values file you use for the helm chart
-to include the required roles.
 
 See the `teleport-kube-agent` [chart
 reference](../../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
@@ -76,7 +67,7 @@ source:
   targetRevision: (=teleport.version=)
   helm:
     values: |-
-      roles: kube,app,discovery
+      roles: kube,app
       authToken: $YOUR_AUTH_TOKEN
       proxyAddr: $YOUR_PROXY_ADDRESS
       kubeClusterName: $YOUR_KUBE_CLUSTER_NAME
@@ -89,14 +80,14 @@ source:
   chart: teleport-kube-agent
 destination:
   server: 'https://kubernetes.default.svc'
-  namespace: $YOUR_TARGET_NAMESPACE
+  namespace: teleport
 # This section is used to allow the teleport-kube-agent-updater to update the agent
 # without ArgoCD reverting the update.
 ignoreDifferences:
   - group: apps
     kind: StatefulSet
     name: $YOUR_APPLICATION_NAME
-    namespace: $YOUR_TARGET_NAMESPACE
+    namespace: teleport
     jqPathExpressions:
       - '.spec.template.spec.containers[] | select(.name == "teleport").image'
 ```
