@@ -136,6 +136,7 @@ type collections struct {
 	auditQueries                       *collection[*secreports.AuditQuery, auditQueryIndex]
 	secReports                         *collection[*secreports.Report, securityReportIndex]
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
+	plugins                            *collection[types.Plugin, pluginIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -721,6 +722,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.secReportsStates = collect
 			out.byKind[resourceKind] = out.secReportsStates
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
