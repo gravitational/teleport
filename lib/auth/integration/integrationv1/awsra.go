@@ -115,6 +115,11 @@ type AWSRolesAnywhereServiceConfig struct {
 
 	Clock  clockwork.Clock
 	Logger *slog.Logger
+
+	// newPingClient is used to initialize a PingClient.
+	// If nil, the service will create a new PingClient using the AWS client config.
+	// This is useful for testing purposes, allowing to inject a mock client.
+	newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)
 }
 
 // CheckAndSetDefaults checks the AWSRolesAnywhereServiceConfig fields and returns an error if a required param is not provided.
@@ -135,6 +140,10 @@ func (s *AWSRolesAnywhereServiceConfig) CheckAndSetDefaults() error {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsra.service")
 	}
 
+	if s.newPingClient == nil {
+		s.newPingClient = awsra.NewPingClient
+	}
+
 	return nil
 }
 
@@ -146,6 +155,11 @@ type AWSRolesAnywhereService struct {
 	authorizer         authz.Authorizer
 	logger             *slog.Logger
 	clock              clockwork.Clock
+
+	// newPingClient is used to initialize a PingClient.
+	// If nil, the service will create a new PingClient using the AWS client config.
+	// This is useful for testing purposes, allowing to inject a mock client.
+	newPingClient func(ctx context.Context, req *awsra.AWSClientConfig) (awsra.PingClient, error)
 }
 
 // NewAWSRolesAnywhereService returns a new AWSRolesAnywhereService.
@@ -154,12 +168,15 @@ func NewAWSRolesAnywhereService(cfg *AWSRolesAnywhereServiceConfig) (*AWSRolesAn
 		return nil, trace.Wrap(err)
 	}
 
-	return &AWSRolesAnywhereService{
+	ret := &AWSRolesAnywhereService{
 		integrationService: cfg.IntegrationService,
 		logger:             cfg.Logger,
 		authorizer:         cfg.Authorizer,
 		clock:              cfg.Clock,
-	}, nil
+		newPingClient:      cfg.newPingClient,
+	}
+
+	return ret, nil
 }
 
 var _ integrationpb.AWSRolesAnywhereServiceServer = (*AWSRolesAnywhereService)(nil)
@@ -222,5 +239,95 @@ func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context,
 	return &integrationpb.ListRolesAnywhereProfilesResponse{
 		Profiles:      profileList.Profiles,
 		NextPageToken: profileList.NextToken,
+	}, nil
+}
+
+// AWSRolesAnywherePing performs a health check for the AWS Roles Anywhere integration.
+// If the integration is absent from the request, then it will use the trust anchor, profile and role from the request.
+// This is useful for testing an integration that was not yet created.
+//
+// If the integration is present in the request, it will use the trust anchor and the profile, role from the integration's ProfileSync config.
+//
+// It returns the caller identity and the number of AWS Roles Anywhere Profiles that are active.
+func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req *integrationpb.AWSRolesAnywherePingRequest) (*integrationpb.AWSRolesAnywherePingResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var trustAnchorARN, profileARN, roleARN string
+
+	switch req.Mode.(type) {
+	case *integrationpb.AWSRolesAnywherePingRequest_Integration:
+		spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		trustAnchorARN = spec.TrustAnchorARN
+		profileARN = spec.ProfileSyncConfig.ProfileARN
+		roleARN = spec.ProfileSyncConfig.RoleARN
+
+	case *integrationpb.AWSRolesAnywherePingRequest_Custom:
+		trustAnchorARN = req.GetCustom().GetTrustAnchorArn()
+		profileARN = req.GetCustom().GetProfileArn()
+		roleARN = req.GetCustom().GetRoleArn()
+
+	default:
+		return nil, trace.BadParameter("either integration or custom request must be provided")
+	}
+
+	s.logger.DebugContext(ctx, "Testing AWS IAM Roles Anywhere integration",
+		"integration", req.GetIntegration(),
+		"trust_anchor", trustAnchorARN,
+		"profile_arn", profileARN,
+		"role_arn", roleARN,
+	)
+
+	credentialsRequest := &integrationpb.GenerateAWSRACredentialsRequest{
+		ProfileArn:  profileARN,
+		RoleArn:     roleARN,
+		SubjectName: authCtx.Identity.GetIdentity().Username,
+	}
+
+	trustAnchorARNParsed, err := arn.Parse(trustAnchorARN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustAnchorRegion := trustAnchorARNParsed.Region
+
+	credentials, err := s.integrationService.generateAWSRACredentialsWithoutAuthZ(ctx, credentialsRequest, trustAnchorARN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingClient, err := s.newPingClient(ctx, &awsra.AWSClientConfig{
+		Credentials: awsra.Credentials{
+			AccessKeyID:     credentials.AccessKeyId,
+			SecretAccessKey: credentials.SecretAccessKey,
+			SessionToken:    credentials.SessionToken,
+			Expiration:      credentials.Expiration.AsTime(),
+			Version:         1,
+		},
+		Region: trustAnchorRegion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := awsra.Ping(ctx, pingClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &integrationpb.AWSRolesAnywherePingResponse{
+		ProfileCount: int32(pingResp.EnabledProfileCounter),
+		AccountId:    pingResp.AccountID,
+		Arn:          pingResp.ARN,
+		UserId:       pingResp.UserID,
 	}, nil
 }
