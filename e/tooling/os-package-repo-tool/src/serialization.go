@@ -66,14 +66,25 @@ func GetSafeLockName(lockName string) (string, error) {
 	return string(lockRunes), nil
 }
 
+// ReleaseFunc is a function returned by a locking operation to release the
+// lock. It returns a receive-only channel that can be waited on for the
+// release locking to complete. The channel will only be closed - nothing will
+// be sent on it.
+type ReleaseFunc func() <-chan struct{}
+
 type Serializer interface {
 	// TakeSerializationLock attempts to take the serialization lock `lockName`.
 	// This is a blocking function. It supports cancellation via the context.
 	// The lock name must be a single DNS label as defined by RFC 1035.
-	// The returned function _must_ be called once all tasks requiring serialization
+	//
+	// The returned ReleaseFunc _must_ be called once all tasks requiring serialization
 	// are complete. If it is not called, then the lock will remain held by this process
 	// for a long period of time (weeks or more), blocking other processes.
-	TakeSerializationLock(ctx context.Context, lockName string) (func(), error)
+	// As releasing the lock can block (talking to the k8s API server), the release
+	// is not immediate. The ReleaseFunc will return a channel that will closed when
+	// the lock releasing has completed, allowing the caller to ensure the lock is
+	// properly released before program termination.
+	TakeSerializationLock(ctx context.Context, lockName string) (ReleaseFunc, error)
 }
 
 type kubernetesSerializerLeaderElectionConfig struct {
@@ -175,7 +186,7 @@ func (ks *kubernetesSerializer) isFirstRun() bool {
 // The release channel causes the lease to be relinquished when closed. It should be closed after all tasks that require serialization
 // are complete. Failure to do so will block other instances of this tool, but should "fail safe" and avoid data corruption.
 // Lock name should be the runner name, i.e "apt" or "yum".
-func (ks *kubernetesSerializer) TakeSerializationLock(ctx context.Context, lockName string) (func(), error) {
+func (ks *kubernetesSerializer) TakeSerializationLock(ctx context.Context, lockName string) (ReleaseFunc, error) {
 	if !ks.leaderElectionConfig.enable {
 		warnMsg := "WARNING: LEADER ELECTION HAS BEEN DISABLED.\n" +
 			"This is highly likely to cause data corruption outside of local development environments. \n" +
@@ -189,7 +200,12 @@ func (ks *kubernetesSerializer) TakeSerializationLock(ctx context.Context, lockN
 		case <-timer.C:
 		}
 
-		return func() {}, nil
+		nopReleaser := func() <-chan struct{} {
+			ch := make(chan struct{})
+			close(ch)
+			return ch
+		}
+		return nopReleaser, nil
 	}
 
 	if ks.leaderElectionConfig.namespace == "" {
@@ -288,7 +304,7 @@ func (ks *kubernetesSerializer) buildLeaderElector(lock *resourcelock.LeaseLock)
 	return leaderElector, elected, nil
 }
 
-func (ks *kubernetesSerializer) waitForLock(ctx context.Context, lock *resourcelock.LeaseLock) (context.CancelFunc, error) {
+func (ks *kubernetesSerializer) waitForLock(ctx context.Context, lock *resourcelock.LeaseLock) (ReleaseFunc, error) {
 	leaderElector, elected, err := ks.buildLeaderElector(lock)
 	if err != nil {
 		return nil, err
@@ -299,12 +315,26 @@ func (ks *kubernetesSerializer) waitForLock(ctx context.Context, lock *resourcel
 	// serialization is complete, including any cleanup tasks that occur when the main context
 	// is cancelled. It is the caller's responsibility to close the release channel once the
 	// main context is cancelled and all cleanup tasks are complete.
-	electionCtx, releaseLockCallback := context.WithCancel(context.Background())
+	electionCtx, electionCancel := context.WithCancel(context.Background())
 
+	// Start leader election, and when it completes, close the released
+	// channel. The receive side of the channel is returned by
+	// releaseLockCallback so the caller of that can wait for the lock
+	// release to complete. This ensures that after canceling the
+	// electionCtx the program does not exit before the leaderElector has
+	// properly completed, as it needs to update the k8s lease on
+	// completion.
 	slog.InfoContext(ctx, "starting leader election", "identity", lock.LockConfig.Identity)
+	releaseCh := make(chan struct{})
+	go func() {
+		leaderElector.Run(electionCtx)
+		close(releaseCh)
+	}()
 
-	// Start leader election, waiting for the lock (leader lease) before continuing
-	go leaderElector.Run(electionCtx)
+	releaseLockCallback := func() <-chan struct{} {
+		electionCancel()
+		return releaseCh
+	}
 
 	select {
 	case <-ctx.Done():

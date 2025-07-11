@@ -72,7 +72,8 @@ func (yrt *YumRepoTool) Run() error {
 	if err != nil {
 		return trace.Wrap(err, "failed to take serialization lock")
 	}
-	defer releaseLock()
+	// Release the lock and wait for the release to complete before we can return.
+	defer func() { <-releaseLock() }()
 
 	isFirstRun, err := yrt.isFirstRun()
 	if err != nil {

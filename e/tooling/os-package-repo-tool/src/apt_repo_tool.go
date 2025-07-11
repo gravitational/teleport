@@ -65,7 +65,8 @@ func (art *AptRepoTool) Run() error {
 	if err != nil {
 		return trace.Wrap(err, "failed to take serialization lock")
 	}
-	defer releaseLock()
+	// Release the lock and wait for the release to complete before we can return.
+	defer func() { <-releaseLock() }()
 
 	isFirstRun, err := art.aptly.IsFirstRun()
 	if err != nil {
