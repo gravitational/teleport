@@ -120,7 +120,6 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
 		uriTemplate:  autoupdate.DefaultCDNURITemplate,
-		baseURL:      autoupdate.DefaultBaseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {

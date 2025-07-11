@@ -53,12 +53,7 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 		return nil
 	}
 
-	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
-		baseURL = envBaseURL
-	}
-
-	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
+	updater := NewUpdater(toolsDir, version)
 	// At process startup, check if a version has already been downloaded to
 	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
 	// environment variable. If so, re-exec that version of client tools.
@@ -87,12 +82,7 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		return nil
 	}
 
-	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
-		baseURL = envBaseURL
-	}
-
-	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
+	updater := NewUpdater(toolsDir, version)
 	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
 	if err != nil {
 		return trace.Wrap(err)

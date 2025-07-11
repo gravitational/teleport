@@ -24,6 +24,10 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { GetAutoUpdateBaseUrlResponse } from "./service_pb";
+import type { GetAutoUpdateBaseUrlRequest } from "./service_pb";
+import type { GetAutoUpdateVersionsResponse } from "./service_pb";
+import type { GetAutoUpdateVersionsRequest } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import type { ConnectToDesktopResponse } from "./service_pb";
@@ -421,6 +425,20 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * GetAutoUpdateVersions returns auto update version for clusters that are reachable.
+     *
+     * @generated from protobuf rpc: GetAutoUpdateVersions(teleport.lib.teleterm.v1.GetAutoUpdateVersionsRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse);
+     */
+    getAutoUpdateVersions(input: GetAutoUpdateVersionsRequest, options?: RpcOptions): UnaryCall<GetAutoUpdateVersionsRequest, GetAutoUpdateVersionsResponse>;
+    /**
+     * GetAutoUpdateBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
+     * Can be overridden with TELEPORT_CDN_BASE_URL env var.
+     * OSS builds require this env var to be set, otherwise an error is returned.
+     *
+     * @generated from protobuf rpc: GetAutoUpdateBaseUrl(teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlResponse);
+     */
+    getAutoUpdateBaseUrl(input: GetAutoUpdateBaseUrlRequest, options?: RpcOptions): UnaryCall<GetAutoUpdateBaseUrlRequest, GetAutoUpdateBaseUrlResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -871,5 +889,25 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
         const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetAutoUpdateVersions returns auto update version for clusters that are reachable.
+     *
+     * @generated from protobuf rpc: GetAutoUpdateVersions(teleport.lib.teleterm.v1.GetAutoUpdateVersionsRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse);
+     */
+    getAutoUpdateVersions(input: GetAutoUpdateVersionsRequest, options?: RpcOptions): UnaryCall<GetAutoUpdateVersionsRequest, GetAutoUpdateVersionsResponse> {
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetAutoUpdateVersionsRequest, GetAutoUpdateVersionsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetAutoUpdateBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
+     * Can be overridden with TELEPORT_CDN_BASE_URL env var.
+     * OSS builds require this env var to be set, otherwise an error is returned.
+     *
+     * @generated from protobuf rpc: GetAutoUpdateBaseUrl(teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlResponse);
+     */
+    getAutoUpdateBaseUrl(input: GetAutoUpdateBaseUrlRequest, options?: RpcOptions): UnaryCall<GetAutoUpdateBaseUrlRequest, GetAutoUpdateBaseUrlResponse> {
+        const method = this.methods[44], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetAutoUpdateBaseUrlRequest, GetAutoUpdateBaseUrlResponse>("unary", this._transport, method, opt, input);
     }
 }

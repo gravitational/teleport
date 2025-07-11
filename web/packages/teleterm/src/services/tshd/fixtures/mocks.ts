@@ -113,6 +113,8 @@ export class MockTshClient implements TshdClient {
   getApp = () => new MockedUnaryCall({ app: makeApp() });
   connectToDesktop = undefined;
   setSharedDirectoryForDesktopSession = () => new MockedUnaryCall({});
+  getAutoUpdateVersions = () => new MockedUnaryCall({ versions: [] });
+  getAutoUpdateBaseUrl = () => new MockedUnaryCall({ baseUrl: '' });
 }
 
 export class MockVnetClient implements VnetClient {
