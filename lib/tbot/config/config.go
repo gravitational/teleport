@@ -219,6 +219,11 @@ type BotConfig struct {
 	// such as tctl or the Kubernetes operator.
 	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
 
+	// JoinURI is a joining URI, used to supply connection and authentication
+	// parameters in a single bundle. If set, the value is parsed and merged on
+	// top of the existing configuration during `CheckAndSetDefaults()`.
+	JoinURI string `yaml:"join_uri,omitempty"`
+
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 	Oneshot            bool               `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
