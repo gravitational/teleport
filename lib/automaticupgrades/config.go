@@ -38,6 +38,9 @@ const (
 	// Ex: v14.3.6
 	EnvUpgraderVersion = "TELEPORT_EXT_UPGRADER_VERSION"
 
+	// EnvUpgraderGroup environment variable specifies the external upgrader group
+	EnvUpgraderGroup = "TELEPORT_EXT_UPGRADER_GROUP"
+
 	// automaticUpgradesEnvar defines the env var to lookup when deciding whether to enable AutomaticUpgrades feature.
 	automaticUpgradesEnvar = "TELEPORT_AUTOMATIC_UPGRADES"
 

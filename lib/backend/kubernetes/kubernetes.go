@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -124,6 +125,20 @@ func New() (*Backend, error) {
 	}
 
 	return NewWithClient(restClient)
+}
+
+func ReplicaNumber() (int, error) {
+	replicaName := os.Getenv(teleportReplicaNameEnv)
+	if replicaName == "" {
+		return 0, trace.BadParameter("missing %s environment variable", teleportReplicaNameEnv)
+	}
+
+	parts := strings.Split(replicaName, "-")
+	lastPart := parts[len(parts)-1]
+	if lastPart == "" {
+		return 0, trace.BadParameter("malformed replica name variable: %q", replicaName)
+	}
+	return strconv.Atoi(lastPart)
 }
 
 // NewWithClient returns a new instance of Kubernetes Secret identity backend storage with the provided client.
