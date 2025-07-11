@@ -196,6 +196,7 @@ require (
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
+	github.com/grafana/pyroscope-go v1.2.3-0.20250624101038-0410c20e9693 // indirect
 	github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 // indirect
 	github.com/gravitational/oxy v0.0.0-20231219172753-f855322f2a6c // indirect
 	github.com/gravitational/roundtrip v1.0.2 // indirect
