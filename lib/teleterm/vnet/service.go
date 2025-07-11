@@ -544,11 +544,11 @@ func (p *clientApplication) OnNewSSHSession(ctx context.Context, profileName, ta
 	}()
 }
 
-// OnNewConnection submits a usage event once per clientApplication lifetime.
-// That is, if a user makes multiple connections to a single app, OnNewConnection submits a single
+// OnNewAppConnection submits an app usage event once per clientApplication lifetime.
+// That is, if a user makes multiple connections to a single app, OnNewAppConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
-func (p *clientApplication) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {

@@ -56,13 +56,13 @@ type ClientApplication interface {
 	// started, after getting the user SSH certificate for the session.
 	OnNewSSHSession(ctx context.Context, profileName, rootClusterName string)
 
-	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
-	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
+	// OnNewAppConnection gets called whenever a new app connection is about to be established through VNet.
+	// By the time OnNewAppConnection, VNet has already verified that the user holds a valid cert for the
 	// app.
 	//
-	// The connection won't be established until OnNewConnection returns. Returning an error prevents
+	// The connection won't be established until OnNewAppConnection returns. Returning an error prevents
 	// the connection from being made.
-	OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error
+	OnNewAppConnection(ctx context.Context, appKey *vnetv1.AppKey) error
 
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 	// because the provided port does not match any of the TCP ports in the app spec.

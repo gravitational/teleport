@@ -366,7 +366,7 @@ type fakeClientApp struct {
 	teleportUserCA ssh.Signer
 
 	onNewSSHSessionCallCount    atomic.Uint32
-	onNewConnectionCallCount    atomic.Uint32
+	onNewAppConnectionCallCount atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
@@ -570,8 +570,8 @@ func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootCl
 	p.onNewSSHSessionCallCount.Add(1)
 }
 
-func (p *fakeClientApp) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) error {
-	p.onNewConnectionCallCount.Add(1)
+func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
+	p.onNewAppConnectionCallCount.Add(1)
 	return nil
 }
 
@@ -1042,9 +1042,9 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	}
 }
 
-// TestOnNewConnection tests that the client applications OnNewConnection method
+// TestOnNewAppConnection tests that the client applications OnNewAppConnection method
 // is called when a user connects to a valid TCP app.
-func TestOnNewConnection(t *testing.T) {
+func TestOnNewAppConnection(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1072,19 +1072,19 @@ func TestOnNewConnection(t *testing.T) {
 		fakeClientApp: clientApp,
 	})
 
-	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
+	// Attempt to establish a connection to an invalid app and verify that OnNewAppConnection was not
 	// called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
 	_, err := p.lookupHost(lookupCtx, invalidAppName)
 	require.Error(t, err, "Expected lookup of an invalid app to fail")
-	require.Equal(t, uint32(0), clientApp.onNewConnectionCallCount.Load())
+	require.Equal(t, uint32(0), clientApp.onNewAppConnectionCallCount.Load())
 
-	// Establish a connection to a valid app and verify that OnNewConnection was called.
+	// Establish a connection to a valid app and verify that OnNewAppConnection was called.
 	conn, err := p.dialHost(ctx, validAppName, 80 /* bogus port */)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
-	require.Equal(t, uint32(1), clientApp.onNewConnectionCallCount.Load())
+	require.Equal(t, uint32(1), clientApp.onNewAppConnectionCallCount.Load())
 }
 
 // TestWithAlgorithmSuites tests basic VNet functionality with each signature
