@@ -20,7 +20,6 @@ package servicecfg
 
 import (
 	"crypto/x509"
-	"log/slog"
 	"maps"
 	"regexp"
 	"time"
@@ -160,6 +159,9 @@ type LocateServer struct {
 type LDAPConfig struct {
 	// Addr is the address:port of the LDAP server (typically port 389).
 	Addr string
+	// LocateServer automatically locates the LDAP server using DNS SRV records.
+	// https://ldap.com/dns-srv-records-for-ldap/
+	LocateServer LocateServer
 	// Domain is the ActiveDirectory domain name.
 	Domain string
 	// Username for LDAP authentication.
@@ -172,9 +174,4 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
-	// LocateServer automatically locates the LDAP server using DNS SRV records.
-	// https://ldap.com/dns-srv-records-for-ldap/
-	LocateServer
-	// Logger is the logger for the service.
-	Logger *slog.Logger
 }
