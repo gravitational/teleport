@@ -593,7 +593,7 @@ func (l *LocalService) Name() string {
 }
 
 // Func is a service function
-type Func func() error
+type Func = func() error
 
 const (
 	stateCreated = iota
