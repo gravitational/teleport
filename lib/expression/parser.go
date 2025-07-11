@@ -151,6 +151,14 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				func(s Set) (bool, error) {
 					return len(s.s) == 0, nil
 				}),
+			"jsonpath": typical.BinaryFunction[evaluationEnv](
+				func(inputs Set, path string) (Set, error) {
+					result, err := parse.JSONPath(inputs.items(), path)
+					if err != nil {
+						return Set{}, trace.Wrap(err)
+					}
+					return NewSet(result...), nil
+				}),
 		},
 		Methods: map[string]typical.Function{
 			"add": typical.BinaryVariadicFunction[evaluationEnv](

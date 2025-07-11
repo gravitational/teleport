@@ -24,12 +24,15 @@
 package parse
 
 import (
+	"encoding/json"
 	"net/mail"
 	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/gravitational/trace"
+	"github.com/ohler55/ojg/jp"
+	"github.com/ohler55/ojg/oj"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -222,6 +225,55 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 		}
 		return re.ReplaceAllString(in, replacement), nil
 	})
+}
+
+// JSONPath takes a list of json blobs and uses jsonpath interpolation to transform
+// each entry into a list of strings, returning a combined list. If jsonpath interpolation
+// for any of the json blobs results in a value other than a string or list of strings,
+// the function will return an error.
+func JSONPath(inputs []string, path string) ([]string, error) {
+	out := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		jsonObject, err := oj.ParseString(input)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		jpExpr, err := jp.ParseString(path)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		results := jpExpr.Get(jsonObject)
+		for _, result := range results {
+			switch r := result.(type) {
+			case string:
+				out = append(out, r)
+			case []string:
+				out = append(out, r...)
+			case []any:
+				for _, v := range r {
+					if s, ok := v.(string); ok {
+						out = append(out, s)
+					} else {
+						resultsJSON, err := json.Marshal(results)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
+					}
+				}
+			default:
+				resultsJSON, err := json.Marshal(results)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return nil, trace.BadParameter("jsonpath interpolation must result in a string or list of strings, but resulted in %v", string(resultsJSON))
+			}
+		}
+	}
+
+	return out, nil
 }
 
 // MatchExpression is a match expression.

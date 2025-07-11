@@ -26,6 +26,10 @@ type EvaluationInput struct {
 	// or the internal static traits (for local users) which will be input to
 	// the login rule evaluation.
 	Traits map[string][]string
+	// UnmappedClaims are non-string-like claims. These claims are not mapped
+	// to traits by default, but can be mapped to traits with some expressions,
+	// e.g. with the `jsonpath` function.
+	UnmappedClaims map[string]any
 }
 
 // EvaluationOutput holds the output of a login rule evaluation.
@@ -48,7 +52,7 @@ type Evaluator interface {
 type NullEvaluator struct{}
 
 // Evaluate returns the input traits unmodified.
-func (NullEvaluator) Evaluate(ctx context.Context, input *EvaluationInput) (*EvaluationOutput, error) {
+func (NullEvaluator) Evaluate(_ context.Context, input *EvaluationInput) (*EvaluationOutput, error) {
 	return &EvaluationOutput{
 		Traits: input.Traits,
 	}, nil
