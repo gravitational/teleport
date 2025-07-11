@@ -291,7 +291,7 @@ export function LabelsInput({
       <ButtonWithAddIcon
         Button={ButtonSecondary}
         label={
-          labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`
+          labels.length > 0 ? `Add another ${adjective}` : `Add ${adjective}`
         }
         onClick={e => {
           e.preventDefault();
