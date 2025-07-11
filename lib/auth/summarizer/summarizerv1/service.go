@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types/events"
@@ -63,6 +62,8 @@ type unimplementedSummarizer struct {
 	pb.UnimplementedSummarizerServiceServer
 }
 
+var _ SummarizerService = (*unimplementedSummarizer)(nil)
+
 func (s *unimplementedSummarizer) Summarize(
 	ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf,
 ) error {
@@ -73,31 +74,31 @@ func (s *unimplementedSummarizer) Summarize(
 
 func (s *unimplementedSummarizer) CreateInferenceModel(
 	ctx context.Context, req *pb.CreateInferenceModelRequest,
-) (*pb.InferenceModel, error) {
+) (*pb.CreateInferenceModelResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) GetInferenceModel(
 	ctx context.Context, req *pb.GetInferenceModelRequest,
-) (*pb.InferenceModel, error) {
+) (*pb.GetInferenceModelResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) UpdateInferenceModel(
 	ctx context.Context, req *pb.UpdateInferenceModelRequest,
-) (*pb.InferenceModel, error) {
+) (*pb.UpdateInferenceModelResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) UpsertInferenceModel(
 	ctx context.Context, req *pb.UpsertInferenceModelRequest,
-) (*pb.InferenceModel, error) {
+) (*pb.UpsertInferenceModelResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) DeleteInferenceModel(
 	ctx context.Context, req *pb.DeleteInferenceModelRequest,
-) (*emptypb.Empty, error) {
+) (*pb.DeleteInferenceModelResponse, error) {
 	return nil, requireEnterprise()
 }
 
@@ -111,31 +112,31 @@ func (s *unimplementedSummarizer) ListInferenceModels(
 
 func (s *unimplementedSummarizer) CreateInferenceSecret(
 	ctx context.Context, req *pb.CreateInferenceSecretRequest,
-) (*pb.InferenceSecret, error) {
+) (*pb.CreateInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) GetInferenceSecret(
 	ctx context.Context, req *pb.GetInferenceSecretRequest,
-) (*pb.InferenceSecret, error) {
+) (*pb.GetInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) UpdateInferenceSecret(
 	ctx context.Context, req *pb.UpdateInferenceSecretRequest,
-) (*pb.InferenceSecret, error) {
+) (*pb.UpdateInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) UpsertInferenceSecret(
 	ctx context.Context, req *pb.UpsertInferenceSecretRequest,
-) (*pb.InferenceSecret, error) {
+) (*pb.UpsertInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) DeleteInferenceSecret(
 	ctx context.Context, req *pb.DeleteInferenceSecretRequest,
-) (*emptypb.Empty, error) {
+) (*pb.DeleteInferenceSecretResponse, error) {
 	return nil, requireEnterprise()
 }
 
@@ -149,31 +150,31 @@ func (s *unimplementedSummarizer) ListInferenceSecrets(
 
 func (s *unimplementedSummarizer) CreateInferencePolicy(
 	ctx context.Context, req *pb.CreateInferencePolicyRequest,
-) (*pb.InferencePolicy, error) {
+) (*pb.CreateInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) GetInferencePolicy(
 	ctx context.Context, req *pb.GetInferencePolicyRequest,
-) (*pb.InferencePolicy, error) {
+) (*pb.GetInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) UpdateInferencePolicy(
 	ctx context.Context, req *pb.UpdateInferencePolicyRequest,
-) (*pb.InferencePolicy, error) {
+) (*pb.UpdateInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) UpsertInferencePolicy(
 	ctx context.Context, req *pb.UpsertInferencePolicyRequest,
-) (*pb.InferencePolicy, error) {
+) (*pb.UpsertInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
 }
 
 func (s *unimplementedSummarizer) DeleteInferencePolicy(
 	ctx context.Context, req *pb.DeleteInferencePolicyRequest,
-) (*emptypb.Empty, error) {
+) (*pb.DeleteInferencePolicyResponse, error) {
 	return nil, requireEnterprise()
 }
 
