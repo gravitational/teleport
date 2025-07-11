@@ -51,6 +51,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -144,6 +145,7 @@ type testPack struct {
 	workloadIdentity        *local.WorkloadIdentityService
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              services.GitServers
+	botInstanceService      *local.BotInstanceService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -422,6 +424,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -478,6 +485,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -895,6 +903,7 @@ func TestCompletenessInit(t *testing.T) {
 			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
 			GitServers:              p.gitServers,
+			BotInstanceService:      p.botInstanceService,
 		}))
 		require.NoError(t, err)
 
@@ -982,6 +991,7 @@ func TestCompletenessReset(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -1196,6 +1206,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -1293,6 +1304,7 @@ func initStrategy(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
 	}))
 	require.NoError(t, err)
 
@@ -3569,6 +3581,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
+		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 	}
 
 	for name, cfg := range cases {

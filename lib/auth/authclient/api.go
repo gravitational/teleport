@@ -1278,6 +1278,12 @@ type Cache interface {
 
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
+
+	// GetBotInstance returns the specified BotInstance resource.
+	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+
+	// ListBotInstances returns a page of BotInstance resources.
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error)
 }
 
 type NodeWrapper struct {
