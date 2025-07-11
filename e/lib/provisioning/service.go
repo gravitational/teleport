@@ -60,12 +60,16 @@ type AccessListsService interface {
 type AccessListPredicate func(context.Context, *accesslist.AccessList) (bool, error)
 
 // EventHandler defines a function signature for handling provisioning events.
-// Any errors that occur while handling the event are expected to be handled by
-// the caller, and not propagated back to the Provisioning Service
-type EventHandler func(context.Context, *provisioningv1.PrincipalState)
+// Any errors that occur while handling the event are generally expected to be
+// handled by the callback and not propagated back to the Provisioning Service.
+// Specific events may make use of the returned [error], but this is not the
+// normal expectation.
+type EventHandler func(context.Context, *provisioningv1.PrincipalState) error
 
 // nullEventHandler is the default, do-nothing event handler
-func nullEventHandler(context.Context, *provisioningv1.PrincipalState) {}
+func nullEventHandler(context.Context, *provisioningv1.PrincipalState) error {
+	return nil
+}
 
 type ServiceConfig struct {
 	// SCIMClient is the SCIM client implementation the provisioning system will
@@ -135,10 +139,24 @@ type ServiceConfig struct {
 	// `defaultEventBufferSize` if unset.
 	EventBufferSize int
 
+	// OnPrincipalProvisioning is an optional callback invoked just before a
+	// principal is provisioned into the downstream system. Implementations may
+	// return [ErrDoNotProvision] to indicate that the downstream principal
+	// should not be provisioned downstream. All other errors are ignored.
+	// Defaults to a no-op implementation.
+	OnPrincipalProvisioning EventHandler
+
 	// OnPrincipalProvisioned is an optional callback to be invoked whenever a
 	// principal is successfully provisioned. Defaults to an no-op
-	// implementation.
+	// implementation. Errors returned by the event handler are ignored.
 	OnPrincipalProvisioned EventHandler
+
+	// OnPrincipalDeprovisioning is an optional callback invoked just before a
+	// principal is de-provisioned in the downstream system. Implementations may
+	// return [ErrDoNotProvision] to indicate that the downstream principal
+	// should not be de-provisioned. All other errors are ignored.
+	// Defaults to a no-op implementation.
+	OnPrincipalDeprovisioning EventHandler
 }
 
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
@@ -202,8 +220,16 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		cfg.ProvisioningConcurrency = defaultProvisioningConcurrency
 	}
 
+	if cfg.OnPrincipalProvisioning == nil {
+		cfg.OnPrincipalProvisioning = nullEventHandler
+	}
+
 	if cfg.OnPrincipalProvisioned == nil {
 		cfg.OnPrincipalProvisioned = nullEventHandler
+	}
+
+	if cfg.OnPrincipalDeprovisioning == nil {
+		cfg.OnPrincipalDeprovisioning = nullEventHandler
 	}
 
 	return nil
@@ -239,10 +265,6 @@ type Service struct {
 	// can't write to it without blocking then an update is already queued
 	// and the refresh routine hasn't picked it up yet.
 	fullRefreshSignal chan struct{}
-
-	// onPrincipalProvisioned is an optional event handler invoked when a user or
-	// group is provisioned successfully.
-	onPrincipalProvisioned EventHandler
 }
 
 func NewService(cfg ServiceConfig) (svc *Service, err error) {
@@ -251,35 +273,37 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 	}
 
 	provisioner, err := newProvisioner(provisionerConfig{
-		scimClient:     cfg.SCIMClient,
-		log:            cfg.Logger,
-		stateSvc:       cfg.StateSvc,
-		usersSvc:       cfg.UsersCache,
-		accessListsSvc: cfg.AccessListsCache,
-		locksSvc:       cfg.Locks,
-		maxConcurrency: cfg.ProvisioningConcurrency,
+		scimClient:                cfg.SCIMClient,
+		log:                       cfg.Logger,
+		stateSvc:                  cfg.StateSvc,
+		usersSvc:                  cfg.UsersCache,
+		accessListsSvc:            cfg.AccessListsCache,
+		locksSvc:                  cfg.Locks,
+		maxConcurrency:            cfg.ProvisioningConcurrency,
+		onPrincipalProvisioning:   cfg.OnPrincipalProvisioning,
+		onPrincipalProvisioned:    cfg.OnPrincipalProvisioned,
+		onPrincipalDeprovisioning: cfg.OnPrincipalDeprovisioning,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating downstream provisioner")
 	}
 
 	svc = &Service{
-		downstreamID:           cfg.DownstreamID,
-		stateSvc:               cfg.StateSvc,
-		stateSvcCache:          cfg.StateSvcCache,
-		usersSvcCache:          cfg.UsersCache,
-		userPredicate:          cfg.UserPredicate,
-		accessListsSvcCache:    cfg.AccessListsCache,
-		accessListPredicate:    cfg.AccessListPredicate,
-		eventsClient:           cfg.EventsClient,
-		eventsSvc:              cfg.EventsClient,
-		log:                    cfg.Logger,
-		provisioner:            provisioner,
-		clock:                  cfg.Clock,
-		stateRefreshInterval:   cfg.StateRefreshInterval,
-		eventsChan:             make(chan *provisioningEvent, cfg.EventBufferSize),
-		fullRefreshSignal:      make(chan struct{}, 1),
-		onPrincipalProvisioned: cfg.OnPrincipalProvisioned,
+		downstreamID:         cfg.DownstreamID,
+		stateSvc:             cfg.StateSvc,
+		stateSvcCache:        cfg.StateSvcCache,
+		usersSvcCache:        cfg.UsersCache,
+		userPredicate:        cfg.UserPredicate,
+		accessListsSvcCache:  cfg.AccessListsCache,
+		accessListPredicate:  cfg.AccessListPredicate,
+		eventsClient:         cfg.EventsClient,
+		eventsSvc:            cfg.EventsClient,
+		log:                  cfg.Logger,
+		provisioner:          provisioner,
+		clock:                cfg.Clock,
+		stateRefreshInterval: cfg.StateRefreshInterval,
+		eventsChan:           make(chan *provisioningEvent, cfg.EventBufferSize),
+		fullRefreshSignal:    make(chan struct{}, 1),
 	}
 	provisioner.externalIDCache = svc
 
@@ -305,9 +329,9 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 	// service constructor, because this is the first time we know which context
 	// to use to cancel any in-flight re-provisioning on exit.
 	svc.provisioner.onExternalIDUpdated =
-		func(_ context.Context, principalState *provisioningv1.PrincipalState) {
+		func(_ context.Context, principalState *provisioningv1.PrincipalState) error {
 			if principalState.GetSpec().GetPrincipalType() != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER {
-				return
+				return nil
 			}
 			go func() {
 				if err := svc.reprovisionUserAccessLists(ctx, principalState); err != nil {
@@ -315,9 +339,8 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 						"error", err)
 				}
 			}()
+			return nil
 		}
-
-	svc.provisioner.onPrincipalProvisioned = svc.onPrincipalProvisioned
 
 	monitor, err := newResourceMonitor(svc)
 	if err != nil {
@@ -773,7 +796,11 @@ func (svc *Service) handleLockDeletion(ctx context.Context, lockID string) error
 	return trace.Wrap(err)
 }
 
-// errNoFurtherAction is an error returned by the resource event handler when
+// ErrDoNotProvision can be returned by event handlers to suppress provisioning
+// or de-provisioning of a principal into the downstream system.
+var ErrDoNotProvision = errors.New("provisioning suppressed by event handler")
+
+// errNoFurtherAction is an error returned by a resource event handler when
 // the provided resource does is not under the provisioners control and no
 // action needs to be taken.
 var errNoFurtherAction = errors.New("resource not for provisioning")
@@ -782,9 +809,8 @@ var errNoFurtherAction = errors.New("resource not for provisioning")
 // resource predicate and, if so, marks the resource provisioning state as stale
 // in preparation for re-provisioning
 func (svc *Service) handleResourcePut(ctx context.Context, principalName string, principalType provisioningv1.PrincipalType) (*provisioningv1.PrincipalState, error) {
-
 	principalMatchesPredicate := false
-	var provisioningStateId services.ProvisioningStateID
+	var provisioningStateID services.ProvisioningStateID
 
 	switch principalType {
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
@@ -793,7 +819,7 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 			return nil, trace.Wrap(err)
 		}
 		principalMatchesPredicate = svc.userPredicate(u)
-		provisioningStateId = getIDForUserName(principalName)
+		provisioningStateID = getIDForUserName(principalName)
 
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
 		acl, err := svc.accessListsSvcCache.GetAccessList(ctx, principalName)
@@ -804,25 +830,25 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		provisioningStateId = getIDForAccessListName(principalName)
+		provisioningStateID = getIDForAccessListName(principalName)
 
 	default:
 		return nil, trace.BadParameter("Invalid principal type: %v", principalType)
 	}
 
 	if !principalMatchesPredicate {
-		if err := svc.handleExcludedResource(ctx, provisioningStateId); err != nil {
+		if err := svc.handleExcludedResource(ctx, provisioningStateID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	svc.log.DebugContext(ctx, "Marking state as stale",
-		"provisioning_state_id", provisioningStateId,
+		"provisioning_state_id", provisioningStateID,
 		"principal_name", principalName,
 		"principal_type", principalType)
 
 	state, err := svc.setPrincipalProvisioningState(
-		ctx, provisioningStateId, principalName, principalType,
+		ctx, provisioningStateID, principalName, principalType,
 		provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE,
 		createIfMissing)
 	if err != nil {
@@ -976,8 +1002,11 @@ func (svc *Service) setPrincipalProvisioningState(
 			return nil, nil
 		}
 
-		createdState, err := svc.stateSvc.CreateProvisioningState(ctx,
-			newPrincipalState(svc.downstreamID, principalType, id, principalName, newState))
+		// Create the initial state record and offer the outside world a chance
+		// to customize it before creating the formal record in the system
+		// backend
+		initialState := newPrincipalState(svc.downstreamID, principalType, id, principalName, newState)
+		createdState, err := svc.stateSvc.CreateProvisioningState(ctx, initialState)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating new provisioning state")
 		}
@@ -1012,6 +1041,7 @@ func (svc *Service) markProvisioningStateAsDeleted(
 	updated, err := svc.setPrincipalProvisioningState(
 		ctx, id, principalName, principalType,
 		provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED,
-		doNotCreateIfMissing)
+		doNotCreateIfMissing,
+	)
 	return updated, trace.Wrap(err, "marking provisioning state as deleted")
 }

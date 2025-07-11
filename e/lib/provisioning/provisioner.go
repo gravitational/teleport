@@ -2,6 +2,7 @@ package provisioning
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"log/slog"
 
@@ -32,18 +33,20 @@ type resourceType struct {
 // provisioner is the actual process that attempts to make the downstream consumer
 // match the resource
 type provisioner struct {
-	log                    *slog.Logger
-	stateSvc               services.DownstreamProvisioningStates
-	externalIDCache        ExternalIDGetter
-	usersSvc               UsersService
-	accessListSvc          AccessListsService
-	locksSvc               services.LockGetter
-	clock                  clockwork.Clock
-	scimClient             scimsdk.Client
-	resourceTypes          utils.SyncMap[provisioningv1.PrincipalType, resourceType]
-	maxConcurrency         int
-	onExternalIDUpdated    EventHandler
-	onPrincipalProvisioned EventHandler
+	log                       *slog.Logger
+	stateSvc                  services.DownstreamProvisioningStates
+	externalIDCache           ExternalIDGetter
+	usersSvc                  UsersService
+	accessListSvc             AccessListsService
+	locksSvc                  services.LockGetter
+	clock                     clockwork.Clock
+	scimClient                scimsdk.Client
+	resourceTypes             utils.SyncMap[provisioningv1.PrincipalType, resourceType]
+	maxConcurrency            int
+	onExternalIDUpdated       EventHandler
+	onPrincipalProvisioning   EventHandler
+	onPrincipalProvisioned    EventHandler
+	onPrincipalDeprovisioning EventHandler
 }
 
 type provisionerConfig struct {
@@ -63,9 +66,18 @@ type provisionerConfig struct {
 	// when a principal's external ID is discovered or changed
 	onExternalIDUpdated EventHandler
 
+	// onPrincipalProvisioning is an optional event callback invoked immediately
+	// prior to a principal being provisioned. See [ServiceConfig.OnPrincipalProvisioning]
+	// for details.
+	onPrincipalProvisioning EventHandler
+
 	// onPrincipalProvisioned is an optional event callback invoked when principal
 	// is successfully provisioned to the downstream system
+	// [ServiceConfig.OnPrincipalProvisioned].
 	onPrincipalProvisioned EventHandler
+
+	// See [ServiceConfig.OnPrincipalDeprovisioning].
+	onPrincipalDeprovisioning EventHandler
 }
 
 func (cfg *provisionerConfig) CheckAndSetDefaults() error {
@@ -99,6 +111,9 @@ func (cfg *provisionerConfig) CheckAndSetDefaults() error {
 	if cfg.onPrincipalProvisioned == nil {
 		cfg.onPrincipalProvisioned = nullEventHandler
 	}
+	if cfg.onPrincipalDeprovisioning == nil {
+		cfg.onPrincipalDeprovisioning = nullEventHandler
+	}
 	return nil
 }
 
@@ -108,16 +123,18 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 	}
 
 	p := &provisioner{
-		log:                    cfg.log,
-		clock:                  cfg.clock,
-		stateSvc:               cfg.stateSvc,
-		usersSvc:               cfg.usersSvc,
-		accessListSvc:          cfg.accessListsSvc,
-		locksSvc:               cfg.locksSvc,
-		scimClient:             cfg.scimClient,
-		maxConcurrency:         cfg.maxConcurrency,
-		onExternalIDUpdated:    cfg.onExternalIDUpdated,
-		onPrincipalProvisioned: cfg.onPrincipalProvisioned,
+		log:                       cfg.log,
+		clock:                     cfg.clock,
+		stateSvc:                  cfg.stateSvc,
+		usersSvc:                  cfg.usersSvc,
+		accessListSvc:             cfg.accessListsSvc,
+		locksSvc:                  cfg.locksSvc,
+		scimClient:                cfg.scimClient,
+		maxConcurrency:            cfg.maxConcurrency,
+		onExternalIDUpdated:       cfg.onExternalIDUpdated,
+		onPrincipalProvisioning:   cfg.onPrincipalProvisioning,
+		onPrincipalProvisioned:    cfg.onPrincipalProvisioned,
+		onPrincipalDeprovisioning: cfg.onPrincipalDeprovisioning,
 	}
 
 	// TODO(tcsc): query the /Resources SCIM end point and unpack into here
@@ -161,6 +178,7 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 		}
 
 		if provisioningErr != nil {
+			log.ErrorContext(ctx, "Provisioning failed", "error", provisioningErr)
 			_, err := markStateInError(ctx, p.stateSvc, state, provisioningErr, log)
 			return trace.Wrap(err)
 		}
@@ -221,6 +239,11 @@ func (p *provisioner) deprovisionPrincipal(ctx context.Context, state *provision
 	// If the record was never actually provisioned...
 	if state.Status.ExternalId == "" {
 		log.DebugContext(ctx, "Principal was never provisioned")
+		return nil
+	}
+
+	if err := p.onPrincipalDeprovisioning(ctx, state); errors.Is(err, ErrDoNotProvision) {
+		log.DebugContext(ctx, "Deprovisioning suppressed by event handler")
 		return nil
 	}
 

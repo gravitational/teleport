@@ -232,7 +232,7 @@ func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.P
 
 // onPrincipalProvisioned is invoked by the user & group provisioning subsystem
 // when it has (re-)provisioned a principal.
-func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provisioningv1.PrincipalState) {
+func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provisioningv1.PrincipalState) error {
 	log := svc.log.With(
 		"principal_id", principal.GetMetadata().GetName())
 	log.Log(ctx, logutils.TraceLevel, "Handling SCIM provisioning event")
@@ -249,7 +249,7 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 				"Failed looking up provisioned user",
 				"user", username,
 				"error", err.Error())
-			return
+			return nil
 		}
 		event.Principal = user
 
@@ -261,7 +261,7 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 				"Failed looking up provisioned access list",
 				"access_list", aclName,
 				"error", err.Error())
-			return
+			return nil
 		}
 		event.Principal = acl
 
@@ -269,9 +269,10 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 		log.ErrorContext(ctx,
 			"Unexpected principal type",
 			"principal_type", principal.GetSpec().GetPrincipalType())
-		return
+		return nil
 	}
 	svc.queueResourceEvent(ctx, event)
+	return nil
 }
 
 func (svc *Service) isTargetedResource(ctx context.Context, resource types.Resource) (bool, error) {

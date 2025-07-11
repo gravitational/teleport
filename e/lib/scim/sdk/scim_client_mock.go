@@ -167,7 +167,16 @@ func (s *ClientMock) ReplaceGroupMembers(ctx context.Context, id string, members
 	if !exists {
 		return trace.NotFound("group with ID %q not found", id)
 	}
-	group.Members = members
+	validMembers := make([]*GroupMember, 0, len(members))
+	for _, m := range members {
+		u, ok := s.Users[m.ExternalID]
+		if ok {
+			validMember := *m
+			validMember.Display = u.DisplayName
+			validMembers = append(validMembers, &validMember)
+		}
+	}
+	group.Members = validMembers
 	return nil
 }
 

@@ -2,6 +2,7 @@ package provisioning
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 
@@ -44,6 +45,11 @@ func (p *provisioner) provisionUser(
 	user, err := p.usersSvc.GetUser(ctx, state.Spec.PrincipalId, false)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching user for provisioning")
+	}
+
+	if err := p.onPrincipalProvisioning(ctx, state); errors.Is(err, ErrDoNotProvision) {
+		log.InfoContext(ctx, "User provisioning suppressed by event callback")
+		return state, nil
 	}
 
 	// If we don't have an external ID recorded for this resource, we treat this

@@ -2,6 +2,7 @@ package provisioning
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -20,6 +21,11 @@ func (p *provisioner) provisionAccessList(
 ) (*provisioningv1.PrincipalState, error) {
 	log := p.log.With(principalStateAttr(state))
 	log.DebugContext(ctx, "Provisioning access list")
+
+	if err := p.onPrincipalProvisioning(ctx, state); errors.Is(err, ErrDoNotProvision) {
+		log.InfoContext(ctx, "Group provisioning suppressed by event callback")
+		return state, nil
+	}
 
 	acl, aclMembers, err := getAccessListWithMembers(ctx, state.Spec.PrincipalId, p.accessListSvc)
 	if err != nil {
@@ -84,7 +90,7 @@ func (p *provisioner) adoptOrCreateDownstreamGroup(
 		}
 
 		// Ensure the adopted downstream group has the right metadata, display
-		// name an so 0n
+		// name an so on
 		if err := p.updateDownstreamGroup(ctx, adoptedState, acl); err != nil {
 			return nil, trace.Wrap(err, "updating adopted group")
 		}
