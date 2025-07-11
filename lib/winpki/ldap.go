@@ -65,6 +65,8 @@ type LDAPConfig struct {
 	// Addr is the LDAP server address in the form host:port.
 	// Standard port is 636 for LDAPS.
 	Addr string
+	// LocateServer contains parameters for locating LDAP servers from the AD domain.
+	LocateServer LocateServer
 	// Domain is an Active Directory domain name, like "example.com".
 	Domain string
 	// Username is an LDAP username, like "EXAMPLE\Administrator", where
@@ -78,27 +80,26 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
-	// LocateServer contains parameters for locating LDAP servers from the AD domain.
-	LocateServer
 	// Logger is the logger for the service.
 	Logger *slog.Logger
 }
 
 // CheckAndSetDefaults verifies this LDAPConfig
 func (cfg *LDAPConfig) CheckAndSetDefaults() error {
-	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
-
 	if cfg.Addr == "" && !cfg.LocateServer.Enabled {
 		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
-	}
-	if !cfg.LocateServer.Enabled && cfg.Site != "" {
-		cfg.Logger.WarnContext(context.Background(), "Site is set, but locate_server is false. Site will be ignored.")
 	}
 	if cfg.Domain == "" {
 		return trace.BadParameter("missing Domain in LDAPConfig")
 	}
 	if cfg.Username == "" {
 		return trace.BadParameter("missing Username in LDAPConfig")
+	}
+
+	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, "ldap"))
+
+	if !cfg.LocateServer.Enabled && cfg.LocateServer.Site != "" {
+		cfg.Logger.WarnContext(context.Background(), "Site is set, but locate_server is false. Site will be ignored.")
 	}
 
 	return nil
@@ -133,22 +134,6 @@ const classContainer = "container"
 // LDAP server.
 const searchPageSize = 1000
 
-// LDAPClient is a windows LDAP client.
-//
-// It does not automatically detect when the underlying connection
-// is closed. Callers should check for trace.ConnectionProblem errors
-// and provide a new client with [SetClient].
-type LDAPClient struct {
-	cfg LDAPConfig
-}
-
-// NewLDAPClient returns new LDAPClient. Parameter client may be nil.
-func NewLDAPClient(cfg LDAPConfig) *LDAPClient {
-	return &LDAPClient{
-		cfg: cfg,
-	}
-}
-
 // convertLDAPError attempts to convert LDAP error codes to their
 // equivalent trace errors.
 func convertLDAPError(err error) error {
@@ -181,8 +166,8 @@ func convertLDAPError(err error) error {
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (c *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
-	client, err := c.cfg.createConnection(ctx, ldapTlsConfig)
+func (c *LDAPConfig) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
+	client, err := c.createConnection(ctx, ldapTlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating LDAP client")
 	}
@@ -216,7 +201,7 @@ func (c *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
+func (c *LDAPConfig) Read(ctx context.Context, dn string, class string, attrs []string, ldapTlsConfig *tls.Config) ([]*ldap.Entry, error) {
 	return c.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs, ldapTlsConfig)
 }
 
@@ -228,8 +213,8 @@ func (c *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []
 // attributes for similar entries using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPClient) Create(ctx context.Context, dn string, class string, attrs map[string][]string, ldapTlsConfig *tls.Config) error {
-	client, err := c.cfg.createConnection(ctx, ldapTlsConfig)
+func (c *LDAPConfig) Create(ctx context.Context, dn string, class string, attrs map[string][]string, ldapTlsConfig *tls.Config) error {
+	client, err := c.createConnection(ctx, ldapTlsConfig)
 	if err != nil {
 		return trace.Wrap(err, "creating LDAP client")
 	}
@@ -249,7 +234,7 @@ func (c *LDAPClient) Create(ctx context.Context, dn string, class string, attrs 
 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
-func (c *LDAPClient) CreateContainer(ctx context.Context, dn string, ldapTlsConfig *tls.Config) error {
+func (c *LDAPConfig) CreateContainer(ctx context.Context, dn string, ldapTlsConfig *tls.Config) error {
 	err := c.Create(ctx, dn, classContainer, nil, ldapTlsConfig)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
@@ -267,8 +252,8 @@ func (c *LDAPClient) CreateContainer(ctx context.Context, dn string, ldapTlsConf
 //
 // You can browse LDAP on the Windows host to find attributes of existing
 // entries using ADSIEdit.msc.
-func (c *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[string][]string, ldapTlsConfig *tls.Config) error {
-	client, err := c.cfg.createConnection(ctx, ldapTlsConfig)
+func (c *LDAPConfig) Update(ctx context.Context, dn string, replaceAttrs map[string][]string, ldapTlsConfig *tls.Config) error {
+	client, err := c.createConnection(ctx, ldapTlsConfig)
 	if err != nil {
 		return trace.Wrap(err, "creating LDAP client")
 	}
@@ -345,7 +330,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTlsConfig *tls.Co
 		}
 
 		var err error
-		if servers, err = locateLDAPServer(ctx, c.Domain, c.Site, resolver); err != nil {
+		if servers, err = locateLDAPServer(ctx, c.Domain, c.LocateServer.Site, resolver); err != nil {
 			return nil, trace.Wrap(err, "locating LDAP server")
 		}
 	}

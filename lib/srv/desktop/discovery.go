@@ -164,9 +164,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 			return nil
 		}
 
-		lc := winpki.NewLDAPClient(s.cfg.LDAPConfig)
-
-		entries, err := lc.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs, tc)
+		entries, err := s.cfg.LDAPConfig.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs, tc)
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
 			return nil

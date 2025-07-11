@@ -356,7 +356,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
 		Logger:      slog.Default(),
 		ClusterName: s.clusterName,
-		LC:          winpki.NewLDAPClient(cfg.LDAPConfig),
+		LC:          &cfg.LDAPConfig,
 	})
 
 	if err := s.startServiceHeartbeat(); err != nil {
@@ -1115,8 +1115,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		lc := winpki.NewLDAPClient(s.cfg.LDAPConfig)
-		entries, err := lc.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid}, tc)
+
+		entries, err := s.cfg.LDAPConfig.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid}, tc)
 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

@@ -57,8 +57,8 @@ type CertificateStoreConfig struct {
 	Logger *slog.Logger
 	// ClusterName is the name of this Teleport cluster
 	ClusterName string
-	// LC is the LDAPClient
-	LC *LDAPClient
+	// LC is the LDAPConfig
+	LC *LDAPConfig
 }
 
 // Update publishes an empty certificate revocation list to LDAP.
