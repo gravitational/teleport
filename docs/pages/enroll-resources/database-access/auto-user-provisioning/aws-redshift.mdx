@@ -25,8 +25,8 @@ The admin user must have privileges within the database to create users and
 grant them privileges. The admin user must also have privileges to monitor user
 processes and role assignments:
 ```
-CREATE USER "teleport-admin" WITH PASSWORD DISABLE;
-GRANT ROLE "sys:superuser" TO "teleport-admin";
+CREATE USER "<Var name="teleport-admin"/>" WITH PASSWORD DISABLE;
+GRANT ROLE "sys:superuser" TO "<Var name="teleport-admin"/>";
 ```
 
 Users created by Teleport will be assigned the `teleport-auto-user` role in the
