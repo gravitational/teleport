@@ -399,6 +399,9 @@ type InitConfig struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// ScopedAccess is a service that manages scoped access resources.
+	ScopedAccess services.ScopedAccess
 }
 
 // Init instantiates and configures an instance of AuthServer
