@@ -1687,11 +1687,11 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m.roles.matchers.allowSearch, err = appendRoleMatchers(m.roles.matchers.allowSearch, allow.SearchAsRoles, nil, nil)
+	m.roles.matchers.allowSearch, err = appendRoleMatchers(m.roles.matchers.allowSearch, allow.SearchAsRoles, nil /* claim mapping */, nil /* traits */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m.roles.matchers.denySearch, err = appendRoleMatchers(m.roles.matchers.denySearch, deny.SearchAsRoles, nil, nil)
+	m.roles.matchers.denySearch, err = appendRoleMatchers(m.roles.matchers.denySearch, deny.SearchAsRoles, nil /* claim mapping */, nil /* traits */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
