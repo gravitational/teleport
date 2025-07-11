@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type githubContext struct {
@@ -188,7 +189,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	tt := setupGithubContext(ctx, t)
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	auth := &authclient.GithubAuthResponse{
 		Username: "test-name",

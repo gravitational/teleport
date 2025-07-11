@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockClients struct {
@@ -149,7 +149,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 	}
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	for _, tc := range tests {
 		tc.matcher.Types = []string{"vm"}
 		tc.matcher.Subscriptions = []string{"sub1"}

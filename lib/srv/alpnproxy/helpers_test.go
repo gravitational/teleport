@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type Suite struct {
@@ -124,7 +125,7 @@ func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 		Listener:          s.serverListener,
 		WebTLSConfig:      tlsConfig,
 		Router:            s.router,
-		Log:               utils.NewSlogLoggerForTests(),
+		Log:               logtest.NewLogger(),
 		AccessPoint:       s.accessPoint,
 		IdentityTLSConfig: tlsConfig,
 		ClusterName:       "root",

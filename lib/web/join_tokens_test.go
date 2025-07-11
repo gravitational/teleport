@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -1264,7 +1265,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			PublicProxyAddr:           addr,
 			ProxyClient:               clt,
 		},
-		logger: utils.NewSlogLoggerForTests(),
+		logger: logtest.NewLogger(),
 	}
 	h.PublicProxyAddr()
 	return h

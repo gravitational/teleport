@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -71,7 +72,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Logger:                 utils.NewSlogLoggerForTests(),
+		Logger:                 logtest.NewLogger(),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,

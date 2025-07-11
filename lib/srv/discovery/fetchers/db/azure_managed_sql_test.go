@@ -27,11 +27,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSQLManagedServerFetcher(t *testing.T) {
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	fetcher := &azureManagedSQLServerFetcher{}
 
 	t.Run("NewDatabaseFromServer", func(t *testing.T) {

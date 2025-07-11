@@ -18,9 +18,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func mustParseURL(t *testing.T, urlString string) *url.URL {
@@ -31,7 +30,7 @@ func mustParseURL(t *testing.T, urlString string) *url.URL {
 
 func Test_CheckChannelURL(t *testing.T) {
 	b := &Bot{
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 	}
 	tests := []struct {
 		name             string

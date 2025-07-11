@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestURLChecker_AWS(t *testing.T) {
@@ -172,7 +172,7 @@ func TestURLChecker_AWS(t *testing.T) {
 		t.Run(method.name, func(t *testing.T) {
 			c := newURLChecker(DiscoveryResourceCheckerConfig{
 				AWSConfigProvider: method.awsConfigProvider,
-				Logger:            utils.NewSlogLoggerForTests(),
+				Logger:            logtest.NewLogger(),
 			})
 			c.awsClients = method.awsClients
 

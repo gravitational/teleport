@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // basicDirCopy performs a very simplistic recursive copy from one directory to another. this helper was
@@ -123,7 +124,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	authCfg.SSH.Enabled = true
 	authCfg.SSH.Addr.Addr = "localhost:0"
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	authCfg.Logger = utils.NewSlogLoggerForTests()
+	authCfg.Logger = logtest.NewLogger()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	authProc, err := service.NewTeleport(authCfg)
@@ -162,7 +163,7 @@ func TestInstanceCertReissue(t *testing.T) {
 
 	agentCfg.WindowsDesktop.Enabled = true
 	agentCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	agentCfg.Logger = utils.NewSlogLoggerForTests()
+	agentCfg.Logger = logtest.NewLogger()
 	agentCfg.MaxRetryPeriod = time.Second
 	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 

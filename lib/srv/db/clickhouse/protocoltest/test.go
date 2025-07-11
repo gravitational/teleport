@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -95,7 +95,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
-		logger: utils.NewSlogLoggerForTests().With(
+		logger: logtest.With(
 			teleport.ComponentKey, defaults.ProtocolClickHouse,
 			"name", config.Name,
 		),

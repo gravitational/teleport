@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestNewClusterDetails(t *testing.T) {
@@ -47,7 +47,7 @@ func TestNewClusterDetails(t *testing.T) {
 				kubeClient: client,
 			},
 			cluster: &types.KubernetesClusterV3{},
-			log:     utils.NewSlogLoggerForTests(),
+			log:     logtest.NewLogger(),
 			clock:   c,
 		}, client
 	}

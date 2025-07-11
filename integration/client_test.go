@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestClientWithExpiredCredentialsAndDetailedErrorMessage creates and connects to the Auth service
@@ -41,7 +41,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)

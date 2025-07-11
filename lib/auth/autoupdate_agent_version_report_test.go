@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newFakeControlStream() fakeControlStream {
@@ -245,7 +245,7 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 			require.NoError(t, err)
 			auth := &Server{
 				cancelFunc: func() {},
-				logger:     utils.NewSlogLoggerForTests(),
+				logger:     logtest.NewLogger(),
 				ServerID:   uuid.NewString(),
 				Services: &Services{
 					// The inventory is running heartbeats on the background.
@@ -321,7 +321,7 @@ func TestServer_reportAgentVersions(t *testing.T) {
 			// If we don't create a presence service this will cause panics.
 			PresenceInternal: local.NewPresenceService(bk),
 		},
-		logger: utils.NewSlogLoggerForTests(),
+		logger: logtest.NewLogger(),
 	}
 	t.Cleanup(func() {
 		auth.Close()

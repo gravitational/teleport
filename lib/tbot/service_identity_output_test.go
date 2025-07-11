@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -157,7 +157,7 @@ func Test_renderSSHConfig(t *testing.T) {
 
 			err := renderSSHConfig(
 				context.Background(),
-				utils.NewSlogLoggerForTests(),
+				logtest.NewLogger(),
 				&proxyPingResponse{
 					PingResponse: &webclient.PingResponse{
 						ClusterName: mockClusterName,
