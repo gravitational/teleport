@@ -4045,6 +4045,12 @@ message AccessRequestConditions {
 
   // Reason defines settings for the reason for the access provided by the user.
   AccessRequestConditionsReason Reason = 9 [(gogoproto.jsontag) = "reason,omitempty"];
+
+  // ClaimsToSearchAsRoles specifies a mapping from claims (traits) to teleport roles.
+  repeated ClaimMapping ClaimsToSearchAsRoles = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "claims_to_search_as_roles,omitempty"
+  ];
 }
 
 // AccessRequestConditionsReason defines settings for the reason for the access provided by the

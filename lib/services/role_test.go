@@ -10347,7 +10347,9 @@ func TestGetAllowedSearchAsRoles(t *testing.T) {
 	}
 
 	type requester struct {
-		allowed, denied []string
+		allowed, denied         []string
+		traits                  map[string][]string
+		allowClaims, denyClaims []types.ClaimMapping
 	}
 
 	tests := []struct {
@@ -10361,6 +10363,22 @@ func TestGetAllowedSearchAsRoles(t *testing.T) {
 				allowed: []string{"cloud-dev-ops", "infra-ops"},
 			},
 			expectedRoles: []string{"cloud-dev-ops", "infra-ops"},
+		},
+		{
+			name: "with allow claims to search as role",
+			requester: requester{
+				traits: map[string][]string{
+					"roles": {"cloud-dev-ops"},
+				},
+				allowClaims: []types.ClaimMapping{
+					{
+						Claim: "roles",
+						Value: "*",
+						Roles: []string{"$1"},
+					},
+				},
+			},
+			expectedRoles: []string{"cloud-dev-ops"},
 		},
 		{
 			name: "with allow regexp",
@@ -10392,12 +10410,29 @@ func TestGetAllowedSearchAsRoles(t *testing.T) {
 			},
 			expectedRoles: []string{"dev"},
 		},
+		{
+			name: "with deny claims to search as role",
+			requester: requester{
+				allowed: []string{"cloud-dev-ops", "dev"},
+				traits: map[string][]string{
+					"roles": {"cloud-dev-ops"},
+				},
+				denyClaims: []types.ClaimMapping{
+					{
+						Claim: "roles",
+						Value: "*",
+						Roles: []string{"$1"},
+					},
+				},
+			},
+			expectedRoles: []string{"dev"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := &mockGetter{
 				roles: func() map[string]types.Role {
-					roles["req"] = mustRequestSearchAsRole(t, "req", tt.requester.allowed, tt.requester.denied)
+					roles["req"] = mustRequestSearchAsRole(t, "req", tt.requester.allowed, tt.requester.denied, tt.requester.allowClaims, tt.requester.denyClaims)
 					return roles
 				}(),
 				users: map[string]types.User{
@@ -10413,6 +10448,7 @@ func TestGetAllowedSearchAsRoles(t *testing.T) {
 			accessChecker, err := NewAccessChecker(&AccessInfo{
 				Roles:    roleNames,
 				Username: rickyRequester,
+				Traits:   tt.requester.traits,
 			}, localCluster, g)
 			require.NoError(t, err)
 			roles, err := accessChecker.GetAllowedSearchAsRoles(ctx, g)
@@ -10442,17 +10478,19 @@ func mustRole(t *testing.T, name string) types.Role {
 	return role
 }
 
-func mustRequestSearchAsRole(t *testing.T, name string, allowed, denied []string) types.Role {
+func mustRequestSearchAsRole(t *testing.T, name string, allowed, denied []string, allowClaims []types.ClaimMapping, denyClaims []types.ClaimMapping) types.Role {
 	t.Helper()
 	role, err := types.NewRole(name, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				SearchAsRoles: allowed,
+				SearchAsRoles:         allowed,
+				ClaimsToSearchAsRoles: allowClaims,
 			},
 		},
 		Deny: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				SearchAsRoles: denied,
+				SearchAsRoles:         denied,
+				ClaimsToSearchAsRoles: denyClaims,
 			},
 		},
 	})

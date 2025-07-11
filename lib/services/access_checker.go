@@ -204,11 +204,14 @@ type AccessChecker interface {
 	GetOriginalAllowSearchAsRoles() []string
 
 	// GetAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
-	// Roles are matched against all the existing roles in the cluster.
+	// It evaluates statically defined role names, regexp values and maps
+	// role based on claims to search as roles mappings.
 	GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, allowFilters ...SearchAsRolesOption) ([]string, error)
 
 	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
 	// that allowed requesting to the requested Kubernetes resource kind.
+	// It evaluates statically defined role names, regexp values and maps
+	// role based on claims to search as roles mappings.
 	GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error)
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
@@ -1491,4 +1494,20 @@ func AccessInfoFromUserState(user UserState) *AccessInfo {
 		Roles:    roles,
 		Traits:   traits,
 	}
+}
+
+// GetAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
+// It evaluates statically defined role names, regexp values and maps
+// role based on claims to search as roles mappings.
+func (a *accessChecker) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, allowFilters ...SearchAsRolesOption) ([]string, error) {
+	fmt.Println("main: ", len(a.AccessInfo().Traits))
+	return a.RoleSet.GetAllowedSearchAsRoles(ctx, getter, a.AccessInfo().Traits, allowFilters...)
+}
+
+// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+// that allowed requesting to the requested Kubernetes resource kind.
+// It evaluates statically defined role names, regexp values and maps
+// role based on claims to search as roles mappings.
+func (a *accessChecker) GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error) {
+	return a.RoleSet.GetAllowedSearchAsRolesForKubeResourceKind(ctx, getter, a.AccessInfo().Traits, requestedKubeResourceKind)
 }

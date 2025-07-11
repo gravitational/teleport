@@ -1183,6 +1183,32 @@ func TestRolesForResourceRequest(t *testing.T) {
 				},
 			},
 		},
+		"allow-with-claims-to-search-as-roles": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					ClaimsToSearchAsRoles: []types.ClaimMapping{
+						{
+							Claim: "roles",
+							Value: "*",
+							Roles: []string{"$1"},
+						},
+					},
+				},
+			},
+		},
+		"deny-with-claims-to-search-as-roles": {
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					ClaimsToSearchAsRoles: []types.ClaimMapping{
+						{
+							Claim: "roles",
+							Value: "*",
+							Roles: []string{"$1"},
+						},
+					},
+				},
+			},
+		},
 	}
 	roles := make(map[string]types.Role)
 	for name, spec := range roleDesc {
@@ -1200,6 +1226,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 	testCases := []struct {
 		desc                 string
 		currentRoles         []string
+		traits               map[string][]string
 		requestRoles         []string
 		requestResourceIDs   []types.ResourceID
 		expectError          error
@@ -1274,13 +1301,32 @@ func TestRolesForResourceRequest(t *testing.T) {
 			requestResourceIDs: resourceIDs,
 			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
+		{
+			desc:         "allowed role with claims to search as role mapping",
+			currentRoles: []string{"allow-with-claims-to-search-as-roles"},
+			traits: map[string][]string{
+				"roles": {"splunk-response-team"},
+			},
+			requestResourceIDs:   resourceIDs,
+			expectRequestedRoles: []string{"splunk-response-team"},
+		},
+		{
+			desc:         "denied role with claims to search as role mapping",
+			currentRoles: []string{"splunk-response-team", "deny-with-claims-to-search-as-roles"},
+			traits: map[string][]string{
+				"roles": {"splunk-admins"},
+			},
+			requestResourceIDs:   resourceIDs,
+			expectRequestedRoles: []string{"splunk-super-admins"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			uls, err := userloginstate.New(header.Metadata{
 				Name: "test-user",
 			}, userloginstate.Spec{
-				Roles: tc.currentRoles,
+				Roles:  tc.currentRoles,
+				Traits: tc.traits,
 			})
 			require.NoError(t, err)
 			userStates := map[string]*userloginstate.UserLoginState{
