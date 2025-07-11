@@ -34,7 +34,7 @@ func testMCP(pack *Pack, t *testing.T) {
 		testMCPDialStdioNoServerFound(t, pack)
 	})
 
-	t.Run("DialMCPSererver stdio success", func(t *testing.T) {
+	t.Run("DialMCPServer stdio success", func(t *testing.T) {
 		testMCPDialStdio(t, pack)
 	})
 }

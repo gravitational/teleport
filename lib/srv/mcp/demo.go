@@ -21,7 +21,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 
@@ -36,10 +35,7 @@ import (
 
 const (
 	// DemoServerName is the name of the "Teleport Demo" MCP server.
-	DemoServerName = "teleport-demo"
-
-	// demoServerLabel is a special label used to identity the demo server.
-	demoServerLabel = types.TeleportNamespace + "/mcp-demo-server"
+	DemoServerName = "teleport-mcp-demo"
 )
 
 // NewDemoServerApp returns the app definition for the "Teleport Demo" MCP
@@ -53,20 +49,17 @@ const (
 func NewDemoServerApp() (types.Application, error) {
 	app, err := types.NewAppV3(types.Metadata{
 		Name:        DemoServerName,
-		Labels:      map[string]string{demoServerLabel: "true"},
-		Description: "Teleport MCP access demo server",
+		Labels:      map[string]string{types.TeleportInternalResourceType: types.DemoResource},
+		Description: "A demo MCP server that shows current user and session information",
 	}, types.AppSpecV3{
-		MCP: &types.MCP{
-			Command:       "teleport",
-			RunAsHostUser: "teleport",
-		},
+		URI: types.SchemaMCPStdio + DemoServerName,
 	})
 	return app, trace.Wrap(err)
 }
 
 func isDemoServerApp(app types.Application) bool {
-	labelValue, labelFound := app.GetLabel(demoServerLabel)
-	return labelFound && labelValue == "true" && app.GetName() == DemoServerName
+	labelValue, labelFound := app.GetLabel(types.TeleportInternalResourceType)
+	return labelFound && labelValue == types.DemoResource && app.GetName() == DemoServerName
 }
 
 func makeDemoServerRunner(ctx context.Context, session *sessionHandler) (stdioServerRunner, error) {
@@ -83,25 +76,23 @@ func newDemoServer(_ context.Context, session *sessionHandler) *mcpserver.MCPSer
 		{
 			Tool: mcp.NewTool(
 				"teleport_user_info",
-				mcp.WithDescription("Shows connected Teleport user information."),
+				mcp.WithDescription("Shows basic information about your Teleport user."),
 			),
 			Handler: makeUserInfoToolHandler(session),
 		},
 		{
 			Tool: mcp.NewTool(
-				"teleport_demo_info",
-				mcp.WithDescription("Shows information about this Teleport Demo MCP server"),
+				"teleport_session_info",
+				mcp.WithDescription("Shows information about this MCP session."),
 			),
-			Handler: makeDemoInfoToolHandler(),
+			Handler: makeSessionInfoToolHandler(session),
 		},
 		{
-			// IMPORTANT: remember to update this mini guide when new
-			// capabilities are added.
 			Tool: mcp.NewTool(
-				"teleport_enroll_mcp_server_guide",
-				mcp.WithDescription("A quick guide for enrolling MCP servers with Teleport."),
+				"teleport_demo_info",
+				mcp.WithDescription("Shows information about this Teleport Demo MCP server."),
 			),
-			Handler: makeEnrollMCPGuideToolHandler(),
+			Handler: makeDemoInfoToolHandler(),
 		},
 	}
 
@@ -115,6 +106,21 @@ func makeUserInfoToolHandler(session *sessionHandler) mcpserver.ToolHandlerFunc 
 			"name":      session.AuthCtx.User.GetName(),
 			"user_kind": session.makeUserMetadata().UserKind.String(),
 			"roles":     session.AuthCtx.User.GetRoles(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return mcp.NewToolResultText(string(data)), nil
+	}
+}
+
+func makeSessionInfoToolHandler(session *sessionHandler) mcpserver.ToolHandlerFunc {
+	return func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		data, err := json.Marshal(map[string]any{
+			"teleport_session_id":      session.sessionID,
+			"teleport_cluster":         session.Identity.RouteToApp.ClusterName,
+			"teleport_app_name":        session.App.GetName(),
+			"teleport_app_description": session.App.GetDescription(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -141,102 +147,16 @@ If you are an auditor, you can also find this MCP session and corresponding
 requests in the audit events.
 
 Available Tools from the demo server:
-- 'teleport_user_info': Displays basic information about your Teleport user.
-- 'teleport_demo_info' (this tool): Provides an overview of this demo server.
-- 'teleport_enroll_mcp_server_guide': A quick guide for enrolling MCP servers with Teleport.
-`
-	return func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return mcp.NewToolResultText(text), nil
-	}
-}
+- 'teleport_user_info': Shows basic information about your Teleport user.
+- 'teleport_session_info': Shows information about this MCP session.
+- 'teleport_demo_info' (this tool): Shows information about this Teleport Demo MCP server.
 
-func makeEnrollMCPGuideToolHandler() mcpserver.ToolHandlerFunc {
-	yamlBlockStart := "```yaml"
-	yamlBlockEnd := "```"
-	text := fmt.Sprintf(`Teleport can provide secure connections to your MCP
-servers while improving both access control and visibility.
+You can restrict what tools a user can access by listing allowed MCP tools in
+the role spec 'role.mcp.allow.mcp.tools'.
 
-First, add MCP server definitions to the YAML config of your Teleport
-Application service then restart it. Here is a sample configuration:
-%s
-app_service:
-  enabled: true
-  # Enables this demo server.
-  mcp_demo_server: true
-  apps:
-  # This section contains definitions of all applications proxied by this
-  # service. It can contain multiple items.
-  apps:
-  # Name of the application. Used for identification purposes.
-  - name: "mcp-everything"
-    # Free-form application description.
-    description: "Example everything MCP server"
-    # Static labels to assign to the app. Used in RBAC.
-    labels:
-      env: "prod"
-    # Contains MCP server-related configurations.
-    mcp:
-      # Command to launch stdio-based MCP servers. Must be available on the host
-      # running this Teleport application service.
-      command: "docker"
-      # Args to execute with the command.
-      args: ["run", "-i", "--rm", "mcp/everything"]
-      # Name of the host user account under which the command will be
-      # executed. Use a dedicated host user account for best security or use the
-      # same user account that runs Teleport. Required for stdio-based MCP
-      # servers.
-      run_as_host_user: "docker"
-%s
-
-You can use Teleport's role-based access control (RBAC) system to set up
-granular permissions for authenticating to MCP servers connected to Teleport.
-Here's a sample role:
-%s
-kind: role
-metadata:
-  name: mcp-developer
-spec:
-  allow:
-    # app_labels: a user with this role will be allowed to connect to
-    # MCP servers with labels matching below.
-    app_labels:
-      "env": "dev"
-    # app_labels_expression: optional field which has the same purpose of the
-    # matching app_labels fields, but support predicate expressions instead of
-    # label matchers.
-    app_labels_expression: 'labels["env"] == "staging"'
-
-    # mcp: defines MCP servers related permissions.
-    mcp:
-      # tools: list of tools allowed for this role.
-      #
-      # No tools are allowed if not specified.
-      # Each entry can be a literal string, a glob pattern, or a regular
-      # expression (must start with '^' and end with '$'). A wildcard '*' allows
-      # all tools.
-      # This value field also supports variable interpolation.
-      tools:
-      - search-files
-      - teleport_*
-      - ^(get|list|read|slack).*$
-      - "{{internal.mcp_tools}}"
-      - "{{external.mcp_tools}}"
-
-  deny:
-    mcp:
-      # tools: list of tools denied for this role.
-      tools:
-      - slack_post_message
-
-version: v8
-%s
-
-Now once your Teleport users are granted MCP access, run 'tsh mcp ls' to list of
-MCP servers and 'tsh mcp config' to configure your AI tool.
-
-For more details, see official documentation at:
+To learn more about enrolling MCP servers and additional reference materials, please visit:
 https://goteleport.com/docs/enroll-resources/mcp-access
-`, yamlBlockStart, yamlBlockEnd, yamlBlockStart, yamlBlockEnd)
+`
 	return func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return mcp.NewToolResultText(text), nil
 	}

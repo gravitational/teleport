@@ -83,7 +83,7 @@ func Test_handleStdio(t *testing.T) {
 	handlerDoneCh := make(chan struct{}, 1)
 	defer close(handlerDoneCh)
 	go func() {
-		// Use mock server.
+		// Use the demo server.
 		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeDemoServerRunner)
 		handlerDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
@@ -106,8 +106,8 @@ func Test_handleStdio(t *testing.T) {
 	require.NoError(t, err)
 	checkToolsListResult(t, listToolsResult, []string{
 		"teleport_user_info",
+		"teleport_session_info",
 		"teleport_demo_info",
-		"teleport_enroll_mcp_server_guide",
 	})
 
 	callToolResult, err := stdioClient.CallTool(ctx, mcp.CallToolRequest{
