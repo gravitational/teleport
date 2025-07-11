@@ -16,29 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { ButtonText } from 'design';
+import { ButtonProps } from 'design/Button';
+import { Add as AddIcon } from 'design/Icon';
+import type { IconSize } from 'design/Icon/Icon';
 
-import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
-
-test('buttonTextWithAddIcon', () => {
-  const onClick = jest.fn();
-  const label = 'Add Item';
-
-  const { rerender } = render(
-    <ButtonTextWithAddIcon label={label} onClick={() => onClick('click')} />
+export const ButtonWithAddIcon = ({
+  Button = ButtonText,
+  label,
+  iconSize = 12,
+  compact = true,
+  pr = 2,
+  ...props
+}: ButtonProps<'button'> & {
+  Button?: React.ComponentType<ButtonProps<'button'>>;
+  label: string;
+  iconSize?: IconSize;
+}) => {
+  return (
+    <Button {...props} compact={compact} pr={pr}>
+      <AddIcon
+        className="icon-add"
+        size={iconSize}
+        css={`
+          margin-right: 3px;
+        `}
+      />
+      {label}
+    </Button>
   );
-
-  expect(screen.getByText('Add Item')).toBeInTheDocument();
-  fireEvent.click(screen.getByText('Add Item'));
-
-  expect(onClick).toHaveBeenCalledWith('click');
-
-  rerender(
-    <ButtonTextWithAddIcon
-      label={label}
-      onClick={() => onClick('click')}
-      disabled={true}
-    />
-  );
-  expect(screen.getByText('Add Item')).toBeDisabled();
-});
+};

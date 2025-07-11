@@ -102,7 +102,7 @@ describe('DiscoveryConfigSsm', () => {
     await completeForm();
     // add tags
 
-    fireEvent.click(screen.getByText(/add a tag/i));
+    fireEvent.click(screen.getByText(/add tag/i));
     const keyInput = screen.getByPlaceholderText('label key');
     const valInput = screen.getByPlaceholderText('label value');
 
