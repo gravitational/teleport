@@ -118,7 +118,6 @@ type AWSRolesAnywhereServiceConfig struct {
 }
 
 // CheckAndSetDefaults checks the AWSRolesAnywhereServiceConfig fields and returns an error if a required param is not provided.
-// Authorizer and IntegrationService are required params.
 func (s *AWSRolesAnywhereServiceConfig) CheckAndSetDefaults() error {
 	if s.Authorizer == nil {
 		return trace.BadParameter("authorizer is required")
