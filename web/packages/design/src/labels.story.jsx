@@ -38,9 +38,6 @@ export const Labels = () => (
       <Label mr={4} kind="secondary">
         Secondary
       </Label>
-      <Label mr={4} kind="outline">
-        Outline
-      </Label>
       <Label mr={4} kind="warning">
         Warning
       </Label>

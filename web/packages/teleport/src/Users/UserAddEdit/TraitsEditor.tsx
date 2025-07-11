@@ -30,7 +30,7 @@ import { AllUserTraits } from 'teleport/services/user';
  * traitsPreset is a list of system defined traits in Teleport.
  * The list is used to populate traits key option.
  */
-export const traitsPreset = [
+const traitsPreset = [
   'aws_role_arns',
   'azure_identities',
   'db_names',
@@ -44,7 +44,7 @@ export const traitsPreset = [
   'logins',
   'windows_logins',
   'github_orgs',
-] as const;
+];
 
 /**
  * TraitsEditor supports add, edit or remove traits functionality.

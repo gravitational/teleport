@@ -51,7 +51,6 @@ const props: ViewBotProps = {
     version: '',
     kind: '',
     roles: [],
-    max_session_ttl: { seconds: 0 },
   },
   onClose: () => {},
 };

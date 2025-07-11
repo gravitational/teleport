@@ -37,11 +37,6 @@ export type ApiBotMetadata = {
 export type ApiBotSpec = {
   roles: string[];
   traits: ApiBotTrait[];
-  max_session_ttl:
-    | {
-        seconds: number;
-      }
-    | undefined;
 };
 
 export type ApiBotTrait = {

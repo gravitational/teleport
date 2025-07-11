@@ -17,10 +17,9 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Router } from 'react-router';
+import { MemoryRouter, useHistory } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -33,14 +32,24 @@ import {
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
 
-import { Route } from 'teleport/components/Router';
-import cfg from 'teleport/config';
 import {
   getBotInstanceError,
   getBotInstanceSuccess,
 } from 'teleport/test/helpers/botInstances';
 
 import { BotInstanceDetails } from './BotInstanceDetails';
+
+jest.mock('react-router', () => {
+  const actual = jest.requireActual('react-router');
+  return {
+    ...actual,
+    useHistory: jest.fn(),
+    useParams: jest.fn(() => ({
+      botName: 'test-bot-name',
+      instanceId: '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+    })),
+  };
+});
 
 jest.mock('shared/components/TextEditor/TextEditor', () => {
   return {
@@ -90,29 +99,30 @@ const withErrorResponse = () => {
 
 describe('BotIntanceDetails', () => {
   it('Allows back navigation', async () => {
-    const history = createMemoryHistory({
-      initialEntries: [
-        '/web/bot/test-bot-name/instance/4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-      ],
-    });
-    history.goBack = jest.fn();
+    const goBack = jest.fn();
+    jest.mocked(useHistory).mockImplementation(
+      () =>
+        ({
+          goBack,
+        }) as unknown as ReturnType<typeof useHistory>
+    );
 
     withSuccessResponse();
 
-    renderComponent({ history });
+    render(<BotInstanceDetails />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
     const backButton = screen.getByLabelText('back');
     fireEvent.click(backButton);
 
-    expect(history.goBack).toHaveBeenCalledTimes(1);
+    expect(goBack).toHaveBeenCalledTimes(1);
   });
 
   it('Shows the short instance id', async () => {
     withSuccessResponse();
 
-    renderComponent();
+    render(<BotInstanceDetails />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -122,7 +132,7 @@ describe('BotIntanceDetails', () => {
   it('Allows the full instance id to be copied', async () => {
     withSuccessResponse();
 
-    renderComponent();
+    render(<BotInstanceDetails />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -142,7 +152,9 @@ describe('BotIntanceDetails', () => {
 
     withSuccessResponse();
 
-    renderComponent({ onDocsLinkClicked: onClick });
+    render(<BotInstanceDetails onDocsLinkClickedForTesting={onClick} />, {
+      wrapper: Wrapper,
+    });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -155,7 +167,7 @@ describe('BotIntanceDetails', () => {
   it('Shows full yaml', async () => {
     withSuccessResponse();
 
-    renderComponent();
+    render(<BotInstanceDetails />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -167,7 +179,7 @@ describe('BotIntanceDetails', () => {
   it('Shows an error', async () => {
     withErrorResponse();
 
-    renderComponent();
+    render(<BotInstanceDetails />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -177,43 +189,16 @@ describe('BotIntanceDetails', () => {
   });
 });
 
-const renderComponent = async (options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
-  onDocsLinkClicked?: (e: unknown) => void;
-}) => {
-  const { onDocsLinkClicked } = options ?? {};
-  render(
-    <BotInstanceDetails onDocsLinkClickedForTesting={onDocsLinkClicked} />,
-    {
-      wrapper: makeWrapper(options),
-    }
+function Wrapper(props: PropsWithChildren) {
+  return (
+    <MemoryRouter>
+      <QueryClientProvider client={testQueryClient}>
+        <ConfiguredThemeProvider theme={darkTheme}>
+          {props.children}
+        </ConfiguredThemeProvider>
+      </QueryClientProvider>
+    </MemoryRouter>
   );
-};
-
-function makeWrapper(options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
-}) {
-  const {
-    history = createMemoryHistory({
-      initialEntries: [
-        '/web/bot/test-bot-name/instance/4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-      ],
-    }),
-  } = options ?? {};
-
-  return (props: PropsWithChildren) => {
-    return (
-      <MemoryRouter>
-        <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
-            <Router history={history}>
-              <Route path={cfg.routes.botInstance}>{props.children}</Route>
-            </Router>
-          </ConfiguredThemeProvider>
-        </QueryClientProvider>
-      </MemoryRouter>
-    );
-  };
 }
 
 function MockTextEditor(props: { data?: [{ content: string }] }) {

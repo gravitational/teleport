@@ -52,17 +52,6 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     };
   }
 
-  if (kind === 'outline') {
-    return {
-      borderColor: theme.colors.interactive.tonal.neutral[0],
-      borderWidth: 1,
-      borderStyle: 'solid',
-      backgroundColor: 'transparent',
-      color: theme.colors.text.main,
-      fontWeight: 400,
-    };
-  }
-
   // default is primary
   return {
     backgroundColor: theme.colors.brand,
@@ -73,7 +62,6 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
 export type LabelKind =
   | 'primary'
   | 'secondary'
-  | 'outline'
   | 'warning'
   | 'danger'
   | 'success';
@@ -106,9 +94,6 @@ export const Primary = (props: LabelPropsWithoutKind) => (
 );
 export const Secondary = (props: LabelPropsWithoutKind) => (
   <Label kind="secondary" {...props} />
-);
-export const Outline = (props: LabelPropsWithoutKind) => (
-  <Label kind="outline" {...props} />
 );
 export const Warning = (props: LabelPropsWithoutKind) => (
   <Label kind="warning" {...props} />

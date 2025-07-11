@@ -55,7 +55,6 @@ import { BotInstances } from './BotInstances/BotInstances';
 import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
-import { BotDetails } from './Bots/Details/BotDetails';
 import { Clusters } from './Clusters';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { Discover } from './Discover';
@@ -309,23 +308,7 @@ export class FeatureBotInstanceDetails implements TeleportFeature {
   route = {
     title: 'Bot instance details',
     path: cfg.routes.botInstance,
-    exact: true,
     component: BotInstanceDetails,
-  };
-
-  hasAccess() {
-    return true;
-  }
-}
-
-export class FeatureBotDetails implements TeleportFeature {
-  parent = FeatureBots;
-
-  route = {
-    title: 'Bot details',
-    path: cfg.routes.bot,
-    exact: true,
-    component: BotDetails,
   };
 
   hasAccess() {
@@ -825,7 +808,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
-    new FeatureBotDetails(),
     new FeatureBotInstances(),
     new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),
