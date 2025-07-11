@@ -228,7 +228,9 @@ func TestHandlerSampler(t *testing.T) {
 	generateHandles := func(i int) iter.Seq[inventory.UpstreamHandle] {
 		return func(yield func(inventory.UpstreamHandle) bool) {
 			for j := range i {
-				yield(&fakeHandle{id: j})
+				if !yield(&fakeHandle{id: j}) {
+					return
+				}
 			}
 		}
 	}

@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -37,9 +37,8 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	// Use OSS License (which doesn't support moderated sessions).
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
 
-	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+	srv := &auth.Server{
+		Services: &auth.Services{},
 	}
 
 	bk, err := memory.New(memory.Config{})
@@ -65,9 +64,8 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	// Use OSS License (which doesn't support moderated sessions).
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
 
-	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+	srv := &auth.Server{
+		Services: &auth.Services{},
 	}
 
 	bk, err := memory.New(memory.Config{})
@@ -96,7 +94,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
 	require.Nil(t, tracker)
-	require.ErrorIs(t, err, ErrRequiresEnterprise)
+	require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
 }
 
 // TestModeratedSessionsEnabled verifies that we can create session trackers with moderation
@@ -105,9 +103,8 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 	// Use Enterprise License (which supports moderated sessions).
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
-	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+	srv := &auth.Server{
+		Services: &auth.Services{},
 	}
 
 	bk, err := memory.New(memory.Config{})

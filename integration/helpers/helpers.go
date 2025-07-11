@@ -206,7 +206,7 @@ func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username stri
 
 	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
 	require.NoError(t, err)
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCertsWithContext(t.Context(), auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       username,

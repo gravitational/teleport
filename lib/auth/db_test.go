@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -32,6 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -92,7 +94,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			subject, issuer := getSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
+			subject, issuer := auth.GetSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
 
 			require.Equal(t, tt.wantSubject, subject)
 			require.Equal(t, tt.wantIssuer, issuer)
@@ -102,7 +104,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 func TestDBCertSigning(t *testing.T) {
 	t.Parallel()
-	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+	authServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: "local.me",
 		Dir:         t.TempDir(),
@@ -260,7 +262,7 @@ func TestFilterExtensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterExtensions(context.Background(), slog.Default(), tt.input, tt.allowedOIDs...)
+			got := auth.FilterExtensions(context.Background(), slog.Default(), tt.input, tt.allowedOIDs...)
 			require.Equal(t, tt.expected, got)
 		})
 	}

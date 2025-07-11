@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"bytes"
@@ -38,7 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -52,7 +54,7 @@ import (
 )
 
 type githubContext struct {
-	a           *Server
+	a           *auth.Server
 	mockEmitter *eventstest.MockRecorderEmitter
 	b           backend.Backend
 	c           *clockwork.FakeClock
@@ -79,18 +81,18 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		require.NoError(t, tt.b.Close())
 	})
 
-	authConfig := &InitConfig{
+	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
-		VersionStorage:         NewFakeTeleportVersion(),
+		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	tt.a, err = NewServer(authConfig)
+	tt.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
 
 	tt.mockEmitter = &eventstest.MockRecorderEmitter{}
-	tt.a.emitter = tt.mockEmitter
+	tt.a.SetEmitter(tt.mockEmitter)
 
 	return &tt
 }
@@ -108,7 +110,7 @@ func TestPopulateClaims(t *testing.T) {
 	teams, err := client.getTeams()
 	require.NoError(t, err)
 
-	claims, err := populateGithubClaims(user, teams)
+	claims, err := auth.PopulateGithubClaims(user, teams)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(claims, &types.GithubClaims{
 		Username: "octocat",
@@ -126,7 +128,7 @@ func TestCreateGithubUser(t *testing.T) {
 	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
-	user, err := tt.a.createGithubUser(ctx, &CreateUserParams{
+	user, err := tt.a.CreateGithubUser(ctx, &auth.CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -140,7 +142,7 @@ func TestCreateGithubUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create GitHub user with 1 minute expiry.
-	_, err = tt.a.createGithubUser(ctx, &CreateUserParams{
+	_, err = tt.a.CreateGithubUser(ctx, &auth.CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo",
 		Roles:         []string{"admin"},
@@ -160,26 +162,26 @@ func TestCreateGithubUser(t *testing.T) {
 
 type testGithubAPIClient struct{}
 
-func (c *testGithubAPIClient) getUser() (*GithubUserResponse, error) {
-	return &GithubUserResponse{Login: "octocat", ID: 1234567}, nil
+func (c *testGithubAPIClient) getUser() (*auth.GithubUserResponse, error) {
+	return &auth.GithubUserResponse{Login: "octocat", ID: 1234567}, nil
 }
 
-func (c *testGithubAPIClient) getTeams() ([]GithubTeamResponse, error) {
-	return []GithubTeamResponse{
+func (c *testGithubAPIClient) getTeams() ([]auth.GithubTeamResponse, error) {
+	return []auth.GithubTeamResponse{
 		{
 			Name: "team1",
 			Slug: "team1",
-			Org:  GithubOrgResponse{Login: "org1"},
+			Org:  auth.GithubOrgResponse{Login: "org1"},
 		},
 		{
 			Name: "team2",
 			Slug: "team2",
-			Org:  GithubOrgResponse{Login: "org1"},
+			Org:  auth.GithubOrgResponse{Login: "org1"},
 		},
 		{
 			Name: "team1",
 			Slug: "team1",
-			Org:  GithubOrgResponse{Login: "org2"},
+			Org:  auth.GithubOrgResponse{Login: "org2"},
 		},
 	}, nil
 }
@@ -190,7 +192,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	tt := setupGithubContext(ctx, t)
 	logger := utils.NewSlogLoggerForTests()
 
-	auth := &authclient.GithubAuthResponse{
+	resp := &authclient.GithubAuthResponse{
 		Username: "test-name",
 	}
 
@@ -206,8 +208,8 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		return nil
 	}
 
-	ssoDiagContextFixture := func(testFlow bool) *SSODiagContext {
-		diagCtx := NewSSODiagContext(types.KindGithub, SSODiagServiceFunc(createSSODiagnosticInfoStub))
+	ssoDiagContextFixture := func(testFlow bool) *auth.SSODiagContext {
+		diagCtx := auth.NewSSODiagContext(types.KindGithub, auth.SSODiagServiceFunc(createSSODiagnosticInfoStub))
 		diagCtx.RequestID = uuid.New().String()
 		diagCtx.Info.TestFlow = testFlow
 		return diagCtx
@@ -216,12 +218,12 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test success event, non-test-flow.
 	diagCtx := ssoDiagContextFixture(false /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
 		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
-		return auth, nil
+		return resp, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt := tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -232,11 +234,11 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test failure event, non-test-flow.
 	diagCtx = ssoDiagContextFixture(false /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
-		return auth, trace.BadParameter("")
+		return resp, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -245,11 +247,11 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test success event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
-		return auth, nil
+		return resp, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -259,11 +261,11 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 
 	// Test failure event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
-		return auth, trace.BadParameter("")
+		return resp, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -272,10 +274,10 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 }
 
 type mockedGithubManager struct {
-	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
+	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
-func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+func (m *mockedGithubManager) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	if m.mockValidateGithubAuthCallback != nil {
 		return m.mockValidateGithubAuthCallback(ctx, diagCtx, q)
 	}
@@ -285,7 +287,7 @@ func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, di
 
 func TestCalculateGithubUserNoTeams(t *testing.T) {
 	ctx := context.Background()
-	a := &Server{}
+	a := &auth.Server{}
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		TeamsToRoles: []types.TeamRolesMapping{
 			{
@@ -297,9 +299,9 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	diagCtx := &SSODiagContext{}
+	diagCtx := &auth.SSODiagContext{}
 
-	_, err = a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
+	_, err = a.CalculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1", "team2"},
@@ -307,7 +309,7 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}, &types.GithubAuthRequest{})
-	require.ErrorIs(t, err, ErrGithubNoTeams)
+	require.ErrorIs(t, err, auth.ErrGithubNoTeams)
 }
 
 // Test that calculateGithubUser calls the login rule evaluator, evaluated
@@ -328,7 +330,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 			},
 		},
 	}
-	a := &Server{
+	a := &auth.Server{
 		Cache: &mockRoleCache{
 			roles: roles,
 		},
@@ -360,9 +362,9 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	diagCtx := &SSODiagContext{}
+	diagCtx := &auth.SSODiagContext{}
 
-	userParams, err := a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
+	userParams, err := a.CalculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1"},
@@ -371,7 +373,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	}, &types.GithubAuthRequest{})
 	require.NoError(t, err)
 
-	require.Equal(t, &CreateUserParams{
+	require.Equal(t, &auth.CreateUserParams{
 		ConnectorName: "github",
 		Username:      "octocat",
 		KubeGroups:    evaluatedTraits[constants.TraitKubeGroups],
@@ -535,7 +537,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err := checkGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
+			err := auth.CheckGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
 			if tt.errFunc == nil {
 				require.NoError(t, err)
 			} else {
@@ -570,7 +572,7 @@ func TestGithubURLFormat(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		require.Equal(t, tt.expect, formatGithubURL(tt.host, tt.path))
+		require.Equal(t, tt.expect, auth.FormatGithubURL(tt.host, tt.path))
 	}
 }
 
@@ -604,7 +606,7 @@ func TestBuildAPIEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := buildAPIEndpoint(tt.input)
+			got, err := auth.BuildAPIEndpoint(tt.input)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
 		})
