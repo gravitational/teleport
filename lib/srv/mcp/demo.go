@@ -152,7 +152,7 @@ Available Tools from the demo server:
 - 'teleport_demo_info' (this tool): Shows information about this Teleport Demo MCP server.
 
 You can restrict what tools a user can access by listing allowed MCP tools in
-the role spec 'role.mcp.allow.mcp.tools'.
+the role spec 'role.allow.mcp.tools'.
 
 To learn more about enrolling MCP servers and additional reference materials, please visit:
 https://goteleport.com/docs/enroll-resources/mcp-access

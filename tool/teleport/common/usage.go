@@ -51,7 +51,8 @@ const (
 
 > teleport app start --token=xyz --auth-server=proxy.example.com:3080 \
     --mcp-demo-server
-  Runs a Teleport demo MCP server from the app server.
+  Runs a Teleport demo MCP server that shows current user and session
+  information.
 `
 
 	dbUsageExamples = `

@@ -2429,6 +2429,8 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
+	// Enable the "Teleport Demo" MCP server if requested. Make sure application
+	// service is enabled for proxying MCP servers.
 	if clf.MCPDemoServer {
 		cfg.Apps.MCPDemoServer = true
 		cfg.Apps.Enabled = true
