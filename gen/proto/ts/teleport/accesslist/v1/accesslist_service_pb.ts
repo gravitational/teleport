@@ -360,8 +360,7 @@ export interface UpsertAccessListWithMembersResponse {
     members: Member[];
 }
 /**
- * GetAccessListMemberRequest is the request for retrieving an access list
- * member.
+ * GetAccessListMemberRequest is the request for retrieving an access_list_member.
  *
  * @generated from protobuf message teleport.accesslist.v1.GetAccessListMemberRequest
  */
@@ -378,6 +377,40 @@ export interface GetAccessListMemberRequest {
      * @generated from protobuf field: string member_name = 2;
      */
     memberName: string;
+}
+/**
+ * GetStaticAccessListMemberRequest is the request for retrieving an access_list_member of a static
+ * type access_list.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.GetStaticAccessListMemberRequest
+ */
+export interface GetStaticAccessListMemberRequest {
+    /**
+     * access_list is the name of the access_list that the member belongs to.
+     *
+     * @generated from protobuf field: string access_list = 1;
+     */
+    accessList: string;
+    /**
+     * member_name is the name of the user that belongs to the access_list.
+     *
+     * @generated from protobuf field: string member_name = 2;
+     */
+    memberName: string;
+}
+/**
+ * GetStaticAccessListMemberResponse is the response containing the access_list_member of the
+ * target access_list of static type.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.GetStaticAccessListMemberResponse
+ */
+export interface GetStaticAccessListMemberResponse {
+    /**
+     * member of the target static access_list.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.Member member = 1;
+     */
+    member?: Member;
 }
 /**
  * GetAccessListOwnersRequest is the request for getting a list of all owners
@@ -423,6 +456,34 @@ export interface UpsertAccessListMemberRequest {
     member?: Member;
 }
 /**
+ * UpsertStaticAccessListMemberRequest is the request for upserting an access_list_member to an
+ * access_list of type static.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
+ */
+export interface UpsertStaticAccessListMemberRequest {
+    /**
+     * member is the access_list_member to upsert.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.Member member = 1;
+     */
+    member?: Member;
+}
+/**
+ * UpsertStaticAccessListMemberResponse is the response of upserting an access_list_member to an
+ * static_access of type static.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
+ */
+export interface UpsertStaticAccessListMemberResponse {
+    /**
+     * member is the upserted access_list_member.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.Member member = 1;
+     */
+    member?: Member;
+}
+/**
  * UpdateAccessListMemberRequest is the request for updating an access list
  * member.
  *
@@ -455,6 +516,34 @@ export interface DeleteAccessListMemberRequest {
      * @generated from protobuf field: string member_name = 3;
      */
     memberName: string;
+}
+/**
+ * DeleteStaticAccessListMemberRequest is the request for deleting an access_list_member from an
+ * access_list of type static.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
+ */
+export interface DeleteStaticAccessListMemberRequest {
+    /**
+     * access_list is the name of access list.
+     *
+     * @generated from protobuf field: string access_list = 1;
+     */
+    accessList: string;
+    /**
+     * member_name is the name of the user to delete.
+     *
+     * @generated from protobuf field: string member_name = 2;
+     */
+    memberName: string;
+}
+/**
+ * DeleteStaticAccessListMemberResponse is the response of deleting an access_list_member from an
+ * access_list of type static.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
+ */
+export interface DeleteStaticAccessListMemberResponse {
 }
 /**
  * DeleteAllAccessListMembersForAccessListRequest is the request for deleting
@@ -1738,6 +1827,107 @@ class GetAccessListMemberRequest$Type extends MessageType<GetAccessListMemberReq
  */
 export const GetAccessListMemberRequest = new GetAccessListMemberRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetStaticAccessListMemberRequest$Type extends MessageType<GetStaticAccessListMemberRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.GetStaticAccessListMemberRequest", [
+            { no: 1, name: "access_list", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "member_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetStaticAccessListMemberRequest>): GetStaticAccessListMemberRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.accessList = "";
+        message.memberName = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetStaticAccessListMemberRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStaticAccessListMemberRequest): GetStaticAccessListMemberRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string access_list */ 1:
+                    message.accessList = reader.string();
+                    break;
+                case /* string member_name */ 2:
+                    message.memberName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetStaticAccessListMemberRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string access_list = 1; */
+        if (message.accessList !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.accessList);
+        /* string member_name = 2; */
+        if (message.memberName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.memberName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.GetStaticAccessListMemberRequest
+ */
+export const GetStaticAccessListMemberRequest = new GetStaticAccessListMemberRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetStaticAccessListMemberResponse$Type extends MessageType<GetStaticAccessListMemberResponse> {
+    constructor() {
+        super("teleport.accesslist.v1.GetStaticAccessListMemberResponse", [
+            { no: 1, name: "member", kind: "message", T: () => Member }
+        ]);
+    }
+    create(value?: PartialMessage<GetStaticAccessListMemberResponse>): GetStaticAccessListMemberResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetStaticAccessListMemberResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStaticAccessListMemberResponse): GetStaticAccessListMemberResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.Member member */ 1:
+                    message.member = Member.internalBinaryRead(reader, reader.uint32(), options, message.member);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetStaticAccessListMemberResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.Member member = 1; */
+        if (message.member)
+            Member.internalBinaryWrite(message.member, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.GetStaticAccessListMemberResponse
+ */
+export const GetStaticAccessListMemberResponse = new GetStaticAccessListMemberResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class GetAccessListOwnersRequest$Type extends MessageType<GetAccessListOwnersRequest> {
     constructor() {
         super("teleport.accesslist.v1.GetAccessListOwnersRequest", [
@@ -1878,6 +2068,98 @@ class UpsertAccessListMemberRequest$Type extends MessageType<UpsertAccessListMem
  */
 export const UpsertAccessListMemberRequest = new UpsertAccessListMemberRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UpsertStaticAccessListMemberRequest$Type extends MessageType<UpsertStaticAccessListMemberRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.UpsertStaticAccessListMemberRequest", [
+            { no: 1, name: "member", kind: "message", T: () => Member }
+        ]);
+    }
+    create(value?: PartialMessage<UpsertStaticAccessListMemberRequest>): UpsertStaticAccessListMemberRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpsertStaticAccessListMemberRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpsertStaticAccessListMemberRequest): UpsertStaticAccessListMemberRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.Member member */ 1:
+                    message.member = Member.internalBinaryRead(reader, reader.uint32(), options, message.member);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpsertStaticAccessListMemberRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.Member member = 1; */
+        if (message.member)
+            Member.internalBinaryWrite(message.member, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
+ */
+export const UpsertStaticAccessListMemberRequest = new UpsertStaticAccessListMemberRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpsertStaticAccessListMemberResponse$Type extends MessageType<UpsertStaticAccessListMemberResponse> {
+    constructor() {
+        super("teleport.accesslist.v1.UpsertStaticAccessListMemberResponse", [
+            { no: 1, name: "member", kind: "message", T: () => Member }
+        ]);
+    }
+    create(value?: PartialMessage<UpsertStaticAccessListMemberResponse>): UpsertStaticAccessListMemberResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpsertStaticAccessListMemberResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpsertStaticAccessListMemberResponse): UpsertStaticAccessListMemberResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.Member member */ 1:
+                    message.member = Member.internalBinaryRead(reader, reader.uint32(), options, message.member);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpsertStaticAccessListMemberResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.Member member = 1; */
+        if (message.member)
+            Member.internalBinaryWrite(message.member, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
+ */
+export const UpsertStaticAccessListMemberResponse = new UpsertStaticAccessListMemberResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class UpdateAccessListMemberRequest$Type extends MessageType<UpdateAccessListMemberRequest> {
     constructor() {
         super("teleport.accesslist.v1.UpdateAccessListMemberRequest", [
@@ -1978,6 +2260,86 @@ class DeleteAccessListMemberRequest$Type extends MessageType<DeleteAccessListMem
  * @generated MessageType for protobuf message teleport.accesslist.v1.DeleteAccessListMemberRequest
  */
 export const DeleteAccessListMemberRequest = new DeleteAccessListMemberRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteStaticAccessListMemberRequest$Type extends MessageType<DeleteStaticAccessListMemberRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.DeleteStaticAccessListMemberRequest", [
+            { no: 1, name: "access_list", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "member_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DeleteStaticAccessListMemberRequest>): DeleteStaticAccessListMemberRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.accessList = "";
+        message.memberName = "";
+        if (value !== undefined)
+            reflectionMergePartial<DeleteStaticAccessListMemberRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteStaticAccessListMemberRequest): DeleteStaticAccessListMemberRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string access_list */ 1:
+                    message.accessList = reader.string();
+                    break;
+                case /* string member_name */ 2:
+                    message.memberName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DeleteStaticAccessListMemberRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string access_list = 1; */
+        if (message.accessList !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.accessList);
+        /* string member_name = 2; */
+        if (message.memberName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.memberName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
+ */
+export const DeleteStaticAccessListMemberRequest = new DeleteStaticAccessListMemberRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DeleteStaticAccessListMemberResponse$Type extends MessageType<DeleteStaticAccessListMemberResponse> {
+    constructor() {
+        super("teleport.accesslist.v1.DeleteStaticAccessListMemberResponse", []);
+    }
+    create(value?: PartialMessage<DeleteStaticAccessListMemberResponse>): DeleteStaticAccessListMemberResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<DeleteStaticAccessListMemberResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteStaticAccessListMemberResponse): DeleteStaticAccessListMemberResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: DeleteStaticAccessListMemberResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
+ */
+export const DeleteStaticAccessListMemberResponse = new DeleteStaticAccessListMemberResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class DeleteAllAccessListMembersForAccessListRequest$Type extends MessageType<DeleteAllAccessListMembersForAccessListRequest> {
     constructor() {
@@ -2652,10 +3014,13 @@ export const AccessListService = new ServiceType("teleport.accesslist.v1.AccessL
     { name: "ListAccessListMembers", options: {}, I: ListAccessListMembersRequest, O: ListAccessListMembersResponse },
     { name: "ListAllAccessListMembers", options: {}, I: ListAllAccessListMembersRequest, O: ListAllAccessListMembersResponse },
     { name: "GetAccessListMember", options: {}, I: GetAccessListMemberRequest, O: Member },
+    { name: "GetStaticAccessListMember", options: {}, I: GetStaticAccessListMemberRequest, O: GetStaticAccessListMemberResponse },
     { name: "GetAccessListOwners", options: {}, I: GetAccessListOwnersRequest, O: GetAccessListOwnersResponse },
     { name: "UpsertAccessListMember", options: {}, I: UpsertAccessListMemberRequest, O: Member },
+    { name: "UpsertStaticAccessListMember", options: {}, I: UpsertStaticAccessListMemberRequest, O: UpsertStaticAccessListMemberResponse },
     { name: "UpdateAccessListMember", options: {}, I: UpdateAccessListMemberRequest, O: Member },
     { name: "DeleteAccessListMember", options: {}, I: DeleteAccessListMemberRequest, O: Empty },
+    { name: "DeleteStaticAccessListMember", options: {}, I: DeleteStaticAccessListMemberRequest, O: DeleteStaticAccessListMemberResponse },
     { name: "DeleteAllAccessListMembersForAccessList", options: {}, I: DeleteAllAccessListMembersForAccessListRequest, O: Empty },
     { name: "DeleteAllAccessListMembers", options: {}, I: DeleteAllAccessListMembersRequest, O: Empty },
     { name: "UpsertAccessListWithMembers", options: {}, I: UpsertAccessListWithMembersRequest, O: UpsertAccessListWithMembersResponse },
