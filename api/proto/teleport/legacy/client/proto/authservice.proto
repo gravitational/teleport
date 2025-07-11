@@ -1153,6 +1153,29 @@ message ListRolesResponse {
   string NextKey = 2;
 }
 
+// ListRequestableRolesRequest is a request to list roles that the user can request.
+message ListRequestableRolesRequest {
+  // Limit is the maximum amount of roles per page.
+  int32 Limit = 1;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had NextKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+
+  // Filter matches roles.
+  types.RoleFilter Filter = 3;
+}
+
+// ListRequestableRolesResponse is a page of requestable roles.
+message ListRequestableRolesResponse {
+  // Roles is a page of roles that the user can request.
+  repeated types.RoleV6 Roles = 1;
+
+  // NextKey will serve as the StartKey for the next page of roles.
+  string NextKey = 2;
+}
+
 // Request for CreateRole.
 message CreateRoleRequest {
   // Role to be created.
@@ -2981,6 +3004,8 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // ListRequestableRoles is a paginated role getter for roles that the user can request.
+  rpc ListRequestableRoles(ListRequestableRolesRequest) returns (ListRequestableRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.

@@ -86,6 +86,58 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 	}, nil
 }
 
+// listRequestableRolesHandle is the web handler for listing requestable roles.
+func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+	return listRequestableRoles(clt, values)
+}
+
+type requestableRolesGetter interface {
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+}
+
+// listRequestableRoles returns a paginated list of roles that the user can request.
+func listRequestableRoles(clt requestableRolesGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	requestableRolesReq := &proto.ListRequestableRolesRequest{
+		Limit:    limit,
+		StartKey: values.Get("startKey"),
+		Filter: &types.RoleFilter{
+			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+			SkipSystemRoles: true,
+		},
+	}
+
+	resp, err := clt.ListRequestableRoles(context.TODO(), requestableRolesReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var typeRoles []types.Role
+	for _, role := range resp.Roles {
+		typeRoles = append(typeRoles, role)
+	}
+
+	uiRoles, err := ui.NewRoles(typeRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesWithoutCountGetResponse{
+		Items:    uiRoles,
+		StartKey: resp.NextKey,
+	}, nil
+}
+
 func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
