@@ -29,139 +29,139 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-// summarizerService implements the [services.SummarizerResources] interface and manages
-// summarization configuration resources in the backend.
-type summarizerService struct {
+// SummarizerResourcesService implements the [services.SummarizerResources]
+// interface and manages summarization configuration resources in the backend.
+type SummarizerResourcesService struct {
 	modelService  *generic.ServiceWrapper[*summarizerv1.InferenceModel]
 	secretService *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
 	policyService *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
 }
 
-var _ services.SummarizerResources = (*summarizerService)(nil)
+var _ services.SummarizerResources = (*SummarizerResourcesService)(nil)
 
-func (s *summarizerService) CreateInferenceModel(
+func (s *SummarizerResourcesService) CreateInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) (*summarizerv1.InferenceModel, error) {
 	res, err := s.modelService.CreateResource(ctx, model)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) DeleteInferenceModel(
+func (s *SummarizerResourcesService) DeleteInferenceModel(
 	ctx context.Context, name string,
 ) error {
 	return trace.Wrap(s.modelService.DeleteResource(ctx, name))
 }
 
-func (s *summarizerService) GetInferenceModel(
+func (s *SummarizerResourcesService) GetInferenceModel(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferenceModel, error) {
 	res, err := s.modelService.GetResource(ctx, name)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) ListInferenceModels(
+func (s *SummarizerResourcesService) ListInferenceModels(
 	ctx context.Context, size int, pageToken string,
 ) ([]*summarizerv1.InferenceModel, string, error) {
 	res, nextToken, err := s.modelService.ListResources(ctx, size, pageToken)
 	return res, nextToken, trace.Wrap(err)
 }
 
-func (s *summarizerService) UpdateInferenceModel(
+func (s *SummarizerResourcesService) UpdateInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) (*summarizerv1.InferenceModel, error) {
 	res, err := s.modelService.ConditionalUpdateResource(ctx, model)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) UpsertInferenceModel(
+func (s *SummarizerResourcesService) UpsertInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) (*summarizerv1.InferenceModel, error) {
 	res, err := s.modelService.UpsertResource(ctx, model)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) CreateInferenceSecret(
+func (s *SummarizerResourcesService) CreateInferenceSecret(
 	ctx context.Context, secret *summarizerv1.InferenceSecret,
 ) (*summarizerv1.InferenceSecret, error) {
 	res, err := s.secretService.CreateResource(ctx, secret)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) DeleteInferenceSecret(
+func (s *SummarizerResourcesService) DeleteInferenceSecret(
 	ctx context.Context, name string) error {
 	return trace.Wrap(s.secretService.DeleteResource(ctx, name))
 }
 
-func (s *summarizerService) GetInferenceSecret(
+func (s *SummarizerResourcesService) GetInferenceSecret(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferenceSecret, error) {
 	res, err := s.secretService.GetResource(ctx, name)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) ListInferenceSecrets(
+func (s *SummarizerResourcesService) ListInferenceSecrets(
 	ctx context.Context, size int, pageToken string,
 ) ([]*summarizerv1.InferenceSecret, string, error) {
 	res, nextToken, err := s.secretService.ListResources(ctx, size, pageToken)
 	return res, nextToken, trace.Wrap(err)
 }
 
-func (s *summarizerService) UpdateInferenceSecret(
+func (s *SummarizerResourcesService) UpdateInferenceSecret(
 	ctx context.Context, secret *summarizerv1.InferenceSecret,
 ) (*summarizerv1.InferenceSecret, error) {
 	res, err := s.secretService.ConditionalUpdateResource(ctx, secret)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) UpsertInferenceSecret(
+func (s *SummarizerResourcesService) UpsertInferenceSecret(
 	ctx context.Context, secret *summarizerv1.InferenceSecret,
 ) (*summarizerv1.InferenceSecret, error) {
 	res, err := s.secretService.UpsertResource(ctx, secret)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) CreateInferencePolicy(
+func (s *SummarizerResourcesService) CreateInferencePolicy(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) (*summarizerv1.InferencePolicy, error) {
 	res, err := s.policyService.CreateResource(ctx, policy)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) DeleteInferencePolicy(
+func (s *SummarizerResourcesService) DeleteInferencePolicy(
 	ctx context.Context, name string,
 ) error {
 	return trace.Wrap(s.policyService.DeleteResource(ctx, name))
 }
 
-func (s *summarizerService) GetInferencePolicy(
+func (s *SummarizerResourcesService) GetInferencePolicy(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferencePolicy, error) {
 	res, err := s.policyService.GetResource(ctx, name)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) ListInferencePolicies(
+func (s *SummarizerResourcesService) ListInferencePolicies(
 	ctx context.Context, size int, pageToken string,
 ) ([]*summarizerv1.InferencePolicy, string, error) {
 	res, nextToken, err := s.policyService.ListResources(ctx, size, pageToken)
 	return res, nextToken, trace.Wrap(err)
 }
 
-func (s *summarizerService) UpdateInferencePolicy(
+func (s *SummarizerResourcesService) UpdateInferencePolicy(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) (*summarizerv1.InferencePolicy, error) {
 	res, err := s.policyService.ConditionalUpdateResource(ctx, policy)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) UpsertInferencePolicy(
+func (s *SummarizerResourcesService) UpsertInferencePolicy(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) (*summarizerv1.InferencePolicy, error) {
 	res, err := s.policyService.UpsertResource(ctx, policy)
 	return res, trace.Wrap(err)
 }
 
-func (s *summarizerService) AllInferencePolicies(
+func (s *SummarizerResourcesService) AllInferencePolicies(
 	ctx context.Context,
 ) iter.Seq2[*summarizerv1.InferencePolicy, error] {
 	return s.policyService.Resources(ctx, "", "")
@@ -173,9 +173,9 @@ const (
 	inferencePolicyPrefix = "inference_policies"
 )
 
-// NewSummarizerService returns a service that manages summarization
+// NewSummarizerResourcesService returns a service that manages summarization
 // configuration resources in the backend.
-func NewSummarizerService(b backend.Backend) (services.SummarizerResources, error) {
+func NewSummarizerResourcesService(b backend.Backend) (*SummarizerResourcesService, error) {
 	modelService, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*summarizerv1.InferenceModel]{
 			Backend:       b,
@@ -212,7 +212,7 @@ func NewSummarizerService(b backend.Backend) (services.SummarizerResources, erro
 		return nil, trace.Wrap(err)
 	}
 
-	return &summarizerService{
+	return &SummarizerResourcesService{
 		modelService:  modelService,
 		secretService: secretService,
 		policyService: policyService,

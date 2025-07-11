@@ -472,7 +472,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.WorkloadIdentity = workloadIdentity
 	}
 	if cfg.SummarizerResources == nil {
-		summarizer, err := local.NewSummarizerService(cfg.Backend)
+		summarizer, err := local.NewSummarizerResourcesService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
 		}
@@ -1359,10 +1359,10 @@ func (a *Server) ResetLoginHooks() {
 
 // SetSummarizerService sets an implementation of the summarizer service used
 // by this server and its underlying services.
-func (a *Server) SetSummarizerService(s summarizerv1.SummarizerService) {
+func (a *Server) SetSummarizerService(s summarizerv1.Summarizer) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.summarizerWrapper.SummarizerService = s
+	a.summarizerWrapper.Summarizer = s
 }
 
 // CloseContext returns the close context

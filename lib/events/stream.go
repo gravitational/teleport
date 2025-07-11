@@ -129,15 +129,8 @@ type ProtoStreamerConfig struct {
 	Encrypter EncryptionWrapper
 	// Summarizer is used to summarize the session recording. It can be nil if
 	// summarization is not needed.
-	Summarizer summarizerv1.SummarizerService
+	Summarizer summarizerv1.Summarizer
 }
-
-// UploadCompletionHook is a function to be called after an upload is
-// completed. The sessionEndEvent parameter is optional, but should be
-// specified if possible, as it may be used to skip reading the event stream.
-type UploadCompletionHook func(
-	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
-) error
 
 // CheckAndSetDefaults checks and sets streamer defaults
 func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
@@ -256,7 +249,7 @@ type ProtoStreamConfig struct {
 	Encrypter EncryptionWrapper
 	// Summarizer is used to summarize the session recording. It can be nil if
 	// summarization is not needed.
-	Summarizer summarizerv1.SummarizerService
+	Summarizer summarizerv1.Summarizer
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -673,8 +666,8 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 			// Capture the session end event. Note that we deliberately support more
 			// than necessary by the underlying purpose (session summarization), just
-			// for completeness' sake. The upload hook will only pick up the
-			// supported sessions anyway.
+			// for completeness' sake. The summarizer will only pick up the supported
+			// sessions anyway.
 			if IsSessionEndEvent(event.oneof) {
 				w.sessionEndEvent = event.oneof
 			}

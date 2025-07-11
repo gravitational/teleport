@@ -5765,7 +5765,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 
-		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewSummarizerService())
+		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewResourcesService())
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
