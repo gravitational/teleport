@@ -45,7 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
@@ -303,7 +305,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	credential := &config.UnstableClientCredentialOutput{}
 	cfg := &config.BotConfig{
 		Version: "",
-		Onboarding: config.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
@@ -319,7 +321,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
 	// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
 	cfg.AuthServer = addr.String()
-	cfg.AuthServerAddressMode = config.AllowProxyAsAuthServer
+	cfg.AuthServerAddressMode = connection.AllowProxyAsAuthServer
 
 	// Insecure joining is not compatible with CA pinning
 	if !cfg.Insecure {

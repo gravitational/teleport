@@ -61,7 +61,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -99,7 +101,7 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 }
 
 // makeBot creates a server-side bot and returns joining parameters.
-func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*config.OnboardingConfig, *machineidv1pb.Bot) {
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 
@@ -130,7 +132,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 	err = client.CreateToken(ctx, tok)
 	require.NoError(t, err)
 
-	return &config.OnboardingConfig{
+	return &onboarding.Config{
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
 	}, b
@@ -145,7 +147,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
-	onboarding *config.OnboardingConfig,
+	onboarding *onboarding.Config,
 	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {
@@ -158,7 +160,7 @@ func defaultBotConfig(
 
 	cfg := &config.BotConfig{
 		AuthServer:            authServer,
-		AuthServerAddressMode: config.WarnIfAuthServerIsProxy,
+		AuthServerAddressMode: connection.WarnIfAuthServerIsProxy,
 		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
 			Destination: &destination.Memory{},
@@ -1272,11 +1274,11 @@ func TestBotJoiningURI(t *testing.T) {
 			process.Config.Proxy.WebAddr.String(),
 		),
 		Storage: &config.StorageConfig{
-			Destination: &config.DestinationMemory{},
+			Destination: &destination.Memory{},
 		},
 		Services: config.ServiceConfigs{
 			&config.IdentityOutput{
-				Destination: &config.DestinationMemory{},
+				Destination: &destination.Memory{},
 			},
 		},
 		Oneshot:  true,

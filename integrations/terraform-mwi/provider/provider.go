@@ -33,6 +33,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -79,7 +80,7 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 				MarkdownDescription: "The join method to use to authenticate to the Teleport cluster.",
 				Required:            true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(config.SupportedJoinMethods...),
+					stringvalidator.OneOf(onboarding.SupportedJoinMethods...),
 					// Explicitly prohibit the use of the token join method
 					// as we won't be able to persist state for it to work
 					// effectively.
@@ -118,7 +119,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 			Storage: &config.StorageConfig{
 				Destination: botInternalStore,
 			},
-			Onboarding: config.OnboardingConfig{
+			Onboarding: onboarding.Config{
 				JoinMethod: apitypes.JoinMethod(data.JoinMethod.ValueString()),
 				TokenValue: data.JoinToken.ValueString(),
 			},
