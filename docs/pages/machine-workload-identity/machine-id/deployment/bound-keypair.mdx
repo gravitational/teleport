@@ -56,18 +56,18 @@ works.
 {/* note: consider edition-prereqs-tabs.mdx include for v19; it is misleading due to the minor launch release */}
 
 - A running Teleport cluster version 18.1.0 or above.
-- The `tsh` and `tctl` clients
+- The `tsh` and `tctl` clients.
 - (!docs/pages/includes/tctl.mdx!)
-- This guide assumes the bot node has mutable persistent storage for internal
+- This guide assumes the bot host has mutable persistent storage for internal
   bot data. While it is possible to use Bound Keypair Joining can on immutable
   hosts (like CI runs), doing so will reduce security guarantees; see the
   [admin guide][guide] for further information.
 
 ## Step 1/5. Install `tbot`
 
-**This step is completed on the bot node.**
+**This step is completed on the bot host.**
 
-First, `tbot` needs to be installed on the node that you wish to use Machine ID
+First, `tbot` needs to be installed on the host that you wish to use Machine ID
 on.
 
 Download and install the appropriate Teleport package for your platform:
@@ -139,7 +139,7 @@ the `.status.bound_keypair.registration_secret` field.
 
 ## Step 4/5. Configure `tbot`
 
-**This step is completed on the bot node.**
+**This step is completed on the bot host.**
 
 Create `/etc/tbot.yaml`:
 
