@@ -117,8 +117,14 @@ allow the bot's initial join, and Teleport will generate a registration secret
 automatically when the token is created as we have not preregistered a public
 key to use.
 
-<Admonition type="tip" title="Onboarding and Recovery">
-To learn more about the various onboarding and recovery options, refer to the
+<Admonition type="tip" title="Onboarding Options">
+This example makes use of registration secrets to authenticate the initial join.
+If desired, it is also possible to generate a key on the bot host first and
+register it with Teleport out-of-band, avoiding the need to copy secrets between
+hosts.
+
+To learn more about preregistering public keys and Bound Keypair Joining's other
+onboarding and recovery options, refer to the
 [Reference and Admin Guide][guide].
 </Admonition>
 
