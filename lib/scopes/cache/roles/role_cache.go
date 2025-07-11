@@ -24,11 +24,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
-	sr "github.com/gravitational/teleport/lib/scopes/roles"
 )
 
 const (
@@ -38,26 +38,42 @@ const (
 
 // RoleCache is a cache for scoped role roles.
 type RoleCache struct {
-	cache *cache.Cache[*accessv1.ScopedRole, string]
+	cache *cache.Cache[*scopedaccessv1.ScopedRole, string]
 }
 
 // NewRoleCache creates a new role cache instance.
 func NewRoleCache() *RoleCache {
 	return &RoleCache{
-		cache: cache.Must(cache.Config[*accessv1.ScopedRole, string]{
-			Scope: func(role *accessv1.ScopedRole) string {
+		cache: cache.Must(cache.Config[*scopedaccessv1.ScopedRole, string]{
+			Scope: func(role *scopedaccessv1.ScopedRole) string {
 				return role.GetScope()
 			},
-			Key: func(role *accessv1.ScopedRole) string {
+			Key: func(role *scopedaccessv1.ScopedRole) string {
 				return role.GetMetadata().GetName()
 			},
-			Clone: proto.CloneOf[*accessv1.ScopedRole],
+			Clone: proto.CloneOf[*scopedaccessv1.ScopedRole],
 		}),
 	}
 }
 
+// GetScopedRole gets a scoped role by name.
+func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing scoped role name in get request")
+	}
+
+	role, ok := c.cache.Get(req.GetName())
+	if !ok {
+		return nil, trace.NotFound("scoped role %q not found", req.GetName())
+	}
+
+	return &scopedaccessv1.GetScopedRoleResponse{
+		Role: role,
+	}, nil
+}
+
 // ListScopedRoles returns a paginated list of scoped roles.
-func (c *RoleCache) ListScopedRoles(ctx context.Context, req *accessv1.ListScopedRolesRequest) (*accessv1.ListScopedRolesResponse, error) {
+func (c *RoleCache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
@@ -103,7 +119,7 @@ func (c *RoleCache) ListScopedRoles(ctx context.Context, req *accessv1.ListScope
 		return nil, trace.NotImplemented("assignable scope filtering for scoped role roles is not yet supported")
 	}
 
-	var out []*accessv1.ScopedRole
+	var out []*scopedaccessv1.ScopedRole
 	var nextCursor cache.Cursor[string]
 Outer:
 	for scope := range getter(scope, c.cache.WithCursor(cursor)) {
@@ -127,15 +143,15 @@ Outer:
 		}
 	}
 
-	return &accessv1.ListScopedRolesResponse{
+	return &scopedaccessv1.ListScopedRolesResponse{
 		Roles:         out,
 		NextPageToken: nextPageToken,
 	}, nil
 }
 
 // Put adds a new role to the cache. It will overwrite any existing role with the same name.
-func (c *RoleCache) Put(role *accessv1.ScopedRole) error {
-	if err := sr.WeakValidateRole(role); err != nil {
+func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
+	if err := scopedaccess.WeakValidateRole(role); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -112,7 +112,7 @@ func TestRoundtrip(t *testing.T) {
 		{
 			name: "dynamic-type",
 			modificationFn: func(accessList *accesslist.AccessList) {
-				accessList.Spec.Type = accesslist.Dynamic
+				accessList.Spec.Type = accesslist.Default
 			},
 		},
 		{

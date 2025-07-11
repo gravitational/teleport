@@ -18,11 +18,13 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -30,9 +32,9 @@ type appIndex string
 
 const appNameIndex appIndex = "name"
 
-func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.Application, appIndex], error) {
-	if p == nil {
-		return nil, trace.BadParameter("missing parameter Apps")
+func newAppCollection(upstream services.Applications, w types.WatchKind) (*collection[types.Application, appIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter Applications")
 	}
 
 	return &collection[types.Application, appIndex]{
@@ -45,8 +47,13 @@ func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.App
 				appNameIndex: types.Application.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Application, error) {
-			apps, err := p.GetApps(ctx)
-			return apps, trace.Wrap(err)
+			out, err := stream.Collect(upstream.Apps(ctx, "", ""))
+			// TODO(tross): DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				apps, err := upstream.GetApps(ctx)
+				return apps, trace.Wrap(err)
+			}
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Application {
 			return &types.AppV3{
@@ -59,6 +66,80 @@ func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.App
 		},
 		watch: w,
 	}, nil
+}
+
+// Apps returns application resources within the range [start, end).
+func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+	ctx, span := c.Tracer.Start(ctx, "cache/Apps")
+	defer span.End()
+
+	return func(yield func(types.Application, error) bool) {
+		rg, err := acquireReadGuard(c, c.collections.apps)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer rg.Release()
+
+		if rg.ReadCache() {
+			for a := range rg.store.resources(appNameIndex, start, end) {
+				if !yield(a, nil) {
+					return
+				}
+			}
+			return
+		}
+
+		// Release the read guard early since all future reads will be
+		// performed against the upstream.
+		rg.Release()
+
+		for app, err := range c.Config.Apps.Apps(ctx, start, end) {
+			if err != nil {
+				// TODO(tross): DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					apps, err := c.Config.Apps.GetApps(ctx)
+					if err != nil {
+						yield(nil, err)
+						return
+					}
+
+					for _, app := range apps {
+						if !yield(app, nil) {
+							return
+						}
+					}
+
+					return
+				}
+
+				yield(nil, err)
+				return
+			}
+
+			if !yield(app, nil) {
+				return
+			}
+		}
+	}
+}
+
+// ListApps returns a page of application resources.
+func (c *Cache) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListApps")
+	defer span.End()
+
+	lister := genericLister[types.Application, appIndex]{
+		cache:        c,
+		collection:   c.collections.apps,
+		index:        appNameIndex,
+		upstreamList: c.Config.Apps.ListApps,
+		nextToken: func(a types.Application) string {
+			return a.GetMetadata().Name
+		},
+	}
+	out, next, err := lister.list(ctx, limit, startKey)
+	return out, next, trace.Wrap(err)
 }
 
 // GetApps returns all application resources.

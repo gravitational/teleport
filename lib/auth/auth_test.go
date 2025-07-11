@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -4009,6 +4010,12 @@ func TestFilterResources(t *testing.T) {
 	}
 }
 
+type fakeAuthPreferenceGetter struct{}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
+}
+
 func TestCAGeneration(t *testing.T) {
 	ctx := context.Background()
 	const (
@@ -4019,16 +4026,20 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	keyStore := keystore.NewSoftwareKeystoreForTests(t,
-		keystore.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{},
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
-		}),
-	)
+		},
+	})
+	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
 			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+
+			keySet, err := newKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
 			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
