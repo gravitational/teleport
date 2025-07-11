@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -65,7 +66,7 @@ func TestSPIFFESVIDCommand(t *testing.T) {
 				require.ElementsMatch(t, sans.DNS, []string{"foo.example.com", "bar.example.com"})
 				require.ElementsMatch(t, sans.IP, []string{"192.168.1.1", "192.168.1.2"})
 
-				dir, ok := spiffe.Destination.(*config.DestinationDirectory)
+				dir, ok := spiffe.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 			},
