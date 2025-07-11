@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -271,7 +271,7 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 					Destination:       dest,
 				},
 				executablePath: fakeGetExecutablePath,
-				log:            utils.NewSlogLoggerForTests(),
+				log:            logtest.NewLogger(),
 			}
 
 			keyRing, err := NewClientKeyRing(
