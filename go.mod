@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.23.10
+go 1.23.11
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.12.1
@@ -109,7 +109,6 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
-	github.com/go-piv/piv-go v1.11.0
 	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/go-resty/resty/v2 v2.15.3
 	github.com/go-webauthn/webauthn v0.11.2
