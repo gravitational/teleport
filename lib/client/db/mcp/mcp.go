@@ -21,15 +21,40 @@ import (
 	"log/slog"
 	"net"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/mcp"
 )
 
 // NewServerConfig configuration passed to the server constructors.
 type NewServerConfig struct {
-	Logger     *slog.Logger
+	// Logger is the slog.Logger used by the server.
+	Logger *slog.Logger
+	// RootServer is the root server where all resources and tools are
+	// registered.
 	RootServer *RootServer
-	Databases  []*Database
+	// Databases is the list of databases being served by the MCP server.
+	Databases []*Database
+	// Clock is an optional clock to use.
+	Clock clockwork.Clock
+}
+
+func (c *NewServerConfig) CheckAndSetDefaults() error {
+	if c.Logger == nil {
+		c.Logger = slog.Default()
+	}
+	if c.RootServer == nil {
+		return trace.BadParameter("RootServer is required")
+	}
+	if len(c.Databases) == 0 {
+		return trace.BadParameter("server must serve at least one database")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	return nil
 }
 
 // NewServerFunc the MCP server constructor function definition.
