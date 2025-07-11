@@ -1110,9 +1110,9 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	require.Contains(t, locks[0].Message(), "certificate generation mismatch")
 
 	// Using the previously working client, make sure API calls no longer work.
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err = client.Ping(ctx)
-		require.ErrorContains(tt, err, "access denied")
+		assert.ErrorContains(t, err, "access denied")
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
