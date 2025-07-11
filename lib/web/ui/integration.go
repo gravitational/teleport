@@ -669,3 +669,10 @@ type AWSOIDCCreateAWSAppAccessRequest struct {
 	// Labels added to the app server resource that will be created.
 	Labels map[string]string `json:"labels"`
 }
+
+// AWSRolesAnywhereListProfilesRequest contains the list of Roles Anywhere Profiles.
+type AWSRolesAnywhereListProfilesRequest struct {
+	// StartKey is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	StartKey string `json:"startKey"`
+}
