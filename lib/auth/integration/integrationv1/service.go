@@ -132,10 +132,6 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 
-	if s.awsRolesAnywhereCreateSessionFn == nil {
-		s.awsRolesAnywhereCreateSessionFn = createsession.CreateSession
-	}
-
 	return nil
 }
 
