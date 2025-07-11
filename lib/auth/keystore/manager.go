@@ -158,6 +158,9 @@ type Options struct {
 	Logger *slog.Logger
 	// CloudClients provides cloud clients.
 	CloudClients CloudClientProvider
+	// RSAKeyPairSource is an optional function used by the software keystore when
+	// generating RSA keys.
+	RSAKeyPairSource RSAKeyPairSource
 
 	kmsClient         *kms.KeyManagementClient
 	clockworkOverride clockwork.Clock
@@ -196,7 +199,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: opts.RSAKeyPairSource})
 	var backendForNewKeys backend = softwareBackend
 	usableSigningBackends := []backend{softwareBackend}
 
