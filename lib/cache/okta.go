@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,24 +44,8 @@ func newOktaImportRuleCollection(upstream services.Okta, w types.WatchKind) (*co
 				oktaImportRuleNameIndex: types.OktaImportRule.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.OktaImportRule, error) {
-			var startKey string
-			var resources []types.OktaImportRule
-			for {
-				var importRules []types.OktaImportRule
-				var err error
-				importRules, startKey, err = upstream.ListOktaImportRules(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, importRules...)
-
-				if startKey == "" {
-					break
-				}
-			}
-
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListOktaImportRules))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.OktaImportRule {
 			return &types.OktaImportRuleV1{
@@ -126,24 +112,8 @@ func newOktaImportAssignmentCollection(upstream services.Okta, w types.WatchKind
 				oktaAssignmentNameIndex: types.OktaAssignment.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.OktaAssignment, error) {
-			var startKey string
-			var resources []types.OktaAssignment
-			for {
-				var importRules []types.OktaAssignment
-				var err error
-				importRules, startKey, err = upstream.ListOktaAssignments(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, importRules...)
-
-				if startKey == "" {
-					break
-				}
-			}
-
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListOktaAssignments))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.OktaAssignment {
 			return &types.OktaAssignmentV1{

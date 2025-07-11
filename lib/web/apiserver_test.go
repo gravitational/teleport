@@ -2432,6 +2432,12 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
+
+			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
+			if _, ok := msg.(tdp.LatencyStats); ok {
+				msg, err = tdpClient.ReadMessage()
+				require.NoError(t, err)
+			}
 			require.IsType(t, tdp.Alert{}, msg)
 		})
 	}
