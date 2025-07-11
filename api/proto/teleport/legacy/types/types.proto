@@ -3112,6 +3112,10 @@ message AccessRequestSpecV3 {
 
   // RequestKind indicates the kind (short/long-term) of request.
   AccessRequestKind RequestKind = 24 [(gogoproto.jsontag) = "request_kind,omitempty"];
+
+  // LongTermResourceGrouping contains information about how resources can be grouped
+  // based on Access List promotions for long-term Access Requests.
+  LongTermResourceGrouping LongTermGrouping = 25 [(gogoproto.jsontag) = "long_term_grouping,omitempty"];
 }
 
 // AccessRequestKind represents the kind of Access Request being made (short/long-term).
@@ -4092,6 +4096,31 @@ message AccessRequestAllowedPromotion {
 message AccessRequestAllowedPromotions {
   // suggestions is a list of allowed access lists promotions.
   repeated AccessRequestAllowedPromotion promotions = 1;
+}
+
+// ResourceIDList represents a list of ResourceID objects.
+message ResourceIDList {
+  repeated ResourceID resource_ids = 1 [(gogoproto.nullable) = false];
+}
+
+// LongTermResourceGrouping contains information about how resources can be grouped
+// based on Access List promotions for long-term Access Requests.
+message LongTermResourceGrouping {
+  // AccessListToResources maps applicable Access List names to the resources they can grant,
+  // including the optimal grouping.
+  map<string, ResourceIDList> AccessListToResources = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "grouped_by_access_list"
+  ];
+  // RecommendedAccessList is the name of the Access List that would provide
+  // access to the most resources. If multiple Access Lists provide the same
+  // number of resources, the first one found will be used.
+  string RecommendedAccessList = 2 [(gogoproto.jsontag) = "recommended_access_list"];
+  // ValidationMessage is a user-friendly message explaining any grouping error, if CanProceed is false.
+  string ValidationMessage = 3 [(gogoproto.jsontag) = "validation_message,omitempty"];
+  // CanProceed represents the validity of the long-term grouping. If all requested
+  // resources cannot be grouped together, this will be false.
+  bool CanProceed = 4 [(gogoproto.jsontag) = "can_proceed"];
 }
 
 // ClaimMapping maps a claim to teleport roles.
