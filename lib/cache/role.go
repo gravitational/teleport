@@ -135,7 +135,7 @@ func (c *Cache) ListRequestableRoles(ctx context.Context, req *proto.ListRequest
 	ctx, span := c.Tracer.Start(ctx, "cache/ListRequestableRoles")
 	defer span.End()
 
-	// Delegate to the service directly and bypass cache, since requestable roles vary per user and therefore can't be in a shared cached.
+	// Delegate to the service directly and bypass cache, since requestable roles vary per user and therefore can't be in a shared cache.
 	resp, err := c.Config.Access.ListRequestableRoles(ctx, req)
 	return resp, trace.Wrap(err)
 }

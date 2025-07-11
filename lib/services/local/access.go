@@ -149,7 +149,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 // ListRequestableRoles is not implemented here. The list of requestable roles vary per user and are not stored in the backend.
 func (s *AccessService) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
-	return nil, trace.NotImplemented("ListRequestableRoles is not implemented in local access service")
+	return nil, trace.NotImplemented("ListRequestableRoles is not implemented in lib/services/local")
 }
 
 // CreateRole creates a new role.
