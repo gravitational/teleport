@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -49,6 +50,17 @@ func TestGenerateCredentials(t *testing.T) {
 
 	ca := newCertAuthority(t, types.AWSRACA, "cluster-name")
 
+	cache := &mockCache{
+		domainName: "cluster-name",
+		ca:         ca,
+	}
+
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
+		AuthPreferenceGetter: cache,
+	})
+	require.NoError(t, err)
+
 	req := GenerateCredentialsRequest{
 		Clock:                 clock,
 		TrustAnchorARN:        "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
@@ -57,12 +69,9 @@ func TestGenerateCredentials(t *testing.T) {
 		SubjectCommonName:     "test-common-name",
 		DurationSeconds:       nil,
 		AcceptRoleSessionName: true,
-		KeyStoreManager:       keystore.NewSoftwareKeystoreForTests(t),
-		Cache: &mockCache{
-			domainName: "cluster-name",
-			ca:         ca,
-		},
-		CreateSession: mockCreateSessionAPI,
+		KeyStoreManager:       keyStoreManager,
+		Cache:                 cache,
+		CreateSession:         mockCreateSessionAPI,
 	}
 
 	credentials, err := GenerateCredentials(ctx, req)
@@ -81,6 +90,10 @@ type mockCache struct {
 	ca           types.CertAuthority
 	appServers   []types.AppServer
 	integrations []types.Integration
+}
+
+func (m *mockCache) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
 }
 
 // GetClusterName returns local auth domain of the current auth server
