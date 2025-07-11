@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -471,6 +472,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.SummarizerResources == nil {
+		summarizer, err := local.NewSummarizerResourcesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating Summarizer service")
+		}
+		cfg.SummarizerResources = summarizer
+	}
+	if cfg.SummarizerWrapper == nil {
+		cfg.SummarizerWrapper = summarizerv1.NewSummarizerWrapper()
+	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
 		if err != nil {
@@ -598,6 +609,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
+		SummarizerResources:             cfg.SummarizerResources,
 	}
 
 	as := Server{
@@ -621,6 +633,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 		logger:                  cfg.Logger,
+		summarizerWrapper:       cfg.SummarizerWrapper,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -839,6 +852,7 @@ type Services struct {
 	services.VnetConfigService
 	RecordingEncryptionManager
 	events.MultipartHandler
+	services.SummarizerResources
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1249,6 +1263,11 @@ type Server struct {
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
+
+	// summarizerWrapper is a wrapper around the summarizer service. It is used
+	// to set the summarizer instance used by the streamer after the streamer has
+	// been created. The summarizer itself summarizes session recordings.
+	summarizerWrapper *summarizerv1.SummarizerWrapper
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1337,6 +1356,14 @@ func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Lock()
 	a.loginHooks = nil
 	a.loginHooksMu.Unlock()
+}
+
+// SetSummarizerService sets an implementation of the summarizer service used
+// by this server and its underlying services.
+func (a *Server) SetSummarizerService(s summarizerv1.Summarizer) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.summarizerWrapper.Summarizer = s
 }
 
 // CloseContext returns the close context
