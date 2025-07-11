@@ -123,7 +123,7 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 				"URI join method parameter %q conflicts with configured field: onboarding.gitlab.token_env_var_name", param))
 		case types.JoinMethodBoundKeypair:
 			errors = append(errors, applyValueOrError(
-				&cfg.Onboarding.BoundKeypair.InitialJoinSecret, param,
+				&cfg.Onboarding.BoundKeypair.RegistrationSecret, param,
 				"URI join method parameter %q conflicts with configured field: onboarding.bound_keypair.initial_join_secret", param))
 		default:
 			slog.WarnContext(
