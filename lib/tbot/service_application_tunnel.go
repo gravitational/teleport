@@ -43,13 +43,14 @@ import (
 // an authenticating tunnel and will automatically issue and renew certificates
 // as needed.
 type ApplicationTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.ApplicationTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *apiclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg             *config.BotConfig
+	cfg                *config.ApplicationTunnelService
+	proxyPingCache     *proxyPingCache
+	log                *slog.Logger
+	resolver           reversetunnelclient.Resolver
+	botClient          *apiclient.Client
+	getBotIdentity     getBotIdentityFn
+	botIdentityReadyCh <-chan struct{}
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -117,6 +118,19 @@ func alpnProtocolForApp(app types.Application) common.Protocol {
 func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnproxy.LocalProxyConfig, err error) {
 	ctx, span := tracer.Start(ctx, "ApplicationTunnelService/buildLocalProxyConfig")
 	defer span.End()
+
+	if s.botIdentityReadyCh != nil {
+		select {
+		case <-s.botIdentityReadyCh:
+		default:
+			s.log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-s.botIdentityReadyCh:
+			case <-ctx.Done():
+				return alpnproxy.LocalProxyConfig{}, ctx.Err()
+			}
+		}
+	}
 
 	// Determine the roles to use for the impersonated app access user. We fall
 	// back to all the roles the bot has if none are configured.
