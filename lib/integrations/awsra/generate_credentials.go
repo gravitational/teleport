@@ -24,6 +24,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -136,13 +137,24 @@ type Credentials struct {
 	SecretAccessKey string `json:"SecretAccessKey"`
 	// SessionToken is the the AWS session token for temporary credentials.
 	SessionToken string `json:"SessionToken"`
-	// Expiration is ISO8601 timestamp string when the credentials expire.
-	Expiration string `json:"Expiration"`
+	// Expiration is the timestamp when the credentials expire.
+	Expiration time.Time `json:"Expiration"`
 	// SerialNumber is the serial number of the certificate which was created and exchanged to obtain AWS Credentials.
 	// When using these credentials, CloudTrail will log the certificate's Subject Common Name, if the profile accepts it.
 	// Otherwise, the serial number is logged.
 	// This field is not part of the credential_process schema.
 	SerialNumber string `json:"-"`
+}
+
+// EncodeCredentialProcessFormat encodes the credentials in the format expected by the AWS CLI credential_process.
+// See https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+func (c *Credentials) EncodeCredentialProcessFormat() (string, error) {
+	bs, err := json.Marshal(c)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return string(bs), nil
 }
 
 // GenerateCredentials generates AWS IAM Roles Anywhere credentials for the Application (IAM Roles Anywhere Profile) and Role ARN.
@@ -223,12 +235,17 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 		return nil, trace.BadParameter("failed to create session %v", err)
 	}
 
+	parsedExpiration, err := time.Parse(time.RFC3339, createSessionResp.Expiration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to parse expiration time %q: %v", createSessionResp.Expiration, err)
+	}
+
 	return &Credentials{
 		Version:         createSessionResp.Version,
 		AccessKeyID:     createSessionResp.AccessKeyID,
 		SecretAccessKey: createSessionResp.SecretAccessKey,
 		SessionToken:    createSessionResp.SessionToken,
-		Expiration:      createSessionResp.Expiration,
+		Expiration:      parsedExpiration,
 		SerialNumber:    x509Cert.SerialNumber.String(),
 	}, nil
 }
