@@ -65,14 +65,14 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				return makeTestIdentityCenterAccount(subtestT, subtestCtx, svc, id)
 			},
 			getResource: func(subtestCtx context.Context, svc services.IdentityCenter, id string) (types.Resource153, error) {
-				return svc.GetIdentityCenterAccount(subtestCtx, services.IdentityCenterAccountID(id))
+				return svc.GetIdentityCenterAccount(subtestCtx, id)
 			},
 			updateResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
-				acct := r.(services.IdentityCenterAccount)
-				return svc.UpdateIdentityCenterAccount(subtestCtx, acct)
+				acct := r.(*identitycenterv1.Account)
+				return svc.UpdateIdentityCenterAccount2(subtestCtx, acct)
 			},
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
-				acct := r.(services.IdentityCenterAccount)
+				acct := r.(*identitycenterv1.Account)
 				return svc.UpsertIdentityCenterAccount(subtestCtx, acct)
 			},
 			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) error {
@@ -101,14 +101,14 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				return makeTestIdentityCenterAccountAssignment(subtestT, subtestCtx, svc, id)
 			},
 			getResource: func(subtestCtx context.Context, svc services.IdentityCenter, id string) (types.Resource153, error) {
-				return svc.GetAccountAssignment(subtestCtx, services.IdentityCenterAccountAssignmentID(id))
+				return svc.GetIdentityCenterAccountAssignment(subtestCtx, id)
 			},
 			updateResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
-				asmt := r.(services.IdentityCenterAccountAssignment)
-				return svc.UpdateAccountAssignment(subtestCtx, asmt)
+				asmt := r.(*identitycenterv1.AccountAssignment)
+				return svc.UpdateIdentityCenterAccountAssignment(subtestCtx, asmt)
 			},
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
-				asmt := r.(services.IdentityCenterAccountAssignment)
+				asmt := r.(*identitycenterv1.AccountAssignment)
 				return svc.UpsertAccountAssignment(subtestCtx, asmt)
 			},
 			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) error {
@@ -268,22 +268,20 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 	}
 }
 
-func makeTestIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) services.IdentityCenterAccount {
+func makeTestIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.Account {
 	t.Helper()
-	created, err := svc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:     types.KindIdentityCenterAccount,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: id},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:          "aws-account-id-" + id,
-				Arn:         fmt.Sprintf("arn:aws:sso::%s:", id),
-				Description: "Test account " + id,
-				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-					{
-						Name: "dummy",
-						Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
-					},
+	created, err := svc.CreateIdentityCenterAccount2(ctx, &identitycenterv1.Account{
+		Kind:     types.KindIdentityCenterAccount,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{Name: id},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:          "aws-account-id-" + id,
+			Arn:         fmt.Sprintf("arn:aws:sso::%s:", id),
+			Description: "Test account " + id,
+			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+				{
+					Name: "dummy",
+					Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
 				},
 			},
 		},
@@ -308,22 +306,20 @@ func makeTestIdentityCenterPermissionSet(t *testing.T, ctx context.Context, svc 
 	return created
 }
 
-func makeTestIdentityCenterAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) services.IdentityCenterAccountAssignment {
+func makeTestIdentityCenterAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.AccountAssignment {
 	t.Helper()
-	created, err := svc.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind:     types.KindIdentityCenterAccountAssignment,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: id},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
-				Display: "Some-Permission-set on Some-AWS-account",
-				PermissionSet: &identitycenterv1.PermissionSetInfo{
-					Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
-					Name: "some permission set",
-				},
-				AccountName: "Some Account Name",
-				AccountId:   "some account id",
+	created, err := svc.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+		Kind:     types.KindIdentityCenterAccountAssignment,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{Name: id},
+		Spec: &identitycenterv1.AccountAssignmentSpec{
+			Display: "Some-Permission-set on Some-AWS-account",
+			PermissionSet: &identitycenterv1.PermissionSetInfo{
+				Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
+				Name: "some permission set",
 			},
+			AccountName: "Some Account Name",
+			AccountId:   "some account id",
 		},
 	})
 	require.NoError(t, err)
