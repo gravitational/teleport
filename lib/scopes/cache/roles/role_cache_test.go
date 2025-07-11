@@ -25,10 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	headerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	sr "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestListScopedRolesScenarios tests particular more tricky ListScopedRoles scenarios, such
@@ -36,79 +36,91 @@ import (
 func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	t.Parallel()
 
-	roles := []*accessv1.ScopedRole{
+	roles := []*scopedaccessv1.ScopedRole{
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "admin-01",
 			},
 			Scope:   "/",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "admin-02",
 			},
 			Scope:   "/aa",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "user-01",
 			},
 			Scope:   "/",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "user-02",
 			},
 			Scope:   "/aa",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "admin-03",
 			},
 			Scope:   "/aa/bb",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "user-03",
 			},
 			Scope:   "/aa/bb",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "intern-01",
 			},
 			Scope:   "/bb",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 	}
 
 	cache := NewRoleCache()
 	for _, role := range roles {
+		_, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+			Name: role.GetMetadata().GetName(),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
 		cache.Put(role)
+
+		rsp, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+			Name: role.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, rsp.GetRole())
 	}
 
 	// verify expected behavior for standard cursors in resources subject to scope mode
-	rsp, err := cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	rsp, err := cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -120,7 +132,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"user-02", "admin-03", "user-03"}, collectRoleNames(rsp.Roles))
 
 	// try to inject a malicious root out-of-band cursor in resources subject to scope mode (no effect)
-	rsp, err = cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -132,7 +144,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"admin-02", "user-02", "admin-03", "user-03"}, collectRoleNames(rsp.Roles))
 
 	// try to inject a malicious orthogonal out-of-band cursor in resources subject to scope mode (no effect)
-	rsp, err = cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -144,7 +156,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"admin-02", "user-02", "admin-03", "user-03"}, collectRoleNames(rsp.Roles))
 
 	// verify expected behavior for standard cursors in policies applicable to scope mode
-	rsp, err = cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
@@ -157,7 +169,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious child out-of-band cursor in policies applicable to scope mode (effect is
 	// to ignore all items in valid query path).
-	rsp, err = cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
@@ -170,7 +182,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious orthogonal out-of-band cursor in policies applicable to scope mode (effect is to
 	// ignore root, but process leaf normally).
-	rsp, err = cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
@@ -182,7 +194,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"admin-02", "user-02"}, collectRoleNames(rsp.Roles))
 
 	// verify rejection of unknown cursor version
-	_, err = cache.ListScopedRoles(t.Context(), &accessv1.ListScopedRolesRequest{
+	_, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -197,62 +209,62 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 func TestListScopedRolesBasics(t *testing.T) {
 	t.Parallel()
 
-	roles := []*accessv1.ScopedRole{
+	roles := []*scopedaccessv1.ScopedRole{
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "admin-01",
 			},
 			Scope:   "/",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "admin-02",
 			},
 			Scope:   "/aa",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "user-01",
 			},
 			Scope:   "/",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "user-02",
 			},
 			Scope:   "/aa",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRole,
+			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerpb.Metadata{
 				Name: "intern-01",
 			},
 			Scope:   "/bb",
-			Spec:    &accessv1.ScopedRoleSpec{},
+			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
 		},
 	}
 
 	tts := []struct {
 		name   string
-		req    *accessv1.ListScopedRolesRequest
+		req    *scopedaccessv1.ListScopedRolesRequest
 		expect [][]string
 	}{
 		{
 			name: "all single page explicit excess",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				PageSize: int32(len(roles) + 1),
 			},
 			expect: [][]string{
@@ -267,7 +279,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "all single page implicit excess",
-			req:  &accessv1.ListScopedRolesRequest{},
+			req:  &scopedaccessv1.ListScopedRolesRequest{},
 			expect: [][]string{
 				{
 					"admin-01",
@@ -280,7 +292,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "all single page exact",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				PageSize: int32(len(roles)),
 			},
 			expect: [][]string{
@@ -295,7 +307,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "all multi page",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				PageSize: 2,
 			},
 			expect: [][]string{
@@ -314,7 +326,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "resource scope root",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/",
@@ -332,7 +344,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "resource scope non-root",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/aa",
@@ -347,7 +359,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "policy scope root",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/",
@@ -362,7 +374,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "policy scope non-root",
-			req: &accessv1.ListScopedRolesRequest{
+			req: &scopedaccessv1.ListScopedRolesRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/aa",
@@ -381,7 +393,19 @@ func TestListScopedRolesBasics(t *testing.T) {
 
 	cache := NewRoleCache()
 	for _, role := range roles {
+		_, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+			Name: role.GetMetadata().GetName(),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
 		cache.Put(role)
+
+		rsp, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+			Name: role.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, rsp.GetRole())
 	}
 
 	for _, tt := range tts {
@@ -409,7 +433,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 	}
 }
 
-func collectRoleNames(roles []*accessv1.ScopedRole) []string {
+func collectRoleNames(roles []*scopedaccessv1.ScopedRole) []string {
 	var names []string
 	for _, role := range roles {
 		names = append(names, role.Metadata.Name)

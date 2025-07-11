@@ -37,6 +37,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -292,6 +293,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferenceSecret, nil
 	case types.KindInferencePolicy, "inference_policies":
 		return types.KindInferencePolicy, nil
+	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
+		return scopedaccess.KindScopedRole, nil
+	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments":
+		return scopedaccess.KindScopedRoleAssignment, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -976,6 +981,26 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return resource, nil
+}
+
+// UnmarshalProtoResourceArray unmarshals an array of ProtoResources from JSON using [UnmarshalProtoResource] on each
+// individual element.
+func UnmarshalProtoResourceArray[T ProtoResourcePtr[U], U any](data []byte, opts ...MarshalOption) ([]T, error) {
+	var msgs []json.RawMessage
+	if err := json.Unmarshal(data, &msgs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources := make([]T, 0, len(msgs))
+	for _, msg := range msgs {
+		resource, err := UnmarshalProtoResource[T](msg, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, resource)
+	}
+
+	return resources, nil
 }
 
 // FastMarshalProtoResourceDeprecated marshals a ProtoResource to JSON using [utils.FastMarshal] and respecting [opts].

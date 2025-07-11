@@ -5659,6 +5659,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
 		Authorizer: cfg.Authorizer,
+		Reader:     cfg.AuthServer.scopedAccessCache,
+		Writer:     cfg.AuthServer.scopedAccessBackend,
+		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")

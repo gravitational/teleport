@@ -148,6 +148,19 @@ func (c *Cache[T, K]) WithFilter(filter func(T) bool) Option[T, K] {
 	}
 }
 
+// Get retrieves the value associated with the given primary key.
+func (c *Cache[T, K]) Get(key K) (T, bool) {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+
+	value, ok := c.items[key]
+	if !ok {
+		return *new(T), false
+	}
+
+	return c.cfg.Clone(value), true
+}
+
 // PoliciesApplicableToResourceScope iterates over the cached items using policy-application rules (i.e.
 // a descending iteration from root, through the leaf of the specified scope).
 func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
