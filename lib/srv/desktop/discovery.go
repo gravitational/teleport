@@ -159,12 +159,13 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		attrs = append(attrs, discoveryConfig.LabelAttributes...)
 
 		tc, err := s.tlsConfigForLDAP()
-
-		lc := winpki.NewLDAPClient(s.cfg.LDAPConfig)
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
 			return nil
 		}
+
+		lc := winpki.NewLDAPClient(s.cfg.LDAPConfig)
+
 		entries, err := lc.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs, tc)
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
