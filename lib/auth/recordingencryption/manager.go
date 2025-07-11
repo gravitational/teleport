@@ -19,21 +19,19 @@ package recordingencryption
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
-	"errors"
+	"crypto/x509"
+	"encoding/base64"
 	"iter"
 	"log/slog"
-	"slices"
 	"time"
 
-	"filippo.io/age"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -179,15 +177,15 @@ func (m *Manager) SetCache(cache Cache) {
 	m.cache = cache
 }
 
-// ensureActiveRecordingEncryption returns the configured RecordingEncryption resource if it exists with active keys. If it does not,
+// ensureRecordingEncryptionKey returns the configured RecordingEncryption resource if it exists with active keys. If it does not,
 // then the resource will be created or updated with a new active keypair. The bool return value indicates whether or not
 // a new pair was provisioned.
-func (m *Manager) ensureActiveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, bool, error) {
+func (m *Manager) ensureRecordingEncryptionKey(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
 	persistFn := m.RecordingEncryption.UpdateRecordingEncryption
 	encryption, err := m.RecordingEncryption.GetRecordingEncryption(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return encryption, false, trace.Wrap(err)
+			return encryption, trace.Wrap(err)
 		}
 		encryption = &recordingencryptionv1.RecordingEncryption{
 			Spec: &recordingencryptionv1.RecordingEncryptionSpec{},
@@ -196,78 +194,35 @@ func (m *Manager) ensureActiveRecordingEncryption(ctx context.Context) (*recordi
 	}
 
 	activeKeys := encryption.GetSpec().ActiveKeys
-
 	// no keys present, need to generate the initial active keypair
 	if len(activeKeys) > 0 {
-		return encryption, false, nil
+		// fetch the decrypter to ensure we have access to it
+		if _, err := m.keyStore.GetDecrypter(ctx, activeKeys[0].RecordingEncryptionPair); err != nil {
+			return encryption, trace.AccessDenied("active key not accessible: %v", err)
+		}
+		return encryption, nil
 	}
 
-	keyEncryptionPair, err := m.keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
+	encryptionPair, err := m.keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
 	if err != nil {
-		return encryption, false, trace.Wrap(err, "generating wrapping key")
+		return encryption, trace.Wrap(err, "generating wrapping key")
 	}
 
-	ident, err := age.GenerateX25519Identity()
+	publicKey, err := keys.ParsePublicKey(encryptionPair.PublicKey)
 	if err != nil {
-		return encryption, false, trace.Wrap(err, "generating age encryption key")
+		return encryption, trace.Wrap(err, "parsing public key")
 	}
-
-	encryptedIdent, err := keyEncryptionPair.EncryptOAEP([]byte(ident.String()))
-	if err != nil {
-		return encryption, false, trace.Wrap(err, "wrapping encryption key")
-	}
-
 	wrappedKey := recordingencryptionv1.WrappedKey{
-		KeyEncryptionPair: keyEncryptionPair,
-		RecordingEncryptionPair: &types.EncryptionKeyPair{
-			PrivateKeyType: types.PrivateKeyType_RAW,
-			PrivateKey:     encryptedIdent,
-			PublicKey:      []byte(ident.Recipient().String()),
-		},
+		RecordingEncryptionPair: encryptionPair,
 	}
 	encryption.Spec.ActiveKeys = []*recordingencryptionv1.WrappedKey{&wrappedKey}
 	encryption, err = persistFn(ctx, encryption)
 	if err != nil {
-		return encryption, false, trace.Wrap(err)
+		return encryption, trace.Wrap(err)
 	}
-	fp := sha256.Sum256(wrappedKey.RecordingEncryptionPair.PublicKey)
-	m.logger.InfoContext(ctx, "no active keys, generated initial recording encryption pair", "public_fingerprint", hex.EncodeToString(fp[:]))
-	return encryption, true, nil
-}
-
-var errWaitingForKey = errors.New("waiting for key to be fulfilled")
-
-// getRecordingEncryptionKey returns the first active recording encryption key accessible to the configured key store.
-func (m *Manager) getRecordingEncryptionKeyPair(ctx context.Context, keys []*recordingencryptionv1.WrappedKey) (*types.EncryptionKeyPair, error) {
-	var foundUnfulfilledKey bool
-	for _, key := range keys {
-		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
-		if err != nil {
-			continue
-		}
-
-		// if we make it to this section the key is accessible to the current auth server
-		if key.RecordingEncryptionPair == nil {
-			foundUnfulfilledKey = true
-			continue
-		}
-
-		decryptionKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
-		if err != nil {
-			return nil, trace.Wrap(err, "decrypting known key")
-		}
-
-		return &types.EncryptionKeyPair{
-			PrivateKey: decryptionKey,
-			PublicKey:  key.RecordingEncryptionPair.PublicKey,
-		}, nil
-	}
-
-	if foundUnfulfilledKey {
-		return nil, trace.Wrap(errWaitingForKey)
-	}
-
-	return nil, trace.NotFound("no accessible recording encryption pair found")
+	fp, _ := Fingerprint(publicKey)
+	m.logger.InfoContext(ctx, "no active keys, generated initial recording encryption pair", "public_fingerprint", fp)
+	return encryption, nil
 }
 
 // resolveRecordingEncryption examines the current state of the RescordingEncryption resource and advances it to the
@@ -285,103 +240,17 @@ func (m *Manager) getRecordingEncryptionKeyPair(ctx context.Context, keys []*rec
 //
 // If there are no unfulfilled keys present, then nothing should be done.
 func (m *Manager) resolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
-	encryption, generatedKey, err := m.ensureActiveRecordingEncryption(ctx)
+	encryption, err := m.ensureRecordingEncryptionKey(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if generatedKey {
-		m.logger.DebugContext(ctx, "created initial recording encryption key")
-		return encryption, nil
-	}
-
-	activeKeys := encryption.GetSpec().ActiveKeys
-	recordingEncryptionPair, err := m.getRecordingEncryptionKeyPair(ctx, activeKeys)
-	if err != nil {
-		if errors.Is(err, errWaitingForKey) {
-			// do nothing
-			return encryption, nil
-		}
-
-		if trace.IsNotFound(err) {
-			m.logger.InfoContext(ctx, "no accessible recording encryption keys, posting new key to be fulfilled")
-			keypair, err := m.keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
-			if err != nil {
-				return nil, trace.Wrap(err, "generating keypair for new wrapped key")
-			}
-			encryption.GetSpec().ActiveKeys = append(activeKeys, &recordingencryptionv1.WrappedKey{
-				KeyEncryptionPair: keypair,
-			})
-
-			encryption, err = m.RecordingEncryption.UpdateRecordingEncryption(ctx, encryption)
-			return encryption, trace.Wrap(err, "updating session recording config")
-		}
-
-		return nil, trace.Wrap(err)
-	}
-
-	var shouldUpdate bool
-	for _, key := range activeKeys {
-		if key.RecordingEncryptionPair != nil {
-			continue
-		}
-
-		encryptedKey, err := key.KeyEncryptionPair.EncryptOAEP(recordingEncryptionPair.PrivateKey)
-		if err != nil {
-			return encryption, trace.Wrap(err, "reencrypting decryption key")
-		}
-
-		key.RecordingEncryptionPair = &types.EncryptionKeyPair{
-			PrivateKey: encryptedKey,
-			PublicKey:  recordingEncryptionPair.PublicKey,
-		}
-
-		shouldUpdate = true
-	}
-
-	if shouldUpdate {
-		m.logger.DebugContext(ctx, "fulfilling empty keys")
-		encryption, err = m.RecordingEncryption.UpdateRecordingEncryption(ctx, encryption)
-		if err != nil {
-			return encryption, trace.Wrap(err, "updating session recording config")
-		}
 	}
 
 	return encryption, nil
 }
 
-func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordingencryptionv1.WrappedKey, publicKey []byte) (*types.EncryptionKeyPair, error) {
-	for _, key := range activeKeys {
-		if key.GetRecordingEncryptionPair() == nil {
-			continue
-		}
-
-		if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
-			continue
-		}
-
-		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
-		if err != nil {
-			continue
-		}
-
-		privateKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &types.EncryptionKeyPair{
-			PrivateKey:     privateKey,
-			PublicKey:      key.RecordingEncryptionPair.PublicKey,
-			PrivateKeyType: key.RecordingEncryptionPair.PrivateKeyType,
-		}, nil
-	}
-
-	return nil, trace.NotFound("no accessible decryption key found")
-}
-
-// FindDecryptionKey returns the first accessible decryption key that matches one of the given public keys.
-func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
+// UnwrapKey searches for the private key compatible with the provided public key fingerprint and uses it to unwrap
+// a wrapped file key.
+func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error) {
 	encryption, err := m.cache.GetRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -389,45 +258,41 @@ func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (
 
 	// TODO (eriktate): search rotated keys as well once rotation is implemented
 	activeKeys := encryption.GetSpec().ActiveKeys
-	if len(publicKeys) == 0 {
-		return m.searchActiveKeys(ctx, activeKeys, nil)
-	}
-
-	for _, publicKey := range publicKeys {
-		found, err := m.searchActiveKeys(ctx, activeKeys, publicKey)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				continue
-			}
-
-			if !slices.Equal(found.PublicKey, publicKey) {
-				continue
-			}
-
-			decrypter, err := m.keyStore.GetDecrypter(ctx, found)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					m.logger.ErrorContext(ctx, "could not get decrypter from key store", "error", err)
-				}
-				continue
-			}
-
-			privateKey, err := decrypter.Decrypt(rand.Reader, found.PrivateKey, nil)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &types.EncryptionKeyPair{
-				PrivateKey:     privateKey,
-				PublicKey:      found.PublicKey,
-				PrivateKeyType: found.PrivateKeyType,
-			}, nil
+	for _, key := range activeKeys {
+		if key.GetRecordingEncryptionPair() == nil {
+			continue
 		}
 
-		return found, nil
+		publicKey, err := keys.ParsePublicKey(key.RecordingEncryptionPair.PublicKey)
+		if err != nil {
+			m.logger.ErrorContext(ctx, "failed to parse active public key", "error", err)
+			continue
+		}
+
+		activeFP, err := Fingerprint(publicKey)
+		if err != nil {
+			m.logger.ErrorContext(ctx, "failed to fingerprint active public key", "error", err)
+			continue
+		}
+
+		if activeFP != in.Fingerprint {
+			continue
+		}
+
+		decrypter, err := m.keyStore.GetDecrypter(ctx, key.RecordingEncryptionPair)
+		if err != nil {
+			continue
+		}
+
+		fileKey, err := decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return fileKey, nil
 	}
 
-	return nil, trace.NotFound("no accessible decryption key found")
+	return nil, trace.NotFound("no accessible decrypter found")
 }
 
 func (m *Manager) Watch(ctx context.Context, events types.Events) (err error) {
@@ -545,4 +410,14 @@ func getAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*ty
 			}
 		}
 	}
+}
+
+func Fingerprint(pubKey crypto.PublicKey) (string, error) {
+	derPub, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	fp := sha256.Sum256(derPub)
+	return base64.StdEncoding.EncodeToString(fp[:]), nil
 }
