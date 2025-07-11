@@ -2874,6 +2874,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.HealthCheckConfig = services.HealthCheckConfig
 	cfg.BotInstance = services.BotInstance
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
+	cfg.Plugin = services.Plugins
 
 	return accesspoint.NewCache(cfg)
 }

@@ -206,6 +206,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
@@ -751,6 +752,8 @@ type Config struct {
 	BotInstanceService services.BotInstance
 	// RecordingEncryption manages state surrounding session recording encryption
 	RecordingEncryption services.RecordingEncryption
+	// Plugins is the plugin service used to retrieve plugin information.
+	Plugin services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
