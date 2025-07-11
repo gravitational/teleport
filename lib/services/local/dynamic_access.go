@@ -66,6 +66,9 @@ func (s *DynamicAccessService) CreateAccessRequestV2(ctx context.Context, req ty
 	if req.GetDryRun() {
 		return nil, trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
 	}
+	if req.GetLongTermResourceGrouping() != nil {
+		return nil, trace.BadParameter("long term resource grouping should not be persisted, this is a bug")
+	}
 	item, err := itemFromAccessRequest(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
