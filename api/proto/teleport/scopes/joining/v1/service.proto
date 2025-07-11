@@ -14,15 +14,15 @@
 
 syntax = "proto3";
 
-package teleport.scopedtoken.v1;
+package teleport.scopes.joining.v1;
 
-import "teleport/scopedtoken/v1/token.proto";
+import "teleport/scopes/joining/v1/token.proto";
 import "teleport/scopes/v1/scopes.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedtoken/v1;scopedtoken";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1";
 
-// ScopedTokenService provides an API for managing scoped token resources and their assignments.
-service ScopedTokenService {
+// ScopedJoiningService provides an API for managing scoped cluster joining resources.
+service ScopedJoiningService {
   // GetScopedToken gets a scoped token by name.
   rpc GetScopedToken(GetScopedTokenRequest) returns (GetScopedTokenResponse);
 
