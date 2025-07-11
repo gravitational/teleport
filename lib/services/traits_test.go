@@ -128,7 +128,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 			matches: []string{"dev-prod", "dev-staging", "admin-prod", "admin-staging", "admin-staging-ops"},
 		},
 		{
-			desc: "pattern-like trait submatch substitude containing wildcard matches everything",
+			desc: "pattern-like trait submatch substitution containing wildcard matches everything",
 			tm: types.TraitMapping{
 				Trait: "sketchy-pfx",
 				Value: "pfx-*",
