@@ -77,6 +77,20 @@ message ListRolesAnywhereProfilesRequest {
   int32 page_size = 2;
   // next_page_token is the page token.
   string next_page_token = 3;
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be returned.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example:
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  repeated string profile_name_filters = 4;
 }
 
 // ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
