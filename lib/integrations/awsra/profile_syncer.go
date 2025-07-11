@@ -30,12 +30,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
-	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/utils"
@@ -279,14 +279,13 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 
 	var nextPage *string
 	for {
-		profilesListResp, err := raClient.ListProfiles(ctx, &rolesanywhere.ListProfilesInput{
-			NextToken: nextPage,
-		})
+		const useAPIDefaultPageSize = 0
+		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, nextPage, useAPIDefaultPageSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		for _, profile := range profilesListResp.Profiles {
+		for _, profile := range profilesListResp {
 			err := processProfile(ctx, processProfileRequest{
 				Params:          params,
 				Profile:         profile,
@@ -296,18 +295,18 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 			})
 			if err != nil {
 				if errors.Is(err, errDisabledProfile) || errors.Is(err, errProfileIsUsedForSync) {
-					logger.DebugContext(ctx, "Skipping profile", "profile_name", aws.ToString(profile.Name), "error", err.Error())
+					logger.DebugContext(ctx, "Skipping profile", "profile_name", profile.Name, "error", err.Error())
 					continue
 				}
 
-				logger.WarnContext(ctx, "Failed to process profile", "profile_name", aws.ToString(profile.Name), "error", err)
+				logger.WarnContext(ctx, "Failed to process profile", "profile_name", profile.Name, "error", err)
 			}
 		}
 
-		if aws.ToString(profilesListResp.NextToken) == "" {
+		if aws.ToString(respNextToken) == "" {
 			break
 		}
-		nextPage = profilesListResp.NextToken
+		nextPage = respNextToken
 	}
 
 	return nil
@@ -320,7 +319,7 @@ var (
 
 type processProfileRequest struct {
 	Params          AWSRolesAnywherProfileSyncerParams
-	Profile         ratypes.ProfileDetail
+	Profile         *integrationv1.RolesAnywhereProfile
 	RAClient        RolesAnywhereClient
 	Integration     types.Integration
 	ProxyPublicAddr string
@@ -329,22 +328,15 @@ type processProfileRequest struct {
 func processProfile(ctx context.Context, req processProfileRequest) error {
 	profileSyncProfileARN := req.Integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileARN
 
-	if aws.ToString(req.Profile.ProfileArn) == profileSyncProfileARN {
+	if req.Profile.Arn == profileSyncProfileARN {
 		return errProfileIsUsedForSync
 	}
 
-	if !aws.ToBool(req.Profile.Enabled) {
+	if !req.Profile.Enabled {
 		return errDisabledProfile
 	}
 
-	profileTags, err := req.RAClient.ListTagsForResource(ctx, &rolesanywhere.ListTagsForResourceInput{
-		ResourceArn: req.Profile.ProfileArn,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appServer, err := convertProfile(req.Params, req.Profile, req.Integration.GetName(), profileTags.Tags, req.ProxyPublicAddr)
+	appServer, err := convertProfile(req.Params, req.Profile, req.Integration.GetName(), req.ProxyPublicAddr)
 	if err != nil {
 		return trace.BadParameter("failed to convert Profile to AppServer: %v", err)
 	}
@@ -356,22 +348,20 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 	return nil
 }
 
-func convertProfile(params AWSRolesAnywherProfileSyncerParams, profile ratypes.ProfileDetail, integrationName string, profileTags []ratypes.Tag, proxyPublicAddr string) (types.AppServer, error) {
-	profileName := aws.ToString(profile.Name)
-	profileARN := aws.ToString(profile.ProfileArn)
-	parsedProfileARN, err := arn.Parse(profileARN)
+func convertProfile(params AWSRolesAnywherProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integrationName string, proxyPublicAddr string) (types.AppServer, error) {
+	parsedProfileARN, err := arn.Parse(profile.Arn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applicationName := profileName + "-" + integrationName
+	applicationName := profile.Name + "-" + integrationName
 
-	labels := make(map[string]string, len(profileTags))
-	for _, tag := range profileTags {
-		labels["aws/"+aws.ToString(tag.Key)] = aws.ToString(tag.Value)
+	labels := make(map[string]string, len(profile.Tags))
+	for tagKey, tagValue := range profile.Tags {
+		labels["aws/"+tagKey] = tagValue
 
-		if aws.ToString(tag.Key) == types.AWSRolesAnywhereProfileNameOverrideLabel {
-			applicationName = aws.ToString(tag.Value)
+		if tagKey == types.AWSRolesAnywhereProfileNameOverrideLabel {
+			applicationName = tagValue
 		}
 	}
 
@@ -380,7 +370,7 @@ func convertProfile(params AWSRolesAnywherProfileSyncerParams, profile ratypes.P
 	labels[types.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[constants.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[types.IntegrationLabel] = integrationName
-	labels[types.AWSRolesAnywhereProfileARNLabel] = profileARN
+	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.Arn
 
 	// TODO(marco): add origin label in v19: teleport.dev/origin: integration_awsrolesanywhere
 	// types.Metadata.CheckAndSetDefaults in v17 returns an error if the origin label is set to AWS Roles Anywhere.
@@ -405,8 +395,8 @@ func convertProfile(params AWSRolesAnywherProfileSyncerParams, profile ratypes.P
 				PublicAddr:  appURL,
 				AWS: &types.AppAWS{
 					RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
-						ProfileARN:            aws.ToString(profile.ProfileArn),
-						AcceptRoleSessionName: aws.ToBool(profile.AcceptRoleSessionName),
+						ProfileARN:            profile.Arn,
+						AcceptRoleSessionName: profile.AcceptRoleSessionName,
 					},
 				},
 			},
