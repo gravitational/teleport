@@ -32,7 +32,6 @@ import Text from 'design/Text';
 import { fontWeights } from 'design/theme/typography';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
-import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import {
@@ -40,6 +39,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import { traitsPreset } from 'teleport/Users/UserAddEdit/TraitsEditor';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
