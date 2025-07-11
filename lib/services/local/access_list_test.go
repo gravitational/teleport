@@ -662,6 +662,77 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
 }
 
+func Test_AccessListMembers_Validation(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	accessList := newAccessList(t, "test-access-list-1", clock)
+	accessList, err = service.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	accessListMember := newAccessListMember(t, accessList.GetName(), "test-access-list-member-1")
+
+	t.Run("upserting member fails if joined empty", func(t *testing.T) {
+		oldJoined := accessListMember.Spec.Joined
+		t.Cleanup(func() { accessListMember.Spec.Joined = oldJoined })
+
+		accessListMember.Spec.Joined = time.Time{}
+		_, err := service.UpsertAccessListMember(ctx, accessListMember)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "joined field empty")
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("upserting member fails if added_by empty", func(t *testing.T) {
+		oldAddedBy := accessListMember.Spec.AddedBy
+		t.Cleanup(func() { accessListMember.Spec.AddedBy = oldAddedBy })
+
+		accessListMember.Spec.AddedBy = ""
+		_, err := service.UpsertAccessListMember(ctx, accessListMember)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "added_by field is empty")
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	var upsertedAccessListMember *accesslist.AccessListMember
+
+	t.Run("otherwise upsert works", func(t *testing.T) {
+		var err error
+		upsertedAccessListMember, err = service.UpsertAccessListMember(ctx, accessListMember)
+		require.NoError(t, err)
+	})
+
+	t.Run("updating member fails if joined empty", func(t *testing.T) {
+		oldJoined := upsertedAccessListMember.Spec.Joined
+		t.Cleanup(func() { upsertedAccessListMember.Spec.Joined = oldJoined })
+
+		upsertedAccessListMember.Spec.Joined = time.Time{}
+		_, err := service.UpdateAccessListMember(ctx, upsertedAccessListMember)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "joined field empty")
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("updating member fails if added_by empty", func(t *testing.T) {
+		oldAddedBy := upsertedAccessListMember.Spec.AddedBy
+		t.Cleanup(func() { upsertedAccessListMember.Spec.AddedBy = oldAddedBy })
+
+		upsertedAccessListMember.Spec.AddedBy = ""
+		_, err := service.UpdateAccessListMember(ctx, upsertedAccessListMember)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "added_by field is empty")
+		require.True(t, trace.IsBadParameter(err))
+	})
+}
+
 func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
