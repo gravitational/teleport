@@ -146,10 +146,22 @@ type HostLabelRule struct {
 	Labels map[string]string
 }
 
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool
+	// Site is an LDAP site to locate servers from a specific logical site.
+	Site string
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the address:port of the LDAP server (typically port 389).
 	Addr string
+	// LocateServer automatically locates the LDAP server using DNS SRV records.
+	// https://ldap.com/dns-srv-records-for-ldap/
+	LocateServer LocateServer
 	// Domain is the ActiveDirectory domain name.
 	Domain string
 	// Username for LDAP authentication.
