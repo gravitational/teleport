@@ -440,6 +440,10 @@ type CLIConf struct {
 	// GlobalTshConfigPath is a path to global TSH config. Can be overridden with TELEPORT_GLOBAL_TSH_CONFIG.
 	GlobalTshConfigPath string
 
+	// InsecureListenAnywhere, when set, allows local proxy listener to use any address other than loopback addresses (127/8).
+	InsecureListenAnywhere bool
+	// LocalProxyAddr is an address used by local proxy listener.
+	LocalProxyAddr string
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyPortMapping is a listening port and an optional target port used by local proxy
@@ -1027,6 +1031,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for.").StringVar(&cf.DatabaseService)
+	proxyDB.Flag("insecure-listen-anywhere", "Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.").BoolVar(&cf.InsecureListenAnywhere)
+	proxyDB.Flag("listen", "Specifies the source address used by proxy db listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
