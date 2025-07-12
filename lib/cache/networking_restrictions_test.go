@@ -48,5 +48,5 @@ func TestNetworkRestrictions(t *testing.T) {
 			return []types.NetworkRestrictions{restrictions}, trace.Wrap(err)
 		},
 		deleteAll: p.restrictions.DeleteNetworkRestrictions,
-	})
+	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
 }

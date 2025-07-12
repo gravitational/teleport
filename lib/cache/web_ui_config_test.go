@@ -35,6 +35,7 @@ func TestWebUIConfig(t *testing.T) {
 		newResource: func(name string) (types.UIConfig, error) {
 			return &types.UIConfigV1{
 				ResourceHeader: types.ResourceHeader{
+					Kind: types.KindUIConfig,
 					Metadata: types.Metadata{
 						Name: types.MetaNameUIConfig,
 					},
@@ -62,5 +63,5 @@ func TestWebUIConfig(t *testing.T) {
 			return []types.UIConfig{cfg}, nil
 		},
 		deleteAll: p.clusterConfigS.DeleteUIConfig,
-	})
+	}, withSkipPaginationTest()) // UIConfig is a singleton resource, so pagination is not applicable.
 }
