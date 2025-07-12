@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestPing(t *testing.T) {
@@ -216,7 +217,7 @@ func TestPing(t *testing.T) {
 			if buildType == "" {
 				buildType = modules.BuildOSS
 			}
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: buildType,
 			})
 
