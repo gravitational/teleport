@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockEKSClientGetter struct {
@@ -365,7 +365,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 					) error {
 						return nil
 					},
-					log:                  utils.NewSlogLoggerForTests(),
+					log:                  logtest.NewLogger(),
 					kubeCluster:          tt.args.cluster,
 					client:               tt.args.client,
 					initialRenewInterval: ttl / 2,

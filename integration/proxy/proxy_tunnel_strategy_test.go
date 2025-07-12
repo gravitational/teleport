@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type proxyTunnelStrategy struct {
@@ -299,7 +300,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		NodeName:    helpers.Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	auth.AddUser(p.username, []string{p.username})
@@ -327,7 +328,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	authAddr := utils.MustParseAddr(p.auth.Auth)
@@ -374,7 +375,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
@@ -419,7 +420,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()

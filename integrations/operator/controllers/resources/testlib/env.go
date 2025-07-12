@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -217,7 +217,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 
 	slogLogger := s.log
 	if slogLogger == nil {
-		slogLogger = utils.NewSlogLoggerForTests()
+		slogLogger = logtest.NewLogger()
 	}
 
 	logger := logr.FromSlogHandler(slogLogger.Handler())

@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestDatabases(t *testing.T) {
@@ -338,7 +338,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 		_ = conn.Close(ctx)
 	})
 	return &pgConn{
-		logger: utils.NewSlogLoggerForTests().With("test_name", t.Name()),
+		logger: logtest.With("test_name", t.Name()),
 		Conn:   conn,
 	}
 }

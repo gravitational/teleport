@@ -27,13 +27,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 

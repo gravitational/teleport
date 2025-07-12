@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestGetDatabaseServers(t *testing.T) {
@@ -69,7 +69,7 @@ func TestGetDatabaseServers(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			servers, err := GetDatabaseServers(context.Background(), GetDatabaseServersParams{
-				Logger:                utils.NewSlogLoggerForTests(),
+				Logger:                logtest.NewLogger(),
 				ClusterName:           "root",
 				DatabaseServersGetter: tc.getter,
 				Identity:              tc.identity,
@@ -190,7 +190,7 @@ func TestConnect(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			conn, stats, err := Connect(context.Background(), ConnectParams{
-				Logger:         utils.NewSlogLoggerForTests(),
+				Logger:         logtest.NewLogger(),
 				Identity:       tc.identity,
 				Servers:        tc.dialer.getServers(),
 				ShuffleFunc:    ShuffleSort,

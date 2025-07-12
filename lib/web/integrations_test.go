@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -242,7 +242,7 @@ func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64,
 
 func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	ctx := context.Background()
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 
 	integrationName := "my-integration"
 	integration, err := types.NewIntegrationAWSOIDC(

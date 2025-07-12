@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type suite struct {
@@ -98,7 +98,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
@@ -195,7 +195,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors

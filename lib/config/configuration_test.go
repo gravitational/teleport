@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testConfigFiles struct {
@@ -102,7 +103,7 @@ func (tc testConfigFiles) cleanup() {
 }
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 
 	if err := writeTestConfigs(); err != nil {
 		testConfigs.cleanup()
