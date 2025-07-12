@@ -217,13 +217,11 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 	return signer, ok
 }
 
-// OnNewConnection gets called whenever a new connection is about to be
+// OnNewAppConnection gets called whenever a new app connection is about to be
 // established through VNet for observability.
-func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vnetv1.OnNewConnectionRequest) (*vnetv1.OnNewConnectionResponse, error) {
-	if err := s.cfg.clientApplication.OnNewConnection(ctx, req.GetAppKey()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &vnetv1.OnNewConnectionResponse{}, nil
+func (s *clientApplicationService) OnNewAppConnection(ctx context.Context, req *vnetv1.OnNewAppConnectionRequest) (*vnetv1.OnNewAppConnectionResponse, error) {
+	s.cfg.clientApplication.OnNewAppConnection(ctx, req.GetAppKey())
+	return &vnetv1.OnNewAppConnectionResponse{}, nil
 }
 
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection
@@ -373,6 +371,10 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		return nil, trace.Errorf("user KeyRing host no trusted SSH CAs for cluster %s", targetCluster)
 	}
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
+
+	// Submit usage event.
+	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+
 	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
 		Cert:       sshCert.Marshal(),
