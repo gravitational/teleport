@@ -27,8 +27,14 @@ import (
 )
 
 // ValidateAccessListWithMembers validates a new or existing AccessList with a list of AccessListMembers.
-func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
-	for _, owner := range accessList.Spec.Owners {
+func ValidateAccessListWithMembers(ctx context.Context, oldAccessList, newAccessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+	if oldAccessList != nil {
+		if !newAccessList.Spec.Type.Equals(oldAccessList.Spec.Type) {
+			return trace.BadParameter("access_list %q type %q cannot be changed to %q",
+				newAccessList.Metadata.Name, oldAccessList.Spec.Type, newAccessList.Spec.Type)
+		}
+	}
+	for _, owner := range newAccessList.Spec.Owners {
 		if owner.MembershipKind != accesslist.MembershipKindList {
 			continue
 		}
@@ -36,7 +42,7 @@ func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.A
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := validateAddition(ctx, accessList, ownerList, RelationshipKindOwner, g); err != nil {
+		if err := validateAddition(ctx, newAccessList, ownerList, RelationshipKindOwner, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -48,7 +54,7 @@ func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.A
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := validateAddition(ctx, accessList, memberList, RelationshipKindMember, g); err != nil {
+		if err := validateAddition(ctx, newAccessList, memberList, RelationshipKindMember, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
