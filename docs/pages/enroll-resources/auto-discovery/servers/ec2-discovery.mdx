@@ -155,7 +155,7 @@ discovery_service:
        "env": "prod" # Match EC2 instances where tag:env=prod
 ```
 
-- Edit the `teleport.auth_servers` key to match your Auth Service or Proxy Service's URI
+- Edit the `teleport.proxy_server` key to match your Proxy Service's URI
   and port.
 - Adjust the keys under `discovery_service.aws` to match your EC2 environment,
   specifically the regions and tags you want to associate with the Discovery
@@ -322,6 +322,50 @@ This policy includes the following permissions:
 
 Once you have started the Discovery Service, EC2 instances matching the tags you
 specified earlier will begin to be added to the Teleport cluster automatically.
+
+## Discovering instances in multiple AWS accounts
+
+To discover EC2 instances in AWS accounts other than the account your Teleport
+Discovery Service is running in, Teleport must have permission to assume an IAM
+role in each of those accounts.
+
+In each AWS account where your want to discover EC2 instances:
+
+1. Create a new role and note its ARN. Create an IAM policy as described in
+  [Step 2](#step-27-define-an-iam-policy) and attach it to the new role.
+
+1. Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
+  file as described in [Step 4](#step-47-configure-teleport-to-discover-ec2-instances):
+
+```yaml
+# ...
+discovery_service:
+  enabled: true
+  discovery_group: "aws-prod"
+  aws:
+  - types: ["ec2"]
+    regions: ["us-east-1","us-west-1"]
+    install:
+      join_params:
+        token_name: aws-discovery-iam-token
+        method: iam
+    tags:
+      "env": "prod" # Match EC2 instances where tag:env=prod
+    assume_role_arn: "<Var name="role ARN" />"
+    external_id: "<Var name="optional external ID" />"
+  - types: ["ec2"]
+    # Add a new entry for each account.
+    # ...
+  ```
+
+Set `assume_role_arn` to the ARN of your new role. Optionally, set
+`external_id` to the external ID Teleport should use when assuming this role.
+
+When all of your accounts are ready, run `teleport discovery bootstrap` again
+to generate the remaining IAM policies and SSM documents, as described in
+[Step 5](#step-57-bootstrap-the-discovery-service-aws-configuration). For each
+distinct `assume_role_arn`/`external_id`, Teleport will assume that role and
+attach the new policies to it (unless overridden by `--attach-to-user` or `--attach-to-role`).
 
 ## Troubleshooting
 
