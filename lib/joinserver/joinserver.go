@@ -402,11 +402,6 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 		return trace.BadParameter("expected non-nil Init payload")
 	}
 
-	if initReq.InitialJoinSecret != "" {
-		// TODO: not supported yet.
-		return trace.NotImplemented("initial join secrets are not yet supported")
-	}
-
 	if initReq.JoinRequest == nil {
 		return trace.BadParameter(
 			"expected JoinRequest in RegisterUsingBoundKeypairInitialRequest, got nil",
