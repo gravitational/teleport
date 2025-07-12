@@ -607,3 +607,10 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
 	return trace.Wrap(err)
 }
+
+// UpsertAccessListWithMembersRequest describes request fields
+// for upserting an access list.
+type UpsertAccessListWithMembersRequest struct {
+	AccessList *AccessList
+	Members    []*AccessListMember
+}
