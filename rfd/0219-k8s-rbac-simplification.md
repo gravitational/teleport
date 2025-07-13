@@ -196,3 +196,47 @@ spec:
         verbs:
           - '*'
 ```
+
+### User flow
+
+#### Current flow
+
+- Day 0 - Initial setup:
+  - User installs Teleport and sets up a Kubernetes cluster.
+  - User provisions the Kubernetes cluster using a script, discovery, or Helm
+    chart to create the impersonation ClusterRole/ClusterRoleBinding.
+  - User configures Kubernetes RBAC with a custom ClusterRole with some
+    permissions
+  - User configures Kubernetes RBAC with a custom ClusterRoleBinding, which
+    needs to be understood matches with the `kubernetes_groups` field in the
+    Teleport role.
+  - User configures Teleport role with `kubernetes_groups`, (unclear what
+    `kubernetes_users` does from the docs) fields to match the custom
+    ClusterRoleBinding.
+  - User configures Teleport role with `kubernetes_resources` and
+    `kubernetes_labels` to match to match or reduce the permissions granted by
+    the custom ClusterRole.
+- Day 1 - Ongoing management:
+  - User needs to understand the interaction between the Teleport role and the
+    underlying Kubernetes RBAC.
+  - User may need to update the Teleport role if the underlying Kubernetes
+    RBAC changes.
+  - No clear guidance on how to which permission should be set where (Teleport
+    or Kubernetes).
+  - User may need to troubleshoot unexpected permissions or access issues.
+
+#### Proposed flow
+
+- Day 0 - Initial setup:
+  - User installs Teleport and sets up a Kubernetes cluster.
+  - User provisions the Kubernetes cluster using a script, discovery, or Helm
+    chart to create all required RBAC resources.
+  - User configures the Teleport role with `kubernetes_resources` and
+    `kubernetes_labels` to match or reduce the permissions granted by the
+    ClusterRole. The `kubernetes_groups` field is pre-populated in the Web UI
+    and well documented in the Teleport documentation for the YAML version.
+- Day 1 - Ongoing management:
+  - User can manage the Teleport role without needing to understand the
+    underlying Kubernetes RBAC.
+  - Permissions are clearly defined to reside in the Teleport role, making
+    Teleport authoritative and reducing confusion.
