@@ -46,7 +46,6 @@ func TestLoginRuleController(t *testing.T) {
 			test: testlib.LoginRuleUpdateTest,
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			tc.test(t, clt)
 		})

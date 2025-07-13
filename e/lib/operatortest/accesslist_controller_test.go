@@ -44,7 +44,6 @@ func TestAccessListController(t *testing.T) {
 			test: testlib.AccessListMutateExistingTest,
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			tc.test(t, clt)
 		})

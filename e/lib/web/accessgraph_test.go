@@ -116,7 +116,6 @@ func TestGetAccessGraph(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			s := newWebSuite(t, withAccessGraphFeatures(test.features), withAccessGraphValidation(test.accessGraphHTTPHandlerValidation))

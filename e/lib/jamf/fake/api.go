@@ -181,7 +181,7 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// GET /v1/computers-inventory/{id}
-		if id := strings.TrimPrefix(path, computersInventorySlash); id != path {
+		if id, ok := strings.CutPrefix(path, computersInventorySlash); ok {
 			n, err := strconv.ParseInt(id, 10, 64)
 			switch {
 			case err != nil && strings.Contains(id, "/"):

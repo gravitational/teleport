@@ -1024,7 +1024,6 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 	devicesC := make(chan *devicepb.Device, len(refs.Devices))
 	queried := make(map[string]struct{})
 	for _, ref := range refs.Devices {
-		ref := ref
 
 		// Skip duplicate devices, in case the index has them.
 		if _, ok := queried[ref.DeviceID]; ok {
@@ -1256,7 +1255,6 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 		g.SetLimit(maxActiveGoroutines)
 
 		for _, dev := range devices {
-			dev := dev
 			g.Go(func() error {
 				cd, err := s.getDeviceCollectedData(ctx, dev.Id)
 				if err != nil {

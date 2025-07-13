@@ -101,7 +101,6 @@ func TestGetOktaGroups(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			testClient := oktaapi.NewTestClient()
 			cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: time.Minute})
@@ -225,7 +224,6 @@ func TestGetOktaApps(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			testClient := oktaapi.NewTestClient()
 			cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: time.Minute})

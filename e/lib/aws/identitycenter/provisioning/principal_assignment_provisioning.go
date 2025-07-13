@@ -84,7 +84,6 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 	g.SetLimit(a.MaxConcurrentRequests)
 
 	for item := range diffCalc.assignmentsToCreate() {
-		item := item
 		g.Go(func() error {
 			err := a.createAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType)
 			if err != nil {
@@ -95,7 +94,6 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 		})
 	}
 	for item := range diffCalc.assignmentsToDelete() {
-		item := item
 
 		if !a.isKnownAccount(services.IdentityCenterAccountID(item.AccountID)) {
 			continue

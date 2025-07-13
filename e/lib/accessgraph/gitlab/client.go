@@ -184,7 +184,6 @@ func (g gitlabClient) getGetUsersGitlabcom(users []string) ([]*gitlab.User, erro
 		tokens      = make(chan struct{}, 5)
 	)
 	for _, user := range users {
-		user := user
 		wg.Add(1)
 		tokens <- struct{}{}
 		go func() {

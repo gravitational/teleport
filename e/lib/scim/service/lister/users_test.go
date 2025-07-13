@@ -184,10 +184,7 @@ func (s *fakeUserService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 			return nil, trace.BadParameter("invalid page token %q", req.PageToken)
 		}
 	}
-	end := start + int(req.PageSize)
-	if end > len(s.users) {
-		end = len(s.users)
-	}
+	end := min(start+int(req.PageSize), len(s.users))
 	resp := &userspb.ListUsersResponse{
 		Users: s.users[start:end],
 	}

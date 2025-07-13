@@ -1421,7 +1421,6 @@ func (s *Service) getDevicesByID(ctx context.Context, ids []string) ([]*devicepb
 	errs := make([]error, 0, len(ids))
 
 	for _, id := range ids {
-		id := id
 		g.Go(func() error {
 			dev, err := s.storage.GetDeviceByID(ctx, id)
 			mu.Lock()

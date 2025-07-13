@@ -1799,7 +1799,6 @@ func TestS_GetUserTrustedDeviceIDs(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3741,7 +3740,6 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 		var g errgroup.Group
 		var successes atomic.Int32
 		for _, dev := range allDevs[wantEnrolled:] {
-			dev := dev
 			g.Go(func() error {
 				switch _, _, err := enroll(ctx, s, dev, owner); {
 				case err == nil:
@@ -4323,7 +4321,6 @@ func TestS_SpendDeviceWebToken(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -4475,7 +4472,6 @@ func TestS_SpendDeviceConfirmationToken(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

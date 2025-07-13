@@ -617,7 +617,6 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 	// We are looking for either confirmation that the device doesn't exist, or an
 	// existing but mismatched device.
 	for _, dev := range missingDevs {
-		dev := dev
 		id := dev.Profile.GetExternalId()
 		if id == "" {
 			s.logger.DebugContext(ctx,

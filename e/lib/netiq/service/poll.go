@@ -50,7 +50,6 @@ func (s *Service) pullNetIQData(ctx context.Context) (results resources, err err
 	g.SetLimit(maxParallelRequests)
 
 	for _, group := range groups {
-		group := group
 		g.Go(func() error {
 			groupMembership, err := s.collectGroupMemberships(ctx, group)
 			if err != nil {
@@ -63,7 +62,6 @@ func (s *Service) pullNetIQData(ctx context.Context) (results resources, err err
 	}
 
 	for _, role := range roles {
-		role := role
 		g.Go(func() error {
 			roleMembership, err := s.collectRoleMemberships(ctx, role)
 			if err != nil {

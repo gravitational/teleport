@@ -301,7 +301,6 @@ func (s *Service) runReportAndCollectResult(ctx context.Context, report *secrepo
 	g.SetLimit(maxQueryExecutionGoroutines)
 	auditQueriesResult := make([]*pb.ReportResult_AuditQueryResult, len(report.Spec.AuditQueries))
 	for i, spec := range report.Spec.AuditQueries {
-		spec := spec
 		i := i
 		g.Go(func() error {
 			result, state, err := s.execAuditQuery(ctx, spec, days)
