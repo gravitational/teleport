@@ -184,7 +184,7 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
-    bot: '/web/bot/:name',
+    bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
@@ -451,11 +451,20 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
-    botInstancePath:
-      '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
-    botInstancesPath: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    bot: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      create: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+      delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+    },
+
+    botInstance: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    },
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -1407,28 +1416,74 @@ const cfg = {
     return generatePath(cfg.api.botsTokenPath, { clusterId });
   },
 
-  getBotsUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId });
+  getBotUrl(
+    req: (
+      | { action: 'list' | 'create' }
+      | { action: 'read' | 'update' | 'update-v2' | 'delete'; botName: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.bot.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.bot.read, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'create':
+        return generatePath(cfg.api.bot.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.bot.update, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'update-v2':
+        return generatePath(cfg.api.bot.updateV2, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'delete':
+        return generatePath(cfg.api.bot.delete, {
+          clusterId,
+          botName: req.botName,
+        });
+      default:
+        req satisfies never;
+    }
   },
 
-  getBotUrlWithName(name: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId, name });
-  },
-
-  listBotInstancesUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botInstancesPath, { clusterId });
-  },
-
-  getBotInstanceUrl(botName: string, instanceId: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botInstancePath, {
-      clusterId,
-      botName,
-      instanceId,
-    });
+  getBotInstanceUrl(
+    req: (
+      | {
+          action: 'list';
+        }
+      | {
+          action: 'read';
+          botName: string;
+          instanceId: string;
+        }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.botInstance.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.botInstance.read, {
+          clusterId,
+          botName: req.botName,
+          instanceId: req.instanceId,
+        });
+      default:
+        req satisfies never;
+    }
   },
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {

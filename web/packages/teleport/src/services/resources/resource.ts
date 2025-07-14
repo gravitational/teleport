@@ -116,11 +116,14 @@ class ResourceService {
       .then(res => res.connectors || []);
   }
 
-  async fetchRoles(params?: UrlListRolesParams): Promise<{
+  async fetchRoles(
+    params?: UrlListRolesParams,
+    signal?: AbortSignal
+  ): Promise<{
     items: RoleResource[];
     startKey: string;
   }> {
-    return await api.get(cfg.getListRolesUrl(params));
+    return await api.get(cfg.getListRolesUrl(params), signal);
   }
 
   fetchPresetRoles() {
