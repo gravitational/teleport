@@ -44,3 +44,23 @@ export const compareSemVers = (a: string, b: string): -1 | 1 | 0 => {
 
   return 0;
 };
+
+/**
+ * Extracts the major version number from a semver string.
+ * @throws Error when the input is not a valid semver string.
+ */
+export function getMajor(version: string): number {
+  const parts = version.split('.');
+  if (parts.length < 3) {
+    throw new Error(`'${version}' is not a valid semver string.`);
+  }
+
+  const major = parts.at(0);
+  const parsed = Number(major);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`'${version}' is not a valid semver string.`);
+  }
+
+  return parsed;
+}

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { compareSemVers } from './semVer';
+import { compareSemVers, getMajor } from './semVer';
 
 test('compareSemVers', () => {
   expect(['3.0.0', '1.0.0', '2.0.0'].sort(compareSemVers)).toEqual([
@@ -44,4 +44,15 @@ test('compareSemVers', () => {
   ]);
 
   expect(compareSemVers('1.0.0', '1.0.0')).toBe(0);
+});
+
+test('getMajorVersion returns major version', () => {
+  expect(getMajor('3.0.0')).toEqual(3);
+  expect(getMajor('3.1.2-dev')).toEqual(3);
+  expect(() => getMajor('')).toThrow(
+    new Error("'' is not a valid semver string.")
+  );
+  expect(() => getMajor('11')).toThrow(
+    new Error("'11' is not a valid semver string.")
+  );
 });
