@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestAccessList tests that CRUD operations on access list resources are
@@ -144,7 +145,7 @@ func TestAccessListMembers(t *testing.T) {
 // TestAccessListReviews tests that CRUD operations on access list review resources are
 // replicated from the backend to the cache.
 func TestAccessListReviews(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessLists: {
@@ -281,7 +282,7 @@ func TestAccessListReviews(t *testing.T) {
 }
 
 func TestCountAccessListMembersScoping(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

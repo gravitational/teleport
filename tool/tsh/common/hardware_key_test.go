@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -50,8 +51,8 @@ import (
 func TestHardwareKeyLogin(t *testing.T) {
 	ctx := context.Background()
 
-	testModules := &modules.TestModules{TestBuildType: modules.BuildEnterprise}
-	modules.SetTestModules(t, testModules)
+	testModules := modulestest.Modules{TestBuildType: modules.BuildEnterprise}
+	modulestest.SetTestModules(t, testModules)
 
 	connector := mockConnector(t)
 
@@ -182,10 +183,10 @@ func TestHardwareKeyLogin(t *testing.T) {
 func TestHardwareKeySSH(t *testing.T) {
 	ctx := context.Background()
 
-	testModules := &modules.TestModules{
+	testModules := modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	}
-	modules.SetTestModules(t, testModules)
+	modulestest.SetTestModules(t, testModules)
 
 	connector := mockConnector(t)
 
@@ -290,7 +291,7 @@ func TestHardwareKeySSH(t *testing.T) {
 func TestHardwareKeyApp(t *testing.T) {
 	ctx := context.Background()
 
-	testModules := &modules.TestModules{
+	testModules := modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -298,7 +299,7 @@ func TestHardwareKeyApp(t *testing.T) {
 			},
 		},
 	}
-	modules.SetTestModules(t, testModules)
+	modulestest.SetTestModules(t, testModules)
 
 	testserver.WithResyncInterval(t, 0)
 

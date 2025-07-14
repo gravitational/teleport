@@ -122,6 +122,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/player"
@@ -2479,7 +2480,7 @@ func TestWebAgentForward(t *testing.T) {
 
 func TestActiveSessions(t *testing.T) {
 	// Use enterprise license (required for moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
@@ -2629,7 +2630,7 @@ type httpErrorResponse struct {
 }
 
 func TestLogin_PrivateKeyEnabledError(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		MockAttestationData: &keys.AttestationData{
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
@@ -2809,7 +2810,7 @@ func TestMotD(t *testing.T) {
 func TestPingAutomaticUpgrades(t *testing.T) {
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 			AutomaticUpgrades: true,
 		}})
 
@@ -2827,7 +2828,7 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 	})
 	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
 		// Disable Automatic Upgrades
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 			AutomaticUpgrades: false,
 		}})
 
@@ -2848,7 +2849,7 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
@@ -2922,7 +2923,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: false,
@@ -2979,7 +2980,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("oss or enterprise with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildOSS,
 			TestFeatures: modules.Features{
 				Cloud:             false,
@@ -3727,7 +3728,7 @@ func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
 
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildCommunity})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildCommunity})
 
 	// Users should be able to create Tokens even if they can't update them
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
@@ -4324,7 +4325,7 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.App: {Enabled: false},
@@ -4655,7 +4656,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               true,
 			IsUsageBasedBilling: true,
@@ -4723,7 +4724,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               false,
 			IsUsageBasedBilling: false,
@@ -4750,7 +4751,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
@@ -5767,7 +5768,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
@@ -5857,7 +5858,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
@@ -5959,7 +5960,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},
@@ -9851,7 +9852,7 @@ func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, 
 // is allowed to access the host and start entering input and receiving
 // output until the moderator terminates the session.
 func TestModeratedSession(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
@@ -9933,7 +9934,7 @@ func TestModeratedSession(t *testing.T) {
 // presence checks are performed by the moderator. When presence checks are not performed
 // the session is aborted.
 func TestModeratedSessionWithMFA(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	const RPID = "localhost"
 
