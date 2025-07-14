@@ -45,6 +45,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |signing_key_pair|[object](#specsigning_key_pair)|SigningKeyPair is an x509 key pair used to sign AuthnRequest.|
 |single_logout_url|string|SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.|
 |sso|string|SSO is the URL of the identity provider's SSO service.|
+|user_matchers|[]string|UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|
 
 ### spec.assertion_key_pair
 
