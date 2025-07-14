@@ -91,24 +91,25 @@ func (s *Service) GetClusterVersions(ctx context.Context, _ *api.GetClusterVersi
 
 	for _, cluster := range rootClusters {
 		group.Go(func() error {
-			mu.Lock()
-			defer mu.Unlock()
-
 			ping, pingErr := s.pingCluster(groupCtx, cluster)
 			if pingErr != nil {
+				mu.Lock()
 				unreachableClusters = append(unreachableClusters, &api.UnreachableCluster{
 					ClusterUri:   cluster.URI.String(),
 					ErrorMessage: err.Error(),
 				})
+				mu.Unlock()
 				return nil
 			}
 
+			mu.Lock()
 			reachableClusters = append(reachableClusters, &api.ClusterVersionInfo{
 				ClusterUri:      cluster.URI.String(),
 				ToolsAutoUpdate: ping.AutoUpdate.ToolsAutoUpdate,
 				ToolsVersion:    ping.AutoUpdate.ToolsVersion,
 				MinToolsVersion: ping.MinClientVersion,
 			})
+			mu.Unlock()
 			return nil
 		})
 	}
