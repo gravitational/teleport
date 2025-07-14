@@ -77,6 +77,7 @@ type Config struct {
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
 	Apps                    services.Apps
+	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	CrownJewels             services.CrownJewels
 	DatabaseObjects         services.DatabaseObjects
@@ -217,6 +218,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		IdentityCenter:          cfg.IdentityCenter,
 		PluginStaticCredentials: cfg.PluginStaticCredentials,
 		GitServers:              cfg.GitServers,
+		BotInstanceService:      cfg.BotInstance,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))
