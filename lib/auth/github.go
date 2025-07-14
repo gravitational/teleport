@@ -26,9 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/netip"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -153,7 +151,12 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	// checked, as they will point the browser away from the IdP or the web UI
 	// after the authentication is done
 	if !req.CreateWebSession {
-		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+		ceremonyType := sso.CeremonyTypeLogin
+		if req.SSOTestFlow {
+			ceremonyType = sso.CeremonyTypeTest
+		}
+
+		if err := sso.ValidateClientRedirect(req.ClientRedirectURL, ceremonyType, connector.GetClientRedirectSettings()); err != nil {
 			return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
 		}
 	}
@@ -1005,8 +1008,6 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return user, nil
 }
 
-const unknownRedirectHostnameErrMsg = "unknown custom client redirect URL hostname"
-
 // ValidateClientRedirect checks a desktop client redirect URL for SSO logins
 // against some (potentially nil) settings from an auth connector; in the
 // current implementation, that means either "http" schema with a hostname of
@@ -1018,105 +1019,14 @@ const unknownRedirectHostnameErrMsg = "unknown custom client redirect URL hostna
 // list is non-empty URLs in both the "http" and "https" schema are allowed
 // if the hostname is an IP address that is contained in a specified CIDR
 // range on any port.
+//
+// TODO(Joerger): Replaced by [sso.ValidateClientRedirect], remove once /e no longer depends on it
 func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
-	if clientRedirect == "" {
-		// empty redirects are non-functional and harmless, so we allow them as
-		// they're used a lot in test code
-		return nil
-	}
-
-	u, err := url.Parse(clientRedirect)
-	if err != nil {
-		return trace.Wrap(err, "parsing client redirect URL")
-	}
-
-	if u.Opaque != "" {
-		return trace.BadParameter("unexpected opaque client redirect URL")
-	}
-	if u.User != nil {
-		return trace.BadParameter("unexpected userinfo in client redirect URL")
-	}
-	if u.Fragment != "" || u.RawFragment != "" {
-		return trace.BadParameter("unexpected fragment in client redirect URL")
-	}
-
-	// For Web MFA redirect, we expect a relative path. The proxy handling the SSO callback
-	// will will redirect to itself with this relative path.
-	if u.Path == sso.WebMFARedirect {
-		if u.IsAbs() {
-			return trace.BadParameter("invalid scheme in client redirect URL for SSO MFA")
-		}
-		if u.Hostname() != "" {
-			return trace.BadParameter("invalid host name in client redirect URL for SSO MFA")
-		}
-		return nil
-	}
-
-	if u.EscapedPath() != "/callback" {
-		return trace.BadParameter("invalid path in client redirect URL")
-	}
-	if q, err := url.ParseQuery(u.RawQuery); err != nil {
-		return trace.Wrap(err, "parsing query in client redirect URL")
-	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
-		return trace.BadParameter("malformed query parameters in client redirect URL")
-	}
-
-	// we checked everything but u.Scheme and u.Host now
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return trace.BadParameter("invalid scheme in client redirect URL")
-	}
-
-	// allow HTTP redirects to local addresses
-	allowedHTTPLocalAddrs := []string{"localhost", "127.0.0.1", "::1"}
-	if u.Scheme == "http" && slices.Contains(allowedHTTPLocalAddrs, u.Hostname()) {
-		return nil
-	}
-
+	ceremonyType := sso.CeremonyTypeLogin
 	if ssoTestFlow {
-		return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
+		ceremonyType = sso.CeremonyTypeTest
 	}
-
-	if settings == nil {
-		return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
-	}
-
-	// allow HTTP or HTTPS redirects from IPs in specified CIDR ranges
-	hostIP, err := netip.ParseAddr(u.Hostname())
-	if err == nil {
-		hostIP = hostIP.Unmap()
-
-		for _, cidrStr := range settings.InsecureAllowedCidrRanges {
-			cidr, err := netip.ParsePrefix(cidrStr)
-			if err != nil {
-				slog.WarnContext(context.Background(), "error parsing OIDC connector CIDR prefix", "cidr", cidrStr, "err", err)
-				continue
-			}
-			if cidr.Contains(hostIP) {
-				return nil
-			}
-		}
-	}
-
-	if u.Scheme == "https" {
-		switch u.Port() {
-		default:
-			return trace.BadParameter("invalid port in client redirect URL")
-		case "", "443":
-		}
-
-		for _, expression := range settings.AllowedHttpsHostnames {
-			ok, err := utils.MatchString(u.Hostname(), expression)
-			if err != nil {
-				slog.WarnContext(context.Background(), "error compiling OIDC connector allowed HTTPS hostname regex", "regex", expression, "err", err)
-				continue
-			}
-			if ok {
-				return nil
-			}
-		}
-	}
-
-	return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
+	return sso.ValidateClientRedirect(clientRedirect, ceremonyType, settings)
 }
 
 // populateGithubClaims builds a GithubClaims using queried

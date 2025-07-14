@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 		desc                 string
 		tunName              string
 		ipv6Prefix           string
-		dnsAddr              string
+		dnsIPv6              string
 		dnsZones             []string
 		ipv4CIDRRanges       []string
 		getTargetOSConfigErr error
@@ -44,13 +45,13 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 			desc:       "no cidr ranges",
 			tunName:    "testtun1",
 			ipv6Prefix: "fd01:2345:6789::",
-			dnsAddr:    "fd01:2345:6789::2",
+			dnsIPv6:    "fd01:2345:6789::2",
 			dnsZones:   []string{"test.example.com"},
 			expectTargetOSConfig: &osConfig{
 				tunName: "testtun1",
 				// Should be the first non-broadcast address under the IPv6 prefix.
 				tunIPv6:  "fd01:2345:6789::1",
-				dnsAddr:  "fd01:2345:6789::2",
+				dnsAddrs: []string{"fd01:2345:6789::2"},
 				dnsZones: []string{"test.example.com"},
 			},
 		},
@@ -58,15 +59,16 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 			desc:           "with cidr range",
 			tunName:        "testtun1",
 			ipv6Prefix:     "fd01:2345:6789::",
-			dnsAddr:        "fd01:2345:6789::2",
+			dnsIPv6:        "fd01:2345:6789::2",
 			dnsZones:       []string{"test.example.com"},
 			ipv4CIDRRanges: []string{"192.168.1.0/24"},
 			expectTargetOSConfig: &osConfig{
 				tunName: "testtun1",
 				// Should be the first non-broadcast address in the CIDR range.
-				tunIPv4:    "192.168.1.1",
-				tunIPv6:    "fd01:2345:6789::1",
-				dnsAddr:    "fd01:2345:6789::2",
+				tunIPv4: "192.168.1.1",
+				tunIPv6: "fd01:2345:6789::1",
+				// Should include the second non-broadcast address in the CIDR range.
+				dnsAddrs:   []string{"fd01:2345:6789::2", "192.168.1.2"},
 				dnsZones:   []string{"test.example.com"},
 				cidrRanges: []string{"192.168.1.0/24"},
 			},
@@ -75,7 +77,7 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 			desc:           "multiple cidr ranges",
 			tunName:        "testtun1",
 			ipv6Prefix:     "fd01:2345:6789::",
-			dnsAddr:        "fd01:2345:6789::2",
+			dnsIPv6:        "fd01:2345:6789::2",
 			dnsZones:       []string{"test.example.com"},
 			ipv4CIDRRanges: []string{"10.64.0.0/16", "192.168.1.0/24"},
 			expectTargetOSConfig: &osConfig{
@@ -83,7 +85,7 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 				// Should be chosen from the first CIDR range.
 				tunIPv4:    "10.64.0.1",
 				tunIPv6:    "fd01:2345:6789::1",
-				dnsAddr:    "fd01:2345:6789::2",
+				dnsAddrs:   []string{"fd01:2345:6789::2", "10.64.0.2"},
 				dnsZones:   []string{"test.example.com"},
 				cidrRanges: []string{"10.64.0.0/16", "192.168.1.0/24"},
 			},
@@ -97,7 +99,18 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 				},
 				err: tc.getTargetOSConfigErr,
 			}
-			remoteOSConfigProvider, err := newRemoteOSConfigProvider(targetOSConfigGetter, tc.tunName, tc.ipv6Prefix, tc.dnsAddr)
+			// Keep track of new DNS addresses the osConfigProvider tried to add.
+			var addedDNSAddrs []string
+			remoteOSConfigProvider, err := newRemoteOSConfigProvider(remoteOSConfigProviderConfig{
+				clt:        targetOSConfigGetter,
+				tunName:    tc.tunName,
+				ipv6Prefix: tc.ipv6Prefix,
+				dnsIPv6:    tc.dnsIPv6,
+				addDNSAddress: func(ip net.IP) error {
+					addedDNSAddrs = append(addedDNSAddrs, ip.String())
+					return nil
+				},
+			})
 			require.NoError(t, err)
 
 			targetOSConfig, err := remoteOSConfigProvider.targetOSConfig(ctx)
@@ -106,6 +119,13 @@ func TestRemoteOSConfigProvider(t *testing.T) {
 				return
 			}
 			require.Equal(t, tc.expectTargetOSConfig, targetOSConfig)
+
+			// expectTargetOSConfig.dnsAddrs always starts with the IPv6 DNS
+			// addr, assert that any additional addrs were added to the network
+			// stack.
+			if len(tc.expectTargetOSConfig.dnsAddrs) > 1 {
+				require.ElementsMatch(t, tc.expectTargetOSConfig.dnsAddrs[1:], addedDNSAddrs)
+			}
 		})
 	}
 }
