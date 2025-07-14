@@ -105,7 +105,7 @@ export function EditDialog(props: {
         values: t.traitValues.map(v => v.value),
       })) ?? null;
     const max_session_ttl =
-      selectedMaxSessionDuration?.trim()?.replaceAll(' ', '') ?? null;
+      selectedMaxSessionDuration?.trim().replaceAll(' ', '') ?? null;
 
     const request = {
       roles,
@@ -262,7 +262,7 @@ export function EditDialog(props: {
                   }
                   onChange={e => setSelectedMaxSessionDuration(e.target.value)}
                   helperText={
-                    'A duration string such as 12h, 2h 45m, 43200s. Maximum is 24h. Valid time units are ns, us (or µs), ms, s, m, h.'
+                    'A duration string such as 12h, 2h 45m, 43200s. Valid time units are h, m and s. Maximum is 24h'
                   }
                 />
               </div>
