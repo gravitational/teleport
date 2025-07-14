@@ -85,7 +85,7 @@ import (
 
 func TestRejectedClients(t *testing.T) {
 	t.Parallel()
-	server, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	server, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "cluster",
 		Clock:       clockwork.NewFakeClock(),
@@ -150,10 +150,10 @@ func TestRemoteBuiltinRole(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	remoteServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	remoteServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "remote",
-		Clock:       testSrv.AuthServer.TestAuthServerConfig.Clock,
+		Clock:       testSrv.AuthServer.AuthServerConfig.Clock,
 	})
 	require.NoError(t, err)
 
@@ -210,7 +210,7 @@ func TestAcceptedUsage(t *testing.T) {
 
 	ctx := context.Background()
 
-	server, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	server, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:           t.TempDir(),
 		ClusterName:   "remote",
 		AcceptedUsage: []string{"usage:k8s"},
@@ -274,10 +274,10 @@ func TestRemoteRotation(t *testing.T) {
 
 	var ok bool
 
-	remoteServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	remoteServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "remote",
-		Clock:       testSrv.AuthServer.TestAuthServerConfig.Clock,
+		Clock:       testSrv.AuthServer.AuthServerConfig.Clock,
 	})
 	require.NoError(t, err)
 
@@ -381,10 +381,10 @@ func TestLocalProxyPermissions(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	remoteServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	remoteServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "remote",
-		Clock:       testSrv.AuthServer.TestAuthServerConfig.Clock,
+		Clock:       testSrv.AuthServer.AuthServerConfig.Clock,
 	})
 	require.NoError(t, err)
 
@@ -804,7 +804,7 @@ func TestAppTokenRotation(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	client, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
 	require.NoError(t, err)
@@ -957,7 +957,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
@@ -1246,9 +1246,9 @@ func TestRemoteUser(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
-	remoteServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	remoteServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "remote",
 		Clock:       clock,
@@ -1537,7 +1537,7 @@ func TestPasswordCRUD(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	// Create a user.
 	u, err := types.NewUser("user1")
@@ -1573,7 +1573,7 @@ func TestOTPCRUD(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	user := "user1"
 	pass := []byte("abcdef123456")
@@ -1700,7 +1700,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	t.Cleanup(cancel)
 
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
@@ -1912,7 +1912,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
@@ -2092,7 +2092,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	adminClient, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
@@ -2621,7 +2621,8 @@ func TestGenerateCerts(t *testing.T) {
 
 		// client that uses impersonated certificate can't impersonate other users
 		// although super impersonator's roles allow it
-		impersonatedClient := srv.NewClientWithCert(clientCert)
+		impersonatedClient, err := srv.NewClientWithCert(clientCert)
+		require.NoError(t, err)
 		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			SSHPublicKey: sshPubKey,
 			TLSPublicKey: tlsPubKey,
@@ -2895,7 +2896,7 @@ func TestGenerateCerts(t *testing.T) {
 func TestGenerateAppToken(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	authClient, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err)
@@ -3089,7 +3090,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
@@ -3450,7 +3451,7 @@ func TestRegisterCAPin(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	// Generate a token to use.
 	token := generateTestToken(
@@ -3572,7 +3573,7 @@ func TestRegisterCAPath(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 	dataDir := testSrv.AuthServer.Dir
 
 	// Generate a token to use.
@@ -5010,12 +5011,12 @@ func withClock(clock clockwork.Clock) testTLSServerOption {
 	}
 }
 
-// newTestTLSServer is a helper that returns a *authtest.TestTLSServer with sensible
+// newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
 // For more advanced use-cases, call NewTestAuthServer and NewTestTLSServer
 // to provide a more detailed configuration.
-func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TestTLSServer {
+func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSServer {
 	var options testTLSServerOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -5023,7 +5024,7 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TestT
 	if options.clock == nil {
 		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 	}
-	as, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        options.clock,
 		CacheEnabled: options.cacheEnabled,

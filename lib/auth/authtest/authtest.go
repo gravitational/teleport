@@ -65,8 +65,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestAuthServerConfig is auth server test config
-type TestAuthServerConfig struct {
+// AuthServerConfig is auth server test config
+type AuthServerConfig struct {
 	// ClusterName is cluster name
 	ClusterName string
 	// ClusterID is the cluster ID; optional - sets to random UUID string if not present
@@ -103,7 +103,7 @@ type TestAuthServerConfig struct {
 }
 
 // CheckAndSetDefaults checks and sets defaults
-func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
+func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.ClusterName == "" {
 		cfg.ClusterName = "localhost"
 	}
@@ -125,24 +125,24 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// TestServer defines the set of server components for a test
-type TestServer struct {
-	TLS        *TestTLSServer
-	AuthServer *TestAuthServer
+// Server defines the set of server components for a test
+type Server struct {
+	TLS        *TLSServer
+	AuthServer *AuthServer
 }
 
-// TestServerConfig defines the configuration for all server components
-type TestServerConfig struct {
+// ServerConfig defines the configuration for all server components
+type ServerConfig struct {
 	// Auth specifies the auth server configuration
-	Auth TestAuthServerConfig
+	Auth AuthServerConfig
 	// TLS optionally specifies the configuration for the TLS server.
 	// If unspecified, will be generated automatically
-	TLS *TestTLSServerConfig
+	TLS *TLSServerConfig
 }
 
 // NewTestServer creates a new test server configuration
-func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
-	authServer, err := NewTestAuthServer(cfg.Auth)
+func NewTestServer(cfg ServerConfig) (*Server, error) {
+	authServer, err := NewAuthServer(cfg.Auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +150,7 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	// are not set.
 	tlsCfg := cfg.TLS
 	if tlsCfg == nil {
-		tlsCfg = &TestTLSServerConfig{}
+		tlsCfg = &TLSServerConfig{}
 	}
 	if tlsCfg.APIConfig == nil {
 		tlsCfg.APIConfig = &auth.APIConfig{}
@@ -176,27 +176,27 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &TestServer{
+	return &Server{
 		AuthServer: authServer,
 		TLS:        tlsServer,
 	}, nil
 }
 
 // Auth returns the underlying auth server instance
-func (a *TestServer) Auth() *auth.Server {
+func (a *Server) Auth() *auth.Server {
 	return a.AuthServer.AuthServer
 }
 
-func (a *TestServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
+func (a *Server) NewClient(identity TestIdentity) (*authclient.Client, error) {
 	return a.TLS.NewClient(identity)
 }
 
-func (a *TestServer) ClusterName() string {
+func (a *Server) ClusterName() string {
 	return a.TLS.ClusterName()
 }
 
 // Shutdown stops this server instance gracefully
-func (a *TestServer) Shutdown(ctx context.Context) error {
+func (a *Server) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(
 		a.TLS.Shutdown(ctx),
 		a.AuthServer.Close(),
@@ -219,12 +219,12 @@ func WithBcryptCost(cost int) auth.ServerOption {
 	}
 }
 
-// TestAuthServer is auth server using local filesystem backend
+// AuthServer is an auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
-type TestAuthServer struct {
-	// TestAuthServer config is configuration used for auth server setup
-	TestAuthServerConfig
+type AuthServer struct {
+	// AuthServer config is configuration used for auth server setup
+	AuthServerConfig
 	// AuthServer is an auth server
 	AuthServer *auth.Server
 	// AuditLog is an event audit log
@@ -237,15 +237,15 @@ type TestAuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
-// NewTestAuthServer returns new instances of Auth server
-func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
+// NewAuthServer returns new instances of Auth server
+func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	srv := &TestAuthServer{
-		TestAuthServerConfig: cfg,
+	srv := &AuthServer{
+		AuthServerConfig: cfg,
 	}
 	b, err := memory.New(memory.Config{
 		Context:   ctx,
@@ -329,7 +329,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	if cfg.CacheEnabled {
-		if err := InitTestAuthCache(TestAuthCacheParams{
+		if err := InitAuthCache(AuthCacheParams{
 			AuthServer: srv.AuthServer,
 			Unstarted:  true,
 		}); err != nil {
@@ -504,12 +504,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	return srv, nil
 }
 
-type TestAuthCacheParams struct {
+type AuthCacheParams struct {
 	AuthServer *auth.Server
 	Unstarted  bool
 }
 
-func InitTestAuthCache(p TestAuthCacheParams) error {
+func InitAuthCache(p AuthCacheParams) error {
 	c, err := accesspoint.NewCache(accesspoint.Config{
 		Context:      p.AuthServer.CloseContext(),
 		Setup:        cache.ForAuth,
@@ -521,7 +521,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		AccessLists:             p.AuthServer.Services.AccessLists,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
-		Apps:                    p.AuthServer.Services.Apps,
+		Applications:            p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -569,7 +569,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 	return nil
 }
 
-func (a *TestAuthServer) Close() error {
+func (a *AuthServer) Close() error {
 	defer a.LockWatcher.Close()
 
 	return trace.NewAggregate(
@@ -582,7 +582,7 @@ func (a *TestAuthServer) Close() error {
 // GenerateUserCert takes the public key in the OpenSSH `authorized_keys`
 // plain text format, signs it using User Certificate Authority signing key and returns the
 // resulting certificate.
-func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
+func (a *AuthServer) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
 	sshCert, _, err := a.AuthServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
 		SSHPubKey:     key,
 		Username:      username,
@@ -693,7 +693,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 }
 
 // NewCertificate returns new TLS credentials generated by test auth server
-func (a *TestAuthServer) NewCertificate(identity TestIdentity) (*tls.Certificate, error) {
+func (a *AuthServer) NewCertificate(identity TestIdentity) (*tls.Certificate, error) {
 	cert, key, err := generateCertificate(a.AuthServer, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -706,12 +706,12 @@ func (a *TestAuthServer) NewCertificate(identity TestIdentity) (*tls.Certificate
 }
 
 // Clock returns clock used by auth server
-func (a *TestAuthServer) Clock() clockwork.Clock {
+func (a *AuthServer) Clock() clockwork.Clock {
 	return a.AuthServer.GetClock()
 }
 
 // Trust adds other server host certificate authority as trusted
-func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, roleMap types.RoleMap) error {
+func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap types.RoleMap) error {
 	remoteCA, err := remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: remote.ClusterName,
@@ -772,14 +772,14 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 }
 
 // NewTestTLSServer returns new test TLS server
-func (a *TestAuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TestTLSServer, error) {
+func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
 		AuthServer: a.AuthServer,
 		Authorizer: a.Authorizer,
 		AuditLog:   a.AuditLog,
 		Emitter:    a.AuthServer,
 	}
-	cfg := TestTLSServerConfig{
+	cfg := TLSServerConfig{
 		APIConfig:     apiConfig,
 		AuthServer:    a,
 		AcceptedUsage: a.AcceptedUsage,
@@ -795,25 +795,25 @@ func (a *TestAuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TestTLS
 }
 
 // TestTLSServerOption is a functional option passed to NewTestTLSServer
-type TestTLSServerOption func(*TestTLSServerConfig)
+type TestTLSServerOption func(*TLSServerConfig)
 
 // WithLimiterConfig sets connection and request limiter configuration.
 func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
-	return func(cfg *TestTLSServerConfig) {
+	return func(cfg *TLSServerConfig) {
 		cfg.Limiter = config
 	}
 }
 
 // WithAccessGraphConfig sets the access graph configuration.
 func WithAccessGraphConfig(config auth.AccessGraphConfig) TestTLSServerOption {
-	return func(cfg *TestTLSServerConfig) {
+	return func(cfg *TLSServerConfig) {
 		cfg.APIConfig.AccessGraph = config
 	}
 }
 
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
-func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
+func (a *AuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
 	tlsConfig := utils.TLSConfig(a.CipherSuites)
 	cert, err := a.NewCertificate(identity)
 	if err != nil {
@@ -833,12 +833,12 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	})
 }
 
-// TestTLSServerConfig is a configuration for test TLS server
-type TestTLSServerConfig struct {
+// TLSServerConfig is a configuration for test TLS server
+type TLSServerConfig struct {
 	// APIConfig is a configuration of API server
 	APIConfig *auth.APIConfig
 	// AuthServer is a test auth server used to serve requests
-	AuthServer *TestAuthServer
+	AuthServer *AuthServer
 	// Limiter is a connection and request limiter
 	Limiter *limiter.Config
 	// Listener is a listener to serve requests on
@@ -848,14 +848,14 @@ type TestTLSServerConfig struct {
 }
 
 // Auth returns auth server used by this TLS server
-func (t *TestTLSServer) Auth() *auth.Server {
+func (t *TLSServer) Auth() *auth.Server {
 	return t.AuthServer.AuthServer
 }
 
-// TestTLSServer is a test TLS server
-type TestTLSServer struct {
-	// TestTLSServerConfig is a configuration for TLS server
-	TestTLSServerConfig
+// TLSServer is a test TLS server
+type TLSServer struct {
+	// TLSServerConfig is a configuration for TLS server
+	TLSServerConfig
 	// Identity is a generated TLS/SSH identity used to answer in TLS
 	Identity *state.Identity
 	// TLSServer is a configured TLS server
@@ -863,17 +863,17 @@ type TestTLSServer struct {
 }
 
 // ClusterName returns name of test TLS server cluster
-func (t *TestTLSServer) ClusterName() string {
+func (t *TLSServer) ClusterName() string {
 	return t.AuthServer.ClusterName
 }
 
 // Clock returns clock used by auth server
-func (t *TestTLSServer) Clock() clockwork.Clock {
+func (t *TLSServer) Clock() clockwork.Clock {
 	return t.AuthServer.Clock()
 }
 
 // CheckAndSetDefaults checks and sets limiter defaults
-func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
+func (cfg *TLSServerConfig) CheckAndSetDefaults() error {
 	if cfg.APIConfig == nil {
 		return trace.BadParameter("missing parameter APIConfig")
 	}
@@ -891,13 +891,13 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 
 // NewTestTLSServer returns new test TLS server that is started and is listening
 // on 127.0.0.1 loopback on any available port
-func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
+func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	srv := &TestTLSServer{
-		TestTLSServerConfig: cfg,
+	srv := &TLSServer{
+		TLSServerConfig: cfg,
 	}
 	srv.Identity, err = NewServerIdentity(srv.AuthServer.AuthServer, "test-tls-server", types.RoleAuth)
 	if err != nil {
@@ -1036,7 +1036,7 @@ func (i TestIdentity) GetUsername() string {
 }
 
 // NewClientFromWebSession returns new authenticated client from web session
-func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
+func (t *TLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1058,7 +1058,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authcli
 }
 
 // CertPool returns cert pool that auth server represents
-func (t *TestTLSServer) CertPool() (*x509.CertPool, error) {
+func (t *TLSServer) CertPool() (*x509.CertPool, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1067,7 +1067,7 @@ func (t *TestTLSServer) CertPool() (*x509.CertPool, error) {
 }
 
 // ClientTLSConfig returns client TLS config based on the identity
-func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) {
+func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1089,7 +1089,9 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
-func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *authclient.Client {
+func (t *TLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *authclient.Client {
+	tt.Helper()
+
 	tlsConfig := clt.Config()
 	// When cloning a client, we want to make sure that we don't reuse
 	// the same session ticket cache. The session ticket cache should not be
@@ -1117,10 +1119,10 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *auth
 }
 
 // NewClientWithCert creates a new client using given cert and private key
-func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *authclient.Client {
+func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	tlsConfig.Time = t.AuthServer.AuthServer.GetClock().Now
 	tlsConfig.Certificates = []tls.Certificate{clientCert}
@@ -1132,13 +1134,13 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *authclien
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return newClient
+	return newClient, nil
 }
 
 // NewClient returns new client to test server authenticated with identity
-func (t *TestTLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
+func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1159,18 +1161,18 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*authclient.Client, er
 }
 
 // Addr returns address of TLS server
-func (t *TestTLSServer) Addr() net.Addr {
+func (t *TLSServer) Addr() net.Addr {
 	return t.Listener.Addr()
 }
 
 // Start starts TLS server on loopback address on the first listening socket
-func (t *TestTLSServer) Start() error {
+func (t *TLSServer) Start() error {
 	go t.TLSServer.Serve()
 	return nil
 }
 
 // Close closes the listener and HTTP server
-func (t *TestTLSServer) Close() error {
+func (t *TLSServer) Close() error {
 	var errs []error
 	if err := t.Stop(); err != nil {
 		errs = append(errs, err)
@@ -1185,7 +1187,7 @@ func (t *TestTLSServer) Close() error {
 }
 
 // Shutdown closes the listener and HTTP server gracefully
-func (t *TestTLSServer) Shutdown(ctx context.Context) error {
+func (t *TLSServer) Shutdown(ctx context.Context) error {
 	var errs []error
 	if err := t.TLSServer.Shutdown(ctx); err != nil {
 		errs = append(errs, err)
@@ -1206,7 +1208,7 @@ func (t *TestTLSServer) Shutdown(ctx context.Context) error {
 }
 
 // Stop stops listening server, but does not close the auth backend
-func (t *TestTLSServer) Stop() error {
+func (t *TLSServer) Stop() error {
 	var errs []error
 	if err := t.TLSServer.Close(); err != nil {
 		errs = append(errs, err)
@@ -1280,15 +1282,24 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
 }
 
-// clt limits required interface to the necessary methods
-// used to pass different clients in tests
-type clt interface {
-	UpsertRole(context.Context, types.Role) (types.Role, error)
+// UserClient allows overwriting a user.
+type UserClient interface {
 	UpsertUser(context.Context, types.User) (types.User, error)
 }
 
+// RoleClient allows overwriting a role.
+type RoleClient interface {
+	UpsertRole(context.Context, types.Role) (types.Role, error)
+}
+
+// UserRoleClient allows overwriting uesrs and roles.
+type UserRoleClient interface {
+	UserClient
+	RoleClient
+}
+
 // CreateRole creates a role without assigning any users. Used in tests.
-func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV6) (types.Role, error) {
+func CreateRole(ctx context.Context, clt RoleClient, name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1304,7 +1315,7 @@ func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV6
 
 // CreateUserRoleAndRequestable creates two roles for a user, one base role with allowed login
 // matching username, and another role with a login matching rolename that can be requested.
-func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (types.User, error) {
+func CreateUserRoleAndRequestable(clt UserRoleClient, username string, rolename string) (types.User, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
@@ -1336,7 +1347,7 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (ty
 
 // CreateAccessPluginUser creates a user with list/read abilites for access requests, and list/read/update
 // abilities for access plugin data.
-func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (types.User, error) {
+func CreateAccessPluginUser(ctx context.Context, clt UserRoleClient, username string) (types.User, error) {
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1367,7 +1378,7 @@ func CreateAccessPluginUser(ctx context.Context, clt clt, username string) (type
 }
 
 // CreateUser creates user and role and assigns role to a user, used in tests
-func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Role) (types.User, error) {
+func CreateUser(ctx context.Context, clt UserRoleClient, username string, roles ...types.Role) (types.User, error) {
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1420,7 +1431,7 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
-func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
+func CreateUserAndRole(clt UserRoleClient, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
 	o := createUserAndRoleOptions{
 		version: types.DefaultRoleVersion,
 	}
@@ -1458,7 +1469,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 }
 
 // CreateUserAndRoleWithoutRoles creates user and role, but does not assign user to a role, used in tests
-func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []string) (types.User, types.Role, error) {
+func CreateUserAndRoleWithoutRoles(clt UserRoleClient, username string, allowedLogins []string) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {

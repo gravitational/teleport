@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -382,7 +381,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						},
 					})
 				}
-				cfg := authtest.TestAuthServerConfig{
+				cfg := authtest.AuthServerConfig{
 					Dir:  t.TempDir(),
 					FIPS: tc.fips,
 					AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -396,7 +395,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				if tc.hsm {
 					cfg.KeystoreConfig = HSMTestConfig(t)
 				}
-				testAuthServer, err := authtest.NewTestAuthServer(cfg)
+				testAuthServer, err := authtest.NewAuthServer(cfg)
 				require.NoError(t, err)
 				tlsServer, err := testAuthServer.NewTestTLSServer()
 				require.NoError(t, err)

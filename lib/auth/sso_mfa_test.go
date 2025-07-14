@@ -47,7 +47,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 	ctx := context.Background()
 
 	fakeClock := clockwork.NewFakeClock()
-	testAuthServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: fakeClock,
 	})
@@ -363,7 +363,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	ctx := context.Background()
 
 	fakeClock := clockwork.NewFakeClock()
-	testAuthServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: fakeClock,
 	})

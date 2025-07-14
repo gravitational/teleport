@@ -76,7 +76,7 @@ import (
 
 func renewBotCerts(
 	ctx context.Context,
-	srv *authtest.TestTLSServer,
+	srv *authtest.TLSServer,
 	tlsCertPEM []byte,
 	botUser string,
 	key crypto.Signer,
@@ -92,7 +92,11 @@ func renewBotCerts(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	client := srv.NewClientWithCert(tlsCert)
+
+	client, err := srv.NewClientWithCert(tlsCert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	sshPub, err := ssh.NewPublicKey(key.Public())
 	if err != nil {
@@ -340,7 +344,8 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	tlsPub, err := keys.MarshalPublicKey(result.PrivateKey.Public())
 	require.NoError(t, err)
-	botClient := srv.NewClientWithCert(tlsCert)
+	botClient, err := srv.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
 	roleCerts, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		SSHPublicKey: ssh.MarshalAuthorizedKey(sshPub),
 		TLSPublicKey: tlsPub,

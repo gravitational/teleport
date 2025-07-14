@@ -3030,7 +3030,8 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	// make an instance client
 	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
 	require.NoError(t, err)
-	instanceClt := srv.NewClientWithCert(instanceCert)
+	instanceClt, err := srv.NewClientWithCert(instanceCert)
+	require.NoError(t, err)
 
 	// instance cert can self-renew without assertions
 	req.SystemRoleAssertionID = ""
@@ -4651,7 +4652,7 @@ func TestExport(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			as, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+			as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:         t.TempDir(),
 				Clock:       clockwork.NewFakeClock(),
 				TraceClient: &tt.mockTraceClient,

@@ -1900,7 +1900,7 @@ type configureMFAResp struct {
 	TOTPDev, WebDev *authtest.Device
 }
 
-func configureForMFA(t *testing.T, srv *authtest.TestTLSServer) *configureMFAResp {
+func configureForMFA(t *testing.T, srv *authtest.TLSServer) *configureMFAResp {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,

@@ -2345,7 +2345,7 @@ type augmentUserData struct {
 	webSessionID string
 }
 
-func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *authtest.TestTLSServer) *augmentUserData {
+func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *authtest.TLSServer) *augmentUserData {
 	authServer := testServer.Auth()
 	ctx := context.Background()
 
@@ -4183,7 +4183,7 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	require.Equal(t, "APPROVED", arc.RequestState)
 }
 
-func testCreateRole(t *testing.T, server *authtest.TestTLSServer, name string, setup func(*types.RoleSpecV6)) types.Role {
+func testCreateRole(t *testing.T, server *authtest.TLSServer, name string, setup func(*types.RoleSpecV6)) types.Role {
 	t.Helper()
 	ctx := context.Background()
 
@@ -4210,7 +4210,7 @@ func testCreateRole(t *testing.T, server *authtest.TestTLSServer, name string, s
 	return createdRole
 }
 
-func testCreateUserWithRoles(t *testing.T, server *authtest.TestTLSServer, user string, roles ...string) (authtest.TestIdentity, *authclient.Client) {
+func testCreateUserWithRoles(t *testing.T, server *authtest.TLSServer, user string, roles ...string) (authtest.TestIdentity, *authclient.Client) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -4233,7 +4233,7 @@ func TestAccessRequestNotifications(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 
-	testAuthServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: fakeClock,
 	})
@@ -4321,7 +4321,7 @@ func TestAccessRequestDryRunEnrichment(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	testAuthServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -4475,7 +4475,7 @@ func TestCleanupNotifications(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 
-	authServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        fakeClock,
 		CacheEnabled: true,
@@ -4786,7 +4786,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testAuthServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:       t.TempDir(),
 				Clock:     clockwork.NewFakeClock(),
 				ClusterID: "cluster-id",
@@ -4858,7 +4858,7 @@ func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timest
 func TestServerHostnameSanitization(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	cases := []struct {

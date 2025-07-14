@@ -1091,7 +1091,8 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	tlsCert, err := tls.X509KeyPair(response.Certs.TLS, sshPrivateKey)
 	require.NoError(t, err)
 
-	client := srv.NewClientWithCert(tlsCert)
+	client, err := srv.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
 	_, err = client.Ping(ctx)
 	require.NoError(t, err)
 
@@ -1251,7 +1252,8 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	tlsCert, err := tls.X509KeyPair(secondResponse.Certs.TLS, sshPrivateKey)
 	require.NoError(t, err)
 
-	client := srv.NewClientWithCert(tlsCert)
+	client, err := srv.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
 	_, err = client.Ping(ctx)
 	require.NoError(t, err)
 

@@ -53,7 +53,7 @@ func newOktaUser(t *testing.T) types.User {
 
 // newTestServerWithRoles creates a self-cleaning `ServerWithRoles`, configured
 // with a given
-func newTestServerWithRoles(t *testing.T, srv *authtest.TestAuthServer, role types.SystemRole) *auth.ServerWithRoles {
+func newTestServerWithRoles(t *testing.T, srv *authtest.AuthServer, role types.SystemRole) *auth.ServerWithRoles {
 
 	authzContext := authz.ContextWithUser(context.Background(), authtest.TestBuiltin(role).I)
 	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
@@ -74,7 +74,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 	ctx := context.Background()
 
 	// Given an auth server...
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { srv.Close() })
 
@@ -137,7 +137,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	// Given an auth server...
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() { srv.Close() })
 

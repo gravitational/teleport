@@ -34,10 +34,10 @@ import (
 func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	t.Parallel()
 
-	testAuthServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
-	require.NoError(t, err, "NewTestAuthServer failed")
+	require.NoError(t, err, "NewAuthServer failed")
 	t.Cleanup(func() {
 		assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
 	})

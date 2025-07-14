@@ -42,7 +42,7 @@ func TestNotifications(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 
-	authServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        fakeClock,
 		CacheEnabled: true,

@@ -1269,7 +1269,7 @@ type userAuthCreds struct {
 	totpDev, webDev *authtest.Device
 }
 
-func createUserWithSecondFactors(testServer *authtest.TestTLSServer) (*userAuthCreds, error) {
+func createUserWithSecondFactors(testServer *authtest.TLSServer) (*userAuthCreds, error) {
 	ctx := context.Background()
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
 	password := []byte("abcdef123456")

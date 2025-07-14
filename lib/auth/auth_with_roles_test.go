@@ -826,7 +826,7 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 	// Set up a user with the necessary roles to access the AWS App.
 	username := "aws-access-user"
 	roleARN := "arn:aws:iam::123456789012:role/MyRole"
-	awsAccessRole, err := CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
+	awsAccessRole, err := authtest.CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
@@ -836,10 +836,10 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := CreateUser(ctx, srv.Auth(), username, awsAccessRole)
+	user, err := authtest.CreateUser(ctx, srv.Auth(), username, awsAccessRole)
 	require.NoError(t, err)
 
-	client, err := srv.NewClient(TestUser(user.GetName()))
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
 	// Create credentials for the AWS App
@@ -1562,7 +1562,8 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 	// Make an impersonated client.
 	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
 	require.NoError(t, err)
-	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
+	impersonatedClient, err := srv.NewClientWithCert(impersonatedTLSCert)
+	require.NoError(t, err)
 
 	ident, err := tlsca.FromSubject(
 		impersonatedTLSCert.Leaf.Subject,
@@ -1685,7 +1686,8 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Make an impersonated client.
 	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
 	require.NoError(t, err)
-	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
+	impersonatedClient, err := srv.NewClientWithCert(impersonatedTLSCert)
+	require.NoError(t, err)
 
 	// Attempt a request.
 	_, err = impersonatedClient.GetClusterName(ctx)
@@ -1807,7 +1809,7 @@ type testDynamicallyConfigurableRBACParams struct {
 // TestDynamicConfigurationRBACVerbs tests the dynamic configuration RBAC verbs described
 // in rfd/0016-dynamic-configuration.md § Implementation.
 func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurableRBACParams) {
-	testAuth, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	testOperation := func(op func(*auth.ServerWithRoles) error, allowRules []types.Rule, expectErr, withConfigFile bool) func(*testing.T) {
@@ -2248,7 +2250,7 @@ func BenchmarkListNodes(b *testing.B) {
 func benchmarkListNodes(
 	b *testing.B, ctx context.Context,
 	nodeCount, hiddenNodes int,
-	srv *authtest.TestTLSServer,
+	srv *authtest.TLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
 ) {
@@ -2544,7 +2546,7 @@ func TestStreamSessionEvents(t *testing.T) {
 func TestStreamSessionEvents_SessionType(t *testing.T) {
 	t.Parallel()
 
-	authServerConfig := authtest.TestAuthServerConfig{
+	authServerConfig := authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	}
@@ -2560,7 +2562,7 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 	require.NoError(t, err)
 	authServerConfig.AuditLog = localLog
 
-	as, err := authtest.NewTestAuthServer(authServerConfig)
+	as, err := authtest.NewAuthServer(authServerConfig)
 	require.NoError(t, err)
 
 	srv, err := as.NewTestTLSServer()
@@ -2664,7 +2666,7 @@ func TestAPILockedOut(t *testing.T) {
 	require.Eventually(t, func() bool { return trace.IsAccessDenied(testOp()) }, time.Second, time.Second/10)
 }
 
-func serverWithAllowRules(t *testing.T, srv *authtest.TestAuthServer, allowRules []types.Rule) *auth.ServerWithRoles {
+func serverWithAllowRules(t *testing.T, srv *authtest.AuthServer, allowRules []types.Rule) *auth.ServerWithRoles {
 	username := "test-user"
 	ctx := context.Background()
 	_, role, err := authtest.CreateUserAndRoleWithoutRoles(srv.AuthServer, username, nil)
@@ -3580,7 +3582,7 @@ func TestApps(t *testing.T) {
 func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	user, _, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
@@ -3820,7 +3822,7 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 func TestKindClusterConfig(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
@@ -4610,7 +4612,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 func TestListResources_KindKubernetesCluster(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
@@ -4719,7 +4721,7 @@ func createKubeServer(t *testing.T, s *auth.ServerWithRoles, clusterNames []stri
 func TestListResources_KindUserGroup(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
@@ -6898,7 +6900,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 func benchmarkListUnifiedResources(
 	b *testing.B, ctx context.Context,
 	expectedCount int,
-	srv *authtest.TestTLSServer,
+	srv *authtest.TLSServer,
 	ids []string,
 	editRole func(r types.Role, id string),
 	editReq func(req *proto.ListUnifiedResourcesRequest),
@@ -7108,7 +7110,7 @@ func TestGenerateHostCert(t *testing.T) {
 // This is because only one uploader service runs per Teleport process, and it will use
 // the first available identity.
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err, trace.DebugReport(err))
 
 	roles := types.LocalServiceMappings()
@@ -7234,7 +7236,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		name        string
 		makeRole    func() (types.Role, error)
 		makeTracker func(testUser types.User) (types.SessionTracker, error)
-		extraSetup  func(*testing.T, *authtest.TestTLSServer)
+		extraSetup  func(*testing.T, *authtest.TLSServer)
 
 		checkSessionTrackers require.ValueAssertionFunc
 	}
@@ -7400,7 +7402,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 					},
 				})
 			},
-			extraSetup: func(t *testing.T, srv *authtest.TestTLSServer) {
+			extraSetup: func(t *testing.T, srv *authtest.TLSServer) {
 				originator, err := types.NewUser("session-originator")
 				require.NoError(t, err)
 
@@ -7444,7 +7446,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 					},
 				})
 			},
-			extraSetup: func(t *testing.T, srv *authtest.TestTLSServer) {
+			extraSetup: func(t *testing.T, srv *authtest.TLSServer) {
 				originator, err := types.NewUser("session-originator")
 				require.NoError(t, err)
 
@@ -7488,7 +7490,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 					},
 				})
 			},
-			extraSetup: func(t *testing.T, srv *authtest.TestTLSServer) {
+			extraSetup: func(t *testing.T, srv *authtest.TLSServer) {
 				originator, err := types.NewUser("session-originator")
 				require.NoError(t, err)
 
@@ -8395,7 +8397,7 @@ func samlIdPRoleCondition(label types.Labels, verb ...string) (rc types.RoleCond
 }
 
 // modifyAndWaitForEvent performs the function fn() and then waits for the given event.
-func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *authtest.TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *authtest.TLSServer, eventCode string, fn func() error) apievents.AuditEvent {
 	t.Helper()
 	// Make sure we ignore events after consuming this one.
 	defer func() {
@@ -8686,7 +8688,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 func TestGenerateCertAuthorityCRL(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{Dir: t.TempDir()})
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
 	// Create a test user.

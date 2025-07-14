@@ -104,7 +104,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 func TestDBCertSigning(t *testing.T) {
 	t.Parallel()
-	authServer, err := authtest.NewTestAuthServer(authtest.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: "local.me",
 		Dir:         t.TempDir(),
