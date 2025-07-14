@@ -204,7 +204,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	}
 
 	var upserted *accesslist.AccessList
-	var existingList *accesslist.AccessList
+	var existingAccessList *accesslist.AccessList
 
 	opFn := a.service.UpsertResource
 	if op == opTypeUpdate {
@@ -214,19 +214,14 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	validateAccessList := func() error {
 		var err error
 
-		if op == opTypeUpdate {
-			existingList, err = a.service.GetResource(ctx, accessList.GetName())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// Set memberOf / ownerOf to the existing values to prevent them from being updated.
-			accessList.Status.MemberOf = existingList.Status.MemberOf
-			accessList.Status.OwnerOf = existingList.Status.OwnerOf
-		} else {
-			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
-			accessList.Status.MemberOf = []string{}
-			accessList.Status.OwnerOf = []string{}
+		existingAccessList, err = a.service.GetResource(ctx, accessList.GetName())
+		if op == opTypeUpsert && trace.IsNotFound(err) {
+			// Not having already existing access_list in the backend is ok in case of
+			// upsert.
+		} else if err != nil {
+			return trace.Wrap(err)
 		}
+		preserveAccessListFields(existingAccessList, accessList)
 
 		listMembers, err := a.memberService.WithPrefix(accessList.GetName()).GetResources(ctx)
 		if err != nil {
@@ -245,8 +240,8 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	reconcileOwners := func() error {
 		// Create map to store owners for efficient lookup
 		originalOwnersMap := make(map[string]struct{})
-		if existingList != nil {
-			for _, owner := range existingList.Spec.Owners {
+		if existingAccessList != nil {
+			for _, owner := range existingAccessList.Spec.Owners {
 				if owner.MembershipKind == accesslist.MembershipKindList {
 					originalOwnersMap[owner.Name] = struct{}{}
 				}
@@ -552,14 +547,17 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 		}
 
 		upserted, err = a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-		if err == nil && member.Spec.MembershipKind == accesslist.MembershipKindList {
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
 			if err := a.updateAccessListMemberOf(ctx, member.Spec.AccessList, member.Spec.Name, true); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		return trace.Wrap(err)
+		return nil
 	}
 
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -679,18 +677,11 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	}
 
 	validateAccessList := func() error {
-		existingList, err := a.service.GetResource(ctx, accessList.GetName())
+		existingAccessList, err := a.service.GetResource(ctx, accessList.GetName())
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		if existingList != nil {
-			accessList.Status.MemberOf = existingList.Status.MemberOf
-			accessList.Status.OwnerOf = existingList.Status.OwnerOf
-		} else {
-			// In case the MemberOf/OwnerOf fields were manually changed, set to empty.
-			accessList.Status.MemberOf = []string{}
-			accessList.Status.OwnerOf = []string{}
-		}
+		preserveAccessListFields(existingAccessList, accessList)
 
 		if err := accesslists.ValidateAccessListWithMembers(ctx, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
@@ -1036,6 +1027,18 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 
 	const limitReachedMessage = "cluster has reached its limit for creating access lists, please contact the cluster administrator"
 	return trace.AccessDenied("%s", limitReachedMessage)
+}
+
+func preserveAccessListFields(existingAccessList, accessList *accesslist.AccessList) {
+	if existingAccessList != nil {
+		// Set MemberOf/OwnerOf to the existing values to prevent them from being updated.
+		accessList.Status.MemberOf = existingAccessList.Status.MemberOf
+		accessList.Status.OwnerOf = existingAccessList.Status.OwnerOf
+	} else {
+		// For newly created AccessList make sure MemberOf/OwnerOf are empty.
+		accessList.Status.MemberOf = []string{}
+		accessList.Status.OwnerOf = []string{}
+	}
 }
 
 // keepAWSIdentityCenterLabels preserves member labels if
