@@ -140,11 +140,6 @@ func (p *SignParams) Check() error {
 // sign will return a signed JWT with the passed in claims embedded within.
 // `opts`, when not nil, specifies additional signing options, such as additional JWT headers.
 func (k *Key) sign(claims any, opts *jose.SignerOptions) (string, error) {
-	return k.signAny(claims, opts)
-}
-
-// signAny will return a signed JWT with the passed in claims embedded within; unlike sign it allows more flexibility in the claim data.
-func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	sig, err := k.getSigner(opts)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -441,7 +436,7 @@ type AzureTokenClaims struct {
 
 // SignAzureToken signs AzureTokenClaims
 func (k *Key) SignAzureToken(claims AzureTokenClaims) (string, error) {
-	return k.signAny(claims, nil)
+	return k.sign(claims, nil)
 }
 
 type PROXYSignParams struct {
@@ -796,4 +791,14 @@ func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims,
 		Time:     k.config.Clock.Now(),
 	}
 	return k.verify(token, expectedClaims)
+}
+
+// SignOAuthRequest signs a JWT token for an OIDC OAuth request.
+func (k *Key) SignOAuthRequest(claims any) (string, error) {
+	return k.sign(claims, &jose.SignerOptions{
+		ExtraHeaders: map[jose.HeaderKey]interface{}{
+			// TODO: Switch on public key.
+			"alg": jose.RS256,
+		},
+	})
 }
