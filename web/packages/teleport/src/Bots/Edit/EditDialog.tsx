@@ -121,6 +121,11 @@ export function EditDialog(props: {
     selectedTraits !== null ||
     selectedMaxSessionDuration !== null;
 
+  const missingPermissions = [
+    ...(hasReadPermission ? [] : ['bots.read']),
+    ...(hasEditPermission ? [] : ['bots.edit']),
+  ];
+
   return (
     <Dialog open onClose={onCancel}>
       <DialogHeader>
@@ -156,20 +161,11 @@ export function EditDialog(props: {
                 <Alert kind="warning">Bot {botName} does not exist</Alert>
               )}
 
-              {!hasReadPermission ? (
-                <Alert kind="info">
-                  <Flex gap={2}>
-                    You do not have permission to view this bot. Missing role
-                    permissions: <code>bots.read</code>
-                  </Flex>
-                </Alert>
-              ) : undefined}
-
-              {!hasEditPermission ? (
+              {missingPermissions.length ? (
                 <Alert kind="info">
                   <Flex gap={2}>
                     You do not have permission to edit this bot. Missing role
-                    permissions: <code>bots.edit</code>
+                    permissions: <code>{missingPermissions.join(', ')}</code>
                   </Flex>
                 </Alert>
               ) : undefined}
