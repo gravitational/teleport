@@ -1,3 +1,6 @@
+// Warning: The teleportmwi_kubernetes ephemeral resource will not function
+// correctly when the Teleport cluster is fronted by a L7 load balancer that
+// terminates TLS.
 ephemeral "teleportmwi_kubernetes" "my_cluster" {
   selector = {
     name = "my-k8s-cluster"

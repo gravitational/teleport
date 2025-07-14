@@ -1,3 +1,6 @@
+// Warning: The teleportmwi_kubernetes data source will not function correctly
+// when the Teleport cluster is fronted by a L7 load balancer that terminates
+// TLS.
 data "teleportmwi_kubernetes" "my_cluster" {
   selector = {
     name = "my-k8s-cluster"
