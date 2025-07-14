@@ -527,6 +527,8 @@ const (
 	EnvVarTerraformIdentityFile = "TF_TELEPORT_IDENTITY_FILE"
 	// EnvVarTerraformIdentityFileBase64 is the environment variable containing the base64-encoded identity file used by the Terraform provider.
 	EnvVarTerraformIdentityFileBase64 = "TF_TELEPORT_IDENTITY_FILE_BASE64"
+	// EnvVarTerraformInsecure is the environment variable used to control whether the Terraform provider will skip verifying the proxy server's TLS certificate.
+	EnvVarTerraformInsecure = "TF_TELEPORT_INSECURE"
 	// EnvVarTerraformRetryBaseDuration is the environment variable configuring the base duration between two Terraform provider retries.
 	EnvVarTerraformRetryBaseDuration = "TF_TELEPORT_RETRY_BASE_DURATION"
 	// EnvVarTerraformRetryCapDuration is the environment variable configuring the maximum duration between two Terraform provider retries.

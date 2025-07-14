@@ -1115,10 +1115,10 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 }
 
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
-	// TODO(gavin): support assume_role_arn for ec2.
 	ssmClient, err := s.GetSSMClient(s.ctx,
 		instances.Region,
 		awsconfig.WithCredentialsMaybeIntegration(instances.Integration),
+		awsconfig.WithAssumeRole(instances.AssumeRoleARN, instances.ExternalID),
 	)
 	if err != nil {
 		return trace.Wrap(err)
