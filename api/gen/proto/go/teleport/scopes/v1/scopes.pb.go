@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/v1/scopes.proto
 
-package scopes
+package scopesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -163,7 +163,7 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\x04Mode\x12\x14\n" +
 	"\x10MODE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fMODE_RESOURCES_SUBJECT_TO_SCOPE\x10\x01\x12%\n" +
-	"!MODE_POLICIES_APPLICABLE_TO_SCOPE\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesb\x06proto3"
+	"!MODE_POLICIES_APPLICABLE_TO_SCOPE\x10\x02BPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1b\x06proto3"
 
 var (
 	file_teleport_scopes_v1_scopes_proto_rawDescOnce sync.Once
