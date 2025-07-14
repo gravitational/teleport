@@ -265,7 +265,7 @@ type updateBotRequest struct {
 	Roles []string `json:"roles"`
 }
 
-// updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
+// updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
 func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	var request updateBotRequestV2
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
