@@ -3598,22 +3598,40 @@ func WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind string) S
 }
 
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedPreviewAsRoles() []string {
-	denied := make(map[string]struct{})
-	var allowed []string
+// Roles are matched against all the existing roles in the cluster.
+func (set RoleSet) GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGetter) ([]string, error) {
+	var outAllowed []string
+	if getter == nil {
+		return nil, trace.BadParameter("missing roles getter, this is a bug")
+	}
+
+	var err error
+	var matcher roleMatcher
 	for _, role := range set {
-		for _, d := range role.GetPreviewAsRoles(types.Deny) {
-			denied[d] = struct{}{}
+		matcher.allowPreview, err = appendRoleMatchers(matcher.allowPreview, role.GetPreviewAsRoles(types.Allow), nil /* claim mapping */, nil /* traits */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matcher.denyPreview, err = appendRoleMatchers(matcher.denyPreview, role.GetPreviewAsRoles(types.Deny), nil /* claim mapping */, nil /* traits */)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	for _, role := range set {
-		for _, a := range role.GetPreviewAsRoles(types.Allow) {
-			if _, ok := denied[a]; !ok {
-				allowed = append(allowed, a)
-			}
+
+	if len(matcher.allowPreview) == 0 {
+		return outAllowed, nil
+	}
+
+	allClusterRoles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return outAllowed, trace.Wrap(err)
+	}
+	for _, r := range allClusterRoles {
+		if matcher.canPreviewAsRole(r.GetName()) {
+			outAllowed = append(outAllowed, r.GetName())
 		}
 	}
-	return apiutils.Deduplicate(allowed)
+	return apiutils.Deduplicate(outAllowed), nil
 }
 
 // GetCreateDatabaseUserMode returns the create database user mode of the rule

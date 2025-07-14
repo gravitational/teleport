@@ -171,7 +171,11 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 			extraRoles = append(extraRoles, allowedSearchAsRoles...)
 		}
 		if req.UsePreviewAsRoles {
-			extraRoles = append(extraRoles, userContext.Checker.GetAllowedPreviewAsRoles()...)
+			allowedPreviewAsRoles, err := userContext.Checker.GetAllowedPreviewAsRoles(ctx, s.cfg.AccessPoint)
+			if err != nil {
+				return nil, trail.ToGRPC(err)
+			}
+			extraRoles = append(extraRoles, allowedPreviewAsRoles...)
 		}
 
 		extendedContext, err := userContext.WithExtraRoles(s.cfg.AccessPoint, s.cfg.ClusterName, extraRoles)

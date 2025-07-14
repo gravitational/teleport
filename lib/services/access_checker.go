@@ -212,7 +212,7 @@ type AccessChecker interface {
 	GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error)
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
-	GetAllowedPreviewAsRoles() []string
+	GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGetter) ([]string, error)
 
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the

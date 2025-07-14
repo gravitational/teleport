@@ -1606,7 +1606,11 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 		extraRoles = append(extraRoles, expandedSearchAsRoles...)
 	}
 	if req.UsePreviewAsRoles {
-		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
+		allowedPreviewAsRoles, err := a.context.Checker.GetAllowedPreviewAsRoles(ctx, a.authServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		extraRoles = append(extraRoles, allowedPreviewAsRoles...)
 	}
 	if len(extraRoles) == 0 {
 		// Return the current auth context unmodified.
