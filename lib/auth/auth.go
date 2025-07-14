@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -120,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
+	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -370,7 +372,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -511,6 +513,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating VnetConfigService")
 		}
 	}
+	if cfg.ScopedAccess == nil {
+		cfg.ScopedAccess = local.NewScopedAccessService(cfg.Backend)
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -539,6 +544,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
+		Events: cfg.Events,
+		Reader: cfg.ScopedAccess,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
@@ -550,7 +563,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Apps:                            cfg.Apps,
+		Applications:                    cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -613,6 +626,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:                services,
 		Cache:                   services,
+		scopedAccessBackend:     cfg.ScopedAccess,
+		scopedAccessCache:       scopedAccessCache,
 		keyStore:                cfg.KeyStore,
 		traceClient:             cfg.TraceClient,
 		fips:                    cfg.FIPS,
@@ -786,7 +801,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
@@ -1073,6 +1088,13 @@ type Server struct {
 	// method on Services instead.
 	authclient.Cache
 
+	// scopedAccessCache is a specialized cache that provides read methods for select
+	// scoped access control resources.
+	scopedAccessCache *scopedaccesscache.Cache
+
+	// scopedAccessBackend is the backend service for scoped access control resources.
+	scopedAccessBackend services.ScopedAccess
+
 	// ReadOnlyCache is a specialized cache that provides read-only shared references
 	// in certain performance-critical paths where deserialization/cloning may be too
 	// expensive at scale.
@@ -1238,9 +1260,9 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
-	// OverrideAWSCredentialGeneration overrides the generation of AWS credentials for AWS Apps which use the Roles Anywhere Integration.
+	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
-	OverrideAWSCredentialGeneration func() string
+	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -3471,9 +3493,12 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
-	var awsCredentialProcessCredentials string
-	if a.OverrideAWSCredentialGeneration != nil {
-		awsCredentialProcessCredentials = a.OverrideAWSCredentialGeneration()
+	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	switch {
+	case errors.Is(err, errNotIntegrationApp):
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
 
 	identity := tlsca.Identity{

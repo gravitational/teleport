@@ -307,3 +307,167 @@ download server can use self-managed updates with system package managers which
 are signed.
 
 Phase 2 will use The Upgrade Framework (TUF) to implement secure updates.
+
+## Teleport Connect automatic updates *(added on 2025-07-10 by @gzdunek)*
+
+Teleport Connect is built with Electron and therefore cannot use the CLI update 
+mechanisms, which simply re-executes a command with a different tool version. 
+Instead, automatic updates will be implemented with the `electron-updater` package. 
+This library is maintained by the author of `electron-builder`, so it should be 
+fully compatible with our existing build and packaging setup. It handles all 
+the heavy lifting: downloading updates, verifying checksums, and installing 
+the updates.
+
+The library supports updates on macOS, Windows, and Linux, except the .tar.gz 
+target. Our initial release will not support updating .tar.gz builds; we may 
+explore this in the future.
+
+>Note: Electron's auto-update mechanism on macOS requires the ZIP target. 
+>It has already been added and will be available via direct download only - 
+>it will not be shown on the downloads page.
+
+### Custom update flow
+
+By default, `electron-updater` queries a static update server endpoint (like 
+GitHub) which returns a file containing the latest version metadata. 
+However, in our client tools update architecture, the latest version is dynamic, 
+based on `autoupdate_version` provided by clusters.
+
+To support this, a custom update provider will be implemented which will generate 
+the update metadata (like a download URL) based on the client tools version.
+
+### User experience
+
+Updates will be visible in two places:
+
+1. Login Dialog
+An auto-update widget will appear when the user opens the login dialog, 
+notifying them of a new version and prompting for a restart.
+It will be possible to open a detailed view from this widget.
+2. Additional Actions Menu (and Teleport Connect -> Check for Updates… menu on macOS)
+This opens a detailed view containing a link to release notes, information about 
+cluster managing updates, and actions like canceling a download or re-checking 
+for updates.
+
+Update checks will be triggered automatically when the login dialog or the app 
+update dialog is opened.
+To ensure a smooth user experience, available updates are downloaded as soon as 
+they're found. Users will only need to restart the app to apply the update - 
+either via the auto-update widget/detailed view or manually by closing the app.
+
+It's worth mentioning that applying updates on Windows and Linux may require  
+additional user interaction, since the app is installed per-machine there.
+After the user clicks 'Restart' on manually closes the app, a system pop-up
+will appear, asking for an admin password. To make it less surprising to users, 
+the UI for Windows/Linux will include a message: "you may be prompted for 
+admin password to install the update".
+
+### Multi-cluster support
+
+Users of Teleport Connect may be logged into multiple clusters, each potentially 
+specifying a different client tools version via `tools_auto_update`.
+
+In the CLI, tools update themselves automatically during login to a cluster, 
+with no user interaction, making the process largely transparent.
+However, replicating this behavior exactly in a desktop app isn't practical, as 
+applying updates requires a manual restart. This could result in an annoying 
+user experience.
+
+Example Scenario:
+1. User logs into Cluster A → the app is up-to-date.
+2. User logs into Cluster B → the app downloads a newer version.
+3. User restarts the app to apply the update.
+4. User logs back into Cluster A (after certs expire) → the app prompts for 
+a downgrade.
+5. User restarts the app to apply the downgrade.
+6. User logs back into Cluster B (after certs expire) → the app prompts for 
+an upgrade again.
+
+This can create a feedback loop of constant updates and repeated restarts.
+
+Proposed Solution:
+* The app will read the client tool versions and minimum client version from all 
+connected clusters, and will try to find the most compatible version (fulfilling 
+our compatibility promise).
+* If no compatible version is found, the auto-update mechanism will stop working
+until the user selects a cluster managing updates in the detailed view.
+The selected cluster will be stored in the app state and cleared when the user 
+logs out from that cluster.
+The UI will look as follows:
+> App updates are disabled
+> 
+> Your clusters require incompatible client versions.
+> To enable app updates, select which cluster should manage them.
+> 
+> [ ] (disabled checkbox) Use the most compatible version from your clusters
+> 
+> Or select a cluster to manage updates:
+> 
+> 1. teleport-18.asteroid.earth
+>
+>    18.0.3 client, only compatible with this cluster.
+> 
+> 2. teleport-17.asteroid.earth
+>
+>    17.3.3 client, compatible with teleport-17.asteroid.earth, teleport-18.asteroid.earth.
+>
+> 3. teleport-16.asteroid.earth
+>
+>    16.3.3 client, compatible with teleport-16.asteroid.earth, teleport-17.asteroid.earth.
+* The auto-update widget will always show an info/warning alert if the app version
+does not match the target cluster client tools version.
+
+In a multi-cluster setup, users will always have the ability to choose which 
+cluster manages updates. Users have different needs, and we don't have enough
+data to reliably solve the multi-cluster version problem in a useful way.
+To help the users make decision on which cluster to choose, we will show 
+compatibility information for clusters.
+
+### Implementation
+
+A custom updater function will be implemented using electron-updater's `Provider` 
+interface. This function will return version metadata including:
+* Version number
+* Download URL
+* SHA-512 checksum
+
+>️ Note: The release process will generate both SHA-256 and SHA-512 checksums.
+
+To fetch the client tool version from clusters, a new RPC to tsh daemon will be 
+added:
+```grpc
+rpc GetAutoUpdate(GetAutoUpdateRequest) returns (GetAutoUpdateResponse);
+
+message GetAutoUpdateRequest {}
+
+message GetAutoUpdateResponse {
+  repeated Version versions = 1;
+}
+
+message Version {
+  string root_cluster_uri = 1;
+  bool tools_auto_update = 2;
+  string tools_version = 3;
+  string min_tools_version = 4;
+}
+```
+The update logic will resolve the version to install using the following 
+precedence:
+1. `TELEPORT_TOOLS_VERSION` env var, if defined.
+2. `tools_version` from the cluster manually selected to manage updates, if selected.
+3. Most compatible version, if can be found.
+4. If there's no version at this point, stop auto updates.
+They will resume working if the user either selects a cluster that manages updates, 
+logs out of incompatible clusters, or if the cluster versions become compatible again.
+
+### Backward compatibility
+
+This auto-update mechanism will be backported to all supported release branches.
+
+However, clusters may specify versions of Teleport Connect that do not support 
+auto-updating. 
+To disallow updating to such version, Teleport Connect will include a hardcoded 
+list of minimum versions supporting auto-updates (e.g., >= 18.1, >= 17.6).  
+The list will be created in coordination with the release team.
+If a cluster specifies an unsupported version, the app will indicate that no 
+update is available.

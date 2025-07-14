@@ -483,7 +483,7 @@ func TestEditBotTraits(t *testing.T) {
 	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
 }
 
-func TestEditBotMaxSessionTtl(t *testing.T) {
+func TestEditBotMaxSessionTTL(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]

@@ -29,6 +29,7 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -98,10 +98,9 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	_, correctPublicKey := testBoundKeypair(t)
 	_, rotatedPublicKey := testBoundKeypair(t)
@@ -937,10 +936,9 @@ func testExtractBotParamsFromCerts(t *testing.T, certs *proto.Certs) (string, ui
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -1112,15 +1110,16 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	require.Contains(t, locks[0].Message(), "certificate generation mismatch")
 
 	// Using the previously working client, make sure API calls no longer work.
-	_, err = client.Ping(ctx)
-	require.ErrorContains(t, err, "access denied")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = client.Ping(ctx)
+		assert.ErrorContains(t, err, "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
-	// TODO: This prevents parallel execution; remove along with the experiment.
-	boundkeypairexperiment.SetEnabled(true)
+	ctx := context.Background()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)

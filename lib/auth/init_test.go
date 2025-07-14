@@ -20,9 +20,12 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"math"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -58,7 +61,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -67,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -216,7 +219,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
 		if hsm {
-			cfg.KeyStoreConfig = keystore.HSMTestConfig(t)
+			cfg.KeyStoreConfig = HSMTestConfig(t)
 		}
 		cfg.AuthPreference.SetOrigin(capOrigin)
 		if capOrigin != types.OriginDefaults {
@@ -387,7 +390,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 					},
 				}
 				if tc.hsm {
-					cfg.KeystoreConfig = keystore.HSMTestConfig(t)
+					cfg.KeystoreConfig = HSMTestConfig(t)
 				}
 				testAuthServer, err := NewTestAuthServer(cfg)
 				require.NoError(t, err)
@@ -425,6 +428,160 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			})
 		}
 	})
+}
+
+func HSMTestConfig(t *testing.T) servicecfg.KeystoreConfig {
+	if cfg, ok := yubiHSMTestConfig(); ok {
+		t.Log("Running test with YubiHSM")
+		return cfg
+	}
+	if cfg, ok := cloudHSMTestConfig(); ok {
+		t.Log("Running test with AWS CloudHSM")
+		return cfg
+	}
+	if cfg, ok := awsKMSTestConfig(); ok {
+		t.Log("Running test with AWS KMS")
+		return cfg
+	}
+	if cfg, ok := gcpKMSTestConfig(); ok {
+		t.Log("Running test with GCP KMS")
+		return cfg
+	}
+	if cfg, ok := softHSMTestConfig(t); ok {
+		t.Log("Running test with SoftHSM")
+		return cfg
+	}
+	t.Skip("No HSM available for test")
+	return servicecfg.KeystoreConfig{}
+}
+
+func yubiHSMTestConfig() (servicecfg.KeystoreConfig, bool) {
+	yubiHSMPath := os.Getenv("TELEPORT_TEST_YUBIHSM_PKCS11_PATH")
+	yubiHSMPin := os.Getenv("TELEPORT_TEST_YUBIHSM_PIN")
+	if yubiHSMPath == "" || yubiHSMPin == "" {
+		return servicecfg.KeystoreConfig{}, false
+	}
+	slotNumber := 0
+	return servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
+			Path:       yubiHSMPath,
+			SlotNumber: &slotNumber,
+			PIN:        yubiHSMPin,
+		},
+	}, true
+}
+
+func cloudHSMTestConfig() (servicecfg.KeystoreConfig, bool) {
+	cloudHSMPin := os.Getenv("TELEPORT_TEST_CLOUDHSM_PIN")
+	if cloudHSMPin == "" {
+		return servicecfg.KeystoreConfig{}, false
+	}
+	return servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
+			Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+			TokenLabel: "cavium",
+			PIN:        cloudHSMPin,
+		},
+	}, true
+}
+
+func awsKMSTestConfig() (servicecfg.KeystoreConfig, bool) {
+	awsKMSAccount := os.Getenv("TELEPORT_TEST_AWS_KMS_ACCOUNT")
+	awsKMSRegion := os.Getenv("TELEPORT_TEST_AWS_KMS_REGION")
+	if awsKMSAccount == "" || awsKMSRegion == "" {
+		return servicecfg.KeystoreConfig{}, false
+	}
+	return servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount: awsKMSAccount,
+			AWSRegion:  awsKMSRegion,
+		},
+	}, true
+}
+
+func gcpKMSTestConfig() (servicecfg.KeystoreConfig, bool) {
+	gcpKeyring := os.Getenv("TELEPORT_TEST_GCP_KMS_KEYRING")
+	if gcpKeyring == "" {
+		return servicecfg.KeystoreConfig{}, false
+	}
+	return servicecfg.KeystoreConfig{
+		GCPKMS: servicecfg.GCPKMSConfig{
+			KeyRing:         gcpKeyring,
+			ProtectionLevel: "SOFTWARE",
+		},
+	}, true
+}
+
+var (
+	cachedSoftHSMConfig      *servicecfg.KeystoreConfig
+	cachedSoftHSMConfigMutex sync.Mutex
+)
+
+// softHSMTestConfig is for use in tests only and creates a test SOFTHSM2 token.
+// This should be used for all tests which need to use SoftHSM because the
+// library can only be initialized once and SOFTHSM2_PATH and SOFTHSM2_CONF
+// cannot be changed. New tokens added after the library has been initialized
+// will not be found by the library.
+//
+// A new token will be used for each `go test` invocation, but it's difficult
+// to create a separate token for each test because because new tokens
+// added after the library has been initialized will not be found by the
+// library. It's also difficult to clean up the token because tests for all
+// packages are run in parallel there is not a good time to safely
+// delete the token or the entire token directory. Each test should clean up
+// all keys that it creates because SoftHSM2 gets really slow when there are
+// many keys for a given token.
+func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
+	path := os.Getenv("SOFTHSM2_PATH")
+	if path == "" {
+		return servicecfg.KeystoreConfig{}, false
+	}
+
+	cachedSoftHSMConfigMutex.Lock()
+	defer cachedSoftHSMConfigMutex.Unlock()
+
+	if cachedSoftHSMConfig != nil {
+		return *cachedSoftHSMConfig, true
+	}
+
+	if os.Getenv("SOFTHSM2_CONF") == "" {
+		// create tokendir
+		tokenDir, err := os.MkdirTemp("", "tokens")
+		require.NoError(t, err)
+
+		// create config file
+		configFile, err := os.CreateTemp("", "softhsm2.conf")
+		require.NoError(t, err)
+
+		// write config file
+		_, err = fmt.Fprintf(configFile, "directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n", tokenDir)
+		require.NoError(t, err)
+		require.NoError(t, configFile.Close())
+
+		// set env
+		os.Setenv("SOFTHSM2_CONF", configFile.Name())
+	}
+
+	// create test token (max length is 32 chars)
+	tokenLabel := strings.ReplaceAll(uuid.NewString(), "-", "")
+	cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
+	t.Logf("Running command: %q", cmd)
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			require.NoError(t, exitErr, "error creating test softhsm token: %s", string(exitErr.Stderr))
+		}
+		require.NoError(t, err, "error attempting to run softhsm2-util")
+	}
+
+	cachedSoftHSMConfig = &servicecfg.KeystoreConfig{
+		PKCS11: servicecfg.PKCS11Config{
+			Path:       path,
+			TokenLabel: tokenLabel,
+			PIN:        "password",
+		},
+	}
+	return *cachedSoftHSMConfig, true
 }
 
 type testDynamicallyConfigurableParams struct {

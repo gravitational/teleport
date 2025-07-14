@@ -92,6 +92,7 @@ import (
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -811,6 +812,12 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 		return nil, trace.Wrap(err)
 	}
 	return types.DeviceToResource(upserted), nil
+}
+
+// ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
+// Auth gRPC connection.
+func (c *Client) ScopedAccessServiceClient() scopedaccessv1.ScopedAccessServiceClient {
+	return scopedaccessv1.NewScopedAccessServiceClient(c.conn)
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying
@@ -3240,6 +3247,7 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 //
 // For a full list of registered applications that are served by an application
 // service, use GetApplicationServers instead.
+// Deprecated: Prefer using [ListApps] or [Apps] instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -3250,6 +3258,59 @@ func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 		apps[i] = items.Apps[i]
 	}
 	return apps, nil
+}
+
+// ListApps returns a page of application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a page of registered applications that are served by an application
+// service, use ListResources instead.
+func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types.Application, string, error) {
+	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
+		Limit:    int32(limit),
+		StartKey: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	apps := make([]types.Application, 0, len(resp.Applications))
+	for _, app := range resp.Applications {
+		apps = append(apps, app)
+	}
+	return apps, resp.NextKey, nil
+}
+
+// Apps returns application resources within the range [start, end).
+func (c *Client) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+	return func(yield func(types.Application, error) bool) {
+		for {
+			apps, next, err := c.ListApps(ctx, 0, start)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, app := range apps {
+				if end != "" && app.GetName() >= end {
+					return
+				}
+
+				if !yield(app, nil) {
+					return
+				}
+			}
+
+			if next == "" {
+				return
+			}
+
+			start = next
+		}
+	}
 }
 
 // DeleteApp deletes specified application resource.
