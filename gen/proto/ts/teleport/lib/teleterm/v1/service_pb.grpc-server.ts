@@ -21,10 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { GetAutoUpdateBaseUrlResponse } from "./service_pb";
-import { GetAutoUpdateBaseUrlRequest } from "./service_pb";
-import { GetAutoUpdateVersionsResponse } from "./service_pb";
-import { GetAutoUpdateVersionsRequest } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import { ConnectToDesktopResponse } from "./service_pb";
@@ -418,20 +414,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession: grpc.handleUnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
-    /**
-     * GetAutoUpdateVersions returns auto update version for clusters that are reachable.
-     *
-     * @generated from protobuf rpc: GetAutoUpdateVersions(teleport.lib.teleterm.v1.GetAutoUpdateVersionsRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateVersionsResponse);
-     */
-    getAutoUpdateVersions: grpc.handleUnaryCall<GetAutoUpdateVersionsRequest, GetAutoUpdateVersionsResponse>;
-    /**
-     * GetAutoUpdateBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-     * Can be overridden with TELEPORT_CDN_BASE_URL env var.
-     * OSS builds require this env var to be set, otherwise an error is returned.
-     *
-     * @generated from protobuf rpc: GetAutoUpdateBaseUrl(teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlRequest) returns (teleport.lib.teleterm.v1.GetAutoUpdateBaseUrlResponse);
-     */
-    getAutoUpdateBaseUrl: grpc.handleUnaryCall<GetAutoUpdateBaseUrlRequest, GetAutoUpdateBaseUrlResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -874,25 +856,5 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => SetSharedDirectoryForDesktopSessionRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionRequest.toBinary(value))
-    },
-    getAutoUpdateVersions: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/GetAutoUpdateVersions",
-        originalName: "GetAutoUpdateVersions",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetAutoUpdateVersionsResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetAutoUpdateVersionsRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetAutoUpdateVersionsResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetAutoUpdateVersionsRequest.toBinary(value))
-    },
-    getAutoUpdateBaseUrl: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/GetAutoUpdateBaseUrl",
-        originalName: "GetAutoUpdateBaseUrl",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetAutoUpdateBaseUrlResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetAutoUpdateBaseUrlRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetAutoUpdateBaseUrlResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetAutoUpdateBaseUrlRequest.toBinary(value))
     }
 };

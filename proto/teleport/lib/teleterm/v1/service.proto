@@ -188,13 +188,6 @@ service TerminalService {
   // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
   // It only registers file system handlers for processing file system-related TDP events.
   rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
-
-  // GetAutoUpdateVersions returns auto update version for clusters that are reachable.
-  rpc GetAutoUpdateVersions(GetAutoUpdateVersionsRequest) returns (GetAutoUpdateVersionsResponse);
-  // GetAutoUpdateBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-  // Can be overridden with TELEPORT_CDN_BASE_URL env var.
-  // OSS builds require this env var to be set, otherwise an error is returned.
-  rpc GetAutoUpdateBaseUrl(GetAutoUpdateBaseUrlRequest) returns (GetAutoUpdateBaseUrlResponse);
 }
 
 message EmptyResponse {}
@@ -729,26 +722,3 @@ message SetSharedDirectoryForDesktopSessionRequest {
 
 // Response for SetSharedDirectoryForDesktopSession.
 message SetSharedDirectoryForDesktopSessionResponse {}
-
-// Request for GetAutoUpdateVersions.
-message GetAutoUpdateVersionsRequest {}
-
-// Response for GetAutoUpdateVersions.
-message GetAutoUpdateVersionsResponse {
-  repeated Version versions = 3;
-}
-
-message Version {
-  string cluster_uri = 1;
-  bool tools_auto_update = 2;
-  string tools_version = 3;
-  string min_tools_version = 4;
-}
-
-// Request for GetAutoUpdateBaseUrl.
-message GetAutoUpdateBaseUrlRequest {}
-
-// Response for GetAutoUpdateBaseUrl.
-message GetAutoUpdateBaseUrlResponse {
-  string base_url = 1;
-}

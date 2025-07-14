@@ -79,8 +79,6 @@ const (
 	TerminalService_GetApp_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
 	TerminalService_ConnectToDesktop_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
 	TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession"
-	TerminalService_GetAutoUpdateVersions_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetAutoUpdateVersions"
-	TerminalService_GetAutoUpdateBaseUrl_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetAutoUpdateBaseUrl"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -227,12 +225,6 @@ type TerminalServiceClient interface {
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 	// It only registers file system handlers for processing file system-related TDP events.
 	SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error)
-	// GetAutoUpdateVersions returns auto update version for clusters that are reachable.
-	GetAutoUpdateVersions(ctx context.Context, in *GetAutoUpdateVersionsRequest, opts ...grpc.CallOption) (*GetAutoUpdateVersionsResponse, error)
-	// GetAutoUpdateBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-	// Can be overridden with TELEPORT_CDN_BASE_URL env var.
-	// OSS builds require this env var to be set, otherwise an error is returned.
-	GetAutoUpdateBaseUrl(ctx context.Context, in *GetAutoUpdateBaseUrlRequest, opts ...grpc.CallOption) (*GetAutoUpdateBaseUrlResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -688,26 +680,6 @@ func (c *terminalServiceClient) SetSharedDirectoryForDesktopSession(ctx context.
 	return out, nil
 }
 
-func (c *terminalServiceClient) GetAutoUpdateVersions(ctx context.Context, in *GetAutoUpdateVersionsRequest, opts ...grpc.CallOption) (*GetAutoUpdateVersionsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAutoUpdateVersionsResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetAutoUpdateVersions_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) GetAutoUpdateBaseUrl(ctx context.Context, in *GetAutoUpdateBaseUrlRequest, opts ...grpc.CallOption) (*GetAutoUpdateBaseUrlResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAutoUpdateBaseUrlResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetAutoUpdateBaseUrl_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -852,12 +824,6 @@ type TerminalServiceServer interface {
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 	// It only registers file system handlers for processing file system-related TDP events.
 	SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error)
-	// GetAutoUpdateVersions returns auto update version for clusters that are reachable.
-	GetAutoUpdateVersions(context.Context, *GetAutoUpdateVersionsRequest) (*GetAutoUpdateVersionsResponse, error)
-	// GetAutoUpdateBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-	// Can be overridden with TELEPORT_CDN_BASE_URL env var.
-	// OSS builds require this env var to be set, otherwise an error is returned.
-	GetAutoUpdateBaseUrl(context.Context, *GetAutoUpdateBaseUrlRequest) (*GetAutoUpdateBaseUrlResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -996,12 +962,6 @@ func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingSer
 }
 func (UnimplementedTerminalServiceServer) SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSharedDirectoryForDesktopSession not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetAutoUpdateVersions(context.Context, *GetAutoUpdateVersionsRequest) (*GetAutoUpdateVersionsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateVersions not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetAutoUpdateBaseUrl(context.Context, *GetAutoUpdateBaseUrlRequest) (*GetAutoUpdateBaseUrlResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateBaseUrl not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1769,42 +1729,6 @@ func _TerminalService_SetSharedDirectoryForDesktopSession_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_GetAutoUpdateVersions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAutoUpdateVersionsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetAutoUpdateVersions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_GetAutoUpdateVersions_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetAutoUpdateVersions(ctx, req.(*GetAutoUpdateVersionsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_GetAutoUpdateBaseUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAutoUpdateBaseUrlRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetAutoUpdateBaseUrl(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_GetAutoUpdateBaseUrl_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetAutoUpdateBaseUrl(ctx, req.(*GetAutoUpdateBaseUrlRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1971,14 +1895,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetSharedDirectoryForDesktopSession",
 			Handler:    _TerminalService_SetSharedDirectoryForDesktopSession_Handler,
-		},
-		{
-			MethodName: "GetAutoUpdateVersions",
-			Handler:    _TerminalService_GetAutoUpdateVersions_Handler,
-		},
-		{
-			MethodName: "GetAutoUpdateBaseUrl",
-			Handler:    _TerminalService_GetAutoUpdateBaseUrl_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
