@@ -2176,7 +2176,8 @@ func (a AccessReviewConditions) IsEmpty() bool {
 	return len(a.ClaimsToRoles) == 0 &&
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
-		len(a.Where) == 0
+		len(a.Where) == 0 &&
+		len(a.ClaimsToPreviewAsRoles) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are
