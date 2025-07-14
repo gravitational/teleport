@@ -10435,9 +10435,9 @@ func TestGetAllowedPreviewAsRole(t *testing.T) {
 	}
 
 	type reviewer struct {
-		allowed []string
-		denied  []string
-		traits  map[string][]string
+		allowed, denied         []string
+		traits                  map[string][]string
+		allowClaims, denyClaims []types.ClaimMapping
 	}
 
 	tests := []struct {
@@ -10467,6 +10467,21 @@ func TestGetAllowedPreviewAsRole(t *testing.T) {
 			expectedRoles: []string{"cloud-dev-ops", "cloud-dev-admin"},
 		},
 		{
+			name: "with allow claims to preview matching traits",
+			reviewer: reviewer{
+				traits: map[string][]string{
+					"roles": {"cloud-dev-ops"},
+				},
+				allowClaims: []types.ClaimMapping{
+					{
+						Claim: "roles",
+						Value: "*",
+						Roles: []string{"$1"},
+					},
+				}},
+			expectedRoles: []string{"cloud-dev-ops"},
+		},
+		{
 			name: "matching deny",
 			reviewer: reviewer{
 				allowed: []string{"infra-ops", "dev"},
@@ -10482,12 +10497,56 @@ func TestGetAllowedPreviewAsRole(t *testing.T) {
 			},
 			expectedRoles: []string{"dev"},
 		},
+		{
+			name: "with deny claims to preview matching traits",
+			reviewer: reviewer{
+				allowed: []string{"cloud-dev-ops", "dev"},
+				traits: map[string][]string{
+					"roles": {"cloud-dev-ops"},
+				},
+				denyClaims: []types.ClaimMapping{
+					{
+						Claim: "roles",
+						Value: "*",
+						Roles: []string{"$1"},
+					},
+				}},
+			expectedRoles: []string{"dev"},
+		},
+		{
+			name: "with allowed and denied claims to preview matching traits",
+			reviewer: reviewer{
+				traits: map[string][]string{
+					"roles": {"cloud-dev-ops"},
+				},
+				denyClaims: []types.ClaimMapping{
+					{
+						Claim: "roles",
+						Value: "*",
+						Roles: []string{"$1"},
+					},
+				},
+				allowClaims: []types.ClaimMapping{
+					{
+						Claim: "roles",
+						Value: "*",
+						Roles: []string{"$1"},
+					},
+				}},
+			expectedRoles: []string{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := &mockGetter{
 				roles: func() map[string]types.Role {
-					roles["rev"] = mustReviewRole(t, "rev", tt.reviewer.allowed, tt.reviewer.denied)
+					roles["rev"] = mustReviewRole(t,
+						"rev",
+						tt.reviewer.allowed,
+						tt.reviewer.denied,
+						tt.reviewer.allowClaims,
+						tt.reviewer.denyClaims,
+					)
 					return roles
 				}(),
 				users: map[string]types.User{
@@ -10502,6 +10561,7 @@ func TestGetAllowedPreviewAsRole(t *testing.T) {
 			accessChecker, err := NewAccessChecker(&AccessInfo{
 				Roles:    roleNames,
 				Username: rudyReviewer,
+				Traits:   tt.reviewer.traits,
 			}, localCluster, g)
 			require.NoError(t, err)
 			allowedPreviewRoles, err := accessChecker.GetAllowedPreviewAsRoles(ctx, g)
@@ -10549,19 +10609,21 @@ func mustRequestSearchAsRole(t *testing.T, name string, allowed, denied []string
 	return role
 }
 
-func mustReviewRole(t *testing.T, name string, allowed []string, denied []string) types.Role {
+func mustReviewRole(t *testing.T, name string, allowed, denied []string, allowClaims, denyClaims []types.ClaimMapping) types.Role {
 	t.Helper()
 	role, err := types.NewRole(name, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			ReviewRequests: &types.AccessReviewConditions{
-				Roles:          allowed,
-				PreviewAsRoles: allowed,
+				Roles:                  allowed,
+				PreviewAsRoles:         allowed,
+				ClaimsToPreviewAsRoles: allowClaims,
 			},
 		},
 		Deny: types.RoleConditions{
 			ReviewRequests: &types.AccessReviewConditions{
-				Roles:          denied,
-				PreviewAsRoles: denied,
+				Roles:                  denied,
+				PreviewAsRoles:         denied,
+				ClaimsToPreviewAsRoles: denyClaims,
 			},
 		},
 	})

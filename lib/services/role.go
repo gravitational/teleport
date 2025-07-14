@@ -3599,7 +3599,7 @@ func WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind string) S
 
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
 // Roles are matched against all the existing roles in the cluster.
-func (set RoleSet) GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGetter) ([]string, error) {
+func (set RoleSet) GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGetter, traits map[string][]string) ([]string, error) {
 	var outAllowed []string
 	if getter == nil {
 		return nil, trace.BadParameter("missing roles getter, this is a bug")
@@ -3608,11 +3608,21 @@ func (set RoleSet) GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGet
 	var err error
 	var matcher roleMatcher
 	for _, role := range set {
-		matcher.allowPreview, err = appendRoleMatchers(matcher.allowPreview, role.GetPreviewAsRoles(types.Allow), nil /* claim mapping */, nil /* traits */)
+		matcher.allowPreview, err = appendRoleMatchers(
+			matcher.allowPreview,
+			role.GetPreviewAsRoles(types.Allow),
+			role.GetAccessReviewConditions(types.Allow).ClaimsToPreviewAsRoles,
+			traits,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		matcher.denyPreview, err = appendRoleMatchers(matcher.denyPreview, role.GetPreviewAsRoles(types.Deny), nil /* claim mapping */, nil /* traits */)
+		matcher.denyPreview, err = appendRoleMatchers(
+			matcher.denyPreview,
+			role.GetPreviewAsRoles(types.Deny),
+			role.GetAccessReviewConditions(types.Deny).ClaimsToPreviewAsRoles,
+			traits,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
