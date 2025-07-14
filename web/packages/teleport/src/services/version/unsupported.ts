@@ -60,7 +60,7 @@ export function isPathNotFoundError(err: unknown): err is ApiError {
  * Else, rethrows the same error.
  *
  * @param supportedVersion the minimum version required for this
- * request to succeed eg: v17.3.0
+ * request to succeed eg: 17.3.0
  */
 export function withGenericUnsupportedError(
   err: unknown,
@@ -81,11 +81,12 @@ export function withGenericUnsupportedError(
 }
 
 /**
- * `makeUnsupportedErrorMessage` creates a message to the user to explain a version mismatch.
+ * `makeUnsupportedErrorMessage` creates a message to the user to explain a
+ * version mismatch.
  *
  * @param err the ApiError received
- * @param supportedVersion the minimum version required for this
- * request to succeed eg: v17.3.0
+ * @param supportedVersion the minimum version required for this request to
+ * succeed eg: 17.3.0
  * @returns the error message to display to the user
  */
 export function makeUnsupportedErrorMessage(
