@@ -69,7 +69,7 @@ func ResourcesWithPageSize[T any](ctx context.Context, pageFunc func(context.Con
 					continue
 				}
 
-				yield(*new(T), err)
+				yield(*new(T), trace.Wrap(err))
 				return
 			}
 			for _, resource := range page {
