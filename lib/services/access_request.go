@@ -1939,7 +1939,7 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 }
 
 type roleMatcher struct {
-	allowRequest, denyRequest, allowSearch, denySearch []parse.Matcher
+	allowRequest, denyRequest, allowSearch, denySearch, allowPreview, denyPreview []parse.Matcher
 }
 
 // canRequestRole checks if a given role can be requested.
@@ -1971,6 +1971,21 @@ func (m roleMatcher) canSearchAsRole(name string) bool {
 		}
 	}
 	for _, allow := range m.allowSearch {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// canPreviewAsRole checks if a given role can be used to preview resources.
+func (m roleMatcher) canPreviewAsRole(name string) bool {
+	for _, deny := range m.denyPreview {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.allowPreview {
 		if allow.Match(name) {
 			return true
 		}

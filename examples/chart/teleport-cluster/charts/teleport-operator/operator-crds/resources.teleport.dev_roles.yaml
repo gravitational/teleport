@@ -501,6 +501,26 @@ spec:
                       access reviews.
                     nullable: true
                     properties:
+                      claims_to_preview_as_roles:
+                        description: ClaimsToPreviewAsRoles specifies a mapping from
+                          claims (traits) to teleport roles.
+                        items:
+                          properties:
+                            claim:
+                              description: Claim is a claim name.
+                              type: string
+                            roles:
+                              description: Roles is a list of static teleport roles
+                                to match.
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
+                            value:
+                              description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
                       claims_to_roles:
                         description: ClaimsToRoles specifies a mapping from claims
                           (traits) to teleport roles.
@@ -1112,6 +1132,26 @@ spec:
                       access reviews.
                     nullable: true
                     properties:
+                      claims_to_preview_as_roles:
+                        description: ClaimsToPreviewAsRoles specifies a mapping from
+                          claims (traits) to teleport roles.
+                        items:
+                          properties:
+                            claim:
+                              description: Claim is a claim name.
+                              type: string
+                            roles:
+                              description: Roles is a list of static teleport roles
+                                to match.
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
+                            value:
+                              description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
                       claims_to_roles:
                         description: ClaimsToRoles specifies a mapping from claims
                           (traits) to teleport roles.
@@ -2020,6 +2060,26 @@ spec:
                       access reviews.
                     nullable: true
                     properties:
+                      claims_to_preview_as_roles:
+                        description: ClaimsToPreviewAsRoles specifies a mapping from
+                          claims (traits) to teleport roles.
+                        items:
+                          properties:
+                            claim:
+                              description: Claim is a claim name.
+                              type: string
+                            roles:
+                              description: Roles is a list of static teleport roles
+                                to match.
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
+                            value:
+                              description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
                       claims_to_roles:
                         description: ClaimsToRoles specifies a mapping from claims
                           (traits) to teleport roles.
@@ -2631,6 +2691,26 @@ spec:
                       access reviews.
                     nullable: true
                     properties:
+                      claims_to_preview_as_roles:
+                        description: ClaimsToPreviewAsRoles specifies a mapping from
+                          claims (traits) to teleport roles.
+                        items:
+                          properties:
+                            claim:
+                              description: Claim is a claim name.
+                              type: string
+                            roles:
+                              description: Roles is a list of static teleport roles
+                                to match.
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
+                            value:
+                              description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
                       claims_to_roles:
                         description: ClaimsToRoles specifies a mapping from claims
                           (traits) to teleport roles.

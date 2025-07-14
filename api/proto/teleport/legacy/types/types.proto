@@ -4081,6 +4081,12 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
+
+  // ClaimsToPreviewAsRoles specifies a mapping from claims (traits) to teleport roles.
+  repeated ClaimMapping ClaimsToPreviewAsRoles = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "claims_to_preview_as_roles,omitempty"
+  ];
 }
 
 // AccessRequestAllowedPromotion describes an allowed promotion to an Access List.

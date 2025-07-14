@@ -212,7 +212,9 @@ type AccessChecker interface {
 	GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error)
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
-	GetAllowedPreviewAsRoles() []string
+	// It evaluates statically defined role names, regexp values and maps
+	// role based on claims to search as roles mappings.
+	GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGetter) ([]string, error)
 
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
@@ -1491,4 +1493,11 @@ func AccessInfoFromUserState(user UserState) *AccessInfo {
 		Roles:    roles,
 		Traits:   traits,
 	}
+}
+
+// GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
+// It evaluates statically defined role names, regexp values and maps
+// role based on claims to search as roles mappings.
+func (a *accessChecker) GetAllowedPreviewAsRoles(ctx context.Context, getter RolesGetter) ([]string, error) {
+	return a.RoleSet.GetAllowedPreviewAsRoles(ctx, getter, a.AccessInfo().Traits)
 }
