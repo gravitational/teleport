@@ -117,10 +117,10 @@ func makeUserInfoToolHandler(session *sessionHandler) mcpserver.ToolHandlerFunc 
 func makeSessionInfoToolHandler(session *sessionHandler) mcpserver.ToolHandlerFunc {
 	return func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		data, err := json.Marshal(map[string]any{
-			"teleport_session_id":      session.sessionID,
 			"teleport_cluster":         session.Identity.RouteToApp.ClusterName,
 			"teleport_app_name":        session.App.GetName(),
 			"teleport_app_description": session.App.GetDescription(),
+			"mcp_transport_type":       types.GetMCPServerTransportType(session.App.GetURI()),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
