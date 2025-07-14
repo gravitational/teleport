@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
@@ -83,16 +84,16 @@ func (o *WorkloadIdentityX509Service) CheckAndSetDefaults() error {
 func (o *WorkloadIdentityX509Service) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
-			Name: SVIDPEMPath,
+			Name: internal.SVIDPEMPath,
 		},
 		{
-			Name: SVIDKeyPEMPath,
+			Name: internal.SVIDKeyPEMPath,
 		},
 		{
-			Name: SVIDTrustBundlePEMPath,
+			Name: internal.SVIDTrustBundlePEMPath,
 		},
 		{
-			Name: SVIDCRLPemPath,
+			Name: internal.SVIDCRLPemPath,
 		},
 	}
 	return fds

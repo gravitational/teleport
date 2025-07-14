@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package legacyspiffe
 
 import (
 	"testing"
@@ -30,10 +30,10 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 	t.Parallel()
 
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[SPIFFESVIDOutput]{
+	tests := []testYAMLCase[SVIDOutputConfig]{
 		{
 			name: "full",
-			in: SPIFFESVIDOutput{
+			in: SVIDOutputConfig{
 				Destination: dest,
 				SVID: SVIDRequest{
 					Path: "/foo",
@@ -62,7 +62,7 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: SPIFFESVIDOutput{
+			in: SVIDOutputConfig{
 				Destination: dest,
 				SVID: SVIDRequest{
 					Path: "/foo",
@@ -74,11 +74,11 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 }
 
 func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*SPIFFESVIDOutput]{
+	tests := []testCheckAndSetDefaultsCase[*SVIDOutputConfig]{
 		{
 			name: "valid",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
@@ -99,8 +99,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing jwt name",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
@@ -121,8 +121,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing jwt audience",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
@@ -143,8 +143,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: nil,
 					SVID: SVIDRequest{
 						Path: "/foo",
@@ -160,8 +160,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing path",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "",
@@ -177,8 +177,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "path missing leading slash",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "foo",
@@ -194,8 +194,8 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "invalid ip",
-			in: func() *SPIFFESVIDOutput {
-				return &SPIFFESVIDOutput{
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
 					Destination: destination.NewMemory(),
 					SVID: SVIDRequest{
 						Path: "/foo",
