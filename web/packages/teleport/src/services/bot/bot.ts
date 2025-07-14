@@ -43,7 +43,7 @@ export function createBot(
   mfaResponse?: MfaChallengeResponse
 ): Promise<void> {
   return api.post(
-    cfg.getBotsUrl(),
+    cfg.getBotUrl({ action: 'create' }),
     config,
     undefined /* abort signal */,
     mfaResponse
@@ -52,13 +52,13 @@ export function createBot(
 
 export async function getBot(
   variables: {
-    name: string;
+    botName: string;
   },
   signal?: AbortSignal
 ): Promise<FlatBot | null> {
   try {
     return await api
-      .get(cfg.getBotUrlWithName(variables.name), signal)
+      .get(cfg.getBotUrl({ action: 'read', ...variables }), signal)
       .then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
@@ -91,10 +91,12 @@ export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {
     throw new Error('cannot fetch bots: bots.list permission required');
   }
 
-  return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
-    const items = json?.items || [];
-    return { bots: items.map(makeBot) };
-  });
+  return api
+    .get(cfg.getBotUrl({ action: 'list' }), signal)
+    .then((json: BotResponse) => {
+      const items = json?.items || [];
+      return { bots: items.map(makeBot) };
+    });
 }
 
 export async function fetchRoles(
@@ -114,7 +116,7 @@ export async function fetchRoles(
 
 export async function editBot(
   flags: FeatureFlags,
-  name: string,
+  botName: string,
   req: EditBotRequest
 ) {
   if (!flags.editBots) {
@@ -126,7 +128,9 @@ export async function editBot(
 
   // TODO(nicholasmarais1158) DELETE IN v20.0.0
   const useV1 = canUseV1Edit(req);
-  const path = useV1 ? cfg.getBotUrlWithName(name) : cfg.getBotUpdateUrl(name);
+  const path = useV1
+    ? cfg.getBotUrl({ action: 'update', botName })
+    : cfg.getBotUrl({ action: 'update-v2', botName });
 
   try {
     const res = await api.put(path, req);
@@ -142,7 +146,7 @@ export function deleteBot(flags: FeatureFlags, name: string) {
     throw new Error('cannot delete bot: bots.remove permission required');
   }
 
-  return api.delete(cfg.getBotUrlWithName(name));
+  return api.delete(cfg.getBotUrl({ action: 'delete', botName: name }));
 }
 
 export async function listBotInstances(
@@ -157,7 +161,7 @@ export async function listBotInstances(
 ) {
   const { pageToken, pageSize, searchTerm, sort, botName } = variables;
 
-  const path = cfg.listBotInstancesUrl();
+  const path = cfg.getBotInstanceUrl({ action: 'list' });
   const qs = new URLSearchParams();
 
   qs.set('page_size', pageSize.toFixed());
@@ -188,7 +192,7 @@ export async function getBotInstance(
   },
   signal?: AbortSignal
 ) {
-  const path = cfg.getBotInstanceUrl(variables.botName, variables.instanceId);
+  const path = cfg.getBotInstanceUrl({ action: 'read', ...variables });
 
   const data = await api.get(path, signal);
 

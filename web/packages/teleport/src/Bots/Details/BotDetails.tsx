@@ -53,7 +53,7 @@ export function BotDetails() {
   const ctx = useTeleport();
   const history = useHistory();
   const params = useParams<{
-    name: string;
+    botName: string;
   }>();
   const [isEditing, setEditing] = useState(false);
 
@@ -113,7 +113,7 @@ export function BotDetails() {
       ) : undefined}
 
       {isSuccess && data === null && (
-        <Alert kind="warning">Bot {params.name} does not exist</Alert>
+        <Alert kind="warning">Bot {params.botName} does not exist</Alert>
       )}
 
       {!hasReadPermission && (

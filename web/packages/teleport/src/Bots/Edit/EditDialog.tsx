@@ -70,7 +70,7 @@ export function EditDialog(props: {
     string | null
   >(null);
   const { isSuccess, data, error, isLoading } = useGetBot(
-    { name: botName },
+    { botName },
     {
       enabled: hasReadPermission,
       staleTime: 30_000, // Keep data in the cache for 30 seconds
@@ -86,7 +86,7 @@ export function EditDialog(props: {
       return editBot(ctx.getFeatureFlags(), botName, params);
     },
     onSuccess: newData => {
-      const key = createGetBotQueryKey({ name: newData.name });
+      const key = createGetBotQueryKey({ botName: newData.name });
       queryClient.setQueryData(key, newData);
 
       setSelectedRoles(null);
