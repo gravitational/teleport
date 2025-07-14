@@ -190,6 +190,9 @@ type Options struct {
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
+	// RSAKeyPairSource is an optional function used by the software keystore when
+	// generating RSA keys.
+	RSAKeyPairSource RSAKeyPairSource
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -232,7 +235,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: opts.RSAKeyPairSource})
 	var backendForNewKeys backend = softwareBackend
 	usableBackends := []backend{softwareBackend}
 

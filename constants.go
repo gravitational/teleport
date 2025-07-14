@@ -304,6 +304,9 @@ const (
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
 
+	// ComponentRecordingEncryption represents recording encryption
+	ComponentRecordingEncryption = "recording-encryption"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 

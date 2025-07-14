@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -66,6 +67,38 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodBoundKeypair),
 }
 
+// ReservedServiceNames are the service names reserved for internal use.
+var ReservedServiceNames = []string{
+	"ca-rotation",
+	"crl-cache",
+	"heartbeat",
+	"identity",
+	"spiffe-trust-bundle-cache",
+}
+
+var reservedServiceNamesMap = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(ReservedServiceNames))
+	for _, k := range ReservedServiceNames {
+		m[k] = struct{}{}
+	}
+	return m
+}()
+
+var serviceNameRegex = regexp.MustCompile(`\A[a-z\d_\-+]+\z`)
+
+func validateServiceName(name string) error {
+	if name == "" {
+		return nil
+	}
+	if _, ok := reservedServiceNamesMap[name]; ok {
+		return trace.BadParameter("service name %q is reserved for internal use", name)
+	}
+	if !serviceNameRegex.MatchString(name) {
+		return trace.BadParameter("invalid service name: %q, may only contain lowercase letters, numbers, hyphens, underscores, or plus symbols", name)
+	}
+	return nil
+}
+
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -94,10 +127,10 @@ type GitlabOnboardingConfig struct {
 // BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
 // method
 type BoundKeypairOnboardingConfig struct {
-	// InitialJoinSecret is the name of the initial joining secret, if any. If
+	// RegistrationSecret is the name of the initial joining secret, if any. If
 	// not specified, a keypair must be created using `tbot keypair create` and
 	// registered with Teleport in advance.
-	InitialJoinSecret string
+	RegistrationSecret string `yaml:"registration_secret,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
@@ -185,6 +218,11 @@ type BotConfig struct {
 	// is embedded in a binary which does not differentiate between address types
 	// such as tctl or the Kubernetes operator.
 	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
+
+	// JoinURI is a joining URI, used to supply connection and authentication
+	// parameters in a single bundle. If set, the value is parsed and merged on
+	// top of the existing configuration during `CheckAndSetDefaults()`.
+	JoinURI string `yaml:"join_uri,omitempty"`
 
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 	Oneshot            bool               `yaml:"oneshot"`
@@ -301,12 +339,22 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	// We've migrated Outputs to Services, so copy all Outputs to Services.
 	conf.Services = append(conf.Services, conf.Outputs...)
+	uniqueNames := make(map[string]struct{}, len(conf.Services))
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
+		}
+		if name := service.GetName(); name != "" {
+			if err := validateServiceName(name); err != nil {
+				return trace.Wrap(err, "validating service[%d]", i)
+			}
+			if _, seen := uniqueNames[name]; seen {
+				return trace.BadParameter("validating service[%d]: duplicate name: %q", i, name)
+			}
+			uniqueNames[name] = struct{}{}
 		}
 	}
 
@@ -399,6 +447,10 @@ type ServiceConfig interface {
 	// RenewalInterval. It's used for validation purposes; services that do not
 	// support these options should return the zero value.
 	GetCredentialLifetime() CredentialLifetime
+
+	// GetName returns the user-given name of the service, used for validation
+	// purposes.
+	GetName() string
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
