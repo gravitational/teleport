@@ -3458,8 +3458,7 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 
 		allow, deny, err := buildMatchers(role.GetSearchAsRoles(types.Allow), role.GetSearchAsRoles(types.Deny))
 		if err != nil {
-			// Let the loop continue with matcher collected before error.
-			slog.ErrorContext(ctx, "SearchAsRoles matcher build failed", "error", err)
+			return nil, trace.Wrap(err)
 		}
 		matcher.allowSearch = append(matcher.allowSearch, allow...)
 		matcher.denySearch = append(matcher.denySearch, deny...)
