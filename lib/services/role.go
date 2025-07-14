@@ -3461,6 +3461,9 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 			return nil, trace.Wrap(err)
 		}
 		matcher.denySearch, err = appendRoleMatchers(matcher.denySearch, role.GetSearchAsRoles(types.Deny), nil /* claim mapping */, nil /* traits */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if len(matcher.allowSearch) == 0 {
