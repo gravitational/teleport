@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package application
 
 import (
 	"context"
@@ -35,7 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -80,7 +81,7 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	role, err = rootClient.UpsertRole(ctx, role)
+	role, err = rootClient.UpsertRole(t.Context(), role)
 	require.NoError(t, err)
 
 	botListener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -89,27 +90,35 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 		botListener.Close()
 	})
 
-	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
-	botConfig := defaultBotConfig(
-		t, process, onboarding, config.ServiceConfigs{
-			&config.ApplicationTunnelService{
-				Listener: botListener,
-				AppName:  appName,
-			},
+
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	connCfg := connection.Config{
+		Address:     proxyAddr.Addr,
+		AddressKind: connection.AddressKindProxy,
+		Insecure:    true,
+	}
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *onboarding,
+		Services: []bot.ServiceBuilder{
+			TunnelServiceBuilder(
+				&TunnelConfig{
+					Listener: botListener,
+					AppName:  appName,
+				},
+				connCfg,
+				bot.DefaultCredentialLifetime,
+			),
 		},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			// insecure required as the db tunnel will connect to proxies
-			// self-signed.
-			insecure: true,
-		},
-	)
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
+	})
+	require.NoError(t, err)
 
 	// Spin up goroutine for bot to run in
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(t.Context())
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {

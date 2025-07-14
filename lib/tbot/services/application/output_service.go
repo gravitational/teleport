@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package application
 
 import (
 	"cmp"
@@ -33,23 +33,25 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-func ApplicationOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.ApplicationOutput) bot.ServiceBuilder {
+func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &ApplicationOutputService{
-			botAuthClient:      deps.Client,
-			getBotIdentity:     deps.BotIdentity,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &OutputService{
+			botAuthClient:             deps.Client,
+			getBotIdentity:            deps.BotIdentity,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			reloadCh:                  deps.ReloadCh,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -60,39 +62,39 @@ func ApplicationOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.Appli
 	}
 }
 
-// ApplicationOutputService generates the artifacts necessary to connect to a
+// OutputService generates the artifacts necessary to connect to a
 // HTTP or TCP application using Teleport.
-type ApplicationOutputService struct {
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.ApplicationOutput
-	getBotIdentity     getBotIdentityFn
-	log                *slog.Logger
-	reloadCh           <-chan struct{}
-	statusReporter     readyz.Reporter
-	identityGenerator  *identity.Generator
-	clientBuilder      *client.Builder
+type OutputService struct {
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *OutputConfig
+	getBotIdentity            func() *identity.Identity
+	log                       *slog.Logger
+	reloadCh                  <-chan struct{}
+	statusReporter            readyz.Reporter
+	identityGenerator         *identity.Generator
+	clientBuilder             *client.Builder
 }
 
-func (s *ApplicationOutputService) String() string {
+func (s *OutputService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("application-output (%s)", s.cfg.Destination.String()),
 	)
 }
 
-func (s *ApplicationOutputService) OneShot(ctx context.Context) error {
+func (s *OutputService) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
-func (s *ApplicationOutputService) Run(ctx context.Context) error {
+func (s *OutputService) Run(ctx context.Context) error {
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -101,10 +103,10 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *ApplicationOutputService) generate(ctx context.Context) error {
+func (s *OutputService) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"ApplicationOutputService/generate",
+		"OutputService/generate",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
@@ -121,7 +123,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -181,23 +183,23 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 	return trace.Wrap(s.render(ctx, routedIdentity, hostCAs, userCAs, databaseCAs), "rendering")
 }
 
-func (s *ApplicationOutputService) render(
+func (s *OutputService) render(
 	ctx context.Context,
 	routedIdentity *identity.Identity,
 	hostCAs, userCAs, databaseCAs []types.CertAuthority,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"ApplicationOutputService/render",
+		"OutputService/render",
 	)
 	defer span.End()
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -207,12 +209,12 @@ func (s *ApplicationOutputService) render(
 	}
 
 	if s.cfg.SpecificTLSExtensions {
-		if err := writeIdentityFileTLS(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+		if err := internal.WriteIdentityFileTLS(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 			return trace.Wrap(err, "writing specific tls extension files")
 		}
 	}
 
-	return trace.Wrap(writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
+	return trace.Wrap(internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
 }
 
 func getRouteToApp(

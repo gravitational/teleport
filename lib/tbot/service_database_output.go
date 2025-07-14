@@ -90,7 +90,7 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -193,16 +193,16 @@ func (s *DatabaseOutputService) render(
 	)
 	defer span.End()
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
+	if err := internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -225,7 +225,7 @@ func (s *DatabaseOutputService) render(
 			return trace.Wrap(err, "writing cockroach database files")
 		}
 	case config.TLSDatabaseFormat:
-		if err := writeIdentityFileTLS(
+		if err := internal.WriteIdentityFileTLS(
 			ctx, s.log, keyRing, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing tls database format files")
@@ -249,14 +249,14 @@ func writeCockroachDatabaseFiles(
 	defer span.End()
 
 	// Cockroach format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultCockroachDirName,
-		Writer:     newBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
+		Writer:     internal.NewBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatCockroach,
 
@@ -287,14 +287,14 @@ func writeMongoDatabaseFiles(
 	defer span.End()
 
 	// Mongo format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	keyRing, err := internal.NewClientKeyRing(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultMongoPrefix,
-		Writer:     newBotConfigWriter(ctx, dest, ""),
+		Writer:     internal.NewBotConfigWriter(ctx, dest, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatMongo,
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

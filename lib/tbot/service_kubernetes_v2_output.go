@@ -112,7 +112,7 @@ func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 		Name:            "output-renewal",
 		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
-		RetryLimit:      renewalRetryLimit,
+		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
@@ -191,7 +191,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := NewClientKeyRing(id.Get(), hostCAs)
+	keyRing, err := internal.NewClientKeyRing(id.Get(), hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -288,7 +288,7 @@ func (s *KubernetesV2OutputService) render(
 	)
 	defer span.End()
 
-	if err := writeIdentityFile(ctx, s.log, status.credentials, s.cfg.Destination); err != nil {
+	if err := internal.WriteIdentityFile(ctx, s.log, status.credentials, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
