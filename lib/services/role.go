@@ -3442,11 +3442,7 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 		return nil, trace.BadParameter("missing roles getter, this is a bug")
 	}
 
-	allClusterRoles, err := getter.GetRoles(ctx)
-	if err != nil {
-		return outAllowed, trace.Wrap(err)
-	}
-
+	var err error
 	var matcher roleMatcher
 	for _, role := range set {
 		if slices.ContainsFunc(allowFilters, func(filter SearchAsRolesOption) bool {
@@ -3470,6 +3466,10 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 		return outAllowed, nil
 	}
 
+	allClusterRoles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return outAllowed, trace.Wrap(err)
+	}
 	for _, r := range allClusterRoles {
 		if matcher.canSearchAsRole(r.GetName()) {
 			outAllowed = append(outAllowed, r.GetName())
