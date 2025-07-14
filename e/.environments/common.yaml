@@ -2,5 +2,5 @@
 # Branch-level values go here or in common.sops.yaml
 RELCLI_IMAGE_REGION: us-west-2
 RELCLI_IMAGE_PULL_ROLE_ARN: arn:aws:iam::146628656107:role/image-pull-gha
-RELCLI_VERSION: prod-27567fb2801b-20240916T165602
-RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-27567fb2801b-20240916T165602
+RELCLI_VERSION: prod-6a1c8afa1220-20250711T182319
+RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-6a1c8afa1220-20250711T182319
