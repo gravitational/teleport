@@ -1500,7 +1500,6 @@ func AccessInfoFromUserState(user UserState) *AccessInfo {
 // It evaluates statically defined role names, regexp values and maps
 // role based on claims to search as roles mappings.
 func (a *accessChecker) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, allowFilters ...SearchAsRolesOption) ([]string, error) {
-	fmt.Println("main: ", len(a.AccessInfo().Traits))
 	return a.RoleSet.GetAllowedSearchAsRoles(ctx, getter, a.AccessInfo().Traits, allowFilters...)
 }
 

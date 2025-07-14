@@ -1599,11 +1599,11 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.Context, error) {
 	var extraRoles []string
 	if req.UseSearchAsRoles {
-		expandedSearchAsRoles, err := a.context.Checker.GetAllowedSearchAsRoles(ctx, a.authServer)
+		allowedSearchAsRoles, err := a.context.Checker.GetAllowedSearchAsRoles(ctx, a.authServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		extraRoles = append(extraRoles, expandedSearchAsRoles...)
+		extraRoles = append(extraRoles, allowedSearchAsRoles...)
 	}
 	if req.UsePreviewAsRoles {
 		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
