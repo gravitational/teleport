@@ -2897,8 +2897,20 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	// default to checking the capabilities of the caller
+	localuser := a.context.User.GetName()
 	if req.User == "" {
-		req.User = a.context.User.GetName()
+		req.User = localuser
+	}
+
+	if authz.IsRemoteUser(a.context) {
+		remoteIdentity := a.context.UnmappedIdentity.GetIdentity()
+		if req.User != remoteIdentity.Username {
+			return nil, trace.AccessDenied("you can only ask for your own")
+		}
+		// rewrite the request to target the local user representing the remote-cluster
+		// user in this cluster.
+		req.User = localuser
+		return a.authServer.GetRemoteAccessCapabilites(ctx, req, a.context.User, remoteIdentity)
 	}
 
 	// all users can check their own capabilities

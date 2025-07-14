@@ -209,3 +209,44 @@ func TestRoleMap(t *testing.T) {
 		})
 	}
 }
+
+func TestRoleUnmap(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		remote   []string
+		local    []string
+		roleMap  types.RoleMap
+		expected []string
+		name     string
+		err      error
+	}{
+		{
+			name:   "exact match",
+			remote: []string{"remote-devs", "db-admins", "access"},
+			local:  []string{"local-devs"},
+			roleMap: types.RoleMap{
+				{Remote: "remote-devs", Local: []string{"local-devs"}},
+			},
+			expected: []string{"remote-devs"},
+		},
+		{
+			name:   "multiple match",
+			remote: []string{"remote-devs", "db-admins", "requester", "access"},
+			local:  []string{"local-devs", "local-db"},
+			roleMap: types.RoleMap{
+				{Remote: "remote-devs", Local: []string{"local-devs", "requester"}},
+				{Remote: "db-admins", Local: []string{"local-db"}},
+			},
+			expected: []string{"remote-devs", "db-admins"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			remoteRoles, err := UnmapRoles(testCase.remote, testCase.local, testCase.roleMap)
+			require.NoError(t, err)
+			require.ElementsMatch(t, testCase.expected, remoteRoles)
+		})
+	}
+}

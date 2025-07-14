@@ -213,10 +213,27 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		req.ResourceIDs = nil
 	}
 
+	uls, err := GetUserOrLoginState(ctx, clt, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return CalculateAccessCapabilitiesForUser(ctx, clock, clt, uls, identity, req)
+}
+
+func CalculateAccessCapabilitiesForUser(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, user UserState, identity tlsca.Identity, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	shouldFilter, err := shouldFilterRequestableRolesByResource(clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !shouldFilter && req.FilterRequestableRolesByResource {
+		req.ResourceIDs = nil
+	}
+
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
-	v, err := newRequestValidator(ctx, clock, clt, req.User, WithExpandVars(req.SuggestedReviewers))
+	v, err := newRequestValidatorForUser(ctx, clock, clt, user, WithExpandVars(req.SuggestedReviewers))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -241,6 +258,13 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 
 	if req.SuggestedReviewers {
 		caps.SuggestedReviewers = v.suggestedReviewers
+	}
+
+	if req.SearchAsRoles {
+		caps.SearchAsRoles, err = v.allowedSearchAsRoles()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	caps.RequireReason, err = v.calcRequireReasonCap(ctx, req, caps)
@@ -1098,11 +1122,16 @@ func newRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		return requestValidator{}, trace.Wrap(err)
 	}
 
+	return newRequestValidatorForUser(ctx, clock, getter, uls, opts...)
+}
+
+// newRequestValidator configures a new RequestValidator for the specified user.
+func newRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, user UserState, opts ...ValidateRequestOption) (requestValidator, error) {
 	m := requestValidator{
 		logger:    slog.With(teleport.ComponentKey, "request.validator"),
 		clock:     clock,
 		getter:    getter,
-		userState: uls,
+		userState: user,
 
 		requiringReasonRoles: make(map[string]struct{}),
 	}
