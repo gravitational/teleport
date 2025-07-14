@@ -503,6 +503,7 @@ func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProc
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"})
 	cfg.Auth.Enabled = true
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
