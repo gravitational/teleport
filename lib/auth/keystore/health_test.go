@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
@@ -18,30 +19,39 @@ func TestPassiveHealthCheck(t *testing.T) {
 		desc          string
 		retryInterval time.Duration
 		errs          []error
-		callbacks     int
+		callbacks     []error
 	}{
 		{
 			desc:      "test success threshold",
 			errs:      []error{nil, nil, nil},
-			callbacks: 1,
+			callbacks: []error{nil},
 		},
 		{
 			desc: "test failure threshold",
 
 			errs:      []error{testErr, testErr, testErr, nil, nil, nil},
-			callbacks: 2,
+			callbacks: []error{testErr, nil},
 		},
 		{
 			desc:      "test success threshold restart",
 			errs:      []error{nil, nil, testErr, nil, nil, testErr, nil, nil, nil},
-			callbacks: 1,
+			callbacks: []error{nil},
+		},
+		{
+			desc: "test non-unhealthy errors hit success threshold",
+			errs: []error{
+				&kmstypes.NotFoundException{},
+				&kmstypes.NotFoundException{},
+				&kmstypes.NotFoundException{},
+			},
+			callbacks: []error{nil},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			callbacks := 0
+			callbacks := make([]error, 0, len(tc.callbacks))
 			h := passiveHealthChecker{
 				callback: func(err error) {
-					callbacks += 1
+					callbacks = append(callbacks, err)
 				},
 				log:   slog.Default(),
 				clock: clock,
