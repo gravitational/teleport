@@ -89,6 +89,6 @@ ignoreDifferences:
       - '.spec.template.spec.containers[] | select(.name == "teleport").image'
 ```
 
-3. Sync your changes to apply the configuration.
+3. Sync your changes to apply the configuration using `argocd app sync $YOUR_APPLICATION_NAME`
 4. To verify setup, navigate to the 'Resources' page in your Teleport
    cluster to confirm the Kubernetes cluster is registered.
