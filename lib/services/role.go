@@ -3436,7 +3436,7 @@ type RolesGetter interface {
 
 // GetAllowedSearchAsRoles returns all SearchAsRoles for this RoleSet.
 // Roles are matched against all the existing roles in the cluster.
-func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, allowFilters ...SearchAsRolesOption) ([]string, error) {
+func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGetter, traits map[string][]string, allowFilters ...SearchAsRolesOption) ([]string, error) {
 	var outAllowed []string
 	if getter == nil {
 		return nil, trace.BadParameter("missing roles getter, this is a bug")
@@ -3452,11 +3452,11 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 			continue
 		}
 
-		matcher.allowSearch, err = appendRoleMatchers(matcher.allowSearch, role.GetSearchAsRoles(types.Allow), nil /* claim mapping */, nil /* traits */)
+		matcher.allowSearch, err = appendRoleMatchers(matcher.allowSearch, role.GetSearchAsRoles(types.Allow), role.GetAccessRequestConditions(types.Allow).ClaimsToSearchAsRoles, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		matcher.denySearch, err = appendRoleMatchers(matcher.denySearch, role.GetSearchAsRoles(types.Deny), nil /* claim mapping */, nil /* traits */)
+		matcher.denySearch, err = appendRoleMatchers(matcher.denySearch, role.GetSearchAsRoles(types.Deny), role.GetAccessRequestConditions(types.Deny).ClaimsToSearchAsRoles, traits)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3568,7 +3568,7 @@ func matchRequestKubernetesResources(input gk, reference types.RequestKubernetes
 
 // GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
 // that allowed requesting to the requested Kubernetes resource kind.
-func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, requestedKubeResourceKind string) ([]string, error) {
+func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Context, getter RolesGetter, traits map[string][]string, requestedKubeResourceKind string) ([]string, error) {
 	// Return no results if encountering any denies since its globally matched.
 	for _, role := range set {
 		for _, kr := range role.GetRequestKubernetesResources(types.Deny) {
@@ -3578,7 +3578,7 @@ func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(ctx context.Contex
 			}
 		}
 	}
-	return set.GetAllowedSearchAsRoles(ctx, getter, WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
+	return set.GetAllowedSearchAsRoles(ctx, getter, traits, WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
 }
 
 // WithAllowedKubernetesResourceKindFilter returns a SearchAsRolesOption func

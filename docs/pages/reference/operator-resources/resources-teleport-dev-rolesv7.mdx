@@ -137,6 +137,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
+|claims_to_search_as_roles|[][object](#specallowrequestclaims_to_search_as_roles-items)|ClaimsToSearchAsRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specallowrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |reason|[object](#specallowrequestreason)|Reason defines settings for the reason for the access provided by the user.|
@@ -146,6 +147,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |thresholds|[][object](#specallowrequestthresholds-items)|Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|
 
 ### spec.allow.request.claims_to_roles items
+
+|Field|Type|Description|
+|---|---|---|
+|claim|string|Claim is a claim name.|
+|roles|[]string|Roles is a list of static teleport roles to match.|
+|value|string|Value is a claim value to match.|
+
+### spec.allow.request.claims_to_search_as_roles items
 
 |Field|Type|Description|
 |---|---|---|
@@ -327,6 +336,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
+|claims_to_search_as_roles|[][object](#specdenyrequestclaims_to_search_as_roles-items)|ClaimsToSearchAsRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specdenyrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |reason|[object](#specdenyrequestreason)|Reason defines settings for the reason for the access provided by the user.|
@@ -336,6 +346,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |thresholds|[][object](#specdenyrequestthresholds-items)|Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|
 
 ### spec.deny.request.claims_to_roles items
+
+|Field|Type|Description|
+|---|---|---|
+|claim|string|Claim is a claim name.|
+|roles|[]string|Roles is a list of static teleport roles to match.|
+|value|string|Value is a claim value to match.|
+
+### spec.deny.request.claims_to_search_as_roles items
 
 |Field|Type|Description|
 |---|---|---|
