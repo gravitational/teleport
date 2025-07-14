@@ -3,12 +3,6 @@ variable "aws_region" {
   description = "The AWS region where the ECS cluster and services will be deployed; this must match the region of your EKS cluster."
 }
 
-variable "teleport_image" {
-  type        = string
-  default     = "public.ecr.aws/gravitational-staging/teleport-ent-distroless:18.0.0-alpha.4"
-  description = "Teleport image location and tag. Keep it up to date."
-}
-
 variable "ecs_cluster" {
   type        = string
   description = "The AWS ECS cluster name where the discovery and kubernetes services will run."
