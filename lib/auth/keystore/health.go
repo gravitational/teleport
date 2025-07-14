@@ -35,7 +35,7 @@ type passiveHealthChecker struct {
 type probeFunc func(context.Context) error
 
 // tryProbe will call the probeFunc until the number of consecutive successful
-// calls passes the successThreshold. This is a noop if a previous probe is still\
+// calls passes the successThreshold. This is a noop if a previous probe is still
 // running.
 func (h *passiveHealthChecker) tryProbe(ctx context.Context, probe probeFunc) {
 	if swapped := h.busy.CompareAndSwap(false, true); !swapped {
@@ -110,10 +110,12 @@ type healthSigner struct {
 func (s *healthSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	sig, err := s.Signer.Sign(rand, digest, opts)
 	if err != nil {
-		s.health.tryProbe(context.Background(), func(ctx context.Context) error {
-			_, err := s.Signer.Sign(rand, digest, opts)
-			return trace.Wrap(err)
-		})
+		if isHealthCheckFailure(err) {
+			s.health.tryProbe(context.Background(), func(ctx context.Context) error {
+				_, err := s.Signer.Sign(rand, digest, opts)
+				return trace.Wrap(err)
+			})
+		}
 		return nil, trace.Wrap(err)
 	}
 	return sig, nil
