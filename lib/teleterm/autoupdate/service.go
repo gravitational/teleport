@@ -28,9 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -61,12 +59,10 @@ type Config struct {
 	InsecureSkipVerify bool
 }
 
-// ClusterProvider allows listing and resolving clusters.
+// ClusterProvider allows listing clusters.
 type ClusterProvider interface {
 	// ListRootClusters returns a list of root clusters.
 	ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error)
-	// ResolveClusterURI resolves a cluster and its client from a URI.
-	ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
 }
 
 // CheckAndSetDefaults checks and sets the defaults.
@@ -125,15 +121,10 @@ func (s *Service) GetClusterVersions(ctx context.Context, _ *api.GetClusterVersi
 }
 
 func (s *Service) pingCluster(ctx context.Context, cluster *clusters.Cluster) (*webclient.PingResponse, error) {
-	_, tc, err := s.cfg.ClusterProvider.ResolveClusterURI(cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	find, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
-		ProxyAddr: tc.WebProxyAddr,
-		Insecure:  tc.InsecureSkipVerify,
+		ProxyAddr: cluster.WebProxyAddr,
+		Insecure:  s.cfg.InsecureSkipVerify,
 		Timeout:   pingTimeout,
 	})
 	return find, trace.Wrap(err)
