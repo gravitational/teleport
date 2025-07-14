@@ -3456,12 +3456,11 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 			continue
 		}
 
-		allow, deny, err := buildMatchers(role.GetSearchAsRoles(types.Allow), role.GetSearchAsRoles(types.Deny))
+		matcher.allowSearch, err = appendRoleMatchers(matcher.allowSearch, role.GetSearchAsRoles(types.Allow), nil /* claim mapping */, nil /* traits */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		matcher.allowSearch = append(matcher.allowSearch, allow...)
-		matcher.denySearch = append(matcher.denySearch, deny...)
+		matcher.denySearch, err = appendRoleMatchers(matcher.denySearch, role.GetSearchAsRoles(types.Deny), nil /* claim mapping */, nil /* traits */)
 	}
 
 	if len(matcher.allowSearch) == 0 {
@@ -3474,28 +3473,6 @@ func (set RoleSet) GetAllowedSearchAsRoles(ctx context.Context, getter RolesGett
 		}
 	}
 	return apiutils.Deduplicate(outAllowed), nil
-}
-
-func buildMatchers(allow, deny []string) ([]parse.Matcher, []parse.Matcher, error) {
-	allowMatcher := make([]parse.Matcher, 0, len(allow))
-	denyMatcher := make([]parse.Matcher, 0, len(deny))
-	for _, r := range allow {
-		m, err := parse.NewMatcher(r)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		allowMatcher = append(allowMatcher, m)
-	}
-
-	for _, r := range deny {
-		m, err := parse.NewMatcher(r)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		denyMatcher = append(denyMatcher, m)
-	}
-
-	return allowMatcher, denyMatcher, nil
 }
 
 type gk struct{ group, kind string }
