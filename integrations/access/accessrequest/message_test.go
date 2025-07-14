@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -88,4 +89,20 @@ func ExampleMsgFields_logins() {
 	// *Reason*: ```
 	// test```
 	// *Link*: https://example.teleport.sh/web/requests/00000000-0000-0000-0000-000000000000
+}
+
+func ExampleMsgReview() {
+	review := types.AccessReview{
+		Author:        "example@goteleport.com",
+		ProposedState: types.RequestState_APPROVED,
+		Reason:        "example reason",
+	}
+
+	msg, _ := MsgReview(review)
+	fmt.Println(msg)
+
+	// Output: example@goteleport.com reviewed the request at 01 Jan 01 00:00 UTC.
+	// Resolution: ✅ APPROVED.
+	// Reason: ```
+	// example reason```
 }

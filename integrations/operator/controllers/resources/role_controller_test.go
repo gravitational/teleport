@@ -188,11 +188,11 @@ allow:
 	}
 
 	for _, tc := range tests {
-		tc := tc // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-			roleManifest := map[string]interface{}{}
+			roleManifest := map[string]any{}
 			err := yaml.Unmarshal([]byte(tc.roleSpecYAML), &roleManifest)
 			require.NoError(t, err)
 
@@ -408,7 +408,7 @@ func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *r
 	require.NoError(t, err)
 }
 
-func getRoleStatusConditionError(object map[string]interface{}) []metav1.Condition {
+func getRoleStatusConditionError(object map[string]any) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
 	var status apiresources.Status
 	_ = mapstructure.Decode(object["status"], &status)

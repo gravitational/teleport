@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type mockEvents struct {
@@ -325,7 +325,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
-			utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+			testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 				Name: "event sender",
 				Task: func(ctx context.Context) error {
 					sendEvents(ctx, events, tc.events)

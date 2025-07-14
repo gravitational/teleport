@@ -7,7 +7,7 @@ tocDepth: 3
 ---
 
 This guide explains the core concepts behind the Teleport joining process,
-references all support join methods and classifies them based on their
+references all supported join methods and classifies them based on their
 security properties. This guide does not explain step-by-step how to
 join an instance with each join method, but links to the relevant How-To
 guides when possible.
@@ -261,7 +261,7 @@ When a MachineID bot uses an ephemeral join token, the token is deleted.
 
 <Admonition type="note" title="See Also">
 - How to [Join Services with a Secure Token](../enroll-resources/agents/join-token.mdx).
-- [Deploying Machine ID on Linux](../enroll-resources/machine-id/deployment/linux.mdx)
+- [Deploying Machine ID on Linux](../machine-workload-identity/machine-id/deployment/linux.mdx)
 </Admonition>
 
 ### AWS IAM role: `iam`
@@ -276,7 +276,7 @@ This is the recommended method to join workload running on AWS.
 
 <Admonition type="note" title="See Also">
 - [Joining Services via AWS IAM Role](../enroll-resources/agents/aws-iam.mdx).
-- [Deploying Machine ID on AWS](../enroll-resources/machine-id/deployment/aws.mdx)
+- [Deploying Machine ID on AWS](../machine-workload-identity/machine-id/deployment/aws.mdx)
 </Admonition>
 
 ### AWS EC2 identity document: `ec2`
@@ -313,18 +313,22 @@ behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
 <Admonition type="note" title="See Also">
 - [Joining Services via Azure Managed Identity](../enroll-resources/agents/azure.mdx).
-- [Deploying Machine ID on Azure](../enroll-resources/machine-id/deployment/azure.mdx)
+- [Deploying Machine ID on Azure](../machine-workload-identity/machine-id/deployment/azure.mdx)
 </Admonition>
 
 ### Azure Devops: `azure_devops`
 
 The Azure DevOps is available to any Teleport process running in an Azure DevOps
 pipeline. This join method is typically used with
-[Machine & Workload Identity](../enroll-resources/machine-id/introduction.mdx)
+[Machine & Workload Identity](../machine-workload-identity/machine-id/introduction.mdx)
 to access Teleport-protected resources in Azure DevOps pipelines without the
 use of long-lived secrets.
 
 (!docs/pages/includes/provision-token/azure-devops-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Azure DevOps](../machine-workload-identity/machine-id/deployment/azure-devops.mdx)
+</Admonition>
 
 ### GCP service account: `gcp`
 
@@ -338,31 +342,31 @@ on the Teleport process joining the cluster.
 
 <Admonition type="note" title="See Also">
 - How to [Join Services with GCP](../enroll-resources/agents/gcp.mdx).
-- [Deploying Machine ID on GCP](../enroll-resources/machine-id/deployment/gcp.mdx)
+- [Deploying Machine ID on GCP](../machine-workload-identity/machine-id/deployment/gcp.mdx)
 </Admonition>
 
 ### GitHub Actions: `github`
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server. This join method is
-typically used with [Machine ID](../enroll-resources/machine-id/introduction.mdx) to access
+typically used with [Machine ID](../machine-workload-identity/machine-id/introduction.mdx) to access
 Teleport-protected resources in GitHub Actions pipelines.
 
 (!docs/pages/includes/provision-token/github-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on GitHub Actions](../enroll-resources/machine-id/deployment/github-actions.mdx)
+- [Deploying Machine ID on GitHub Actions](../machine-workload-identity/machine-id/deployment/github-actions.mdx)
 </Admonition>
 
 ### CircleCI: `circleci`
 
-This join method is typically used with [Machine ID](../enroll-resources/machine-id/introduction.mdx)
+This join method is typically used with [Machine ID](../machine-workload-identity/machine-id/introduction.mdx)
 to access Teleport-protected resources in Circle CI pipelines.
 
 (!docs/pages/includes/provision-token/circleci-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Circle CI](../enroll-resources/machine-id/deployment/circleci.mdx)
+- [Deploying Machine ID on Circle CI](../machine-workload-identity/machine-id/deployment/circleci.mdx)
 </Admonition>
 
 ### GitLab: `gitlab`
@@ -370,13 +374,13 @@ to access Teleport-protected resources in Circle CI pipelines.
 Teleport supports secure joining on both cloud-hosted and self-hosted GitLab
 instances. **The minimum supported GitLab version is 15.7**.
 
-This join method is typically used with [MachineID](../enroll-resources/machine-id/introduction.mdx)
+This join method is typically used with [MachineID](../machine-workload-identity/machine-id/introduction.mdx)
 to access Teleport-protected resources in Gitlab CI pipelines.
 
 (!docs/pages/includes/provision-token/gitlab-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on GitLab CI](../enroll-resources/machine-id/deployment/gitlab.mdx)
+- [Deploying Machine ID on GitLab CI](../machine-workload-identity/machine-id/deployment/gitlab.mdx)
 </Admonition>
 
 ### Kubernetes: `kubernetes`
@@ -413,8 +417,6 @@ This join method works by exporting the public Kubernetes signing keys and using
 them to validate Kubernetes SA token signatures. The signature validation can be
 performed by an Auth Service without access to the Kubernetes.
 
-The Kubernetes JWKS join method is available in Teleport 14+.
-
 (!docs/pages/includes/provision-token/kubernetes-jwks-spec.mdx!)
 
 <Admonition type="warning">
@@ -424,7 +426,7 @@ to contain the new Kubernetes signing keys (update the
 </Admonition>
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Kubernetes](../enroll-resources/machine-id/deployment/kubernetes.mdx)
+- [Deploying Machine ID on Kubernetes](../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
 </Admonition>
 
 ### Trusted Platform Module: `tpm`
@@ -434,7 +436,7 @@ to contain the new Kubernetes signing keys (update the
 (!docs/pages/includes/provision-token/tpm-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Linux: TPM](../enroll-resources/machine-id/deployment/linux-tpm.mdx)
+- [Deploying Machine ID on Linux: TPM](../machine-workload-identity/machine-id/deployment/linux-tpm.mdx)
 </Admonition>
 
 ### Terraform Cloud: `terraform_cloud`
@@ -477,7 +479,7 @@ secrets.
 (!docs/pages/includes/provision-token/bitbucket-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Deploying Machine ID on Bitbucket Pipelines](../enroll-resources/machine-id/deployment/bitbucket.mdx)
+- [Deploying Machine ID on Bitbucket Pipelines](../machine-workload-identity/machine-id/deployment/bitbucket.mdx)
 </Admonition>
 
 ### Oracle Cloud: `oracle`

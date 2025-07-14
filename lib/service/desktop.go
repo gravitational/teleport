@@ -283,7 +283,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("windows_desktop.shutdown", func(payload interface{}) {
+	process.OnExit("windows_desktop.shutdown", func(payload any) {
 		// Fast shutdown.
 		warnOnErr(process.ExitContext(), srv.Close(), logger)
 		agentPool.Stop()

@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -1144,8 +1145,7 @@ func TestLocalControlStream(t *testing.T) {
 	const serverID = "test-server"
 
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	s := newAuthSuite(t)
 
@@ -2249,7 +2249,6 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2902,7 +2901,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			cap: types.AuthPreferenceSpecV2{
 				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
 				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
 			},
@@ -2915,7 +2914,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
 				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
 			},
@@ -2948,7 +2947,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     1234,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "unknown hardware key")
 			},
@@ -2982,7 +2981,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     87654321,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "unknown hardware key")
 			},
@@ -3001,7 +3000,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "no known hardware keys")
 			},
@@ -3799,7 +3798,6 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tokenID := "test-token-not-found"
@@ -3946,7 +3944,7 @@ func TestFilterResources(t *testing.T) {
 	const resourceCount = 100
 	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
 
-	for i := 0; i < resourceCount; i++ {
+	for range resourceCount {
 		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
 		require.NoError(t, err)
 		nodes = append(nodes, s)
@@ -3962,7 +3960,7 @@ func TestFilterResources(t *testing.T) {
 		{
 			name:  "ListResources fails",
 			cache: mockCache{resourcesError: fail},
-			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errorAssertion: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, i...)
 				require.ErrorIs(t, err, fail)
 			},
@@ -3978,7 +3976,7 @@ func TestFilterResources(t *testing.T) {
 		{
 			name:  "fatal errors are propagated",
 			cache: mockCache{resources: nodes},
-			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errorAssertion: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, i...)
 				require.ErrorIs(t, err, fail)
 			},
@@ -3997,7 +3995,6 @@ func TestFilterResources(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -4013,6 +4010,12 @@ func TestFilterResources(t *testing.T) {
 	}
 }
 
+type fakeAuthPreferenceGetter struct{}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
+}
+
 func TestCAGeneration(t *testing.T) {
 	ctx := context.Background()
 	const (
@@ -4023,16 +4026,20 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	keyStore := keystore.NewSoftwareKeystoreForTests(t,
-		keystore.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{},
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
-		}),
-	)
+		},
+	})
+	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
 			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+
+			keySet, err := newKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
 			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
@@ -4516,7 +4523,7 @@ func TestCleanupNotifications(t *testing.T) {
 	var createdNotifications []notificationInfo
 
 	createNotifications := func(username string, count int, expiryDuration time.Duration) {
-		for i := 0; i < count; i++ {
+		for i := range count {
 			var id string
 			if username != "" {
 				notification := newUserNotificationWithExpiry(t, username, fmt.Sprintf("%s-notification-%d", username, i+1), timestamppb.New(fakeClock.Now().Add(expiryDuration)))
@@ -4650,33 +4657,6 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	client, err := testServer.NewClient(TestUser(testUsername))
 	require.NoError(t, err)
 
-	// Helper to create access lists with specific next audit dates
-	createAccessList := func(t *testing.T, name string, nextAuditDate time.Time) {
-		al, err := accesslist.NewAccessList(header.Metadata{
-			Name: name,
-		}, accesslist.Spec{
-			Title:       fmt.Sprintf("Access List %s", name),
-			Description: fmt.Sprintf("Test access list %s", name),
-			Owners: []accesslist.Owner{{
-				Name:           testUsername,
-				Description:    "",
-				MembershipKind: "",
-			}},
-			Audit: accesslist.Audit{
-				NextAuditDate: nextAuditDate,
-				Recurrence:    accesslist.Recurrence{},
-				Notifications: accesslist.Notifications{},
-			},
-			Grants: accesslist.Grants{
-				Roles: []string{"grant"},
-			},
-		})
-		require.NoError(t, err)
-
-		_, err = authServer.UpsertAccessList(ctx, al)
-		require.NoError(t, err)
-	}
-
 	// Create access lists with different expiry times
 	accessLists := []struct {
 		name      string
@@ -4700,7 +4680,12 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	for _, al := range accessLists {
-		createAccessList(t, al.name, authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour))
+		createAccessList(t, authServer, al.name+"-static", withType(accesslist.Static))
+		createAccessList(t, authServer, al.name+"-scim", withType(accesslist.SCIM))
+		createAccessList(t, authServer, al.name,
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
 	}
 
 	// Run CreateAccessListReminderNotifications()
@@ -4722,6 +4707,63 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Notifications, 6)
+}
+
+type createAccessListOptions struct {
+	typ           accesslist.Type
+	nextAuditDate time.Time
+	owners        []accesslist.Owner
+}
+
+type createAccessListOpt func(*createAccessListOptions)
+
+func withType(typ accesslist.Type) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withNextAuditDate(nextAuditDate time.Time) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.nextAuditDate = nextAuditDate
+	}
+}
+
+func withOwners(owners []accesslist.Owner) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.owners = owners
+	}
+}
+
+func createAccessList(t *testing.T, authServer *Server, name string, opts ...createAccessListOpt) {
+	t.Helper()
+	ctx := t.Context()
+
+	options := createAccessListOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: name,
+	}, accesslist.Spec{
+		Type:        options.typ,
+		Title:       fmt.Sprintf("Test Access List %s", name),
+		Description: fmt.Sprintf("Test Access List %s description", name),
+		Owners:      options.owners,
+		Audit: accesslist.Audit{
+			NextAuditDate: options.nextAuditDate,
+			Recurrence:    accesslist.Recurrence{},
+			Notifications: accesslist.Notifications{},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {

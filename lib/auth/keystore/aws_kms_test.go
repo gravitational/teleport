@@ -113,7 +113,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			}
 
 			totalKeys := pageSize * 3
-			for i := 0; i < totalKeys; i++ {
+			for range totalKeys {
 				_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 				require.NoError(t, err, trace.DebugReport(err))
 			}
@@ -836,5 +836,16 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			}
 		})
 	}
+}
 
+type fakeAuthPreferenceGetter struct {
+	suite types.SignatureAlgorithmSuite
+}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SignatureAlgorithmSuite: f.suite,
+		},
+	}, nil
 }

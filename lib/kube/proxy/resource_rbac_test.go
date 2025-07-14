@@ -25,6 +25,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -422,7 +423,7 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "user with pod access request that no longer fullfills the role requirements",
+			name: "user with legacy pod access request that no longer fullfills the role requirements",
 			args: args{
 				user:      userWithLimitedAccess,
 				namespace: metav1.NamespaceDefault,
@@ -457,7 +458,42 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		},
-
+		{
+			name: "user with pod access request that no longer fullfills the role requirements",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.AccessRequestPrefixKindKubeNamespaced + "pods",
+							Name:            kubeCluster,
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						},
+					),
+				},
+			},
+			want: want{
+				listPodsResult: []string{},
+				listPodErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods is forbidden: User \"limited_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
 		{
 			name: "list default namespace pods for user with limited access",
 			args: args{
@@ -643,7 +679,17 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer("pods", "", types.KubeVerbWatch, false, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
+			mr := metaResource{
+				requestedResource: apiResource{
+					resourceKind: "pods",
+					apiGroup:     "",
+				},
+				resourceDefinition: &metav1.APIResource{
+					Namespaced: true,
+				},
+				verb: types.KubeVerbWatch,
+			}
+			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -995,7 +1041,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			requestID := kubetypes.UID(uuid.NewString())
@@ -1447,10 +1492,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 	// create a user with full access to all namespaces.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+	userWithFullAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithFullAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithFullAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1471,10 +1517,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	)
 
 	// create a user with limited access to kubernetes namespaces.
-	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithLimitedAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithLimitedAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1501,10 +1548,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	)
 
 	// create a user with limited access to kubernetes namespaces.
-	userWithSpecificAccess, _ := testCtx.CreateUserAndRole(
+	userWithSpecificAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithSpecificAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithSpecificAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1644,9 +1692,9 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					WithResourceAccessRequests(
 						types.ResourceID{
 							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubeNamespace,
+							Kind:            "kube:ns:*.*",
 							Name:            kubeCluster,
-							SubResourceName: "dev",
+							SubResourceName: "dev/*",
 						},
 					),
 				},
@@ -1838,7 +1886,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
@@ -2442,7 +2490,7 @@ func TestV7V8Match(t *testing.T) {
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 				},
 			}, nil),
@@ -2463,7 +2511,7 @@ func TestV7V8Match(t *testing.T) {
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 				},
 			}, nil),
@@ -2484,7 +2532,7 @@ func TestV7V8Match(t *testing.T) {
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: "^" + types.Wildcard + "$",
+					Namespace: "^.+$",
 					Verbs:     []string{types.Wildcard},
 				},
 			}, nil),
@@ -2837,6 +2885,98 @@ func TestNamespaceListRBAC(t *testing.T) {
 				"dev",
 			},
 		},
+		{
+			name: "deny single ns",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "*",
+					Verbs: []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}),
+			want: []string{
+				"default",
+				"test",
+				"prod",
+			},
+		},
+		{
+			name: "ns resource deny cluster-wide wildcard",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: []string{},
+		},
+		{
+			name: "ns pods deny cluster-wide wildcard",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			// Even though the user has access to pods and still can get pods in all NSs, the list namespace is empty
+			// because of the deny rule.
+			want: []string{},
+		},
+		{
+			name: "ns pods deny ns wildcard",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}),
+			// Even though the user has access to pods and still can get pods in all NSs, the list namespace is empty
+			// because of the deny rule.
+			want: []string{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2849,6 +2989,269 @@ func TestNamespaceListRBAC(t *testing.T) {
 			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
 
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDenyClusterWideResources(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "deny-cw", types.V8)
+
+	fullAccess := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+	podList := []string{
+		"nginx-1",
+		"nginx-2",
+		"test",
+		"nginx-1",
+		"nginx-2",
+	}
+
+	tests := []struct {
+		name string
+		user types.User
+		want []string
+	}{
+		{
+			name: "allow two ns deny all cluster-wide resources",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "prod",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: []string{"nginx-1", "nginx-2"},
+		},
+		{
+			name: "full access deny all cluster-wide resources",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: podList,
+		},
+		{
+			name: "full access deny all cluster-wide resources and one ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}),
+			want: podList,
+		},
+		{
+			name: "full access deny all cluster-wide resources and wildcard ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: []string{"nginx-1", "nginx-2", "test"},
+		},
+		{
+			name: "full access deny clusterroles and wildcard ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      "clusterroles",
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "test",
+					Verbs: []string{"delete"},
+				},
+			}),
+			want: slices.Concat([]string{"default", "test", "prod"}, []string{"nginx-1", "nginx-2", "test"}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			got := []string{}
+			// Get namespaces in read-only, should work.
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
+			// Get pods in all namespaces, should work.
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/pods")))...)
+			require.Equal(t, tt.want, got)
+
+			// Attempt to delete a namespace, should fail.
+			require.Error(t, dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, "test", metav1.DeleteOptions{}))
+		})
+	}
+}
+
+func TestDeleteNamespace(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "delete-ns", types.V8)
+
+	fullAccess := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		user    types.User
+		ns      string
+		wantErr bool
+	}{
+		{
+			name: "full access deny all wildcard ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "test",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			ns:      "test",
+			wantErr: true,
+		},
+		{
+			name: "full access deny wildcard ns resource",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					APIGroup: types.Wildcard,
+					Name:     types.Wildcard,
+					Verbs:    []string{types.Wildcard},
+				},
+			}),
+			ns:      "test",
+			wantErr: true,
+		},
+		{
+			name: "full access deny specific ns resource - denied",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					APIGroup: types.Wildcard,
+					Name:     "test",
+					Verbs:    []string{types.Wildcard},
+				},
+			}),
+			ns:      "test",
+			wantErr: true,
+		},
+		{
+			name: "full access deny specific ns resource - allowed",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					APIGroup: types.Wildcard,
+					Name:     "test",
+					Verbs:    []string{types.Wildcard},
+				},
+			}),
+			ns:      "dev",
+			wantErr: false,
+		},
+		{
+			name: "full access deny unrelated resource - allowed",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: "test",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			ns: "test",
+			// TODO(@creack): Reconsider this behavior. We may consider denying this. Keeping as is for now
+			//                to maintain v17's / rolev7 behavior.
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			// Attempt to delete a namespace, should fail.
+			if err := dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, tt.ns, metav1.DeleteOptions{}); tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

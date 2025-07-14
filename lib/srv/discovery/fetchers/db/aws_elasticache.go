@@ -59,7 +59,7 @@ func (f *elastiCachePlugin) ComponentShortName() string {
 func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
 		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: cfg.Integration}),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

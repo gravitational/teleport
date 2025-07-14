@@ -26,8 +26,8 @@ import {
 } from 'shared/hooks/useAsync';
 import {
   BitmapFrame,
-  BrowserFileSystem,
   ClientScreenSpec,
+  selectDirectoryInBrowser,
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
@@ -55,7 +55,7 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null, new BrowserFileSystem());
+  const client = new TdpClient(() => null, selectDirectoryInBrowser);
   // Don't try to connect to a websocket.
   client.connect = async options => {
     emitFrame(client, options.screenSpec);
@@ -71,6 +71,7 @@ const props: DesktopSessionProps = {
   client: fakeClient(),
   username: 'user',
   desktop: 'windows-11',
+  browserSupportsSharing: true,
   hasAnotherSession: () => Promise.resolve(false),
 };
 

@@ -57,7 +57,7 @@ func TestGetEnvForTSH(t *testing.T) {
 func TestGetDestinationDirectory(t *testing.T) {
 	config := func(outputCount int) *config.BotConfig {
 		cfg := &config.BotConfig{}
-		for i := 0; i < outputCount; i++ {
+		for i := range outputCount {
 			cfg.Services = append(cfg.Services, &config.IdentityOutput{
 				Destination: &config.DestinationDirectory{
 					Path: fmt.Sprintf("/from-bot-config%d", i),

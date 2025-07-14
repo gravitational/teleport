@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -71,7 +72,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
 
-		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, sess.metaResource.requestedResource.resourceKind, sess.metaResource.requestedResource.apiGroup, allowedResources, deniedResources)
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess.metaResource, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -83,10 +84,9 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 			)
 			return nil, trace.AccessDenied("%s", notFoundMessage)
 		}
-		// isWatch identifies if the request is long-lived watch stream based on
+		// Identify if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := isKubeWatchRequest(req, sess.authContext.metaResource.requestedResource)
-		if !isWatch {
+		if !isKubeWatchRequest(req, sess.authContext.metaResource.requestedResource) {
 			// List resources.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
 		} else {
@@ -115,16 +115,14 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	memBuffer := responsewriters.NewMemoryResponseWriter()
 	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
-	if !ok {
+	if _, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource); !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.metaResource.verb
 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(sess.metaResource.requestedResource.resourceKind, sess.metaResource.requestedResource.apiGroup, verb, sess.metaResource.isClusterWideResource(), sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(sess.metaResource, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -141,23 +139,21 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 // has no access and present then a more user-friendly error message instead of returning
 // an empty list.
 // This function is not responsible for enforcing access rules.
-func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind, resourceGroup string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
-	// TODO(@creack): Use metaResource.rbac()?
-	resource := types.KubernetesResource{
-		Kind:      resourceKind,
-		Namespace: sess.metaResource.requestedResource.namespace,
-		Verbs:     []string{sess.metaResource.verb},
-		APIGroup:  resourceGroup,
+func matchListRequestShouldBeAllowed(mr metaResource, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
+	resource := mr.rbacResource()
+	if resource == nil {
+		// Cluster is offline.
+		return false, nil
 	}
 
-	result, err := utils.KubeResourceCouldMatchRules(resource, sess.metaResource.isClusterWideResource(), deniedResources, types.Deny)
+	result, err := utils.KubeResourceCouldMatchRules(*resource, mr.isClusterWideResource(), deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceCouldMatchRules(resource, sess.metaResource.isClusterWideResource(), allowedResources, types.Allow)
+	result, err = utils.KubeResourceCouldMatchRules(*resource, mr.isClusterWideResource(), allowedResources, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -180,15 +176,11 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.metaResource.verb
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
 		newResourceFilterer(
-			sess.metaResource.requestedResource.resourceKind,
-			sess.metaResource.requestedResource.apiGroup,
-			verb,
-			sess.metaResource.isClusterWideResource(),
+			sess.metaResource,
 			sess.codecFactory,
 			allowedResources,
 			deniedResources,
@@ -203,22 +195,22 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	// push events that show ephemeral containers were started if there
 	// are any ephemeral containers waiting to be created for this pod
 	// by this user
-	done := make(chan struct{})
 	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(req.Context())
 	if podName := isRequestTargetedToPod(req, sess.metaResource.requestedResource); podName != "" && ok {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			f.sendEphemeralContainerEvents(done, req, rw, sess, podName)
+			f.sendEphemeralContainerEvents(ctx, rw, sess, podName)
 		}()
 	}
-
 	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)
 	// Wait for the fake event pushing goroutine to finish
-	close(done)
+	cancel()
 	wg.Wait()
+
 	// Once the request terminates, close the watcher and waits for resources
 	// cleanup.
 	err = rw.Close()
@@ -229,21 +221,21 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 // each 5s from cache and see if they match the user and pod and namespace.
 // If any match exists, it will push a fake event to the watcher stream to trick
 // kubectl into creating the exec session.
-func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http.Request, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
+func (f *Forwarder) sendEphemeralContainerEvents(ctx context.Context, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
 	const backoff = 5 * time.Second
 	sentDebugContainers := map[string]struct{}{}
 	ticker := time.NewTicker(backoff)
 	defer ticker.Stop()
 	for {
 		wcs, err := f.getUserEphemeralContainersForPod(
-			req.Context(),
+			ctx,
 			sess.User.GetName(),
 			sess.kubeClusterName,
 			sess.metaResource.requestedResource.namespace,
 			podName,
 		)
 		if err != nil {
-			f.log.WarnContext(req.Context(), "error getting user ephemeral containers", "error", err)
+			f.log.WarnContext(ctx, "error getting user ephemeral containers", "error", err)
 			return
 		}
 
@@ -251,24 +243,22 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
 				continue
 			}
-			evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
+			evt, err := f.getPatchedPodEvent(ctx, sess, wc)
 			if err != nil {
-				f.log.WarnContext(req.Context(), "error pushing pod event", "error", err)
+				f.log.WarnContext(ctx, "error pushing pod event", "error", err)
 				continue
 			}
 			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
 			// push the event to the client
 			// this will lock until the event is pushed or the
 			// request context is done.
-			rw.PushVirtualEventToClient(req.Context(), evt)
+			rw.PushVirtualEventToClient(ctx, evt)
 		}
 
 		// wait a bit before querying the cache again, or return
 		// if the request has finished
 		select {
-		case <-req.Context().Done():
-			return
-		case <-done:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}

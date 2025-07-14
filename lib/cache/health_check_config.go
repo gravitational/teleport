@@ -28,6 +28,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,6 +43,7 @@ func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w
 
 	return &collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
 		store: newStore(
+			types.KindHealthCheckConfig,
 			proto.CloneOf[*healthcheckconfigv1.HealthCheckConfig],
 			map[healthCheckConfigIndex]func(*healthcheckconfigv1.HealthCheckConfig) string{
 				healthCheckConfigNameIndex: func(r *healthcheckconfigv1.HealthCheckConfig) string {
@@ -49,15 +51,8 @@ func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
-			var out []*healthcheckconfigv1.HealthCheckConfig
-			clientutils.IterateResources(ctx,
-				upstream.ListHealthCheckConfigs,
-				func(hcc *healthcheckconfigv1.HealthCheckConfig) error {
-					out = append(out, hcc)
-					return nil
-				},
-			)
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListHealthCheckConfigs))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *healthcheckconfigv1.HealthCheckConfig {
 			return &healthcheckconfigv1.HealthCheckConfig{

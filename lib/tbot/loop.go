@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 var (
@@ -75,13 +76,15 @@ type runOnIntervalConfig struct {
 	retryLimit           int
 	exitOnRetryExhausted bool
 	waitBeforeFirstRun   bool
+	// identityReadyCh allows the service to wait until the internal bot identity
+	// renewal has completed before running, to avoid spamming the logs if the
+	// service doesn't support gracefully degrading when there is no API client
+	// available.
+	identityReadyCh <-chan struct{}
+	statusReporter  readyz.Reporter
 }
 
-// runOnInterval runs a function on a given interval, with retries and jitter.
-//
-// TODO(noah): Emit Prometheus metrics for:
-// - Time of next attempt
-func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
+func (cfg *runOnIntervalConfig) checkAndSetDefaults() error {
 	switch {
 	case cfg.interval <= 0:
 		return trace.BadParameter("interval must be greater than 0")
@@ -95,10 +98,38 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 		return trace.BadParameter("name is required")
 	}
 
-	log := cfg.log.With("task", cfg.name)
-
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
+	}
+	if cfg.statusReporter == nil {
+		cfg.statusReporter = readyz.NoopReporter()
+	}
+
+	return nil
+}
+
+// runOnInterval runs a function on a given interval, with retries and jitter.
+//
+// TODO(noah): Emit Prometheus metrics for:
+// - Time of next attempt
+func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return err
+	}
+
+	log := cfg.log.With("task", cfg.name)
+
+	if cfg.identityReadyCh != nil {
+		select {
+		case <-cfg.identityReadyCh:
+		default:
+			log.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
+			select {
+			case <-cfg.identityReadyCh:
+			case <-ctx.Done():
+				return nil
+			}
+		}
 	}
 
 	ticker := cfg.clock.NewTicker(cfg.interval)
@@ -129,6 +160,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 			)
 			err = cfg.f(ctx)
 			if err == nil {
+				cfg.statusReporter.Report(readyz.Healthy)
 				loopIterationsSuccessCounter.WithLabelValues(cfg.service, cfg.name).Observe(float64(attempt - 1))
 				break
 			}
@@ -159,6 +191,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 		loopIterationTime.WithLabelValues(cfg.service, cfg.name).Observe(time.Since(startTime).Seconds())
 
 		if err != nil {
+			cfg.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 			loopIterationsFailureCounter.WithLabelValues(cfg.service, cfg.name).Inc()
 
 			if cfg.exitOnRetryExhausted {

@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type fakeSTSClient struct {
@@ -236,7 +236,7 @@ func TestCredentialsCacheRetrieveBeforeInit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "cache.Run",
 		Task: func(ctx context.Context) error {
 			cache.Run(ctx)

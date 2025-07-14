@@ -20,7 +20,7 @@ your Teleport cluster before turning the integration on to avoid access
 interruption. If your Identity Center already uses external identity source,
 you can configure the corresponding [SSO connector](../../../access-controls/sso/sso.mdx)
 in Teleport or, if you're using Okta, enable the
-[Okta integration](../../../access-controls/okta/okta.mdx).
+[Okta integration](../../../../identity-governance/okta/okta.mdx).
 
 ## Step 1/6. Configure AWS integration
 
@@ -274,7 +274,7 @@ among their role grants to Identity Center.
 ### How does it work with nested Access Lists?
 
 Identity Center does not support nested groups. As such, Teleport recursively 
-flattens any [nested Access Lists](../../../access-controls/access-lists/nested-access-lists.mdx)
+flattens any [nested Access Lists](../../../../identity-governance/access-lists/nested-access-lists.mdx)
 into a single Identity Center group containing all members reachable from the 
 top-level Access List.
 
@@ -315,9 +315,9 @@ Provider and its role from your AWS IAM console as well.
 
 - Take a deeper dive into fundamental Teleport concepts used in Identity Center
   integration such as [RBAC](../../../access-controls/guides/guides.mdx),
-  [JIT Access Requests](../../../access-controls/access-requests/access-requests.mdx),
-  [Access Lists](../../../access-controls/access-lists/access-lists.mdx) 
+  [JIT Access Requests](../../../../identity-governance/access-requests/access-requests.mdx),
+  [Access Lists](../../../../identity-governance/access-lists/access-lists.mdx) 
   and the [Teleport SAML IdP](../../../access-controls/idps/idps.mdx).
-- Learn how to enable the [Okta integration](../../../access-controls/okta/okta.mdx)
+- Learn how to enable the [Okta integration](../../../../identity-governance/okta/okta.mdx)
   to sync apps, users and groups from Okta in conjunction with Identity Center
   integration.

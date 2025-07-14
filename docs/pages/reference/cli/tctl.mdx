@@ -428,7 +428,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../enroll-resources/machine-id/introduction.mdx) is a more secure alternative that
+[Machine ID](../../machine-workload-identity/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -1087,6 +1087,46 @@ Total Instances: 19
  Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
  under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
 
+## tctl lock
+
+Create a new lock.
+
+```code
+$ tctl lock [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| --- | --- | --- | --- |
+| `--user` | none | string | Target a specific user by username. |
+| `--role` | none | string | Target a specific role by name. |
+| `--login` | none | string | Target a specific server login. |
+| `--server-id` | none | string | Target a specific node by name or UUID. |
+| `--mfa-device` | none | string | Target a specific MFA device by UUID. |
+| `--windows-desktop` | none | string | Target a specific Windows desktop by name. |
+| `--access-request` | none | string | Target a specific access request by ID. |
+| `--device` | none | string | Target a specific trusted device by ID. |
+| `--message` | none | string | Optional message explaining the reason for the lock. |
+| `--expires` | never | timestamp | When the lock should automatically expire (RFC3339). |
+| `--ttl` | none | duration | Time-to-live for the lock (alternative to --expires). |
+
+### Examples
+
+```code
+# Lock a specific user
+$ tctl lock --user alice --message "Security incident investigation"
+
+# Lock a role with expiration
+$ tctl lock --role developers --expires "2025-06-26T00:20:47.16109Z" --message "Emergency maintenance"
+
+# Lock a specific node
+$ tctl lock --server-id web-server-01 --message "Suspected compromise"
+
+# Lock multiple targets (user and access-request combination)
+$ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h --access-request=1234
+```
+
 ## tctl login_rule test
 
 Test a Login Rule resource without installing it in the cluster.
@@ -1312,6 +1352,9 @@ $ tctl rm saml/okta
 
 # Delete a local user called "admin":
 $ tctl rm users/admin
+
+# Delete a lock 
+$ tctl rm lock/ed7038cb-a3cc-4f59-8063-09553665b773
 ```
 
 ## tctl sso configure github

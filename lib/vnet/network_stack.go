@@ -158,6 +158,10 @@ type networkStack struct {
 	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
 	ipv6Prefix tcpip.Address
 
+	// dnsServer is the VNet's local DNS server that can handle UDP DNS
+	// requests.
+	dnsServer *dns.Server
+
 	// tcpHandlerResolver resolves FQDNs to a TCP handler that will be used to handle all future TCP
 	// connections to IP addresses that will be assigned to that FQDN.
 	tcpHandlerResolver *tcpHandlerResolver
@@ -233,6 +237,19 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		slog:               slog,
 	}
 
+	upstreamNameserverSource := cfg.upstreamNameserverSource
+	if upstreamNameserverSource == nil {
+		upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	dnsServer, err := dns.NewServer(ns, upstreamNameserverSource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ns.dnsServer = dnsServer
+
 	tcpForwarder := tcp.NewForwarder(ns.stack, tcpReceiveBufferSize, maxInFlightTCPConnectionAttempts, ns.handleTCP)
 	ns.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
@@ -240,17 +257,6 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	ns.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	if cfg.dnsIPv6 != (tcpip.Address{}) {
-		upstreamNameserverSource := cfg.upstreamNameserverSource
-		if upstreamNameserverSource == nil {
-			upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		dnsServer, err := dns.NewServer(ns, upstreamNameserverSource)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if err := ns.assignUDPHandler(cfg.dnsIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -540,6 +546,13 @@ func (ns *networkStack) assignUDPHandler(addr tcpip.Address, handler udpHandler)
 	}
 	ns.state.udpHandlers[ipv4] = handler
 	return nil
+}
+
+// addDNSAddress adds a DNS handler at the given IP.
+func (ns *networkStack) addDNSAddress(ip net.IP) error {
+	slog.DebugContext(context.Background(), "Serving DNS on IPv4.", "dns_addr", ip.String())
+	return trace.Wrap(ns.assignUDPHandler(tcpip.AddrFromSlice(ip), ns.dnsServer),
+		"adding UDP handler at %s", ip.String())
 }
 
 // ResolveA implements [dns.Resolver.ResolveA].

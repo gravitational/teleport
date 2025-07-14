@@ -194,6 +194,9 @@ type Options struct {
 	// Errors impacting the avaiability of the keystore should be reported here
 	// to update auth readiness and allow for failover.
 	HealthCallback func(err error)
+	// RSAKeyPairSource is an optional function used by the software keystore when
+	// generating RSA keys.
+	RSAKeyPairSource RSAKeyPairSource
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -239,7 +242,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: opts.RSAKeyPairSource})
 	var backendForNewKeys backend = softwareBackend
 	usableBackends := []backend{softwareBackend}
 

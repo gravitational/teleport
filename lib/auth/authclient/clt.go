@@ -40,16 +40,15 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
@@ -359,6 +358,24 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
+// SearchUnstructuredEvents allows searching for audit events with pagination support and returns unstructured events.
+func (c *Client) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	events, lastKey, err := c.APIClient.SearchUnstructuredEvents(
+		ctx,
+		req.From,
+		req.To,
+		apidefaults.Namespace,
+		req.EventTypes,
+		req.Limit,
+		req.Order,
+		req.StartKey,
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return events, lastKey, nil
+}
+
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -376,16 +393,6 @@ func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 
 // PatchRemoteCluster not implemented: can only be called locally.
 func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -619,6 +626,10 @@ func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.Secret
 
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
+}
+
+func (c *Client) IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient {
+	return integrationv1.NewAWSRolesAnywhereServiceClient(c.APIClient.GetConnection())
 }
 
 // UserTasksClient returns a client for managing User Task resources.
@@ -1440,7 +1451,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes
@@ -1487,6 +1498,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// IntegrationAWSRolesAnywhereClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient
 
 	// UserTasksServiceClient returns an User Task service client.
 	UserTasksServiceClient() *usertask.Client
@@ -1751,12 +1765,6 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-
-	// IdentityCenterClient returns Identity Center service client.
-	IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient
-
-	// ProvisioningServiceClient returns provisioning service client.
-	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
 	// IntegrationsClient returns integrations client.
 	IntegrationsClient() integrationv1.IntegrationServiceClient

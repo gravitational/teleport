@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -85,6 +86,14 @@ type VersionStorage interface {
 	DeleteTeleportVersion(ctx context.Context) error
 }
 
+// RecordingEncryptionManager wraps a RecordingEncryption backend service with higher level
+// operations.
+type RecordingEncryptionManager interface {
+	services.RecordingEncryption
+	recordingencryption.DecryptionKeyFinder
+	SetCache(cache recordingencryption.Cache)
+}
+
 // InitConfig is auth server init config
 type InitConfig struct {
 	// Backend is auth backend to use
@@ -99,6 +108,10 @@ type InitConfig struct {
 	// KeyStoreConfig is the config for the KeyStore which handles private CA
 	// keys that may be held in an HSM.
 	KeyStoreConfig servicecfg.KeystoreConfig
+
+	// KeyStore handles private CA keys and encryption keys that may be held
+	// in an HSM.
+	KeyStore *keystore.Manager
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -168,7 +181,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Apps
+	Apps services.Applications
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -367,6 +380,9 @@ type InitConfig struct {
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
 
+	// RecordingEncryption manages state for encrypted session recording.
+	RecordingEncryption RecordingEncryptionManager
+
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
 
@@ -376,6 +392,20 @@ type InitConfig struct {
 	// KeystoreHealthCallback is a callback used by the keystore for reporting
 	// errors that impact keystore availability.
 	KeystoreHealthCallback func(error)
+
+	// MultipartHandler handles multipart uploads.
+	MultipartHandler events.MultipartHandler
+
+	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
+	// a locking operation for backend objects.
+	// This setting is particularly useful in test environments,
+	// as it can help accelerate operations such as updating the access list,
+	// especially when the list is also being modified concurrently by the background
+	// eligibility handler.
+	RunWhileLockedRetryInterval time.Duration
+
+	// ScopedAccess is a service that manages scoped access resources.
+	ScopedAccess services.ScopedAccess
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -669,7 +699,6 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, caType := range types.CertAuthTypes {
-		caType := caType
 		g.Go(func() error {
 			tctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
 			defer span.End()
@@ -696,7 +725,11 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	}
 
 	// Collect CAs from integrations to avoid deleting them.
-	err := clientutils.IterateResources(ctx, asrv.Services.ListIntegrations, func(ig types.Integration) error {
+	for ig, err := range clientutils.Resources(ctx, asrv.Services.ListIntegrations) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
 		switch {
 		case trace.IsNotImplemented(err):
@@ -708,9 +741,6 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
 		}
 		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
@@ -944,7 +974,7 @@ For more information:
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1027,7 +1057,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1067,7 +1097,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

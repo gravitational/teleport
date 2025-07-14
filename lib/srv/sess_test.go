@@ -194,7 +194,7 @@ func TestSession_newRecorder(t *testing.T) {
 
 	logger := utils.NewSlogLoggerForTests()
 
-	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
+	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
 		require.NotNil(t, i)
 		_, ok := i.(*events.SessionWriter)
 		require.False(t, ok)
@@ -307,7 +307,7 @@ func TestSession_newRecorder(t *testing.T) {
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			recAssertion: func(t require.TestingT, i any, _ ...any) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -338,7 +338,7 @@ func TestSession_newRecorder(t *testing.T) {
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			recAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -407,8 +407,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
@@ -498,8 +497,7 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -561,8 +559,7 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -927,8 +924,7 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1185,8 +1181,7 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
@@ -1233,8 +1228,7 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy

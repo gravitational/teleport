@@ -21,6 +21,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -318,7 +319,7 @@ func claimMappingsToAttributeMappings(in []types.ClaimMapping) []types.Attribute
 		out = append(out, types.AttributeMapping{
 			Name:  m.Claim,
 			Value: m.Value,
-			Roles: append([]string{}, m.Roles...),
+			Roles: slices.Clone(m.Roles),
 		})
 	}
 	return out

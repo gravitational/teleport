@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"iter"
 	"net/url"
 	"slices"
 	"strconv"
@@ -309,6 +310,9 @@ func (a *AppV3) GetProtocol() string {
 	if a.IsTCP() {
 		return "TCP"
 	}
+	if a.IsMCP() {
+		return "MCP"
+	}
 	return "HTTP"
 }
 
@@ -565,18 +569,27 @@ func (a *AppV3) GetMCP() *MCP {
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
 // Apps can have the same name but also could have different addresses.
-func DeduplicateApps(apps []Application) (result []Application) {
+func DeduplicateApps(apps []Application) []Application {
+	return slices.Collect(DeduplicatedApps(slices.Values(apps)))
+}
+
+// DeduplicatedApps iterates deduplicated apps by combination of app name and
+// public address. This is the iter.Seq version of DeduplicateApps.
+func DeduplicatedApps(apps iter.Seq[Application]) iter.Seq[Application] {
 	type key struct{ name, addr string }
 	seen := make(map[key]struct{})
-	for _, app := range apps {
-		key := key{app.GetName(), app.GetPublicAddr()}
-		if _, ok := seen[key]; ok {
-			continue
+	return func(yield func(Application) bool) {
+		for app := range apps {
+			key := key{app.GetName(), app.GetPublicAddr()}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			if !yield(app) {
+				return
+			}
 		}
-		seen[key] = struct{}{}
-		result = append(result, app)
 	}
-	return result
 }
 
 // Apps is a list of app resources.

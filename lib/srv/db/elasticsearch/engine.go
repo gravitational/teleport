@@ -31,7 +31,6 @@ import (
 	"strconv"
 	"strings"
 
-	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -74,8 +73,18 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
+	// ErrorCause type.
+	//
+	// https://github.com/elastic/elasticsearch-specification/blob/f6a370d0fba975752c644fc730f7c45610e28f36/specification/_types/Errors.ts#L25-L50
+	type ErrorCause struct {
+		// Reason A human-readable explanation of the error, in English.
+		Reason *string `json:"reason,omitempty"`
+		// Type The type of error
+		Type string `json:"type"`
+	}
+
 	reason := err.Error()
-	cause := elastic.ErrorCause{
+	cause := ErrorCause{
 		Reason: &reason,
 		Type:   "internal_server_error_exception",
 	}

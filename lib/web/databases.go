@@ -118,7 +118,7 @@ func (r *createOrOverwriteDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	var req *createOrOverwriteDatabaseRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -199,7 +199,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -292,7 +292,7 @@ type databaseIAMPolicyAWS struct {
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
@@ -303,11 +303,11 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database := dbServer.GetDatabase()
+	database := dbServers[0].GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -332,7 +332,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	tokenStr := p.ByName("token")
 	if err := validateJoinToken(tokenStr); err != nil {
 		return "", trace.Wrap(err)
@@ -413,7 +413,7 @@ func (h *Handler) dbConnect(
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
@@ -819,8 +819,8 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-// fetchDatabaseServerByDatabaseName fetch a database with provided database name.
-func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.DatabaseServer, error) {
+// fetchDatabaseServersWithName fetches all database servers with provided database name.
+func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) ([]types.DatabaseServer, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -835,13 +835,10 @@ func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGett
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch len(servers) {
-	case 0:
+	if len(servers) == 0 {
 		return nil, trace.NotFound("database %q not found", databaseName)
-	default:
-		return servers[0], nil
 	}
+	return servers, nil
 }
 
 func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {

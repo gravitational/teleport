@@ -32,6 +32,8 @@ var (
 // WorkloadIdentityAPIService is the configuration for the
 // WorkloadIdentityAPIService
 type WorkloadIdentityAPIService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which the SPIFFE Workload API server should
 	// listen. This should either be prefixed with "unix://" or "tcp://".
 	Listen string `yaml:"listen"`
@@ -60,13 +62,18 @@ func (o *WorkloadIdentityAPIService) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *WorkloadIdentityAPIService) GetName() string {
+	return o.Name
+}
+
 // Type returns the type of the service.
 func (o *WorkloadIdentityAPIService) Type() string {
 	return WorkloadIdentityAPIServiceType
 }
 
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
-func (o *WorkloadIdentityAPIService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityAPIService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityAPIService
 	return withTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
 }

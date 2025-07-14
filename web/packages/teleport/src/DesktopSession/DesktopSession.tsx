@@ -24,7 +24,7 @@ import {
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -59,7 +59,7 @@ export function DesktopSession() {
             ),
             abortSignal
           ),
-        new BrowserFileSystem()
+        selectDirectoryInBrowser
       )
   );
   const mfa = useMfaEmitter(client, undefined, {
@@ -131,6 +131,7 @@ export function DesktopSession() {
         }
       }}
       aclAttempt={aclAttempt}
+      browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
       keyboardLayout={preferences.keyboardLayout}
     />

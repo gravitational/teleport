@@ -30,12 +30,17 @@ export function TextSelectCopy({
   allowMultiline,
   onCopy,
   bash = true,
+  obfuscate = false,
   ...styles
 }: Props) {
   const font = fontFamily || useTheme().fonts.mono;
   const ref = useRef(undefined);
   const abortControllerRef = useRef<AbortController>(undefined);
   const [copyCmd, setCopyCmd] = useState(() => 'Copy');
+  const [isObfuscated, setIsObfuscated] = useState(false);
+
+  const displayText =
+    obfuscate && !bash && !isObfuscated ? obfuscateText(text) : text;
 
   function onCopyClick() {
     abortControllerRef.current?.abort();
@@ -84,20 +89,36 @@ export function TextSelectCopy({
     >
       <Flex mr="2" style={boxStyles}>
         {bash && <Box mr="1" style={{ userSelect: 'none' }}>{`$`}</Box>}
-        <div ref={ref}>{text}</div>
+        <div ref={ref}>{displayText}</div>
       </Flex>
-      <ButtonPrimary
-        onClick={onCopyClick}
-        style={{
-          maxWidth: '48px',
-          width: '100%',
-          padding: '4px 8px',
-          minHeight: '10px',
-          fontSize: '10px',
-        }}
-      >
-        {copyCmd}
-      </ButtonPrimary>
+      <Flex gap={2} alignItems="center">
+        {obfuscate && (
+          <ButtonPrimary
+            onClick={() => setIsObfuscated(!isObfuscated)}
+            style={{
+              maxWidth: '48px',
+              width: '100%',
+              padding: '4px 8px',
+              minHeight: '10px',
+              fontSize: '10px',
+            }}
+          >
+            {isObfuscated ? 'Hide' : 'Show'}
+          </ButtonPrimary>
+        )}
+        <ButtonPrimary
+          onClick={onCopyClick}
+          style={{
+            maxWidth: '48px',
+            width: '100%',
+            padding: '4px 8px',
+            minHeight: '10px',
+            fontSize: '10px',
+          }}
+        >
+          {copyCmd}
+        </ButtonPrimary>
+      </Flex>
     </Flex>
   );
 }
@@ -109,4 +130,16 @@ type Props = {
   allowMultiline?: boolean;
   // handles styles
   [key: string]: any;
-};
+  // only one of `bash`/`obfuscate` should be set at a time
+} & (
+  | {
+      bash: false;
+      obfuscate?: true;
+    }
+  | {
+      bash?: true;
+      obfuscate?: false;
+    }
+);
+
+const obfuscateText = (value: string): string => '•'.repeat(value.length);

@@ -109,6 +109,15 @@ const StyledStatus = styled(Box)<{
           &:after {
             content: '⚠';
             font-size: 12px;
+            ${props.$inline &&
+            `
+            // This cuts out a little portion of the icon on the left. This is most clearly visible
+            // on Windows. But at least it better aligns with the other statuses.
+            //
+            // TODO(ravicious): Rewrite this to not use weird characters to represent different
+            // statuses so that all statuses properly align together.
+            margin: -1px;
+            `}
 
             ${!props.$inline &&
             `

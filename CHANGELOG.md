@@ -113,6 +113,29 @@ windows_desktop_service:
 +      rdp_port: 9989 # optional, defaults to 3389
 ```
 
+### Agent Managed Updates v2 enhancements
+
+Managed Updates v2 can now track which version agents are running and use this
+information to progress the rollout. Only Linux agents are supported, agent
+reports for `teleport-kube-agent` will come in a future update. Reports are
+generated every minute and only count agents connected and stable for at least
+a minute.
+
+You can now observe the agent managed update progress by using
+`tctl autoupdate agents status` and `tctl autoupdate agents report`.
+
+If the strategy is `halt-on-error`, the group will be marked as done and the
+rollout will continue only after at least 90% of the agents are updated.
+
+You can now manually trigger a group, mark it as done, or rollback an update
+with `tctl`:
+
+```shell
+autoupdate agents start-update [group1, group2, ...]
+autoupdate agents mark-done [group1, group2, ...]
+autoupdate agents rollback [group1, group2, ...]
+```
+
 #### Legacy ALPN connection upgrade mode has been removed
 
 Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind
@@ -130,7 +153,7 @@ environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
 Opsgenie plugin users, role annotations must now contain
 `teleport.dev/notify-services` to receive notification on Opsgenie.
 `teleport.dev/schedules` is now the label used to determine auto approval flow.
-See [the Opsgenie plugin documentation](docs/pages/admin-guides/access-controls/access-request-plugins/opsgenie.mdx)
+See [the Opsgenie plugin documentation](docs/pages/identity-governance/access-request-plugins/opsgenie.mdx)
 for setup instructions.
 
 #### Teleport Assist has been removed
@@ -286,7 +309,7 @@ published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 The legacy package repos will be shut off in mid 2025 after Teleport 14
 has been out of support for many months.
@@ -489,7 +512,7 @@ within the cluster.
 As the feature is being developed, future Teleport releases will add support for
 periodic audit reviews and deeper integration of Access Lists with Okta.
 
-You can find existing Access Lists documentation [here](docs/pages/admin-guides/access-controls/access-lists/guide.mdx).
+You can find existing Access Lists documentation [here](docs/pages/identity-governance/access-lists/guide.mdx).
 
 #### Unified resources view
 
@@ -613,7 +636,7 @@ repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 #### `Cf-Access-Token` header no longer included with requests to Teleport-protected applications
 
@@ -1472,7 +1495,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](./docs/pages/enroll-resources/machine-id/deployment/github-actions.mdx) for using
+[documentation](docs/pages/machine-workload-identity/machine-id/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for desktop access
@@ -1834,7 +1857,7 @@ redirect_url = [ "http://example.com" ]
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
 Customers should use the new AWS ECR registry to pull [Teleport Docker
-images](./docs/pages/installation.mdx#docker).
+images](./docs/pages/installation/docker.mdx).
 
 Quay.io registry support will be removed in a future release.
 
@@ -1843,7 +1866,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-[install Teleport](docs/pages/installation.mdx#linux).
+[install Teleport](docs/pages/installation/linux.mdx).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 
@@ -2010,7 +2033,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/enroll-resources/machine-id/access-guides/databases.mdx).
+[documentation](docs/pages/machine-workload-identity/machine-id/access-guides/databases.mdx).
 
 ### Breaking changes
 
@@ -2472,7 +2495,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-[Machine ID getting started guide](docs/pages/enroll-resources/machine-id/getting-started.mdx)
+[Machine ID getting started guide](docs/pages/machine-workload-identity/machine-id/getting-started.mdx)
 
 ### Database access
 
@@ -3264,7 +3287,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/identity-governance/access-request-plugins/access-request-plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -3527,12 +3550,12 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/identity-governance/access-request-plugins/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
-*   [PagerDuty](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-jira.mdx)
-*   [Slack](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-slack.mdx)
-*   [Mattermost](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost.mdx)
+*   [PagerDuty](docs/pages/identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx)
+*   [Jira](docs/pages/identity-governance/access-request-plugins/ssh-approval-jira.mdx)
+*   [Slack](docs/pages/identity-governance/access-request-plugins/ssh-approval-slack.mdx)
+*   [Mattermost](docs/pages/identity-governance/access-request-plugins/ssh-approval-mattermost.mdx)
 
 #### Improvements
 
@@ -3727,7 +3750,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Improvements
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
-* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/admin-guides/access-controls/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/identity-governance/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
 * Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 

@@ -144,6 +144,8 @@ to learn how to:
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
+- [Proxy peering](../../../admin-guides/management/operations/proxy-peering.mdx) must be disabled. Proxy Peering and Trusted Clusters are not compatible.
+
 - Access to **two** Teleport cluster instances.
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version 
@@ -161,7 +163,7 @@ To complete the steps in this guide, verify your environment meets the following
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-  For more information about installing Teleport, see [Installation](../../../installation.mdx).
+  For more information about installing Teleport, see [Installation](../../../installation/installation.mdx).
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 

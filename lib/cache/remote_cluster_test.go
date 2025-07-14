@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestRemoteClusters tests remote clusters caching
@@ -86,8 +88,7 @@ func TestRemoteClusters(t *testing.T) {
 				return p.cache.GetRemoteCluster(ctx, name)
 			},
 			cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				clusters, _, err := p.cache.ListRemoteClusters(ctx, 0, "")
-				return clusters, err
+				return stream.Collect(clientutils.Resources(ctx, p.cache.ListRemoteClusters))
 			},
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
@@ -129,7 +130,7 @@ func TestTunnelConnections(t *testing.T) {
 		},
 	})
 
-	for i := 0; i < 17; i++ {
+	for i := range 17 {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+1), types.TunnelConnectionSpecV2{
 			ClusterName:   clusterName,
 			ProxyName:     "p1",
@@ -140,7 +141,7 @@ func TestTunnelConnections(t *testing.T) {
 		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+100), types.TunnelConnectionSpecV2{
 			ClusterName:   "other-cluster",
 			ProxyName:     "p1",

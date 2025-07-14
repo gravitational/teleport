@@ -35,12 +35,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func TestOSCommandPrep(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)

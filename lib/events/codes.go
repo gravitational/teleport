@@ -752,6 +752,16 @@ const (
 	// mcp.session.notification.
 	MCPSessionNotificationCode = "TMCP004I"
 
+	// BoundKeypairRecoveryCode is the event code for
+	// join_token.bound_keypair.recovery.
+	BoundKeypairRecoveryCode = "TBK001I"
+	// BoundKeypairRotationCode is the event code for
+	// join_token.bound_keypair.rotation.
+	BoundKeypairRotationCode = "TBK002I"
+	// BoundKeypairJoinStateVerificationFailedCode is the event code for
+	// join_token.bound_keypair.join_state_verification_failed.
+	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
