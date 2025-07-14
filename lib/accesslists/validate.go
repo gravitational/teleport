@@ -20,15 +20,20 @@ package accesslists
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
-// ValidateAccessListWithMembers validates AccessList with a list of its members. If the
-// existingAccessList is non-nil it also checks if this is a valid update transition.
+// ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
+// storing it. If the existingAccessList is non-nil it also checks if this is a valid update
+// transition. It takes into account validation of the nested access lists membership.
 func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+	if err := validateAccessList(accessList); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := validateAccessListUpdate(existingAccessList, accessList); err != nil {
 		return trace.Wrap(err)
 	}
@@ -36,6 +41,59 @@ func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, acce
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// validateAccessList makes sure the given AccessList is valid before storing in the backend.
+func validateAccessList(a *accesslist.AccessList) error {
+	if err := validateType(a.Spec.Type); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch a.Spec.Type {
+	case accesslist.Static, accesslist.SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
+		}
+	}
+
+	if a.IsReviewable() {
+		switch a.Spec.Audit.Recurrence.Frequency {
+		case accesslist.OneMonth, accesslist.ThreeMonths, accesslist.SixMonths, accesslist.OneYear:
+		default:
+			return trace.BadParameter("recurrence frequency is an invalid value")
+		}
+
+		switch a.Spec.Audit.Recurrence.DayOfMonth {
+		case accesslist.FirstDayOfMonth, accesslist.FifteenthDayOfMonth, accesslist.LastDayOfMonth:
+		default:
+			return trace.BadParameter("recurrence day of month is an invalid value")
+		}
+
+		if a.Spec.Audit.Notifications.Start == 0 {
+			twoWeeks := 24 * time.Hour * 14
+			a.Spec.Audit.Notifications.Start = twoWeeks
+		}
+	} else {
+		if !isZero(a.Spec.Audit) {
+			return trace.BadParameter("audit not supported for non-reviewable access_list of type %q", a.Spec.Type)
+		}
+	}
+
+	return nil
+}
+
+// validateType validates if access list type is a known value. It deliberately excludes
+// [accesslist.DeprecatedDynamic] as it should be converted to [accesslist.Default] in the
+// [accesslist.AccessList.CheckAndSetDefaults].
+func validateType(t accesslist.Type) error {
+	switch t {
+	case accesslist.Default, accesslist.Static, accesslist.SCIM:
+		return nil
+	default:
+		return trace.BadParameter("unknown access list type %q", t)
+	}
 }
 
 // validateAccessListUpdate checks if the AccessList update is valid. In particular it verifies

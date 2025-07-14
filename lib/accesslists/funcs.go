@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package accesslist
+package accesslists
 
 func isZero[T comparable](t T) bool {
 	var zero T

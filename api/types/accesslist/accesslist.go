@@ -40,8 +40,6 @@ const (
 	ThreeMonths ReviewFrequency = 3
 	SixMonths   ReviewFrequency = 6
 	OneYear     ReviewFrequency = 12
-
-	twoWeeks = 24 * time.Hour * 14
 )
 
 func (r ReviewFrequency) String() string {
@@ -196,15 +194,6 @@ const (
 	SCIM Type = "scim"
 )
 
-func validateType(t Type) error {
-	switch t {
-	case DeprecatedDynamic, Default, Static, SCIM:
-		return nil
-	default:
-		return trace.BadParameter("unknown access_list type %q", t)
-	}
-}
-
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
@@ -336,7 +325,8 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
-// CheckAndSetDefaults validates fields and populates empty fields with default values.
+// CheckAndSetDefaults performs very basic validation and populates empty fields with default
+// values. The main validation part is performed before the storage.
 func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessList)
 	a.SetVersion(types.V1)
@@ -350,52 +340,21 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		a.Spec.Type = Default
 	}
 
-	if err := validateType(a.Spec.Type); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if a.Spec.Title == "" {
 		return trace.BadParameter("access list title required")
-	}
-
-	switch a.Spec.Type {
-	case Static, SCIM:
-		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
-	default:
-		if len(a.Spec.Owners) == 0 {
-			return trace.BadParameter("owners are missing")
-		}
 	}
 
 	if a.IsReviewable() {
 		if a.Spec.Audit.Recurrence.Frequency == 0 {
 			a.Spec.Audit.Recurrence.Frequency = SixMonths
 		}
-
-		switch a.Spec.Audit.Recurrence.Frequency {
-		case OneMonth, ThreeMonths, SixMonths, OneYear:
-		default:
-			return trace.BadParameter("recurrence frequency is an invalid value")
-		}
-
 		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
 			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
 		}
-
-		switch a.Spec.Audit.Recurrence.DayOfMonth {
-		case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
-		default:
-			return trace.BadParameter("recurrence day of month is an invalid value")
-		}
-
 		if a.Spec.Audit.NextAuditDate.IsZero() {
 			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
 				return trace.Wrap(err, "setting initial audit date")
 			}
-		}
-
-		if a.Spec.Audit.Notifications.Start == 0 {
-			a.Spec.Audit.Notifications.Start = twoWeeks
 		}
 	}
 

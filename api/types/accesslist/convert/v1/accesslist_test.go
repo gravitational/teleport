@@ -142,15 +142,6 @@ func TestRoundtrip(t *testing.T) {
 	}
 }
 
-func Test_FromProto_withBadType(t *testing.T) {
-	accessList := newAccessList(t, "access-list")
-	accessList.Spec.Type = "test_bad_type"
-
-	_, err := FromProto(ToProto(accessList))
-	require.Error(t, err)
-	require.ErrorContains(t, err, `unknown access_list type "test_bad_type"`)
-}
-
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
 	t.Run("spec", func(t *testing.T) {
@@ -166,7 +157,7 @@ func TestFromProtoNils(t *testing.T) {
 		accessList.Spec.Owners = nil
 
 		_, err := FromProto(accessList)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("audit", func(t *testing.T) {
