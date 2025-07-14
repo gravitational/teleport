@@ -56,6 +56,11 @@ export function TraitsEditor({
   isLoading,
   configuredTraits,
   setConfiguredTraits,
+  tooltipContent,
+  label = 'User Traits',
+  addActionLabel = 'Add a user trait',
+  addActionSubsequentLabel = 'Add another user trait',
+  autoFocus = true,
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -98,7 +103,7 @@ export function TraitsEditor({
   }
 
   const addLabelText =
-    configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
+    configuredTraits.length > 0 ? addActionSubsequentLabel : addActionLabel;
 
   return (
     <Box>
@@ -111,12 +116,13 @@ export function TraitsEditor({
                 <Box width="290px" mr={1} mt={4}>
                   <FieldSelectCreatable
                     data-testid="trait-key"
+                    ariaLabel="trait-key"
                     options={traitsPreset.map(r => ({
                       value: r,
                       label: r,
                     }))}
                     placeholder="Type a trait name and press enter"
-                    autoFocus
+                    autoFocus={autoFocus}
                     isSearchable
                     value={traitKey}
                     label="Key"
@@ -137,7 +143,7 @@ export function TraitsEditor({
                 </Box>
                 <Box width="400px" ml={3}>
                   <FieldSelectCreatable
-                    data-testid="trait-value"
+                    data-testid="trait-values"
                     mt={4}
                     ariaLabel="trait-values"
                     css={`
@@ -254,6 +260,11 @@ export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   isLoading: boolean;
+  tooltipContent?: React.ReactNode;
+  label?: string;
+  addActionLabel?: string;
+  addActionSubsequentLabel?: string;
+  autoFocus?: boolean;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
