@@ -65,6 +65,7 @@ type UserCommand struct {
 	allowedAzureIdentities    []string
 	allowedGCPServiceAccounts []string
 	allowedRoles              []string
+	allowedMCPTools           []string
 	hostUserUID               string
 	hostUserUIDProvided       bool
 	hostUserGID               string
@@ -104,6 +105,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
 	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
+	u.userAdd.Flag("mcp-tools", "List of allowed MCP tools for the new user").StringsVar(&u.allowedMCPTools)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -139,6 +141,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		StringsVar(&u.allowedGCPServiceAccounts)
 	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
+	u.userUpdate.Flag("set-mcp-tools", "List of allowed MCP tools for the user, replaces current allowed MCP tools.").StringsVar(&u.allowedMCPTools)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -298,6 +301,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
 		constants.TraitHostUserUID:        {u.hostUserUID},
 		constants.TraitHostUserGID:        {u.hostUserGID},
+		constants.TraitMCPTools:           flattenSlice(u.allowedMCPTools),
 	}
 
 	user, err := types.NewUser(u.login)
@@ -346,6 +350,9 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 // ["one", "two", "three"]
 func flattenSlice(slice []string) (retval []string) {
 	for i := range slice {
+		if slice[i] == "" {
+			continue
+		}
 		for role := range strings.SplitSeq(slice[i], ",") {
 			retval = append(retval, strings.TrimSpace(role))
 		}
@@ -475,6 +482,12 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}
 
+	if len(u.allowedMCPTools) > 0 {
+		mcpTools := flattenSlice(u.allowedMCPTools)
+		user.SetMCPTools(mcpTools)
+		updateMessages["MCP tools"] = mcpTools
+	}
+
 	if len(updateMessages) == 0 {
 		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
 	}
@@ -493,7 +506,14 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	}
 	fmt.Printf("User %v has been updated:\n", user.GetName())
 	for field, values := range updateMessages {
-		fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
+		switch len(values) {
+		// Print "New xxx: null" if new value is an empty slice. Empty slice can be
+		// set by the user by passing an empty string like --set-mcp-tools "".
+		case 0:
+			fmt.Printf("\tNew %v: null\n", field)
+		default:
+			fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
+		}
 	}
 	return nil
 }
