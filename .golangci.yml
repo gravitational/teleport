@@ -223,6 +223,7 @@ linters:
             - '!**/lib/events/test/**'
             - '!**/lib/fixtures/**'
             - '!**/lib/kube/proxy/utils_testing.go'
+            - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'

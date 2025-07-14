@@ -44,7 +44,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestWebauthnLogin_ssh(t *testing.T) {
@@ -163,7 +163,7 @@ func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 	_, err = authServer.UpsertAuthPreference(ctx, cap)
 	require.NoError(t, err)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		MockAttestationData: &keys.AttestationData{
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
