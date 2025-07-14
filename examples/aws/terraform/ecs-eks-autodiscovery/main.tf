@@ -90,8 +90,18 @@ resource "aws_iam_role_policy" "ecs_teleport_discover_eks_taskrole_access_eks" {
   })
 }
 
+// get teleport version from teleport cluster endpoint
+data "http" "teleport_version" {
+  url = "https://${var.teleport_proxy_server}/webapi/find"
+}
 locals {
   discovery_group = "aws-prod"
+  teleport_image = format("public.ecr.aws/gravitational/teleport-ent-distroless:%s",
+    trimprefix(
+      jsondecode(data.http.teleport_version.response_body).auto_update.agent_version,
+      "v",
+    )
+  )
 }
 
 resource "aws_ecs_task_definition" "teleport_discovery_kube_services" {
@@ -105,7 +115,7 @@ resource "aws_ecs_task_definition" "teleport_discovery_kube_services" {
   container_definitions = jsonencode([
     {
       name       = "discovery-kube-service"
-      image      = var.teleport_image,
+      image      = local.teleport_image
       entryPoint = ["/usr/bin/dumb-init"]
       command = [
         "--rewrite",
