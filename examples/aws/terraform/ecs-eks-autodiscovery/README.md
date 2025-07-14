@@ -36,9 +36,6 @@ The following set up is required:
             // The name for the ECS Cluster that will be created.
             ecs_cluster = "my-cluster"
             
-            // Update this value to match the version that your cluster is running.
-            teleport_image = "public.ecr.aws/gravitational/teleport-ent-distroless:17.5.2"
-            
             // Default tags to add to AWS resources when creating them.
             default_tags = {
                 "DeployedBy" = "TerraformTeleport"
@@ -58,3 +55,4 @@ The following set up is required:
 
 After deploying, you should see your discovered EKS clusters in your Teleport tenant.
 
+4. Run `terraform apply ...` regularly to ensure the deployed teleport container version is updated.
