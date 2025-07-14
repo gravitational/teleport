@@ -92,15 +92,12 @@ resource "aws_iam_role_policy" "ecs_teleport_discover_eks_taskrole_access_eks" {
 
 // get teleport version from teleport cluster endpoint
 data "http" "teleport_version" {
-  url = "https://${var.teleport_proxy_server}/webapi/find"
+  url = "https://${var.teleport_proxy_server}/v1/webapi/automaticupgrades/channel/default/version"
 }
 locals {
   discovery_group = "aws-prod"
   teleport_image = format("public.ecr.aws/gravitational/teleport-ent-distroless:%s",
-    trimprefix(
-      jsondecode(data.http.teleport_version.response_body).auto_update.agent_version,
-      "v",
-    )
+    trimprefix(data.http.teleport_version.response_body,"v")
   )
 }
 
