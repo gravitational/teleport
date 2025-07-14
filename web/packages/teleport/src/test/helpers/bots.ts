@@ -18,12 +18,9 @@
 
 import { http, HttpResponse } from 'msw';
 
+import cfg from 'teleport/config';
 import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
 import { JsonObject } from 'teleport/types';
-
-const botPath = '/v1/webapi/sites/:cluster_id/machine-id/bot/:botName?';
-const editBotPathV1 = '/v1/webapi/sites/:cluster_id/machine-id/bot/:botName?';
-const editBotPathV2 = '/v2/webapi/sites/:cluster_id/machine-id/bot/:botName?';
 
 export const getBotSuccess = (overrides?: {
   name?: ApiBot['metadata']['name'];
@@ -45,7 +42,7 @@ export const getBotSuccess = (overrides?: {
     },
   } = overrides ?? {};
 
-  return http.get(botPath, () => {
+  return http.get(cfg.api.bot.read, () => {
     return HttpResponse.json({
       status: 'active',
       kind: 'bot',
@@ -79,7 +76,7 @@ export const editBotSuccess = (
   overrides?: Partial<EditBotRequest>
 ) =>
   http.put<{ botName: string }>(
-    version === 1 ? editBotPathV1 : editBotPathV2,
+    version === 1 ? cfg.api.bot.update : cfg.api.bot.updateV2,
     async ({ request, params }) => {
       const req = (await request.clone().json()) as EditBotRequest;
       const {
@@ -120,7 +117,7 @@ export const editBotSuccess = (
   );
 
 export const getBotError = (status: number, error: string | null = null) =>
-  http.get(botPath, () => {
+  http.get(cfg.api.bot.read, () => {
     return HttpResponse.json({ error: { message: error } }, { status });
   });
 
@@ -129,6 +126,6 @@ export const editBotError = (
   error: string | null = null,
   fields: JsonObject = {}
 ) =>
-  http.put(editBotPathV2, () => {
+  http.put(cfg.api.bot.updateV2, () => {
     return HttpResponse.json({ error: { message: error }, fields }, { status });
   });
