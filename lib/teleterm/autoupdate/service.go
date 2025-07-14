@@ -18,6 +18,7 @@ package autoupdate
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
@@ -26,8 +27,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -138,10 +140,28 @@ func (s *Service) pingCluster(ctx context.Context, cluster *clusters.Cluster) (*
 }
 
 // GetDownloadBaseUrl returns base URL for downloading Teleport packages.
-func (s *Service) GetDownloadBaseUrl(ctx context.Context, _ *api.GetDownloadBaseUrlRequest) (*api.GetDownloadBaseUrlResponse, error) {
-	baseUrl, err := tools.ResolveBaseURL(ctx)
+func (s *Service) GetDownloadBaseUrl(_ context.Context, _ *api.GetDownloadBaseUrlRequest) (*api.GetDownloadBaseUrlResponse, error) {
+	baseURL, err := resolveBaseURL()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &api.GetDownloadBaseUrlResponse{
-		BaseUrl: baseUrl,
+		BaseUrl: baseURL,
 	}, trace.Wrap(err)
+}
+
+// resolveBaseURL generates the base URL using the same logic as the teleport/lib/autoupdate/tools package.
+func resolveBaseURL() (string, error) {
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if envBaseURL != "" {
+		return envBaseURL, nil
+	}
+
+	m := modules.GetModules()
+	if m.BuildType() == modules.BuildOSS {
+		return "", trace.BadParameter("Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
+	}
+
+	return autoupdate.DefaultBaseURL, nil
 }
