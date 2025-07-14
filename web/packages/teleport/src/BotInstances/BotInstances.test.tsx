@@ -56,9 +56,11 @@ jest.mock('teleport/services/bot/bot', () => {
 
 const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
   server.listen();
+});
 
+beforeEach(() => {
   jest.useFakeTimers().setSystemTime(new Date('2025-05-19T08:00:00Z'));
 });
 
