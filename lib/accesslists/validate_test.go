@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -152,9 +153,56 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acls[accesslist.MaxAllowedDepth+1].Spec.Title, acls[accesslist.MaxAllowedDepth].Spec.Title, accesslist.MaxAllowedDepth))
 }
 
-func TestAccessListValidateWithMembers(t *testing.T) {
-	clock := clockwork.NewFakeClock()
+func TestAccessListValidateWithMembers_basic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	t.Run("type is validated", func(t *testing.T) {
+		accessList := newAccessList(t, "test_access_list", clock)
+		accessList.Spec.Type = "test_unknown_type"
+
+		err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, `unknown access list type "test_unknown_type"`)
+	})
+
+	t.Run("owners are not required for static access_list", func(t *testing.T) {
+		accessList := newAccessList(t, "test_access_list", clock)
+		accessList.Spec.Type = accesslist.Static
+		accessList.Spec.Owners = []accesslist.Owner{}
+		accessList.Spec.Audit = accesslist.Audit{}
+
+		err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.NoError(t, err)
+	})
+
+	t.Run("otherwise owners are required", func(t *testing.T) {
+		accessList := newAccessList(t, "test_access_list", clock)
+		accessList.Spec.Owners = []accesslist.Owner{}
+
+		err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "owners")
+	})
+
+	t.Run("audit is not supported for static access_list", func(t *testing.T) {
+		accessList := newAccessList(t, "test_access_list", clock)
+		accessList.Spec.Type = accesslist.Static
+		accessList.Spec.Audit = accesslist.Audit{
+			NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
+		}
+
+		err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "audit not supported for non-reviewable access_list")
+	})
+}
+
+func TestAccessListValidateWithMembers_members(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 
 	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
 	rootAcl := newAccessList(t, "root", clock)
