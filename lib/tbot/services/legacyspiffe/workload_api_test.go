@@ -16,10 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package legacyspiffe
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"net"
 	"os"
 	"path"
@@ -27,26 +31,33 @@ import (
 	"testing"
 	"time"
 
+	tlsv3pb "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	discoveryv3pb "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/anypb"
 
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	libtestutils "github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
-func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
+func TestFilterSVIDRequests(t *testing.T) {
 	// This test is more for overall behavior. Use the _field test for
 	// each individual field.
 	ctx := context.Background()
@@ -54,24 +65,24 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	tests := []struct {
 		name string
 		att  *workloadidentityv1pb.WorkloadAttrs
-		in   []config.SVIDRequestWithRules
-		want []config.SVIDRequest
+		in   []SVIDRequestWithRules
+		want []SVIDRequest
 	}{
 		{
 			name: "no rules",
-			in: []config.SVIDRequestWithRules{
+			in: []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/bar",
 					},
 				},
 			},
-			want: []config.SVIDRequest{
+			want: []SVIDRequest{
 				{
 					Path: "/foo",
 				},
@@ -90,19 +101,19 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/bar",
 					},
 				},
 			},
-			want: []config.SVIDRequest{
+			want: []SVIDRequest{
 				{
 					Path: "/foo",
 				},
@@ -124,14 +135,14 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1000),
 							},
 						},
@@ -150,32 +161,32 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1000),
 								PID: ptr(1),
 							},
 						},
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								GID: ptr(1),
 							},
 						},
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/bar",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1),
 							},
 						},
@@ -186,31 +197,31 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "no matching rules without attestation",
-			in: []config.SVIDRequestWithRules{
+			in: []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								PID: ptr(1),
 							},
 						},
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								GID: ptr(1),
 							},
 						},
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/bar",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1),
 							},
 						},
@@ -229,38 +240,38 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					Pid:      1002,
 				},
 			},
-			in: []config.SVIDRequestWithRules{
+			in: []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/fizz",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1),
 							},
 						},
 					},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{},
+					Rules: []SVIDRequestRule{},
 				},
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/bar",
 					},
-					Rules: []config.SVIDRequestRule{
+					Rules: []SVIDRequestRule{
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1000),
 								GID: ptr(1500),
 							},
 						},
 						{
-							Unix: config.SVIDRequestRuleUnix{
+							Unix: SVIDRequestRuleUnix{
 								UID: ptr(1000),
 								PID: ptr(1002),
 							},
@@ -268,7 +279,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 					},
 				},
 			},
-			want: []config.SVIDRequest{
+			want: []SVIDRequest{
 				{
 					Path: "/foo",
 				},
@@ -286,19 +297,19 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	}
 }
 
-func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
+func TestFilterSVIDRequests_field(t *testing.T) {
 	ctx := context.Background()
 	log := logtest.NewLogger()
 	tests := []struct {
 		field       string
 		matching    *workloadidentityv1pb.WorkloadAttrs
 		nonMatching *workloadidentityv1pb.WorkloadAttrs
-		rule        config.SVIDRequestRule
+		rule        SVIDRequestRule
 	}{
 		{
 			field: "unix.pid",
-			rule: config.SVIDRequestRule{
-				Unix: config.SVIDRequestRuleUnix{
+			rule: SVIDRequestRule{
+				Unix: SVIDRequestRuleUnix{
 					PID: ptr(1000),
 				},
 			},
@@ -317,8 +328,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "unix.uid",
-			rule: config.SVIDRequestRule{
-				Unix: config.SVIDRequestRuleUnix{
+			rule: SVIDRequestRule{
+				Unix: SVIDRequestRuleUnix{
 					UID: ptr(1000),
 				},
 			},
@@ -337,8 +348,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "unix.gid",
-			rule: config.SVIDRequestRule{
-				Unix: config.SVIDRequestRuleUnix{
+			rule: SVIDRequestRule{
+				Unix: SVIDRequestRuleUnix{
 					GID: ptr(1000),
 				},
 			},
@@ -357,8 +368,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "unix.namespace",
-			rule: config.SVIDRequestRule{
-				Kubernetes: config.SVIDRequestRuleKubernetes{
+			rule: SVIDRequestRule{
+				Kubernetes: SVIDRequestRuleKubernetes{
 					Namespace: "foo",
 				},
 			},
@@ -377,8 +388,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "kubernetes.service_account",
-			rule: config.SVIDRequestRule{
-				Kubernetes: config.SVIDRequestRuleKubernetes{
+			rule: SVIDRequestRule{
+				Kubernetes: SVIDRequestRuleKubernetes{
 					ServiceAccount: "foo",
 				},
 			},
@@ -397,8 +408,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 		},
 		{
 			field: "kubernetes.pod_name",
-			rule: config.SVIDRequestRule{
-				Kubernetes: config.SVIDRequestRuleKubernetes{
+			rule: SVIDRequestRule{
+				Kubernetes: SVIDRequestRuleKubernetes{
 					PodName: "foo",
 				},
 			},
@@ -418,12 +429,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
-			rules := []config.SVIDRequestWithRules{
+			rules := []SVIDRequestWithRules{
 				{
-					SVIDRequest: config.SVIDRequest{
+					SVIDRequest: SVIDRequest{
 						Path: "/foo",
 					},
-					Rules: []config.SVIDRequestRule{tt.rule},
+					Rules: []SVIDRequestRule{tt.rule},
 				},
 			}
 			t.Run("matching", func(t *testing.T) {
@@ -471,54 +482,71 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 
 	tempDir := t.TempDir()
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
+
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	connCfg := connection.Config{
+		Address:     proxyAddr.Addr,
+		AddressKind: connection.AddressKindProxy,
+		Insecure:    true,
+	}
+
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
-	botConfig := defaultBotConfig(
-		t, process, onboarding, config.ServiceConfigs{
-			&config.SPIFFEWorkloadAPIService{
-				Listen: socketPath,
-				SVIDs: []config.SVIDRequestWithRules{
-					// Intentionally unmatching PID to ensure this SVID
-					// is not issued.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/bar",
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: ptr(0),
+
+	trustBundleCache := workloadidentity.NewTrustBundleCacheFacade()
+
+	b, err := bot.New(bot.Config{
+		Connection:      connCfg,
+		Logger:          log,
+		Onboarding:      *onboarding,
+		InternalStorage: destination.NewMemory(),
+		Services: []bot.ServiceBuilder{
+			trustBundleCache.BuildService,
+			WorkloadAPIServiceBuilder(
+				&WorkloadAPIConfig{
+					Listen: socketPath,
+					SVIDs: []SVIDRequestWithRules{
+						// Intentionally unmatching PID to ensure this SVID
+						// is not issued.
+						{
+							SVIDRequest: SVIDRequest{
+								Path: "/bar",
+							},
+							Rules: []SVIDRequestRule{
+								{
+									Unix: SVIDRequestRuleUnix{
+										PID: ptr(0),
+									},
 								},
 							},
 						},
-					},
-					// SVID with rule that matches on PID.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
+						// SVID with rule that matches on PID.
+						{
+							SVIDRequest: SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1"},
+								},
 							},
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: &pid,
+							Rules: []SVIDRequestRule{
+								{
+									Unix: SVIDRequestRuleUnix{
+										PID: &pid,
+									},
 								},
 							},
 						},
 					},
 				},
-			},
+				trustBundleCache,
+				bot.DefaultCredentialLifetime,
+			),
 		},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-		},
-	)
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
+	})
+	require.NoError(t, err)
 
 	// Spin up goroutine for bot to run in
 	botCtx, cancelBot := context.WithCancel(ctx)
@@ -625,4 +653,228 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 		require.Len(t, svids, 1)
 		validateSVID(t, svids[0], "example.com")
 	})
+}
+
+// Test_E2E_SPIFFE_SDS is an end-to-end test of Workload ID's ability
+// to issue a SPIFFE SVID to a workload connecting via the SDS API
+func Test_E2E_SPIFFE_SDS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+	t.Parallel()
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// Make a new auth server.
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Create a role that allows the bot to issue a SPIFFE SVID.
+	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			SPIFFE: []*types.SPIFFERoleCondition{
+				{
+					Path: "/*",
+					DNSSANs: []string{
+						"*",
+					},
+					IPSANs: []string{
+						"0.0.0.0/0",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	role, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	pid := os.Getpid()
+
+	tempDir := t.TempDir()
+	socketPath := "unix://" + path.Join(tempDir, "sock")
+
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	connCfg := connection.Config{
+		Address:     proxyAddr.Addr,
+		AddressKind: connection.AddressKindProxy,
+		Insecure:    true,
+	}
+
+	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
+
+	// Create a trust bundle cache
+	trustBundleCache := workloadidentity.NewTrustBundleCacheFacade()
+
+	b, err := bot.New(bot.Config{
+		Connection:      connCfg,
+		Logger:          log,
+		Onboarding:      *onboarding,
+		InternalStorage: destination.NewMemory(),
+		Services: []bot.ServiceBuilder{
+			trustBundleCache.BuildService,
+			WorkloadAPIServiceBuilder(
+				&WorkloadAPIConfig{
+					Listen: socketPath,
+					SVIDs: []SVIDRequestWithRules{
+						// Intentionally unmatching PID to ensure this SVID
+						// is not issued.
+						{
+							SVIDRequest: SVIDRequest{
+								Path: "/bar",
+							},
+							Rules: []SVIDRequestRule{
+								{
+									Unix: SVIDRequestRuleUnix{
+										PID: ptr(0),
+									},
+								},
+							},
+						},
+						// SVID with rule that matches on PID.
+						{
+							SVIDRequest: SVIDRequest{
+								Path: "/foo",
+								Hint: "hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"example.com"},
+									IP:  []string{"10.0.0.1"},
+								},
+							},
+							Rules: []SVIDRequestRule{
+								{
+									Unix: SVIDRequestRuleUnix{
+										PID: &pid,
+									},
+								},
+							},
+						},
+					},
+				},
+				trustBundleCache,
+				bot.DefaultCredentialLifetime,
+			),
+		},
+	})
+	require.NoError(t, err)
+
+	// Run bot in the background for the remainder of the test.
+	libtestutils.RunTestBackgroundTask(ctx, t, &libtestutils.TestBackgroundTask{
+		Name: "bot",
+		Task: func(ctx context.Context) error {
+			return b.Run(ctx)
+		},
+	})
+
+	// Wait for the socket to come up.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := os.Stat(path.Join(tempDir, "sock"))
+		assert.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	conn, err := grpc.NewClient(
+		socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+	})
+
+	client := secretv3pb.NewSecretDiscoveryServiceClient(conn)
+	stream, err := client.StreamSecrets(ctx)
+	require.NoError(t, err)
+
+	// Request all secrets.
+	typeUrl := "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
+	err = stream.Send(&discoveryv3pb.DiscoveryRequest{
+		TypeUrl:       typeUrl,
+		ResourceNames: []string{},
+	})
+	require.NoError(t, err)
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.VersionInfo)
+	assert.NotEmpty(t, resp.Nonce)
+	assert.Equal(t, typeUrl, resp.TypeUrl)
+	// We should expect to find two resources within the response
+	assert.Len(t, resp.Resources, 2)
+	// There's no specific order we should expect, so we'll need to assert that
+	// each actually exists
+
+	// First check we got our certificate...
+	checkSVID := func(secret *tlsv3pb.Secret) {
+		tlsCert := secret.GetTlsCertificate()
+		require.NotNil(t, tlsCert)
+		require.NotNil(t, tlsCert.CertificateChain)
+		tlsCertBytes := tlsCert.CertificateChain.GetInlineBytes()
+		require.NotEmpty(t, tlsCertBytes)
+		require.NotNil(t, tlsCert.PrivateKey)
+		privateKeyBytes := tlsCert.PrivateKey.GetInlineBytes()
+		require.NotEmpty(t, privateKeyBytes)
+		goTLSCert, err := tls.X509KeyPair(tlsCertBytes, privateKeyBytes)
+		require.NoError(t, err)
+		// Sanity check we generated an ECDSA key (testenv cluster uses
+		// balanced-v1 algorithm suite)
+		require.IsType(t, &ecdsa.PrivateKey{}, goTLSCert.PrivateKey)
+	}
+	checkSVID(findSecret(t, resp.Resources, "spiffe://root/foo"))
+
+	// Now check we got the CA
+	caSecret := findSecret(t, resp.Resources, "spiffe://root")
+	validationContext := caSecret.GetValidationContext()
+	require.NotNil(t, validationContext.CustomValidatorConfig)
+	require.Equal(t, "envoy.tls.cert_validator.spiffe", validationContext.CustomValidatorConfig.Name)
+	spiffeValidatorConfig := &tlsv3pb.SPIFFECertValidatorConfig{}
+	require.NoError(t, validationContext.CustomValidatorConfig.TypedConfig.UnmarshalTo(spiffeValidatorConfig))
+	require.Len(t, spiffeValidatorConfig.TrustDomains, 1)
+	require.Equal(t, "root", spiffeValidatorConfig.TrustDomains[0].Name)
+	block, _ := pem.Decode(spiffeValidatorConfig.TrustDomains[0].TrustBundle.GetInlineBytes())
+	require.Equal(t, "CERTIFICATE", block.Type)
+	x509Cert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+	// Sanity check we generated an ECDSA key (testenv cluster uses balanced-v1
+	// algorithm suite)
+	require.IsType(t, &ecdsa.PublicKey{}, x509Cert.PublicKey)
+
+	// We should send the response ACK we expect envoy to send.
+	err = stream.Send(&discoveryv3pb.DiscoveryRequest{
+		TypeUrl:       typeUrl,
+		VersionInfo:   resp.VersionInfo,
+		ResponseNonce: resp.Nonce,
+		ResourceNames: []string{},
+	})
+	require.NoError(t, err)
+
+	// Try specifying a specific resource
+	err = stream.Send(&discoveryv3pb.DiscoveryRequest{
+		TypeUrl: typeUrl,
+		ResourceNames: []string{
+			"spiffe://root/foo",
+		},
+		VersionInfo:   resp.VersionInfo,
+		ResponseNonce: resp.Nonce,
+	})
+	require.NoError(t, err)
+
+	resp, err = stream.Recv()
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.VersionInfo)
+	assert.NotEmpty(t, resp.Nonce)
+	assert.Len(t, resp.Resources, 1)
+	checkSVID(findSecret(t, resp.Resources, "spiffe://root/foo"))
+}
+
+func findSecret(t *testing.T, resources []*anypb.Any, name string) *tlsv3pb.Secret {
+	for _, a := range resources {
+		secret := &tlsv3pb.Secret{}
+		require.NoError(t, a.UnmarshalTo(secret))
+		if secret.Name == name {
+			return secret
+		}
+	}
+	return nil
 }
