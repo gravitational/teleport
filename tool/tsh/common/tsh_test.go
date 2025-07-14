@@ -3987,7 +3987,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 			SSHPubKey:               keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 			TLSPubKey:               tlsPub,
 			Username:                user.GetName(),
@@ -4027,7 +4027,7 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		sshCert, tlsCert, err := authServer.GenerateUserTestCertsWithContext(ctx, auth.GenerateUserTestCertsRequest{
 			SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 			TLSPubKey:      tlsPub,
 			Username:       user.GetName(),

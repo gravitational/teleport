@@ -2151,6 +2151,13 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
+// SetBcryptCost sets bcryptCostOverride, used in tests
+func (a *Server) SetBcryptCost(cost int) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.bcryptCostOverride = &cost
+}
+
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
 }
@@ -2582,6 +2589,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
+// TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
 	SSHPubKey               []byte
 	TLSPubKey               []byte
@@ -2595,11 +2603,23 @@ type GenerateUserTestCertsRequest struct {
 	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
+	DeviceExtensions        DeviceExtensions
+	Renewable               bool
+	Generation              uint64
+	ActiveRequests          []string
+	KubernetesCluster       string
+	Usage                   []string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	ctx := context.Background()
+	return a.GenerateUserTestCertsWithContext(context.TODO(), req)
+}
+
+// GenerateUserTestCertsWithContext is used to generate user certificate, used internally for tests
+// TODO(tross): Figure out how to move this into test only code.
+func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -2630,6 +2650,12 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
+		deviceExtensions:                 req.DeviceExtensions,
+		generation:                       req.Generation,
+		renewable:                        req.Renewable,
+		activeRequests:                   req.ActiveRequests,
+		kubernetesCluster:                req.KubernetesCluster,
+		usage:                            req.Usage,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
