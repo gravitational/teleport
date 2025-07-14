@@ -50,33 +50,33 @@ func TestFormatResult(t *testing.T) {
 	}{
 		"query results": {
 			results:        []*pgconn.Result{newMockResult("SELECT 2", nil, []string{"name", "age"}, [][][]byte{{[]byte("Alice"), []byte("30")}, {[]byte("Bob"), []byte("31")}})},
-			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_count":2}]}`,
+			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_affected":2}]}`,
 		},
 		"multiple query results": {
 			results: []*pgconn.Result{
 				newMockResult("SELECT 2", nil, []string{"name", "age"}, [][][]byte{{[]byte("Alice"), []byte("30")}, {[]byte("Bob"), []byte("31")}}),
 				newMockResult("SELECT 1", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}}),
 			},
-			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_count":2},{"data":[{"active":"true","id":"1"}],"rows_count":1}]}`,
+			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_affected":2},{"data":[{"active":"true","id":"1"}],"rows_affected":1}]}`,
 		},
 		"multiple query results different types": {
 			results: []*pgconn.Result{
 				newMockResult("INSERT 5", nil, []string{}, [][][]byte{}),
 				newMockResult("SELECT 2", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}, {[]byte("2"), []byte("false")}}),
 			},
-			expectedResult: `{"results":[{"data":null,"rows_count":5},{"data":[{"active":"true","id":"1"},{"active":"false","id":"2"}],"rows_count":2}]}`,
+			expectedResult: `{"results":[{"data":null,"rows_affected":5},{"data":[{"active":"true","id":"1"},{"active":"false","id":"2"}],"rows_affected":2}]}`,
 		},
 		"empty query results": {
 			results:        []*pgconn.Result{newMockResult("SELECT 0", nil, []string{}, [][][]byte{})},
-			expectedResult: `{"results":[{"data":[],"rows_count":0}]}`,
+			expectedResult: `{"results":[{"data":[],"rows_affected":0}]}`,
 		},
 		"non-data results": {
 			results:        []*pgconn.Result{newMockResult("INSERT 1", nil, []string{}, [][][]byte{})},
-			expectedResult: `{"results":[{"data":null,"rows_count":1}]}`,
+			expectedResult: `{"results":[{"data":null,"rows_affected":1}]}`,
 		},
 		"query with error": {
 			results:        []*pgconn.Result{newMockResult("SELECT 0", errors.New("something wrong with query"), []string{}, [][][]byte{})},
-			expectedResult: `{"results":[{"data":null,"rows_count":0,"error":"something wrong with query"}]}`,
+			expectedResult: `{"results":[{"data":null,"rows_affected":0,"error":"something wrong with query"}]}`,
 		},
 		"multiple query with error": {
 			results: []*pgconn.Result{
@@ -84,7 +84,7 @@ func TestFormatResult(t *testing.T) {
 				newMockResult("SELECT 1", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}}),
 				newMockResult("SELECT 0", errors.New("something wrong with query"), []string{}, [][][]byte{}),
 			},
-			expectedResult: `{"results":[{"data":null,"rows_count":0,"error":"constraint error"},{"data":[{"active":"true","id":"1"}],"rows_count":1},{"data":null,"rows_count":0,"error":"something wrong with query"}]}`,
+			expectedResult: `{"results":[{"data":null,"rows_affected":0,"error":"constraint error"},{"data":[{"active":"true","id":"1"}],"rows_affected":1},{"data":null,"rows_affected":0,"error":"something wrong with query"}]}`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -218,7 +218,7 @@ func TestFormatErrors(t *testing.T) {
 				queryToolDatabaseParam: tc.databaseURI,
 				queryToolQueryParam:    "SELECT 1",
 			}
-			runResult, err := pgSrv.RunQuery(t.Context(), req)
+			runResult, err := pgSrv.runQuery(t.Context(), req)
 			require.NoError(t, err)
 
 			require.True(t, runResult.IsError)
@@ -243,6 +243,7 @@ func TestIdleConnections(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 	})
+	require.NoError(t, err)
 
 	dbConnsCh, dialDBFunc := newTestDatabaseServer(t)
 	dbMCP := &dbmcp.Database{
@@ -275,14 +276,14 @@ func TestIdleConnections(t *testing.T) {
 	}
 
 	// First query should initialize a new connection.
-	runResult, err := pgSrv.RunQuery(t.Context(), req)
+	runResult, err := pgSrv.runQuery(t.Context(), req)
 	require.NoError(t, err)
 	require.False(t, runResult.IsError, "expected query execution to succeed")
 
 	var conn *testDatabaseConn
 	select {
 	case conn = <-dbConnsCh:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		require.Fail(t, "expected database connection but got nothing")
 	}
 
@@ -291,19 +292,19 @@ func TestIdleConnections(t *testing.T) {
 
 	// Issue no queries to server and advance clock to close the connection due
 	// to inactivity.
-	clock.Advance(connectionIdleTime + 1)
+	clock.Advance(connectionMaxIdleTime + 1)
 	require.Eventually(t, func() bool {
 		return conn.closed.Load()
-	}, time.Second, 100*time.Millisecond, "expected connection to be closed: %s", conn.err.Load())
+	}, 5*time.Second, 100*time.Millisecond, "expected connection to be closed: %s", conn.err.Load())
 
 	// Issuing a new query should bring a brand new connection alive.
-	runResult, err = pgSrv.RunQuery(t.Context(), req)
+	runResult, err = pgSrv.runQuery(t.Context(), req)
 	require.NoError(t, err)
 	require.False(t, runResult.IsError, "expected query execution to succeed")
 
 	select {
 	case conn = <-dbConnsCh:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		require.Fail(t, "expected database connection but got nothing")
 	}
 

@@ -49,9 +49,9 @@ var queryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "query"),
 )
 
 type database struct {
-	*dbmcp.Database
 	mu sync.Mutex
 
+	name             string
 	clock            clockwork.Clock
 	connConfig       *pgconn.Config
 	activeConnection *pgconn.PgConn
@@ -86,7 +86,7 @@ func (d *database) closeIdle(ctx context.Context, now time.Time) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.lastActivity.IsZero() || now.Sub(d.lastActivity) < connectionIdleTime {
+	if d.lastActivity.IsZero() || now.Sub(d.lastActivity) < connectionMaxIdleTime {
 		return false, nil
 	}
 
@@ -141,13 +141,13 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 		}
 
 		s.databases.Store(db.ResourceURI().WithoutParams().String(), &database{
-			Database:   db,
+			name:       db.DB.GetName(),
 			clock:      cfg.Clock,
 			connConfig: connCfg,
 		})
 	}
 
-	cfg.RootServer.AddTool(queryTool, s.RunQuery)
+	cfg.RootServer.AddTool(queryTool, s.runQuery)
 	go s.idleChecker(ctx)
 	return s, nil
 }
@@ -180,16 +180,16 @@ type QueryResult struct {
 	// Data contains the data returned from the query. It can be empty in case
 	// the query doesn't return any data.
 	Data []map[string]string `json:"data"`
-	// RowsCount number of rows affected by the query or returned as data.
-	RowsCount int `json:"rows_count"`
+	// RowsAffected number of rows affected by the query or returned as data.
+	RowsAffected int `json:"rows_affected"`
 	// ErrorMessage if the query contains any error, this field will contain the
 	// error message. Given an execution of multiple queries, not all of them
 	// can fail.
 	ErrorMessage string `json:"error,omitempty"`
 }
 
-// RunQuery tool function used to execute queries on databases.
-func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// runQuery tool function used to execute queries on databases.
+func (s *Server) runQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	uri, err := request.RequireString(queryToolDatabaseParam)
 	if err != nil {
 		return s.wrapErrorResult(ctx, trace.Wrap(err))
@@ -229,10 +229,6 @@ func (s *Server) idleChecker(ctx context.Context) {
 	defer timer.Stop()
 
 	for {
-		if ctx.Err() != nil {
-			return
-		}
-
 		select {
 		case <-ctx.Done():
 			return
@@ -240,7 +236,7 @@ func (s *Server) idleChecker(ctx context.Context) {
 			s.logger.DebugContext(ctx, "checking idle database connections")
 			s.databases.Range(func(_ string, db *database) bool {
 				if closed, err := db.closeIdle(ctx, s.clock.Now()); closed {
-					s.logger.DebugContext(ctx, "closed idle database connection", "database", db.DB.GetName(), "error", err)
+					s.logger.DebugContext(ctx, "closed idle database connection", "database", db.name, "error", err)
 				}
 				return true
 			})
@@ -255,7 +251,7 @@ func buildQueryResult(results []*pgconn.Result) (string, error) {
 
 	for i, result := range results {
 		commandTag := result.CommandTag
-		queryRes := QueryResult{RowsCount: int(commandTag.RowsAffected())}
+		queryRes := QueryResult{RowsAffected: int(commandTag.RowsAffected())}
 
 		if result.Err != nil {
 			queryRes.ErrorMessage = result.Err.Error()
@@ -270,12 +266,17 @@ func buildQueryResult(results []*pgconn.Result) (string, error) {
 
 		columns := make([]string, len(result.FieldDescriptions))
 		for i, fd := range result.FieldDescriptions {
-			columns[i] = string(fd.Name)
+			columns[i] = fd.Name
 		}
 
 		for _, row := range result.Rows {
 			rowData := make(map[string]string)
 			for columnIdx, contents := range row {
+				// Given we're using the PostgreSQL text format we can safely
+				// cast the returned values and they'll be in a readable format.
+				//
+				// References:
+				// - https://www.postgresql.org/docs/current/protocol-overview.html#PROTOCOL-FORMAT-CODES
 				rowData[columns[columnIdx]] = string(contents)
 			}
 
@@ -342,10 +343,10 @@ const (
 	applicationNameParamName = "application_name"
 	// applicationNameParamValue defines the application name parameter value.
 	applicationNameParamValue = "teleport-mcp"
-	// connectionIdleTime is the max connection idle time before it gets closed
+	// connectionMaxIdleTime is the max connection idle time before it gets closed
 	// automatically.
-	connectionIdleTime = 1 * time.Minute
+	connectionMaxIdleTime = 30 * time.Minute
 	// idleCheckerInterval is the interval which we'll check if the database
 	// connections are idle.
-	idleCheckerInterval = connectionIdleTime / 2
+	idleCheckerInterval = connectionMaxIdleTime / 2
 )
