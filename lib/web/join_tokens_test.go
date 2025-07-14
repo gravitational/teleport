@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
@@ -472,7 +473,7 @@ func TestEditToken(t *testing.T) {
 func TestCreateTokenExpiry(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
 	// Use enterprise build to access token types such as TPM and Spacelift
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: false,
@@ -1202,7 +1203,7 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 }
 
 type autoupdateTestHandlerConfig struct {
-	testModules *modules.TestModules
+	testModules *modulestest.Modules
 	hostname    string
 	port        int
 	channels    automaticupgrades.Channels
@@ -1241,11 +1242,11 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
 
 	if config.testModules == nil {
-		config.testModules = &modules.TestModules{
+		config.testModules = &modulestest.Modules{
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
-	modules.SetTestModules(t, config.testModules)
+	modulestest.SetTestModules(t, *config.testModules)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
@@ -1830,7 +1831,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("ent", func(t *testing.T) {
 			// Using the Enterprise Version, the package name must be teleport-ent
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+				testModules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				token:       token,
 			})
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
@@ -1851,7 +1852,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
 			currentStableCloudVersion := "1.2.3"
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				testModules: &modulestest.Modules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
 				token:       token,
 				channels: automaticupgrades.Channels{
 					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
@@ -1892,7 +1893,7 @@ func TestJoinScript(t *testing.T) {
 		t.Run("rollout exists and autoupdates are on", func(t *testing.T) {
 			currentStableCloudVersion := "1.1.1"
 			config := autoupdateTestHandlerConfig{
-				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				testModules: &modulestest.Modules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
 				channels: automaticupgrades.Channels{
 					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
 				},
@@ -1923,7 +1924,7 @@ func TestJoinScript(t *testing.T) {
 
 func TestAutomaticUpgrades(t *testing.T) {
 	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
@@ -1934,7 +1935,7 @@ func TestAutomaticUpgrades(t *testing.T) {
 		require.True(t, got)
 	})
 	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: false,
@@ -1946,7 +1947,7 @@ func TestAutomaticUpgrades(t *testing.T) {
 	})
 
 	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Cloud:             false,

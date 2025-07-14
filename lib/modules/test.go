@@ -37,6 +37,7 @@ import (
 // same values from default modules.
 //
 // See SetTestModules for an example.
+// TODO(tross): Remove once e is using modulestest.
 type TestModules struct {
 	// TestBuildType is returned from the BuiltType function.
 	TestBuildType string
@@ -58,7 +59,7 @@ type TestModules struct {
 // It must not be used in parallel tests.
 //
 //	func TestWithFakeModules(t *testing.T) {
-//	   modules.SetTestModules(t, &modules.TestModules{
+//	   modulestest.SetTestModules(t, modulestest.Modules{
 //	     TestBuildType: modules.BuildEnterprise,
 //	     TestFeatures: modules.Features{
 //	        Cloud: true,
@@ -69,6 +70,8 @@ type TestModules struct {
 //
 //	   // cleanup will revert module changes after test completes
 //	}
+//
+// TODO(tross): Remove once e is using modulestest.
 func SetTestModules(t *testing.T, testModules Modules) {
 	defaultModules := GetModules()
 	t.Cleanup(func() { SetModules(defaultModules) })
