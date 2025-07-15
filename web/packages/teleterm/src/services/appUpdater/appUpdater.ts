@@ -29,7 +29,7 @@ import { ClientToolsUpdateProvider } from './clientToolsUpdateProvider';
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
 
-  constructor() {
+  constructor(private storage: AppUpdaterStorage) {
     autoUpdater.setFeedURL({
       provider: 'custom',
       // Wraps ClientToolsUpdateProvider to allow passing getClientToolsVersion.
@@ -54,4 +54,14 @@ export class AppUpdater {
     // Downloads are saved to the path specified in dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = true;
   }
+}
+
+export interface AppUpdaterStorage<
+  T = {
+    /** User-selected cluster managing updates. */
+    managingClusterUri?: string;
+  },
+> {
+  get(): T;
+  set(value: Partial<T>): void;
 }

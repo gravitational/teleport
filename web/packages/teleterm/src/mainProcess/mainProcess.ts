@@ -48,6 +48,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
+import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -134,6 +135,10 @@ export default class MainProcess {
           state
         );
       }
+    );
+
+    this.appUpdater = new AppUpdater(
+      makeAppUpdaterStorage(this.appStateFileStorage)
     );
   }
 
@@ -830,5 +835,19 @@ function rewrapResolveError(
       `Could not communicate with ${processName}.\n\n` +
         `Last logs from ${logPath}:\n${lastLogs}`
     );
+  };
+}
+
+const APP_UPDATER_STATE_KEY = 'appUpdater';
+function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
+  return {
+    get: () => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      return { managingClusterUri: '', ...state };
+    },
+    set: value => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      fs.put(APP_UPDATER_STATE_KEY, { ...state, ...value });
+    },
   };
 }
