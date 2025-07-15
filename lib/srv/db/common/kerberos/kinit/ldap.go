@@ -20,10 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
-	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"time"
 
@@ -102,55 +99,6 @@ func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adCo
 	}, nil
 }
 
-const (
-	// ldapDialTimeout is the timeout for dialing the LDAP server
-	// when making an initial connection
-	ldapDialTimeout = 15 * time.Second
-	// ldapRequestTimeout is the timeout for making LDAP requests.
-	// It is larger than the dial timeout because LDAP queries in large
-	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 45 * time.Second
-	// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
-	// so in most cases the 1000 search page size will result in the optimal amount of requests made to
-	// LDAP server.
-	searchPageSize = 1000
-
-	// attrSAMAccountName is the SAM Account name of an LDAP object.
-	attrSAMAccountName = "sAMAccountName"
-	// attrSAMAccountType is the SAM Account type for an LDAP object.
-	attrSAMAccountType = "sAMAccountType"
-	// AccountTypeUser is the SAM account type for user accounts.
-	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
-	// (SAM_USER_OBJECT)
-	AccountTypeUser = "805306368"
-)
-
-func (s *ldapConnector) dialLDAPServer(ctx context.Context, clusterName string) (ldap.Client, error) {
-	if s.dialLDAPServerFunc != nil {
-		return s.dialLDAPServerFunc(ctx)
-	}
-
-	tc, err := s.tlsConfigForLDAP(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ldapURL := "ldaps://" + s.ldapConfig.address
-	s.logger.DebugContext(ctx, "Dialing LDAP server", "url", ldapURL)
-
-	conn, err := ldap.DialURL(
-		ldapURL,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conn.SetTimeout(ldapRequestTimeout)
-
-	return conn, nil
-}
-
 // GetActiveDirectorySID queries LDAP to get SID of a given username.
 func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error) {
 	clusterName, err := s.authClient.GetClusterName(ctx)
@@ -158,37 +106,23 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 		return "", trace.Wrap(err)
 	}
 
-	var activeDirectorySID string
-	// Find the user's SID
-	filter := winpki.CombineLDAPFilters([]string{
-		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
-	})
-
-	domainDN := winpki.DomainDN(s.ldapConfig.domain)
-
-	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
-
-	ldapConn, err := s.dialLDAPServer(ctx, clusterName.GetClusterName())
+	tc, err := s.tlsConfigForLDAP(ctx, clusterName.GetClusterName())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	entries, err := ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid}, ldapConn)
+	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username)
+	client, err := winpki.DialLDAP(ctx, &winpki.LDAPConfig{
+		Addr:   s.ldapConfig.address,
+		Domain: s.ldapConfig.domain,
+	}, tc)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if len(entries) == 0 {
-		return "", trace.NotFound("could not find Windows account %q", username)
-	} else if len(entries) > 1 {
-		s.logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
-	}
-	activeDirectorySID, err = winpki.ADSIDStringFromLDAPEntry(entries[0])
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	s.logger.DebugContext(ctx, "Found objectSid Windows user", "username", username, "sid", activeDirectorySID)
-	return activeDirectorySID, nil
+
+	defer client.Close()
+
+	return client.GetActiveDirectorySID(ctx, username)
 }
 
 func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string) (*tls.Config, error) {
@@ -237,55 +171,4 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 	}
 
 	return tc, nil
-}
-
-func ReadWithFilter(dn string, filter string, attrs []string, client ldap.Client) ([]*ldap.Entry, error) {
-	req := ldap.NewSearchRequest(
-		dn,
-		ldap.ScopeWholeSubtree,
-		ldap.DerefAlways,
-		0,     // no SizeLimit
-		0,     // no TimeLimit
-		false, // TypesOnly == false, we want attribute values
-		filter,
-		attrs,
-		nil, // no Controls
-	)
-
-	res, err := client.SearchWithPaging(req, searchPageSize)
-	if err != nil {
-		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
-	}
-
-	return res.Entries, nil
-}
-
-// convertLDAPError attempts to convert LDAP error codes to their
-// equivalent trace errors.
-func convertLDAPError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	var ldapErr *ldap.Error
-	if errors.As(err, &ldapErr) {
-		switch ldapErr.ResultCode {
-		case ldap.ErrorNetwork:
-			return trace.ConnectionProblem(err, "network error")
-		case ldap.LDAPResultOperationsError:
-			if strings.Contains(err.Error(), "successful bind must be completed") {
-				return trace.NewAggregate(trace.AccessDenied(
-					"the LDAP server did not accept Teleport's client certificate, "+
-						"has the Teleport CA been imported correctly?"), err)
-			}
-		case ldap.LDAPResultEntryAlreadyExists:
-			return trace.AlreadyExists("LDAP object already exists: %v", err)
-		case ldap.LDAPResultConstraintViolation:
-			return trace.BadParameter("object constraint violation: %v", err)
-		case ldap.LDAPResultInsufficientAccessRights:
-			return trace.AccessDenied("insufficient permissions: %v", err)
-		}
-	}
-
-	return err
 }
