@@ -27,7 +27,7 @@ import {
 import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
 import { MockedUnaryCall } from '../cloneableClient';
-import { TshdClient, VnetClient } from '../createClient';
+import { AutoUpdateClient, TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
@@ -140,4 +140,13 @@ export class MockVnetClient implements VnetClient {
     });
   }
   autoConfigureSSH = () => new MockedUnaryCall({});
+}
+
+export class MockAutoUpdateClient implements AutoUpdateClient {
+  getClusterVersions = () =>
+    new MockedUnaryCall({
+      reachableClusters: [],
+      unreachableClusters: [],
+    });
+  getDownloadBaseUrl = () => new MockedUnaryCall({ baseUrl: '' });
 }
