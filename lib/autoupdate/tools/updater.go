@@ -303,7 +303,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) (err error) {
 		if tool.Version == toolsVersion {
 			return nil
 		}
-		ignoreTools = append(ignoreTools, tool.Package)
+		ignoreTools = append(ignoreTools, tool.PackageNames()...)
 	}
 
 	// Get platform specific download URLs.
@@ -377,7 +377,10 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 		return trace.Wrap(err)
 	}
 
-	ctc.AddTool(Tool{Version: pkg.Version, PathMap: toolsMap, Package: pkgName})
+	for key, val := range toolsMap {
+		toolsMap[key] = filepath.Join(pkgName, val)
+	}
+	ctc.AddTool(Tool{Version: pkg.Version, PathMap: toolsMap})
 
 	return nil
 }
@@ -400,7 +403,7 @@ func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error
 		return "", trace.NotFound("tool %q not found", toolName)
 	}
 
-	return filepath.Join(u.toolsDir, tool.Package, relPath), nil
+	return filepath.Join(u.toolsDir, relPath), nil
 }
 
 // Exec re-executes tool command with same arguments and environ variables.

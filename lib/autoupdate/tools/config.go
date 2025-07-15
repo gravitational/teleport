@@ -21,9 +21,11 @@ package tools
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -31,6 +33,9 @@ import (
 )
 
 const (
+	// configFileVersion identifies the version of the configuration file
+	// might be used for future migrations
+	configFileVersion = "v1"
 	// lockFileName is file used for locking update process in parallel.
 	lockFileName = ".lock"
 	// configFileName is the configuration file used to store versions for known hosts
@@ -44,6 +49,8 @@ const (
 
 // ClientToolsConfig is configuration structure for client tools managed updates.
 type ClientToolsConfig struct {
+	// Version determines version of configuration file (to support future extensions).
+	Version string `json:"version"`
 	// Configs stores information about profile and cluster version and mode:
 	// `{"profile-name":{"version": "1.2.3", "disabled":false}}`.
 	Configs map[string]*ClusterConfig `json:"configs"`
@@ -58,8 +65,11 @@ type ClientToolsConfig struct {
 // AddTool adds a tool to the collection in the configuration, always placing it at the top.
 // The collection size is limited by the `defaultSizeStoredVersion` constant.
 func (ctc *ClientToolsConfig) AddTool(tool Tool) {
-	if ctc.HasVersion(tool.Version) {
-		return
+	for _, t := range ctc.Tools {
+		if t.Version == tool.Version {
+			maps.Copy(t.PathMap, tool.PathMap)
+			return
+		}
 	}
 	if ctc.MaxTools <= 0 {
 		ctc.MaxTools = defaultSizeStoredVersion
@@ -109,7 +119,18 @@ type ClusterConfig struct {
 type Tool struct {
 	Version string            `json:"version"`
 	PathMap map[string]string `json:"path"`
-	Package string            `json:"package"`
+}
+
+// PackageNames returns the package names extracted from the tool path map.
+func (c *Tool) PackageNames() []string {
+	var packageNames []string
+	for _, path := range c.PathMap {
+		dir := strings.SplitN(path, string(filepath.Separator), 2)
+		if len(dir) > 0 {
+			packageNames = append(packageNames, dir[0])
+		}
+	}
+	return packageNames
 }
 
 // newClientToolsConfig creates or opens the configuration file for client tools managed updates,
@@ -126,6 +147,7 @@ func newClientToolsConfig(toolsDir string) (ctc *ClientToolsConfig, save func() 
 	}()
 
 	ctc = &ClientToolsConfig{
+		Version: configFileVersion,
 		Configs: make(map[string]*ClusterConfig),
 	}
 	data, err := os.ReadFile(filepath.Join(toolsDir, configFileName))

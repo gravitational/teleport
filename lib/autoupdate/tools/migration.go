@@ -61,6 +61,7 @@ func migrateV1AndUpdateConfig(toolsDir string, tools []string) error {
 // and the binary should be copied to the new location.
 // TODO(vapopov): DELETE in v21.0.0 - the version without caching will no longer be supported.
 func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
+	newPkg := fmt.Sprint(uuid.New().String(), updatePackageSuffixV2)
 	migratedTools := make(map[string]Tool)
 	for _, tool := range tools {
 		path := filepath.Join(toolsDir, tool)
@@ -87,30 +88,30 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to read symlink %q", path)
 			}
-			pkg, relPath := extractPackageName(toolsDir, fullPath)
+			pkg, relPath, err := extractPackageName(toolsDir, fullPath)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := utils.RecursiveCopy(filepath.Join(toolsDir, pkg), filepath.Join(toolsDir, newPkg), nil); err != nil {
+				return nil, trace.Wrap(err)
+			}
 			if t, ok := migratedTools[toolVersion]; ok {
-				t.PathMap[tool] = relPath
+				t.PathMap[tool] = filepath.Join(newPkg, relPath)
 			} else {
-				newPkg := fmt.Sprint(uuid.New().String(), updatePackageSuffixV2)
-				if err := utils.RecursiveCopy(filepath.Join(toolsDir, pkg), filepath.Join(toolsDir, newPkg), nil); err != nil {
-					return nil, trace.Wrap(err)
-				}
 				migratedTools[toolVersion] = Tool{
 					Version: toolVersion,
-					PathMap: map[string]string{tool: relPath},
-					Package: newPkg,
+					PathMap: map[string]string{tool: filepath.Join(newPkg, relPath)},
 				}
 			}
 		} else {
 			// Create new toolVersion of the package and move tools to new destination.
 			if t, ok := migratedTools[toolVersion]; ok {
-				newPath := filepath.Join(toolsDir, t.Package, tool)
+				newPath := filepath.Join(toolsDir, newPkg, tool)
 				if err := utils.CopyFile(path, newPath, 0o755); err != nil {
 					return nil, trace.Wrap(err)
 				}
-				t.PathMap[tool] = tool
+				t.PathMap[tool] = filepath.Join(newPkg, tool)
 			} else {
-				newPkg := fmt.Sprint(uuid.New().String(), updatePackageSuffixV2)
 				if err := os.Mkdir(filepath.Join(toolsDir, newPkg), 0o755); err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -120,8 +121,7 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 				}
 				migratedTools[toolVersion] = Tool{
 					Version: toolVersion,
-					Package: newPkg,
-					PathMap: map[string]string{tool: tool},
+					PathMap: map[string]string{tool: filepath.Join(newPkg, tool)},
 				}
 			}
 		}
@@ -130,15 +130,15 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 	return migratedTools, nil
 }
 
-func extractPackageName(toolsDir string, fullPath string) (string, string) {
+func extractPackageName(toolsDir string, fullPath string) (string, string, error) {
 	rel, err := filepath.Rel(toolsDir, fullPath)
 	if err != nil {
-		panic(err)
+		return "", "", trace.Wrap(err)
 	}
 	dir := strings.SplitN(rel, string(filepath.Separator), 2)
 	if len(dir) == 2 && strings.HasSuffix(dir[0], updatePackageSuffix) {
-		return dir[0], dir[1]
+		return dir[0], dir[1], nil
 	}
 
-	return "", fullPath
+	return "", fullPath, nil
 }
