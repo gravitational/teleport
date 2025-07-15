@@ -173,6 +173,7 @@ export default class MainProcess {
 
   async dispose(): Promise<void> {
     this.windowsManager.dispose();
+    this.appUpdater.dispose();
     await Promise.all([
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
