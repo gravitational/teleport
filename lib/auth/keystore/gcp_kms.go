@@ -223,6 +223,28 @@ func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return signer, trace.Wrap(err)
 }
 
+func (g *gcpKMSKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != storeGCP {
+		return nil, nil
+	}
+
+	keyMeta, err := g.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
+		Name: label.Label,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch keyMeta.GetAlgorithm() {
+	case kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256:
+	default:
+		return nil, trace.BadParameter("key spec must be RSA 4096 to be used as a decrypter")
+	}
+
+	key, err := g.newKmsKey(ctx, gcpKMSKeyID{keyMeta.GetName()})
+	return []crypto.Decrypter{key}, trace.Wrap(err)
+}
+
 // deleteKey deletes the given key from the KeyStore.
 func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 	keyID, err := parseGCPKMSKeyID(rawKey)
@@ -441,7 +463,7 @@ func (s *kmsKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.Decrypte
 		Ciphertext: ciphertext,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "error while attempting GCP KMS signing operation")
+		return nil, trace.Wrap(err, "error while attempting GCP KMS decryption operation")
 	}
 	return resp.Plaintext, nil
 }

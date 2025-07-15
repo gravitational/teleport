@@ -47,6 +47,9 @@ type SessionRecordingConfig interface {
 	// GetEncrypted gets if session recordings should be encrypted or not.
 	GetEncrypted() bool
 
+	// GetEncryptionConfig gets the encryption config from the session recording config.
+	GetEncryptionConfig() *SessionRecordingEncryptionConfig
+
 	// GetEncryptionKeys gets the encryption keys for the session recording config.
 	GetEncryptionKeys() []*AgeEncryptionKey
 
@@ -56,6 +59,8 @@ type SessionRecordingConfig interface {
 
 	// Clone returns a copy of the resource.
 	Clone() SessionRecordingConfig
+	// CheckAndSetDefaults verifies the constraints for a SessionRecordingConfig
+	CheckAndSetDefaults() error
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
@@ -176,12 +181,17 @@ func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 
 // GetEncrypted gets if session recordings should be encrypted or not.
 func (c *SessionRecordingConfigV2) GetEncrypted() bool {
-	encryption := c.Spec.Encryption
-	if encryption == nil {
-		return false
+	encryption := c.GetEncryptionConfig()
+	return encryption != nil && encryption.Enabled
+}
+
+// GetEncryptionConfig gets the encryption config from the session recording config.
+func (c *SessionRecordingConfigV2) GetEncryptionConfig() *SessionRecordingEncryptionConfig {
+	if c == nil {
+		return nil
 	}
 
-	return encryption.Enabled
+	return c.Spec.Encryption
 }
 
 // GetEncryptionKeys gets the encryption keys for the session recording config.
@@ -218,7 +228,8 @@ func (c *SessionRecordingConfigV2) SetEncryptionKeys(keys iter.Seq[*AgeEncryptio
 
 	}
 
-	if !keysChanged || len(newKeys) == 0 || len(existingKeys) == len(addedKeys) {
+	shouldUpdate := len(addedKeys) > 0 && (keysChanged || len(existingKeys) != len(addedKeys))
+	if !shouldUpdate {
 		return false
 	}
 
@@ -264,6 +275,46 @@ func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
 	// Check that the session recording mode is set to a valid value.
 	if !slices.Contains(SessionRecordingModes, c.Spec.Mode) {
 		return trace.BadParameter("session recording mode must be one of %v; got %q", strings.Join(SessionRecordingModes, ","), c.Spec.Mode)
+	}
+
+	return trace.Wrap(c.GetEncryptionConfig().validate())
+}
+
+const (
+	keyTypeAWS      = "aws_kms"
+	keyTypeGCP      = "gcp_kms"
+	keyTypePKCS11   = "pkcs11"
+	keyTypeSoftware = "software"
+)
+
+// validate the constraints for SessionRecordingEncryptionConfig.
+func (c *SessionRecordingEncryptionConfig) validate() error {
+	if c == nil || !c.Enabled {
+		return nil
+	}
+
+	if c.ManualKeyManagement == nil || !c.ManualKeyManagement.Enabled {
+		return nil
+	}
+
+	if len(c.ManualKeyManagement.ActiveKeys) == 0 {
+		return trace.BadParameter("at least one active key must be configured when using manually managed encryption keys")
+	}
+
+	for _, label := range c.ManualKeyManagement.ActiveKeys {
+		switch strings.ToLower(label.Type) {
+		case keyTypeAWS, keyTypeGCP, keyTypePKCS11, keyTypeSoftware:
+		default:
+			return trace.BadParameter("invalid key type %q found for active manually managed key", label.Type)
+		}
+	}
+
+	for _, label := range c.ManualKeyManagement.RotatedKeys {
+		switch strings.ToLower(label.Type) {
+		case keyTypeAWS, keyTypeGCP, keyTypePKCS11, keyTypeSoftware:
+		default:
+			return trace.BadParameter("invalid key type %q found for rotated manually managed key", label.Type)
+		}
 	}
 
 	return nil
