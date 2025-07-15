@@ -4,7 +4,7 @@
 
 * Fixed backward compatibility for Access List 'membershipRequires is missing' for older terraform providers. [#56742](https://github.com/gravitational/teleport/pull/56742)
 * Fixed VNet DNS configuration on Windows hosts joined to Active Directory domains. [#56738](https://github.com/gravitational/teleport/pull/56738)
-* Updated Pyroscope's default client timeout and upload rate. [#56730](https://github.com/gravitational/teleport/pull/56730)
+* Updated default client timeout and upload rate for Pyroscope. [#56730](https://github.com/gravitational/teleport/pull/56730)
 * Bot instances are now sortable by latest heartbeat time in the web UI. [#56696](https://github.com/gravitational/teleport/pull/56696)
 * Enabled automatic reviews of resource requests. [#56690](https://github.com/gravitational/teleport/pull/56690)
 * Updated Go to 1.24.5. [#56679](https://github.com/gravitational/teleport/pull/56679)
