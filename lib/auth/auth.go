@@ -5290,6 +5290,15 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 	return tokens, nil
 }
 
+// ListProvisionTokens retrieves a paginated list of provision tokens.
+func (a *Server) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	tokens, nextToken, err := a.Services.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return tokens, nextToken, nil
+}
+
 // GetWebSessionInfo returns the web session specified with sessionID for the given user.
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService

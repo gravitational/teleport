@@ -196,8 +196,8 @@ Fetch join tokens linked to a bot by name.
 Reuse the existing endpoint and create a new RPC which supports filtering and pagination (although not required by this work). Filtering by role and bot name will be supported.
 
 ``` protobuf
-// ListTokensRequest is used to retrieve a paginated list of tokens.
-message ListTokensRequest {
+// ListProvisionTokensRequest is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensRequest {
     // Limit is the maximum amount of items per page.
     int32 Limit = 1;
 
@@ -209,13 +209,13 @@ message ListTokensRequest {
     // FilterRole allows filtering for tokens with the provided role.
     string FilterRole = 3;
 
-    // FilterBotName allows filtering for tokens associated with the 
+    // FilterBotName allows filtering for tokens associated with the
     // named bot. This is a no-op unless FilterRole is 'Bot'.
     string FilterBotName = 4;
 }
 
-// ListTokensResponse is used to retrieve a paginated list of tokens.
-message ListTokensResponse {
+// ListProvisionTokensResponse is used to retrieve a paginated list of provision tokens.
+message ListProvisionTokensResponse {
     // Tokens is the list of tokens.
     repeated types.ProvisionTokenV2 Tokens = 1;
 
@@ -225,8 +225,8 @@ message ListTokensResponse {
 }
 
 service AuthService {
-  // ListTokens retrieves a paginated list of tokens.
-  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse);
+  // ListProvisionTokens retrieves a paginated list of provision tokens.
+  rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
 }
 ```
 _api/proto/teleport/legacy/client/proto/authservice.proto_
