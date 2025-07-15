@@ -22,6 +22,8 @@ import {
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
+import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+
 import Logger from 'teleterm/logger';
 
 import { ClientToolsUpdateProvider } from './clientToolsUpdateProvider';
@@ -29,7 +31,11 @@ import { ClientToolsUpdateProvider } from './clientToolsUpdateProvider';
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
 
-  constructor(private storage: AppUpdaterStorage) {
+  constructor(
+    private storage: AppUpdaterStorage,
+    private getClusterVersions: () => Promise<GetClusterVersionsResponse>,
+    private getDownloadBaseUrl: () => Promise<string>
+  ) {
     autoUpdater.setFeedURL({
       provider: 'custom',
       // Wraps ClientToolsUpdateProvider to allow passing getClientToolsVersion.
