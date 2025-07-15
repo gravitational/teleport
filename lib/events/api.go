@@ -934,6 +934,17 @@ const (
 	// BoundKeypairJoinStateVerificationFailed is emitted when join state
 	// document verification fails.
 	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
+
+	// SCIMProvisionEvent is emitted when a new resource is provisioned by the
+	// SCIM service. This includes taking ownership of existing users.
+	SCIMProvisionEvent = "scim.provision"
+
+	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
+	// service. Includes "deactivating" resources (per Okta).
+	SCIMUpdateEvent = "scim.update"
+
+	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
+	SCIMDeleteEvent = "scim.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

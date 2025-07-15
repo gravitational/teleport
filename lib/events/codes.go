@@ -762,6 +762,25 @@ const (
 	// join_token.bound_keypair.join_state_verification_failed.
 	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
 
+	// SCIMResourceProvisionSuccessCode indicates a resource was successfully
+	// provisioned via SCIM
+	SCIMResourceProvisionSuccessCode = "TSCIM001I"
+	// SCIMResourceProvisionFailureCode indicates a failed attempt to provision
+	// a resource via SCIM
+	SCIMResourceProvisionFailureCode = "TSCIM001E"
+	// SCIMResourceUpdateSuccessCode indicates a resource was successfully
+	// updated via SCIM
+	SCIMResourceUpdateSuccessCode = "TSCIM002I"
+	// SCIMResourceProvisionFailureCode indicates a failed attempt to update
+	// a resource via SCIM
+	SCIMResourceUpdateFailureCode = "TSCIM002E"
+	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
+	// deleted via SCIM
+	SCIMResourceDeleteSuccessCode = "TSCIM003I"
+	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
+	// update a resource via SCIM
+	SCIMResourceDeleteFailureCode = "TSCIM003E"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

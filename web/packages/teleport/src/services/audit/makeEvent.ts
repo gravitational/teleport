@@ -2258,6 +2258,42 @@ export const formatters: Formatters = {
       return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
     },
   },
+  [eventCodes.SCIM_RESOURCE_PROVISION]: {
+    type: 'scim.provision',
+    desc: 'SCIM Provisioning Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Provisioning  [${integration}] [${resource_type}] [${external_id}] from [${teleport_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_PROVISION_FAILURE]: {
+    type: 'scim.provision',
+    desc: 'SCIM Provisioning Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Provisioning [${integration}] [${resource_type}] [${external_id} from [${teleport_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating [${integration}] [${resource_type}] [${external_id}] from [${teleport_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating [${integration}] [${resource_type}] [${external_id}] from [${teleport_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
+  },
 };
 
 const unknownFormatter = {
