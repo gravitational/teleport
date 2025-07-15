@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Cache is the subset of the cached resources that the Service queries.
@@ -254,6 +255,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
 			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
 		}
+
+		if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	ig, err := s.backend.CreateIntegration(ctx, req.Integration)
@@ -302,6 +307,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
+	if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.maybeUpdateStaticCredentials(ctx, req.Integration); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,6 +348,24 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 
 	return igV1, nil
+}
+
+func validateAWSRolesAnywhereProfileFilters(ig types.Integration) error {
+	rolesAnywhereSpec := ig.GetAWSRolesAnywhereIntegrationSpec()
+	if rolesAnywhereSpec == nil {
+		return nil
+	}
+
+	if rolesAnywhereSpec.ProfileSyncConfig == nil {
+		return nil
+	}
+
+	for _, profileNameFilter := range rolesAnywhereSpec.ProfileSyncConfig.ProfileNameFilters {
+		if _, err := utils.CompileExpression(profileNameFilter); err != nil {
+			return trace.BadParameter("profile name filter %q must be valid expressions: %v", profileNameFilter, err)
+		}
+	}
+	return nil
 }
 
 // DeleteIntegration removes the specified Integration resource.

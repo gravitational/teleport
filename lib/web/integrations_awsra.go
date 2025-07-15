@@ -223,8 +223,9 @@ func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Re
 	}
 
 	listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
-		Integration:   integrationName,
-		NextPageToken: req.StartKey,
+		Integration:        integrationName,
+		NextPageToken:      req.StartKey,
+		ProfileNameFilters: req.Filters,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

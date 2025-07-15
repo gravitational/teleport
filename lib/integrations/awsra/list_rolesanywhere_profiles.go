@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ListRolesAnywhereProfilesRequest contains the required fields to list the Roles Anywhere Profiles in Amazon IAM.
@@ -35,6 +36,20 @@ type ListRolesAnywhereProfilesRequest struct {
 	NextToken string
 	// PageSize is the maximum number of records to retrieve.
 	PageSize int
+	// ProfileNameFilters is a list of filters applied to the profile name.
+	// Only matching profiles will be synchronized as application servers.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	ProfileNameFilters []string
 }
 
 // ListRolesAnywhereProfilesResponse contains a page of Roles Anywhere Profiles.
@@ -81,7 +96,13 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 	if req.NextToken != "" {
 		nextToken = aws.String(req.NextToken)
 	}
-	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, nextToken, req.PageSize)
+	listReq := listRolesAnywhereProfilesRequest{
+		raClient: clt,
+		nextPage: nextToken,
+		pageSize: req.PageSize,
+		filters:  req.ProfileNameFilters,
+	}
+	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, listReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,28 +113,67 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 	}, nil
 }
 
-func listRolesAnywhereProfilesPage(ctx context.Context, raClient RolesAnywhereProfilesLister, nextPage *string, pageSize int) ([]*integrationv1.RolesAnywhereProfile, *string, error) {
+type listRolesAnywhereProfilesRequest struct {
+	raClient RolesAnywhereProfilesLister
+	nextPage *string
+	pageSize int
+	filters  []string
+}
+
+func listRolesAnywhereProfilesPage(ctx context.Context, req listRolesAnywhereProfilesRequest) ([]*integrationv1.RolesAnywhereProfile, *string, error) {
 	var ret []*integrationv1.RolesAnywhereProfile
 
 	var pageSizeRequest *int32
-	if pageSize > 0 {
-		pageSizeRequest = aws.Int32(int32(pageSize))
+	if req.pageSize > 0 {
+		pageSizeRequest = aws.Int32(int32(req.pageSize))
 	}
 
-	profilesListResp, err := raClient.ListProfiles(ctx, &rolesanywhere.ListProfilesInput{
-		NextToken: nextPage,
-		PageSize:  pageSizeRequest,
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	nextPage := req.nextPage
 
-	for _, profile := range profilesListResp.Profiles {
-		profileTags, err := raClient.ListTagsForResource(ctx, &rolesanywhere.ListTagsForResourceInput{
-			ResourceArn: profile.ProfileArn,
+	for {
+		profilesListResp, err := req.raClient.ListProfiles(ctx, &rolesanywhere.ListProfilesInput{
+			NextToken: nextPage,
+			PageSize:  pageSizeRequest,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
+		}
+
+		profilesAsProto, err := convertRolesAnywhereProfilePageToProto(ctx, profilesListResp, req)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		ret = append(ret, profilesAsProto...)
+
+		// If no profile was added (because of filters), and there's more resources, fetch the next page.
+		// This ensures that the client doesn't receive an empty page when there are more resources to fetch.
+		nextPage = profilesListResp.NextToken
+		if len(ret) == 0 && aws.ToString(nextPage) != "" {
+			continue
+		}
+		break
+	}
+
+	return ret, nextPage, nil
+}
+
+func convertRolesAnywhereProfilePageToProto(ctx context.Context, profilesListResp *rolesanywhere.ListProfilesOutput, req listRolesAnywhereProfilesRequest) ([]*integrationv1.RolesAnywhereProfile, error) {
+	var ret []*integrationv1.RolesAnywhereProfile
+
+	for _, profile := range profilesListResp.Profiles {
+		matches, err := profileNameMatchesFilters(aws.ToString(profile.Name), req.filters)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !matches {
+			continue
+		}
+
+		profileTags, err := req.raClient.ListTagsForResource(ctx, &rolesanywhere.ListTagsForResourceInput{
+			ResourceArn: profile.ProfileArn,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		labels := make(map[string]string, len(profileTags.Tags))
@@ -131,5 +191,23 @@ func listRolesAnywhereProfilesPage(ctx context.Context, raClient RolesAnywherePr
 		})
 	}
 
-	return ret, profilesListResp.NextToken, nil
+	return ret, nil
+}
+
+func profileNameMatchesFilters(profileName string, filters []string) (bool, error) {
+	// If no filters are provided, all profiles match.
+	if len(filters) == 0 {
+		return true, nil
+	}
+
+	for _, filter := range filters {
+		matches, err := utils.MatchString(profileName, filter)
+		if err != nil {
+			return false, trace.Wrap(err, "error parsing filter: %s", filter)
+		}
+		if matches {
+			return true, nil
+		}
+	}
+	return false, nil
 }

@@ -68,6 +68,21 @@ type AWSRAProfileSync struct {
 
 	// RoleARN is the ARN of the IAM Role that is used to sync profiles.
 	RoleARN string `json:"roleArn"`
+
+	// ProfileNameFilters are the filters applied to the profiles.
+	// Only matching profiles will be synchronized as application servers.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	ProfileNameFilters []string `json:"filters"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -355,9 +370,10 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		ret.AWSRA = &IntegrationAWSRASpec{
 			TrustAnchorARN: spec.TrustAnchorARN,
 			ProfileSyncConfig: AWSRAProfileSync{
-				Enabled:    spec.ProfileSyncConfig.Enabled,
-				ProfileARN: spec.ProfileSyncConfig.ProfileARN,
-				RoleARN:    spec.ProfileSyncConfig.RoleARN,
+				Enabled:            spec.ProfileSyncConfig.Enabled,
+				ProfileARN:         spec.ProfileSyncConfig.ProfileARN,
+				RoleARN:            spec.ProfileSyncConfig.RoleARN,
+				ProfileNameFilters: spec.ProfileSyncConfig.ProfileNameFilters,
 			},
 		}
 	}
@@ -699,4 +715,19 @@ type AWSRolesAnywhereListProfilesRequest struct {
 	// StartKey is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
 	StartKey string `json:"startKey"`
+
+	// Filters are the filters applied to the profiles.
+	// Only matching profiles will be synchronized as application servers.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	Filters []string `json:"filters"`
 }
