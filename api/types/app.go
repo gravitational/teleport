@@ -525,6 +525,10 @@ func (a *AppV3) checkMCP() error {
 }
 
 func (a *AppV3) checkMCPStdio() error {
+	// Skip validation for internal demo resource.
+	if resourceType, _ := a.GetLabel(TeleportInternalResourceType); resourceType == DemoResource {
+		return nil
+	}
 	if a.Spec.MCP == nil {
 		return trace.BadParameter("MCP server %q is missing 'mcp' spec", a.GetName())
 	}

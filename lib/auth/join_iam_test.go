@@ -123,10 +123,10 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
-	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
+	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
-	isBadParameter := func(t require.TestingT, err error, _ ...interface{}) {
+	isBadParameter := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
 

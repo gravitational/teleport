@@ -85,7 +85,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 	tb.Helper()
 
 	var wg sync.WaitGroup
-	for i := 0; i < executions; i++ {
+	for range executions {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

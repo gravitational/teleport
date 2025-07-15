@@ -11,6 +11,11 @@ The Teleport Infrastructure Identity Platform implements trusted computing at
 scale, with unified cryptographic identities for humans, machines and workloads,
 endpoints, infrastructure assets, and AI agents. 
 
+## Get started
+
+You can quickly see how Teleport works by following our [Get
+Started](./get-started.mdx) guide to enroll your first resource with Teleport.
+
 ## Products
 
 The Teleport Infrastructure Identity Platform consists of four products.
@@ -33,7 +38,7 @@ Get started with Teleport Zero Trust Access:
 - [Set up passwordless authentication](admin-guides/access-controls/guides/passwordless.mdx)
   to enable users to access resources with hardware keys, including biometric
   credentials like Touch ID and YubiKey Bio.
-- [Integrate your Single Sign-On provider](admin-guides/access-controls/sso/sso.mdx): Allow users
+- [Integrate your Single Sign-On provider](zero-trust-access/sso/sso.mdx): Allow users
   to access infrastructure resources with IdPs like Okta.
 - [Use Teleport as an identity provider](admin-guides/access-controls/idps/saml-guide.mdx) to
   authenticate to external services.
@@ -46,8 +51,8 @@ system and data access between machines and workloads.
 
 Get started with Teleport Machine & Workload Identity:
 
-- [Issue and govern identities for automated systems](enroll-resources/machine-id/introduction.mdx) using Teleport Machine Identity.
-- Replace long-lived API keys and environment secrets that are vulnerable to breaches, mistakes, and exfiltration with short-lived cryptographic identities using x.509 certificates or JWTs via [Teleport Workload Identity](enroll-resources/workload-identity/introduction.mdx).
+- [Issue and govern identities for automated systems](machine-workload-identity/machine-id/introduction.mdx) using Teleport Machine Identity.
+- Replace long-lived API keys and environment secrets that are vulnerable to breaches, mistakes, and exfiltration with short-lived cryptographic identities using x.509 certificates or JWTs via [Teleport Workload Identity](machine-workload-identity/workload-identity/introduction.mdx).
 
 ### Teleport Identity Governance
 
@@ -78,9 +83,9 @@ Get started with Teleport Identity Governance:
 of your infrastructure. It detects standing privileges and eliminates shadow
 access and blind spots. 
 
-- Get started with [Teleport Identity Security](admin-guides/teleport-policy/teleport-policy.mdx).
-- Define [Crown Jewels](admin-guides/teleport-policy/crown-jewels.mdx) so you can track changes to your most sensitive users and resources.
-- Enable [Teleport Identity Security integrations](admin-guides/teleport-policy/integrations/integrations.mdx) so you can identify [insecure SSH key distributions](admin-guides/teleport-policy/integrations/ssh-keys-scan.mdx), and import RBAC rules from AWS, Entra ID, and other sources to visualize your entire RBAC configuration on a single screen. 
+- Get started with [Teleport Identity Security](identity-security/teleport-policy.mdx).
+- Define [Crown Jewels](identity-security/crown-jewels.mdx) so you can track changes to your most sensitive users and resources.
+- Enable [Teleport Identity Security integrations](identity-security/integrations/integrations.mdx) so you can identify [insecure SSH key distributions](identity-security/integrations/ssh-keys-scan.mdx), and import RBAC rules from AWS, Entra ID, and other sources to visualize your entire RBAC configuration on a single screen. 
 
 ## Architecture
 

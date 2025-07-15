@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
 
@@ -104,7 +105,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -145,7 +146,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "requires Teleport Enterprise")
 			},
 		},
@@ -254,7 +255,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, errMockInvalidToken)
 			},
 		},
@@ -262,9 +263,9 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setEnterprise {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 

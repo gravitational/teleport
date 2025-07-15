@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -110,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -119,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
+	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -222,6 +225,58 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.ClusterConfiguration = clusterConfig
 	}
+	if cfg.KeyStore == nil {
+		keystoreOpts := &keystore.Options{
+			HostUUID:             cfg.HostUUID,
+			ClusterName:          cfg.ClusterName,
+			AuthPreferenceGetter: cfg.ClusterConfiguration,
+			FIPS:                 cfg.FIPS,
+		}
+		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		} else if cfg.KeyStoreConfig.AWSKMS != nil {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+				return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			}
+		}
+		cfg.KeyStore, err = keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.RecordingEncryption == nil {
+		localRecordingEncryption, err := local.NewRecordingEncryptionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+			Backend:       localRecordingEncryption,
+			Cache:         localRecordingEncryption,
+			ClusterConfig: cfg.ClusterConfiguration,
+			KeyStore:      cfg.KeyStore,
+			Logger:        cfg.Logger,
+			LockConfig: backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:            cfg.Backend,
+					TTL:                time.Second * 30,
+					LockNameComponents: []string{"recording_encryption"},
+				},
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.RecordingEncryption = recordingEncryptionManager
+		cfg.ClusterConfiguration = recordingEncryptionManager
+	}
 	if cfg.AutoUpdateService == nil {
 		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
 		if err != nil {
@@ -317,7 +372,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -458,36 +513,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating VnetConfigService")
 		}
 	}
+	if cfg.ScopedAccess == nil {
+		cfg.ScopedAccess = local.NewScopedAccessService(cfg.Backend)
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
-
-	keystoreOpts := &keystore.Options{
-		HostUUID:             cfg.HostUUID,
-		ClusterName:          cfg.ClusterName,
-		AuthPreferenceGetter: cfg.ClusterConfiguration,
-		FIPS:                 cfg.FIPS,
-	}
-	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.AWSKMS != nil {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	}
-	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	if cfg.KubeWaitingContainers == nil {
 		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
@@ -510,6 +544,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
+		Events: cfg.Events,
+		Reader: cfg.ScopedAccess,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
@@ -521,7 +563,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Apps:                            cfg.Apps,
+		Applications:                    cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -566,6 +608,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
+		RecordingEncryptionManager:      cfg.RecordingEncryption,
+		MultipartHandler:                cfg.MultipartHandler,
 	}
 
 	as := Server{
@@ -582,7 +626,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:                services,
 		Cache:                   services,
-		keyStore:                keyStore,
+		scopedAccessBackend:     cfg.ScopedAccess,
+		scopedAccessCache:       scopedAccessCache,
+		keyStore:                cfg.KeyStore,
 		traceClient:             cfg.TraceClient,
 		fips:                    cfg.FIPS,
 		loadAllCAs:              cfg.LoadAllCAs,
@@ -755,7 +801,7 @@ type Services struct {
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
@@ -805,6 +851,8 @@ type Services struct {
 	services.HealthCheckConfig
 	services.BackendInfoService
 	services.VnetConfigService
+	RecordingEncryptionManager
+	events.MultipartHandler
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1040,6 +1088,13 @@ type Server struct {
 	// method on Services instead.
 	authclient.Cache
 
+	// scopedAccessCache is a specialized cache that provides read methods for select
+	// scoped access control resources.
+	scopedAccessCache *scopedaccesscache.Cache
+
+	// scopedAccessBackend is the backend service for scoped access control resources.
+	scopedAccessBackend services.ScopedAccess
+
 	// ReadOnlyCache is a specialized cache that provides read-only shared references
 	// in certain performance-critical paths where deserialization/cloning may be too
 	// expensive at scale.
@@ -1204,6 +1259,10 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
+	// Used for testing.
+	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -1729,10 +1788,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// on the side of slowness, which is preferable for this kind of periodic.
 	instanceRate := slowRate
 	if ci := a.inventory.ConnectedInstances(); ci > 0 {
-		localDynamicRate := dynamicPeriod / time.Duration(ci)
-		if localDynamicRate < fastRate {
-			localDynamicRate = fastRate
-		}
+		localDynamicRate := max(dynamicPeriod/time.Duration(ci), fastRate)
 
 		if localDynamicRate < instanceRate {
 			instanceRate = localDynamicRate
@@ -2391,6 +2447,10 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// joinToken is the name of the join token used to join, set only for bot
+	// identities. It is unset for token-joined bots, whose token names are
+	// secret values.
+	joinToken string
 	// joinAttributes holds attributes derived from attested metadata from the
 	// join process, should any exist.
 	joinAttributes *workloadidentityv1pb.JoinAttrs
@@ -3179,6 +3239,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
+		botInstanceID:        req.botInstanceID,
+		joinToken:            req.joinToken,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3362,6 +3424,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				Generation:              req.generation,
 				BotName:                 req.botName,
 				BotInstanceID:           req.botInstanceID,
+				JoinToken:               req.joinToken,
 				CertificateExtensions:   req.checker.CertificateExtensions(),
 				AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 				ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3430,6 +3493,14 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, notAfter)
+	switch {
+	case errors.Is(err, errNotIntegrationApp):
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -3442,15 +3513,16 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:         req.appSessionID,
-			URI:               req.appURI,
-			TargetPort:        req.appTargetPort,
-			PublicAddr:        req.appPublicAddr,
-			ClusterName:       req.appClusterName,
-			Name:              req.appName,
-			AWSRoleARN:        req.awsRoleARN,
-			AzureIdentity:     req.azureIdentity,
-			GCPServiceAccount: req.gcpServiceAccount,
+			SessionID:                       req.appSessionID,
+			URI:                             req.appURI,
+			TargetPort:                      req.appTargetPort,
+			PublicAddr:                      req.appPublicAddr,
+			ClusterName:                     req.appClusterName,
+			Name:                            req.appName,
+			AWSRoleARN:                      req.awsRoleARN,
+			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
+			AzureIdentity:                   req.azureIdentity,
+			GCPServiceAccount:               req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -3475,6 +3547,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Generation:              req.generation,
 		BotName:                 req.botName,
 		BotInstanceID:           req.botInstanceID,
+		JoinToken:               req.joinToken,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3641,6 +3714,10 @@ type verifyLocksForUserCertsReq struct {
 	// deviceID is the trusted device ID.
 	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
 	deviceID string
+	// botInstanceID is the bot instance UUID, set only for bots.
+	botInstanceID string
+	// joinMethod is the join token name, set only for non-token bots.
+	joinToken string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -3660,6 +3737,12 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets = append(lockTargets,
 		services.AccessRequestsToLockTargets(req.activeAccessRequests)...,
 	)
+	if req.botInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: req.botInstanceID})
+	}
+	if req.joinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: req.joinToken})
+	}
 
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
@@ -4787,6 +4870,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		req.AdditionalPrincipals = utils.ReplaceInSlice(
 			req.AdditionalPrincipals,
 			defaults.AnyAddress,
@@ -4910,7 +4994,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		PublicKey: cryptoPubKey,
 		Subject:   subject,
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
-		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
+		DNSNames:  slices.Clone(req.AdditionalPrincipals),
 	}
 
 	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
@@ -4918,7 +5002,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
+	if (types.SystemRoles{req.Role}).IncludeAny(
+		types.RoleAuth,
+		types.RoleAdmin,
+		types.RoleProxy,
+		types.RoleRelay,
+		types.RoleKube,
+		types.RoleWindowsDesktop,
+	) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -4958,13 +5049,15 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
-			NodeHeartbeats:       true,
-			AppHeartbeats:        true,
-			AppCleanup:           true,
-			DatabaseHeartbeats:   true,
-			DatabaseCleanup:      true,
-			KubernetesHeartbeats: true,
-			KubernetesCleanup:    true,
+			NodeHeartbeats:                true,
+			AppHeartbeats:                 true,
+			AppCleanup:                    true,
+			DatabaseHeartbeats:            true,
+			DatabaseHeartbeatGracefulStop: true,
+			DatabaseCleanup:               true,
+			KubernetesHeartbeats:          true,
+			KubernetesCleanup:             true,
+			RelayServerHeartbeatsCleanup:  true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -6113,21 +6206,18 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	return nil
 }
 
-func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
+func (a *Server) streamWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) stream.Stream[types.WindowsDesktop] {
 	var done bool
 	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
 		if done {
 			return nil, io.EOF
 		}
-		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-			Limit:    50,
-			StartKey: startKey,
-		})
+		resp, err := a.ListWindowsDesktops(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		startKey = resp.NextKey
-		done = startKey == ""
+		req.StartKey = resp.NextKey
+		done = req.StartKey == ""
 		return resp.Desktops, nil
 	})
 }
@@ -6162,7 +6252,7 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 	}
 
 	desktops := stream.FilterMap(
-		a.streamWindowsDesktops(ctx, ""),
+		a.streamWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{Limit: 50}),
 		func(d types.WindowsDesktop) (struct{}, bool) {
 			return struct{}{}, d.NonAD()
 		},
@@ -6399,6 +6489,9 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		}
 
 		for _, al := range response {
+			if !al.IsReviewable() {
+				continue
+			}
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
 			if daysDiff <= 15 {
@@ -7702,7 +7795,7 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.CertAuthority, newKeys types.CAKeySet, needsUpdate func(types.CertAuthority) (bool, error)) error {
 	const maxIterations = 64
 
-	for i := 0; i < maxIterations; i++ {
+	for range maxIterations {
 		if update, err := needsUpdate(ca); err != nil || !update {
 			return trace.Wrap(err)
 		}

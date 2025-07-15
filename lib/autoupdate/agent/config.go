@@ -153,6 +153,7 @@ func NewRevisionFromDir(dir string) (Revision, error) {
 }
 
 // Dir returns the directory path name of a Revision.
+// These are unambiguous for semver and may be parsed with NewRevisionFromDir.
 func (r Revision) Dir() string {
 	// Do not change the order of these statements.
 	// Otherwise, installed versions will no longer match update.yaml.
@@ -167,6 +168,7 @@ func (r Revision) Dir() string {
 }
 
 // String returns a human-readable description of a Teleport revision.
+// These are semver-ambiguous and should not be parsed.
 func (r Revision) String() string {
 	if flags := r.Flags.Strings(); len(flags) > 0 {
 		return fmt.Sprintf("%s+%s", r.Version, strings.Join(flags, "+"))

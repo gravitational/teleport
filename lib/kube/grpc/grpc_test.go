@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"log/slog"
 	"net"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -118,7 +120,7 @@ func TestListKubernetesResources(t *testing.T) {
 				// set the role to allow searching as fullAccessRole.
 				role.SetSearchAsRoles(types.Allow, []string{fullAccessRole.GetName()})
 				// restrict querying to pods only
-				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "namespace"}, {Kind: "pod"}})
+				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "namespaces"}, {Kind: "pods"}})
 			},
 		},
 	)
@@ -137,7 +139,7 @@ func TestListKubernetesResources(t *testing.T) {
 				// set the role to allow searching as fullAccessRole.
 				role.SetSearchAsRoles(types.Allow, []string{fullAccessRole.GetName()})
 				// restrict querying to secrets only
-				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "secret"}})
+				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "secrets"}})
 
 			},
 		},
@@ -592,7 +594,6 @@ func TestListKubernetesResources(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, restCfg := testCtx.GenTestKubeClientTLSCert(t, tt.args.user.GetName(), "")
@@ -618,8 +619,9 @@ func TestListKubernetesResources(t *testing.T) {
 			tt.assertErr(t, err)
 			if tt.want != nil {
 				for _, want := range tt.want.Resources {
+					isClusterWide := slices.Contains(types.KubernetesClusterWideResourceKinds, want.Kind)
 					// fill in defaults
-					err := want.CheckAndSetDefaults()
+					err := want.CheckAndSetDefaults(!isClusterWide)
 					require.NoError(t, err)
 				}
 			}
@@ -641,9 +643,11 @@ func initGRPCServer(t *testing.T, testCtx *TestContext, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		ClusterName:   clusterName,
-		Limiter:       limiter,
-		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		Middleware: authz.Middleware{
+			ClusterName:   clusterName,
+			AcceptedUsage: []string{teleport.UsageKubeOnly},
+		},
+		Limiter: limiter,
 	}
 
 	tlsConf := copyAndConfigureTLS(tlsConfig, testCtx.AuthClient, clusterName)

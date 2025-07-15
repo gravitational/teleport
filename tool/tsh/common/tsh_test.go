@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -95,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -201,10 +203,11 @@ func handleReexec() {
 		})
 	}
 
-	// Allows test to refer to tsh binary in tests.
-	// Needed for tests that generate OpenSSH config by tsh config command where
-	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv(tshBinMainTestEnv) != "" {
+	// Re-exec tsh commands. Needed for:
+	// - Tests that generate OpenSSH config by tsh config command where
+	//   tsh proxy ssh command is used as ProxyCommand.
+	// - Fork after authentication.
+	if os.Getenv(tshBinMainTestEnv) != "" || (len(os.Args) >= 2 && os.Args[1] == "--fork-signal-fd") {
 		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
 			// unset this env var so child processes started by 'tsh ssh'
 			// will be executed correctly below.
@@ -224,8 +227,7 @@ func handleReexec() {
 		os.Exit(0)
 	}
 
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe. Used to test tsh ssh command.
+	// Re-exec teleport commands. Used to test tsh ssh command.
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 	}
@@ -285,7 +287,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -1109,8 +1111,7 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 func TestSSHOnMultipleNodes(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -1365,11 +1366,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			proxyAddr:      rootProxyAddr.String(),
 			auth:           rootAuth.GetAuthServer(),
 			target:         "env=stage",
-			stderrAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] error\n", i2...)
 				require.Contains(t, i, "[test-stage-2] error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] test\n", i2...)
 				require.Contains(t, i, "[test-stage-2] test\n", i2...)
 			},
@@ -1381,11 +1382,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			target:    "env=stage",
 			proxyAddr: rootProxyAddr.String(),
 			auth:      rootAuth.GetAuthServer(),
-			stderrAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] error\n", i2...)
 				require.Contains(t, i, "[test-stage-2] error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] test\n", i2...)
 				require.Contains(t, i, "[test-stage-2] test\n", i2...)
 			},
@@ -1397,10 +1398,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			target:    "env=prod",
 			proxyAddr: rootProxyAddr.String(),
 			auth:      rootAuth.GetAuthServer(),
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "error\n", i, i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
@@ -1430,11 +1431,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:          rootAuth.GetAuthServer(),
 			webauthnLogin: successfulChallenge("localhost"),
 			target:        "env=stage",
-			stderrAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] error\n", i2...)
 				require.Contains(t, i, "[test-stage-2] error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] test\n", i2...)
 				require.Contains(t, i, "[test-stage-2] test\n", i2...)
 			},
@@ -1458,10 +1459,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:          rootAuth.GetAuthServer(),
 			webauthnLogin: successfulChallenge("localhost"),
 			target:        "env=prod",
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			mfaPromptCount: 1,
@@ -1503,11 +1504,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			roles:         []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
 			webauthnLogin: successfulChallenge("localhost"),
 			target:        "env=stage",
-			stderrAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] error\n", i2...)
 				require.Contains(t, i, "[test-stage-2] error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "[test-stage-1] test\n", i2...)
 				require.Contains(t, i, "[test-stage-2] test\n", i2...)
 			},
@@ -1521,10 +1522,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			proxyAddr: rootProxyAddr.String(),
 			auth:      rootAuth.GetAuthServer(),
 			roles:     []string{sshLoginRole.GetName()},
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "error\n", i, i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
@@ -1550,10 +1551,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:          rootAuth.GetAuthServer(),
 			roles:         []string{perSessionMFARole.GetName()},
 			webauthnLogin: successfulChallenge("localhost"),
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "error\n", i2...)
 			},
 			mfaPromptCount: 1,
@@ -1624,10 +1625,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			target:        sshHostID,
 			roles:         []string{perSessionMFARole.GetName()},
 			webauthnLogin: failedChallenge("localhost"),
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "error\n", i, i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
@@ -1640,10 +1641,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:          leafAuth.GetAuthServer(),
 			roles:         []string{perSessionMFARole.GetName()},
 			webauthnLogin: successfulChallenge("leafcluster"),
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			mfaPromptCount: 1,
@@ -1657,10 +1658,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			cluster:       "leafcluster",
 			roles:         []string{sshLoginRole.GetName()},
 			webauthnLogin: successfulChallenge("localhost"),
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "error\n", i, i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
@@ -1671,11 +1672,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			proxyAddr: leafProxyAddr,
 			auth:      leafAuth.GetAuthServer(),
 			roles:     []string{sshLoginRole.GetName()},
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "error\n", i, i2...)
 			},
 			webauthnLogin: successfulChallenge("leafcluster"),
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
@@ -1688,10 +1689,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			cluster:       "leafcluster",
 			roles:         []string{perSessionMFARole.GetName()},
 			webauthnLogin: successfulChallenge("localhost"),
-			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
+			stderrAssertion: func(tt require.TestingT, i any, i2 ...any) {
 				require.Contains(t, i, "error\n", i2...)
 			},
-			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			mfaPromptCount: 1,
@@ -1938,7 +1939,7 @@ func TestNoRelogin(t *testing.T) {
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2377,9 +2378,8 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 // TestSSHCommand tests that a user can access a single SSH node and run commands.
 func TestSSHCommands(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	ctx := t.Context()
 
 	accessRoleName := "access"
 	sshHostname := "test-ssh-server"
@@ -2516,7 +2516,6 @@ func TestSSHCommands(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		ctx := context.Background()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -2559,7 +2558,7 @@ func TestSSHCommands(t *testing.T) {
 // Duplicated in integration/integration_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
 			return
@@ -2731,10 +2730,10 @@ iUK/veLmZ6XoouiWLCdU1VJz/1Fcwe/IEamg6ETfofvsqOCgcNYJ
 
 		// Run kube credentials calls in parallel, only one should actually call SSO login
 		runsCount := 3
-		for i := 0; i < runsCount; i++ {
+		for range runsCount {
 			go runCreds()
 		}
-		for i := 0; i < runsCount; i++ {
+		for range runsCount {
 			select {
 			case err := <-errChan:
 				if err != nil {
@@ -2843,7 +2842,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 				AuthConnector: constants.LocalConnector,
 				Username:      "username",
 			},
-			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
 			},
 		}, {
@@ -2852,7 +2851,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 				Proxy:         proxy,
 				AuthConnector: constants.HeadlessConnector,
 			},
-			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
 			},
 		}, {
@@ -2861,7 +2860,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 				Proxy:    proxy,
 				Headless: true,
 			},
-			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
 			},
 		},
@@ -2882,7 +2881,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 }
 
 func TestSSHHeadless(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -3012,7 +3011,7 @@ func TestSSHHeadless(t *testing.T) {
 }
 
 func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	agentKeyring, _ := createAgent(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -3488,7 +3487,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				},
 				credentials: creds,
 			},
-			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+			errorAssertion: func(t require.TestingT, err error, _ ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 			expectedValues: nil,
@@ -4469,7 +4468,6 @@ func TestSerializeDatabases(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
@@ -5190,7 +5188,6 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -5604,8 +5601,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
 	// (if any) are dropped.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
@@ -5726,8 +5722,7 @@ func TestBenchmarkMySQL(t *testing.T) {
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
 	// (if any) are dropped.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
@@ -6059,8 +6054,7 @@ func TestFlatten(t *testing.T) {
 // TestListingResourcesAcrossClusters validates that tsh ls -R
 // returns expected results for root and leaf clusters.
 func TestListingResourcesAcrossClusters(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	createAgent(t)
 
@@ -6616,9 +6610,8 @@ func TestRolesToString(t *testing.T) {
 // TestResolve tests that host resolution works for various inputs and
 // that proxy templates are respected.
 func TestResolve(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	ctx := t.Context()
 
 	accessRoleName := "access"
 	sshHostname := "test-ssh-server"
@@ -6713,7 +6706,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:     "no matching host",
 			hostname: "asdf",
-			assertion: func(tt require.TestingT, err error, i ...interface{}) {
+			assertion: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err, i...)
 				require.ErrorContains(tt, err, "no matching hosts", i...)
 			},
@@ -6727,7 +6720,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:     "multiple matching hosts",
 			hostname: "dev.example.com",
-			assertion: func(tt require.TestingT, err error, i ...interface{}) {
+			assertion: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err, i...)
 				require.ErrorContains(tt, err, "multiple matching hosts", i...)
 			},
@@ -6735,7 +6728,6 @@ func TestResolve(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		ctx := context.Background()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -6855,7 +6847,7 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 		{
 			name: "disable pseudo-terminal allocation",
 			flag: "-T",
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				var exiterr *exec.ExitError
 				if errors.As(err, &exiterr) {
 					require.Equal(t, 1, exiterr.ExitCode())
@@ -6908,9 +6900,8 @@ func TestVersionCompatibilityFlags(t *testing.T) {
 // TestSCP validates that tsh scp correctly copy file content while also
 // ensuring that proxy templates are respected.
 func TestSCP(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	ctx := t.Context()
 
 	accessRoleName := "access"
 	sshHostname := "test-ssh-server"
@@ -7145,7 +7136,6 @@ func TestSCP(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		ctx := context.Background()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -7455,4 +7445,136 @@ func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, Cl
 	}
 
 	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
+}
+
+func Test_validateKingpinAppHelp(t *testing.T) {
+	err := Run(
+		context.Background(),
+		[]string{"version"},
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			require.NotNil(t, cf.kingpinApp)
+
+			issues := testutils.FindKingpinAppHelpIssues(cf.kingpinApp)
+			if len(issues) > 0 {
+				t.Log("Found", len(issues), "issues")
+				for _, issue := range issues {
+					t.Log(issue)
+				}
+			}
+			require.Empty(t, issues)
+			return trace.BadParameter("no need to continue")
+		},
+	)
+	require.ErrorIs(t, err, trace.BadParameter("no need to continue"))
+}
+
+func TestSSHForkAfterAuthentication(t *testing.T) {
+	u, err := user.Current()
+	require.NoError(t, err)
+
+	// Create resources.
+	accessRole, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			Logins: []string{u.Username},
+		},
+	})
+	require.NoError(t, err)
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{accessRole.GetName()})
+
+	tsrv := testserver.MakeTestServer(t,
+		testserver.WithSSHLabel("foo", "bar"),
+		testserver.WithBootstrap(connector, accessRole, alice),
+	)
+	t.Cleanup(func() { require.NoError(t, tsrv.Close()) })
+	// We don't need a real second node for multi-node exec, tsh ssh should fail before that.
+	fakeNode, err := types.NewNode("fake", types.SubKindTeleportNode, types.ServerSpecV2{}, map[string]string{"foo": "bar"})
+	require.NoError(t, err)
+	_, err = tsrv.GetAuthServer().UpsertNode(t.Context(), fakeNode)
+	require.NoError(t, err)
+
+	// Use env var instead of homedir mock to preserve across the re-exec.
+	tmpHomeDir := filepath.Join(t.TempDir(), ".tsh")
+	t.Setenv(types.HomeEnvVar, tmpHomeDir)
+	proxyAddr, err := tsrv.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(t.Context(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.Addr,
+	}, setMockSSOLogin(tsrv.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                string
+		target              string
+		command             []string
+		assertRun           assert.ErrorAssertionFunc
+		assertCommandEffect func(t *testing.T, testFile string) bool
+	}{
+		{
+			name:      "ok",
+			target:    tsrv.Config.Hostname,
+			command:   []string{"echo", "hello", ">", "test.txt"},
+			assertRun: assert.NoError,
+			assertCommandEffect: func(t *testing.T, testFile string) bool {
+				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+					assert.FileExists(collect, testFile)
+				}, 3*time.Second, 100*time.Millisecond)
+			},
+		},
+		{
+			name:      "stdin is closed after disowning",
+			target:    tsrv.Config.Hostname,
+			command:   []string{"read", "&&", "echo", "should not happen", ">", "test.txt"},
+			assertRun: assert.NoError,
+			assertCommandEffect: func(t *testing.T, testFile string) bool {
+				return assert.Never(t, func() bool {
+					_, err := os.Stat(testFile)
+					return !errors.Is(err, os.ErrNotExist)
+				}, 3*time.Second, time.Second)
+			},
+		},
+		{
+			name:      "not allowed on multiple nodes",
+			target:    "foo=bar",
+			command:   []string{"echo", "hello", ">", "test.txt"},
+			assertRun: assert.Error,
+		},
+		{
+			name:      "not allowed for interactive commands",
+			target:    tsrv.Config.Hostname,
+			command:   []string{},
+			assertRun: assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Configure command with a real file path.
+			testFile := filepath.Join(t.TempDir(), "test.txt")
+			cmd := make([]string, 0, len(tc.command))
+			for _, arg := range tc.command {
+				cmd = append(cmd, strings.ReplaceAll(arg, "test.txt", testFile))
+			}
+
+			err := Run(t.Context(), append([]string{
+				"ssh",
+				"--insecure",
+				"-f",
+				u.Username + "@" + tc.target,
+			}, cmd...))
+			tc.assertRun(t, err)
+			if tc.assertCommandEffect != nil {
+				tc.assertCommandEffect(t, testFile)
+			}
+		})
+	}
 }

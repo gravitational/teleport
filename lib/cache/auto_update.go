@@ -26,6 +26,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -41,6 +43,7 @@ func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w 
 
 	return &collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]{
 		store: newStore(
+			types.KindAutoUpdateConfig,
 			proto.CloneOf[*autoupdatev1.AutoUpdateConfig],
 			map[autoUpdateConfigIndex]func(*autoupdatev1.AutoUpdateConfig) string{
 				autoUpdateConfigNameIndex: func(r *autoupdatev1.AutoUpdateConfig) string {
@@ -107,6 +110,7 @@ func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w
 
 	return &collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]{
 		store: newStore(
+			types.KindAutoUpdateVersion,
 			proto.CloneOf[*autoupdatev1.AutoUpdateVersion],
 			map[autoUpdateVersionIndex]func(*autoupdatev1.AutoUpdateVersion) string{
 				autoUpdateVersionNameIndex: func(r *autoupdatev1.AutoUpdateVersion) string {
@@ -169,6 +173,7 @@ func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w
 
 	return &collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]{
 		store: newStore(
+			types.KindAutoUpdateAgentRollout,
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentRollout],
 			map[autoUpdateAgentRolloutIndex]func(*autoupdatev1.AutoUpdateAgentRollout) string{
 				autoUpdateAgentRolloutNameIndex: func(r *autoupdatev1.AutoUpdateAgentRollout) string {
@@ -231,6 +236,7 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 
 	return &collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
 		store: newStore(
+			types.KindSecurityReport,
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentReport],
 			map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{
 				autoUpdateAgentReportNameIndex: func(r *autoupdatev1.AutoUpdateAgentReport) string {
@@ -238,24 +244,8 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateAgentReport, error) {
-			var discoveryConfigs []*autoupdatev1.AutoUpdateAgentReport
-			var nextToken string
-			for {
-				var page []*autoupdatev1.AutoUpdateAgentReport
-				var err error
-
-				page, nextToken, err = upstream.ListAutoUpdateAgentReports(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				discoveryConfigs = append(discoveryConfigs, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return discoveryConfigs, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAutoUpdateAgentReports))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateAgentReport {
 			return &autoupdatev1.AutoUpdateAgentReport{

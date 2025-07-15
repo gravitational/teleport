@@ -42,8 +42,8 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
@@ -262,6 +262,11 @@ type IdentityContext struct {
 	// BotInstanceID is the unique identifier of the Machine ID bot instance
 	// this identity is associated with, if any.
 	BotInstanceID string
+
+	// JoinToken is the name of the join token used to join this bot identity,
+	// if any, and will not be set for bot instances that joined using the
+	// `token` join method.
+	JoinToken string
 
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
@@ -735,7 +740,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 
 	// ensure moderated session policies allow starting an unattended session
 	policySets := c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
-	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
 		return trace.Wrap(err)

@@ -114,7 +114,7 @@ func (a AtomicWriteShim) Put(ctx context.Context, i backend.Item) (*backend.Leas
 func (a AtomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
 	const casRetries = 16
 
-	for i := 0; i < casRetries; i++ {
+	for range casRetries {
 		existing, err := a.Get(ctx, replaceWith.Key)
 		if err != nil {
 			if trace.IsNotFound(err) {

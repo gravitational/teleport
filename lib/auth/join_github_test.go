@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 type mockIDTokenValidator struct {
@@ -130,7 +131,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -230,7 +231,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, ErrRequiresEnterprise)
 			}),
 		},
@@ -247,7 +248,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, ErrRequiresEnterprise)
 			}),
 		},
@@ -401,9 +402,9 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(idTokenValidator.reset)
 			if tt.setEnterprise {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 			token, err := types.NewProvisionTokenFromSpec(

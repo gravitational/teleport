@@ -162,10 +162,10 @@ func TestIssuerForCluster(t *testing.T) {
 	}
 }
 
-func badParameterCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func badParameterCheck(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 }
 
-func notFoundCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func notFoundCheck(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }

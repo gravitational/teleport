@@ -126,7 +126,7 @@ func TestProxyConnection(t *testing.T) {
 	err = localCon.Close()
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestProxyConnection(t *testing.T) {
 	err = remoteCon.Close()
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)

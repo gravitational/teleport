@@ -113,6 +113,29 @@ windows_desktop_service:
 +      rdp_port: 9989 # optional, defaults to 3389
 ```
 
+### Agent Managed Updates v2 enhancements
+
+Managed Updates v2 can now track which version agents are running and use this
+information to progress the rollout. Only Linux agents are supported, agent
+reports for `teleport-kube-agent` will come in a future update. Reports are
+generated every minute and only count agents connected and stable for at least
+a minute.
+
+You can now observe the agent managed update progress by using
+`tctl autoupdate agents status` and `tctl autoupdate agents report`.
+
+If the strategy is `halt-on-error`, the group will be marked as done and the
+rollout will continue only after at least 90% of the agents are updated.
+
+You can now manually trigger a group, mark it as done, or rollback an update
+with `tctl`:
+
+```shell
+autoupdate agents start-update [group1, group2, ...]
+autoupdate agents mark-done [group1, group2, ...]
+autoupdate agents rollback [group1, group2, ...]
+```
+
 #### Legacy ALPN connection upgrade mode has been removed
 
 Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind
@@ -205,7 +228,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if
 the operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Teleport Operator now supports roles v6 and v7
@@ -286,7 +309,7 @@ published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 The legacy package repos will be shut off in mid 2025 after Teleport 14
 has been out of support for many months.
@@ -613,7 +636,7 @@ repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation.mdx).
+[instructions](docs/pages/installation/installation.mdx).
 
 #### `Cf-Access-Token` header no longer included with requests to Teleport-protected applications
 
@@ -1472,7 +1495,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](./docs/pages/enroll-resources/machine-id/deployment/github-actions.mdx) for using
+[documentation](docs/pages/machine-workload-identity/machine-id/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for desktop access
@@ -1834,7 +1857,7 @@ redirect_url = [ "http://example.com" ]
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
 Customers should use the new AWS ECR registry to pull [Teleport Docker
-images](./docs/pages/installation.mdx#docker).
+images](./docs/pages/installation/docker.mdx).
 
 Quay.io registry support will be removed in a future release.
 
@@ -1843,7 +1866,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-[install Teleport](docs/pages/installation.mdx#linux).
+[install Teleport](docs/pages/installation/linux.mdx).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 
@@ -2010,7 +2033,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/enroll-resources/machine-id/access-guides/databases.mdx).
+[documentation](docs/pages/machine-workload-identity/machine-id/access-guides/databases.mdx).
 
 ### Breaking changes
 
@@ -2472,7 +2495,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-[Machine ID getting started guide](docs/pages/enroll-resources/machine-id/getting-started.mdx)
+[Machine ID getting started guide](docs/pages/machine-workload-identity/machine-id/getting-started.mdx)
 
 ### Database access
 
@@ -3738,7 +3761,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Documentation
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/admin-guides/management/admin/trustedclusters.mdx).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.11
 

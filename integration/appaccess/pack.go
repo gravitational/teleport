@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -58,6 +59,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -756,7 +758,7 @@ func (p *Pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
 		raConf.Logger = utils.NewSlogLoggerForTests()
@@ -770,6 +772,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.Apps.MCPDemoServer = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
 		raConf.Apps.Apps = append([]servicecfg.App{
@@ -925,7 +928,7 @@ func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name stri
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	configs := make([]*servicecfg.Config, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
 		laConf.Logger = utils.NewSlogLoggerForTests()
@@ -1072,12 +1075,12 @@ func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Ser
 		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
 		assert.NoError(t, err)
 
-		counter := 0
-		for _, v := range apps {
-			if v.GetHostID() == hostUUID {
-				counter++
-			}
-		}
-		assert.Len(t, cfgApps, counter)
+		wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) string {
+			return app.Name
+		})
+		assert.Subset(t,
+			slices.Collect(types.ResourceNames(apps)),
+			wantNames,
+		)
 	}, time.Minute*2, time.Millisecond*200)
 }

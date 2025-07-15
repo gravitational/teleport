@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -173,9 +174,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.LocalProxyAddr != "" && cf.LocalProxyPort != "" {
+		return trace.BadParameter("either the address or port for the local proxy can be specified, not both")
+	}
 	addr := "localhost:0"
 	randomPort := true
-	if cf.LocalProxyPort != "" {
+	if cf.LocalProxyAddr != "" {
+		host, _, err := net.SplitHostPort(cf.LocalProxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
+			return trace.BadParameter("only loopback addresses are allowed for listener without --insecure-listen-anywhere switch, got %q", cf.LocalProxyAddr)
+		}
+		randomPort = false
+		addr = cf.LocalProxyAddr
+	} else if cf.LocalProxyPort != "" {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
@@ -576,7 +590,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     cf.Format,
 		"randomPort": cf.LocalProxyPort == "",
@@ -871,7 +885,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s",
+		"%s Or specify a service format, one of: %s.",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -985,7 +999,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

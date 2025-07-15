@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -36,29 +38,14 @@ func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProvide
 
 	return &collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
 		store: newStore(
+			types.KindSAMLIdPServiceProvider,
 			types.SAMLIdPServiceProvider.Copy,
 			map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{
 				samlIdPServiceProviderNameIndex: types.SAMLIdPServiceProvider.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.SAMLIdPServiceProvider, error) {
-			var startKey string
-			var sps []types.SAMLIdPServiceProvider
-			for {
-				var samlProviders []types.SAMLIdPServiceProvider
-				var err error
-				samlProviders, startKey, err = upstream.ListSAMLIdPServiceProviders(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				sps = append(sps, samlProviders...)
-
-				if startKey == "" {
-					break
-				}
-			}
-
-			return sps, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSAMLIdPServiceProviders))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.SAMLIdPServiceProvider {
 			return &types.SAMLIdPServiceProviderV1{

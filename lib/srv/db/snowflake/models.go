@@ -56,13 +56,13 @@ type loginResponseData struct {
 
 	// allFields contains all fields from the JSON. Those fields will
 	// be added when marshaling JSON.
-	allFields map[string]interface{}
+	allFields map[string]any
 }
 
 func (l *loginResponseData) MarshalJSON() ([]byte, error) {
 	elems := reflect.TypeOf(l).Elem()
 
-	for i := 0; i < elems.NumField(); i++ {
+	for i := range elems.NumField() {
 		jsonTag, ok := elems.Field(i).Tag.Lookup("json")
 		if !ok {
 			continue
@@ -93,8 +93,8 @@ func (l *loginResponseData) UnmarshalJSON(data []byte) error {
 // loginResponse is the payload returned by the /queries/v1/query-request endpoint.
 type loginResponse struct {
 	Data    loginResponseData `json:"data"`
-	Code    interface{}       `json:"code"`
-	Message interface{}       `json:"message"`
+	Code    any               `json:"code"`
+	Message any               `json:"message"`
 	Success bool              `json:"success"`
 }
 
@@ -151,14 +151,14 @@ type renewSessionResponse struct {
 // SQL query that we need to log.
 type queryRequest struct {
 	SQLText    string                       `json:"sqlText"`
-	Parameters map[string]interface{}       `json:"parameters,omitempty"`
+	Parameters map[string]any               `json:"parameters,omitempty"`
 	Bindings   map[string]execBindParameter `json:"bindings,omitempty"`
 	BindStage  string                       `json:"bindStage,omitempty"`
 }
 
 type execBindParameter struct {
-	Type  string      `json:"type"`
-	Value interface{} `json:"value"`
+	Type  string `json:"type"`
+	Value any    `json:"value"`
 }
 
 func (q *queryRequest) paramsToSlice() []string {
@@ -174,7 +174,7 @@ func (q *queryRequest) paramsToSlice() []string {
 	return args
 }
 
-func queryParametersToSlice(parameters map[string]interface{}) []string {
+func queryParametersToSlice(parameters map[string]any) []string {
 	params := make([]string, 0)
 
 	for k, v := range parameters {

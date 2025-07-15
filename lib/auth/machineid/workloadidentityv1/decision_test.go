@@ -68,7 +68,7 @@ func Test_decide(t *testing.T) {
 			},
 			attrs:     standardAttrs,
 			wantIssue: false,
-			assertReason: func(t require.TestingT, err error, i ...interface{}) {
+			assertReason: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "templating spec.spiffe.x509.dns_sans[0] resulted in an invalid DNS name")
 			},
 		},
@@ -95,7 +95,7 @@ func Test_evaluateRules(t *testing.T) {
 		},
 	}
 
-	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...interface{}) {
+	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no matching rule found")
 	}

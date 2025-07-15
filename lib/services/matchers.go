@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -52,7 +53,6 @@ type ResourceMatcherAWS struct {
 func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
 	out := make([]*types.DatabaseResourceMatcher, len(in))
 	for i, resMatcher := range in {
-		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
 			AWS: types.ResourceMatcherAWS{
@@ -209,7 +209,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
 		// and it is not a Kubernetes resource kind, we return an error.
-		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
+		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) && !strings.HasPrefix(filter.ResourceKind, types.AccessRequestPrefixKindKube) {
 			return false, trace.NotImplemented("filtering for resource kind %q not supported", kind)
 		}
 		specResource = resource

@@ -643,7 +643,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-	tplVars := map[string]interface{}{
+	tplVars := map[string]any{
 		"files":     strings.Join(filesWritten, ", "),
 		"password":  password,
 		"output":    output,

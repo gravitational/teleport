@@ -53,7 +53,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -75,9 +75,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
-	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -142,7 +144,6 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			},
 		},
 	} {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			mfaResponse := test.getMFAResponse()
 			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
@@ -761,6 +762,109 @@ func TestGithubAuthCompat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	// Set up a new Integration for AWS Roles Anywhere.
+	awsRAIntegration := "awsra-integration"
+	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
+		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
+		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+			Enabled:                       true,
+			ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+			ProfileAcceptsRoleSessionName: true,
+			RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	// Set up a new AWS App created from a Roles Anywhere Profile.
+	appName := "my-aws-access"
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:         constants.AWSConsoleURL,
+					Integration: awsRAIntegration,
+					PublicAddr:  "my-app.example.com",
+					AWS: &types.AppAWS{
+						RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+							ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
+							AcceptRoleSessionName: true,
+						},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	// Mock the credential generation function to return fixed credentials.
+	// This is required because the generator calls AWS endpoints to convert a teleport created certificate into valid AWS credentials.
+	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+
+	// Set up a user with the necessary roles to access the AWS App.
+	username := "aws-access-user"
+	roleARN := "arn:aws:iam::123456789012:role/MyRole"
+	awsAccessRole, err := CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWSRoleARNs: []string{roleARN},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(ctx, srv.Auth(), username, awsAccessRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create credentials for the AWS App
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	pub, err := keys.MarshalPublicKey(priv.Public())
+	require.NoError(t, err)
+
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       app.GetApp().GetName(),
+			AWSRoleARN: roleARN,
+		},
+	})
+	require.NoError(t, err)
+
+	// Parse the Identity and check the AWS Role ARN and credentials.
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
+	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
@@ -1888,7 +1992,7 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
@@ -2009,7 +2113,7 @@ func BenchmarkListNodes(b *testing.B) {
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for i := 0; i < roleCount; i++ {
+	for range roleCount {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -2017,7 +2121,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -2200,7 +2304,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -2323,8 +2427,7 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
 	select {
 	case err := <-errC:
@@ -2338,8 +2441,7 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	username := "user"
@@ -2374,8 +2476,7 @@ func TestStreamSessionEvents_User(t *testing.T) {
 func TestStreamSessionEvents_Builtin(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	identity := TestBuiltin(types.RoleProxy)
@@ -2859,7 +2960,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := fmt.Sprintf("db-%d", i)
 		database, err := types.NewDatabaseV3(
 			types.Metadata{
@@ -2998,7 +3099,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test app servers.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := fmt.Sprintf("app-%v", i)
 		app, err := types.NewAppV3(types.Metadata{
 			Name:   name,
@@ -3118,18 +3219,67 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
+func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
+	// Set license to enterprise in order to be able to list SAML IdP service providers.
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	ctx := context.Background()
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "saml-app",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		ACSURL:   "https://example.com/acs",
+		EntityID: "https://example.com/entity-id",
+	})
+	require.NoError(t, err)
+	err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	var sps []types.SAMLIdPServiceProvider
+	inlineEventually(t, func() bool {
+		var err error
+		sps, _, err = srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
+		require.NoError(t, err)
+		return len(sps) == 1
+	}, 5*time.Second, 200*time.Millisecond, "SAMLIdPServiceProviders from auth")
+
+	user, role, err := CreateUserAndRole(srv.Auth(), "user", nil, []types.Rule{
+		types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
+	})
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		sps_cache, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    apidefaults.Namespace,
+			Limit:        int32(len(sps)),
+			ResourceType: types.KindSAMLIdPServiceProvider,
+		})
+		require.NoError(t, err)
+		require.Equal(t, sps_cache.Resources[0].GetName(), sp.GetName())
+		return len(sps_cache.Resources) == len(sps)
+	}, 5*time.Second, 200*time.Millisecond, "SAMLIdPServiceProviders from cache")
+}
+
 // TestListSAMLIdPServiceProviderAndListResources verifies
 // RBAC and search filters when fetching SAML IdP service providers.
 func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:   name,
@@ -3346,10 +3496,24 @@ func TestApps(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err := devClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{devApp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -3372,18 +3536,41 @@ func TestApps(t *testing.T) {
 	// Dev should only be able to delete dev app.
 	err = devClt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
+	apps, err = devClt.GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, apps)
+
+	out, next, err = devClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Application{adminApp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should be able to delete all.
 	err = adminClt.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, apps)
+
+	out, next, err = adminClt.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
 }
 
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
@@ -3680,7 +3867,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test kube servers.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		// insert legacy kube servers
 		name := uuid.NewString()
 		cluster, err := types.NewKubernetesClusterV3(
@@ -3809,7 +3996,7 @@ func TestListDatabaseServices(t *testing.T) {
 	numInitialResources := 5
 
 	// Create test Database Services.
-	for i := 0; i < numInitialResources; i++ {
+	for range numInitialResources {
 		name := uuid.NewString()
 		s, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name: name,
@@ -3952,7 +4139,7 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -4005,7 +4192,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 
 	// Create test nodes.
 	const numTestNodes = 3
-	for i := 0; i < numTestNodes; i++ {
+	for i := range numTestNodes {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
 			name,
@@ -4145,7 +4332,7 @@ func TestListResources_WithLogins(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -4288,7 +4475,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test desktops.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		name := uuid.New().String()
 		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": name},
 			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
@@ -4808,7 +4995,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -4834,7 +5021,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -4851,7 +5038,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindWindowsDesktop",
 			kind: types.KindWindowsDesktop,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					desktop, err := types.NewWindowsDesktopV3(names[i], nil, types.WindowsDesktopSpecV3{
 						Addr:   "_",
 						HostID: fmt.Sprintf("name-%v", i),
@@ -4865,7 +5052,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 
 					kube, err := types.NewKubernetesClusterV3(types.Metadata{
 						Name: names[i],
@@ -4951,7 +5138,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// inserts a pool nodes with different labels
 	insertNodes := func(ctx context.Context, t *testing.T, srv *Server, nodeCount int, labels map[string]string) {
-		for i := 0; i < nodeCount; i++ {
+		for range nodeCount {
 			name := uuid.NewString()
 			addr := fmt.Sprintf("node-%s.example.com", name)
 
@@ -5090,7 +5277,6 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// ensure that a user can see the correct number of resources for their role(s)
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -5166,7 +5352,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5287,7 +5473,7 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 
 	// Create test nodes.
 	const numTestNodes = 3
-	for i := 0; i < numTestNodes; i++ {
+	for i := range numTestNodes {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5736,7 +5922,7 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5879,7 +6065,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		name := names[i]
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5953,7 +6139,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		name := names[i]
 
 		// add nodes
@@ -6108,7 +6294,7 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		name := names[i]
 
 		// add nodes
@@ -6943,6 +7129,11 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 		if role == types.RoleAuth || role == types.RoleMDM || role == types.RoleAccessGraphPlugin {
 			continue
 		}
+		// TODO(espadolini): figure out if the relay service needs to emit
+		// events or not (and if it needs blanket event write access or not).
+		if role == types.RoleRelay {
+			continue
+		}
 
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
@@ -7517,7 +7708,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -7535,7 +7726,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7554,7 +7745,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -7573,7 +7764,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7587,7 +7778,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 				EntityID:         "sp1",
 			},
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -7688,7 +7879,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
 		},
@@ -7706,7 +7897,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7725,7 +7916,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
 		},
@@ -7744,7 +7935,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7758,7 +7949,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 				EntityID:         "sp1",
 			},
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
 		},
@@ -7803,14 +7994,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "missing url scheme in acs input",
 			entityID: "sp",
 			acsURL:   "sp",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "missing url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "sp"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
@@ -7818,14 +8009,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "http url scheme in acs",
 			entityID: "sp",
 			acsURL:   "http://sp",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "http url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "http://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -7833,14 +8024,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "unsupported scheme in acs",
 			entityID: "sp",
 			acsURL:   "gopher://sp",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "unsupported scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "gopher://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
@@ -7848,14 +8039,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "invalid character in acs",
 			entityID: "sp",
 			acsURL:   "https://sp>",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
 		{
 			name:             "invalid character in acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "https://sp>"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -7864,7 +8055,7 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			entityID:   "sp",
 			acsURL:     "https://sp",
 			relayState: "default_state<b",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
@@ -7916,28 +8107,28 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 		{
 			name:             "missing url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "sp"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
 		{
 			name:             "http url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "http://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
 		{
 			name:             "unsupported scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "gopher://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
 		{
 			name:             "invalid character in acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp>"),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -7945,7 +8136,7 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:             "invalid character in relay state",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
 			relayState:       "default_state<b",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
@@ -8002,7 +8193,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			spName:    "sp1",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -8011,7 +8202,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			spName:    "sp1",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -8021,7 +8212,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -8031,7 +8222,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -8039,7 +8230,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			name:      "without any permissions",
 			spName:    "sp1",
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -8075,7 +8266,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 
 	const errDeleteVerbDenied = `access denied to perform action "delete"`
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:   name,
@@ -8100,7 +8291,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "without VerbDelete but a matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
@@ -8109,7 +8300,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "with VerbDelete but a non-matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
@@ -8119,7 +8310,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
@@ -8129,7 +8320,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
@@ -8137,7 +8328,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 		{
 			name:      "without any permissions",
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
@@ -8305,7 +8496,6 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			assertError: assertAccessDenied,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8347,12 +8537,12 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertNotFound := func(t require.TestingT, err error, i ...interface{}) {
+	assertNotFound := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
 	}
 
-	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+	assertAccessDenied := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
@@ -8423,7 +8613,6 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			assertError: assertAccessDenied,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
@@ -8559,7 +8748,6 @@ func TestCreateSnowflakeSession(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -8616,7 +8804,6 @@ func TestGetSnowflakeSession(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -8655,7 +8842,6 @@ func TestGetSnowflakeSessions(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -8697,7 +8883,6 @@ func TestDeleteSnowflakeSession(t *testing.T) {
 	dbClient, err := srv.NewClient(TestBuiltin(types.RoleDatabase))
 	require.NoError(t, err)
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -8742,7 +8927,6 @@ func TestDeleteAllSnowflakeSessions(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -9518,7 +9702,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// Initialize headless watcher for each test cases.
 	t.Run("init_watchers", func(t *testing.T) {
 		for _, tc := range testCases {
-			tc := tc
 
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -9566,7 +9749,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	t.Run("watch_events", func(t *testing.T) {
 		// Check that each watcher captured the expected events.
 		for _, tc := range testCases {
-			tc := tc
 
 			// watcher was not initialized for this test case, skip.
 			if tc.watcher == nil {
@@ -9607,10 +9789,10 @@ func TestScopedRoleEvents(t *testing.T) {
 	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind: scopedrole.KindScopedRole,
+				Kind: scopedaccess.KindScopedRole,
 			},
 			{
-				Kind: scopedrole.KindScopedRoleAssignment,
+				Kind: scopedaccess.KindScopedRoleAssignment,
 			},
 		},
 	})
@@ -9639,19 +9821,19 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpInit, event.Type)
 
 	// Create a ScopedRole and verify create event is well-formed.
-	role := &accessv1.ScopedRole{
-		Kind: scopedrole.KindScopedRole,
+	role := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
 		Metadata: &headerv1.Metadata{
 			Name: "test-role",
 		},
 		Scope: "/",
-		Spec: &accessv1.ScopedRoleSpec{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo", "/bar"},
 		},
 		Version: types.V1,
 	}
 
-	crsp, err := service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
@@ -9659,11 +9841,11 @@ func TestScopedRoleEvents(t *testing.T) {
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
 
-	resource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT()
+	resource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
 	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
+	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
 		Name: role.Metadata.Name,
 	})
 	require.NoError(t, err)
@@ -9672,29 +9854,29 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedrole.KindScopedRole,
+		Kind: scopedaccess.KindScopedRole,
 		Metadata: types.Metadata{
 			Name: role.Metadata.Name,
 		},
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
-	crsp, err = service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	crsp, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
 
 	_ = getNextEvent() // drain the role create event
 
-	assignment := &accessv1.ScopedRoleAssignment{
-		Kind: scopedrole.KindScopedRoleAssignment,
+	assignment := &scopedaccessv1.ScopedRoleAssignment{
+		Kind: scopedaccess.KindScopedRoleAssignment,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
 		Scope: "/",
-		Spec: &accessv1.ScopedRoleAssignmentSpec{
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
-			Assignments: []*accessv1.Assignment{
+			Assignments: []*scopedaccessv1.Assignment{
 				{
 					Role:  role.Metadata.Name,
 					Scope: "/foo",
@@ -9704,7 +9886,7 @@ func TestScopedRoleEvents(t *testing.T) {
 		Version: types.V1,
 	}
 
-	acrsp, err := service.CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
 		RoleRevisions: map[string]string{
 			role.Metadata.Name: crsp.Role.Metadata.Revision,
@@ -9714,11 +9896,11 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
-	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT()
+	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
 	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name: assignment.Metadata.Name,
 	})
 	require.NoError(t, err)
@@ -9727,7 +9909,7 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedrole.KindScopedRoleAssignment,
+		Kind: scopedaccess.KindScopedRoleAssignment,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
@@ -9758,7 +9940,6 @@ func TestKubeKeepAliveServer(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			hostID := uuid.New().String()
@@ -9826,7 +10007,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 // inlineEventually is equivalent to require.Eventually except that it runs the provided function directly
 // instead of in a background goroutine, making it safe to fail the test from within the closure.
-func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) {
+func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...any) {
 	t.Helper()
 
 	timer := time.NewTimer(waitFor)
@@ -9949,7 +10130,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 			ctx := context.Background()
 			srv := newTestTLSServer(t)
 
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
@@ -10486,7 +10667,7 @@ func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 					},
 				},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, errMsg)
 			},
 		},
@@ -10500,7 +10681,7 @@ func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 					},
 				},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.NoError(t, err)
 			},
 		},

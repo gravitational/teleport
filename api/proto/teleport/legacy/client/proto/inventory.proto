@@ -20,6 +20,7 @@ package proto;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/presence/v1/relay_server.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -38,6 +39,9 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
     // UpstreamInventoryGoodbye advertises that the instance is terminating.
     UpstreamInventoryGoodbye Goodbye = 5;
+    // UpstreamInventoryStopHeartbeat informs the upstream service that a
+    // heartbeat is stopping.
+    UpstreamInventoryStopHeartbeat stop_heartbeat = 6;
   }
 }
 
@@ -166,6 +170,10 @@ message DownstreamInventoryHello {
     bool KubernetesHeartbeats = 17;
     // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
     bool KubernetesCleanup = 18;
+    // Indicates that the ICS supports heartbeating relay_server entries as well as deleting them on disconnect if UpstreamInventoryGoodbye.DeleteResources is set.
+    bool relay_server_heartbeats_cleanup = 19;
+    // DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
+    bool database_heartbeat_graceful_stop = 20;
   }
 
   // SupportedCapabilities advertises the supported features of the auth server.
@@ -217,6 +225,8 @@ message InventoryHeartbeat {
   types.DatabaseServerV3 DatabaseServer = 3;
   // KubeServer is a complete kube server spec to be heartbeated.
   types.KubernetesServerV3 KubernetesServer = 4;
+  // A relay_server to be heartbeated.
+  teleport.presence.v1.RelayServer relay_server = 5;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance
@@ -254,4 +264,21 @@ message InventoryStatusSummary {
 
   // ServiceCounts aggregates the number of services.
   map<string, uint32> ServiceCounts = 5;
+}
+
+// UpstreamInventoryStopHeartbeat informs the upstream service that the
+// heartbeat is stopping.
+message UpstreamInventoryStopHeartbeat {
+  // Kind is the kind of heartbeat to stop.
+  StopHeartbeatKind kind = 1;
+  // Name is the name of the heatbeat to stop.
+  string name = 2;
+}
+
+// StopHeartbeatKind is the type of heartbeat to stop.
+enum StopHeartbeatKind {
+  STOP_HEARTBEAT_KIND_UNSPECIFIED = 0;
+
+  // STOP_HEARTBEAT_KIND_DATABASE_SERVER means stop a database server heartbeat.
+  STOP_HEARTBEAT_KIND_DATABASE_SERVER = 1;
 }

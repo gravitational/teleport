@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
@@ -137,7 +138,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 	caPool := x509.NewCertPool()
 	require.True(t, caPool.AppendCertsFromPEM([]byte(apifixtures.TLSCACertPEM)))
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "validated tpm attributes did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -268,7 +269,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		},
 		{
 			name: "failure, verification",
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				assert.ErrorContains(t, err, "capacitor overcharged")
 			},
 
@@ -293,7 +294,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		{
 			name:   "failure, no enterprise",
 			setOSS: true,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				assert.ErrorIs(t, err, ErrRequiresEnterprise)
 			},
 
@@ -327,9 +328,9 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockValidator.setup(tt.validateReturnTPM, tt.validateReturnErr)
 			if !tt.setOSS {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 

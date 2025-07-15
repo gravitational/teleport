@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.4.10",
+      "version": "17.5.2",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -66,8 +66,8 @@
     },
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
-      "major_version": "17",
-      "version": "17.0.0-dev",
+      "major_version": "19",
+      "version": "19.0.0-dev",
       "url": "teleport.example.com",
       "golang": "1.22",
       "plugin": {
@@ -177,7 +177,7 @@
     },
     {
       "source": "/enterprise/sso/",
-      "destination": "/admin-guides/access-controls/sso/",
+      "destination": "/zero-trust-access/sso/",
       "permanent": true
     },
     {
@@ -202,7 +202,7 @@
     },
     {
       "source": "/enterprise/sso/google-workspace/",
-      "destination": "/admin-guides/access-controls/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/google-workspace/",
       "permanent": true
     },
     {
@@ -212,7 +212,7 @@
     },
     {
       "source": "/machine-id/introduction/",
-      "destination": "/enroll-resources/machine-id/introduction/",
+      "destination": "/machine-workload-identity/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -227,12 +227,12 @@
     },
     {
       "source": "/management/export-audit-events/fluentd/",
-      "destination": "/admin-guides/management/export-audit-events/fluentd/",
+      "destination": "/zero-trust-access/export-audit-events/fluentd/",
       "permanent": true
     },
     {
       "source": "/setup/admin/github-sso/",
-      "destination": "/admin-guides/access-controls/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/github-sso/",
       "permanent": true
     },
     {
@@ -252,7 +252,7 @@
     },
     {
       "source": "/access-controls/compliance-frameworks/fedramp/",
-      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/",
       "permanent": true
     },
     {
@@ -533,6 +533,511 @@
     {
       "source": "/admin-guides/access-controls/okta/user-sync/",
       "destination": "/identity-governance/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/ansible/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/applications/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/databases/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/kubernetes/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/ssh/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/ssh/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/access-guides/tctl/",
+      "destination": "/machine-workload-identity/machine-id/access-guides/tctl/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/aws/",
+      "destination": "/machine-workload-identity/machine-id/deployment/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/azure-devops/",
+      "destination": "/machine-workload-identity/machine-id/deployment/azure-devops/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/azure/",
+      "destination": "/machine-workload-identity/machine-id/deployment/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/bitbucket/",
+      "destination": "/machine-workload-identity/machine-id/deployment/bitbucket/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/circleci/",
+      "destination": "/machine-workload-identity/machine-id/deployment/circleci/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/",
+      "destination": "/machine-workload-identity/machine-id/deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/gcp/",
+      "destination": "/machine-workload-identity/machine-id/deployment/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/github-actions/",
+      "destination": "/machine-workload-identity/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/gitlab/",
+      "destination": "/machine-workload-identity/machine-id/deployment/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/jenkins/",
+      "destination": "/machine-workload-identity/machine-id/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/kubernetes/",
+      "destination": "/machine-workload-identity/machine-id/deployment/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/linux-tpm/",
+      "destination": "/machine-workload-identity/machine-id/deployment/linux-tpm/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/linux/",
+      "destination": "/machine-workload-identity/machine-id/deployment/linux/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/faq/",
+      "destination": "/machine-workload-identity/machine-id/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/introduction/",
+      "destination": "/machine-workload-identity/machine-id/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/",
+      "destination": "/machine-workload-identity/machine-id/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/manifesto/",
+      "destination": "/machine-workload-identity/machine-id/manifesto/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/troubleshooting/",
+      "destination": "/machine-workload-identity/machine-id/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/aws-oidc-federation/",
+      "destination": "/machine-workload-identity/workload-identity/aws-oidc-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/aws-roles-anywhere/",
+      "destination": "/machine-workload-identity/workload-identity/aws-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/azure-federated-credentials/",
+      "destination": "/machine-workload-identity/workload-identity/azure-federated-credentials/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/best-practices/",
+      "destination": "/machine-workload-identity/workload-identity/best-practices/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/federation/",
+      "destination": "/machine-workload-identity/workload-identity/federation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/gcp-workload-identity-federation-jwt/",
+      "destination": "/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/getting-started/",
+      "destination": "/machine-workload-identity/workload-identity/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/introduction/",
+      "destination": "/machine-workload-identity/workload-identity/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/jwt-svids/",
+      "destination": "/machine-workload-identity/workload-identity/jwt-svids/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/spiffe/",
+      "destination": "/machine-workload-identity/workload-identity/spiffe/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/tsh/",
+      "destination": "/machine-workload-identity/workload-identity/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/",
+      "destination": "/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/",
+      "destination": "/identity-security/access-graph/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/identity-activity-center/",
+      "destination": "/identity-security/access-graph/identity-activity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted-helm/",
+      "destination": "/identity-security/access-graph/self-hosted-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
+      "destination": "/identity-security/access-graph/self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/crown-jewels/",
+      "destination": "/identity-security/crown-jewels/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/aws-sync/",
+      "destination": "/identity-security/integrations/aws-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/azure-sync/",
+      "destination": "/identity-security/integrations/azure-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/entra-id/",
+      "destination": "/identity-security/integrations/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/github/",
+      "destination": "/identity-security/integrations/github/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/gitlab/",
+      "destination": "/identity-security/integrations/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/",
+      "destination": "/identity-security/integrations/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/netiq/",
+      "destination": "/identity-security/integrations/netiq/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/ssh-keys-scan/",
+      "destination": "/identity-security/integrations/ssh-keys-scan/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/teleport/",
+      "destination": "/identity-security/integrations/teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-connections/",
+      "destination": "/identity-security/policy-connections/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-how-to-use/",
+      "destination": "/identity-security/policy-how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/",
+      "destination": "/identity-security/teleport-policy/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/architecture/proxy-peering/",
+      "destination": "/admin-guides/management/operations/proxy-peering/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/compliance-frameworks/",
+      "destination": "/zero-trust-access/compliance-frameworks/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/compliance-frameworks/soc2/",
+      "destination": "/zero-trust-access/compliance-frameworks/soc2/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/adfs/",
+      "destination": "/zero-trust-access/sso/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/azuread/",
+      "destination": "/zero-trust-access/sso/azuread/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/gitlab/",
+      "destination": "/zero-trust-access/sso/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/keycloak/",
+      "destination": "/zero-trust-access/sso/keycloak/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/oidc/",
+      "destination": "/zero-trust-access/sso/oidc/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/okta/",
+      "destination": "/zero-trust-access/sso/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/one-login/",
+      "destination": "/zero-trust-access/sso/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/",
+      "destination": "/zero-trust-access/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/",
+      "destination": "/zero-trust-access/infrastructure-as-code/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-operator/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/trusted-cluster/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/trusted-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/managing-resources/user-and-role/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/user-and-role/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/secret-lookup/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/secret-lookup/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/teleport-operator/",
+      "destination": "/zero-trust-access/infrastructure-as-code/teleport-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/ci-or-cloud/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/ci-or-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/local/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/local/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/long-lived-credentials/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/long-lived-credentials/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-starter/rbac/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-starter/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/datadog/",
+      "destination": "/zero-trust-access/export-audit-events/datadog/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/elastic-stack/",
+      "destination": "/zero-trust-access/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/",
+      "destination": "/zero-trust-access/export-audit-events/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/fluentd/",
+      "destination": "/zero-trust-access/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/panther/",
+      "destination": "/zero-trust-access/export-audit-events/panther/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/export-audit-events/splunk/",
+      "destination": "/zero-trust-access/export-audit-events/splunk/",
       "permanent": true
     }
   ]
