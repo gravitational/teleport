@@ -14,10 +14,9 @@ It lists all the supported resources and their fields.
 
 <Admonition type="tip">
 To get started with the Terraform provider, you must start with [the installation
-guide](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
+guide](../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
 Once you got a working provider, we recommend you to follow the
-["Managing users and roles with IaC"](
-../../admin-guides/infrastructure-as-code/managing-resources/user-and-role.mdx) guide.
+["Managing users and roles with IaC"](../../zero-trust-access/infrastructure-as-code/managing-resources/user-and-role.mdx) guide.
 </Admonition>
 
 The provider exposes Teleport resources both as Terraform data-sources and Terraform resources.
@@ -81,7 +80,7 @@ provider "teleport" {
 This section lists the different ways of passing credentials to the Terraform provider.
 You can find which method fits your use case in
 the [Teleport Terraform provider setup
-page](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+page](../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
 
 ### With an identity file
 
@@ -108,7 +107,7 @@ Detected security key tap
 ```
 
 You can find more information in
-the ["Run the Terraform provider locally" guide](../../admin-guides/infrastructure-as-code/terraform-provider/local.mdx)
+the ["Run the Terraform provider locally" guide](../../zero-trust-access/infrastructure-as-code/terraform-provider/local.mdx)
 
 #### Obtaining an identity file via `tbot`
 
@@ -117,7 +116,7 @@ short-lived credentials. Such credentials are harder to exfiltrate, and you can 
 which roles (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
 
 You can follow [the Terraform Provider
-guide](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to setup `tbot`
+guide](../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to setup `tbot`
 and have Terraform use its identity.
 
 #### Obtaining an identity file via `tctl auth sign`
@@ -144,7 +143,7 @@ You can use any [delegated join method](../join-methods.mdx#delegated-join-metho
 both `join_method` and `join_token` in the provider configuration.
 
 This setup is described in more details in
-the ["Run the Teleport Terraform provider in CI or Cloud" guide](../../admin-guides/infrastructure-as-code/terraform-provider/ci-or-cloud.mdx).
+the ["Run the Teleport Terraform provider in CI or Cloud" guide](../../zero-trust-access/infrastructure-as-code/terraform-provider/ci-or-cloud.mdx).
 
 ### With key, certificate, and CA certificate
 
