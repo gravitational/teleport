@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package workloadidentity
 
 import (
 	"context"
@@ -40,7 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -99,19 +100,41 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		Path:   filepath.Join(tmpDir, "workload.sock"),
 	}
 	onboarding, _ := makeBot(t, rootClient, "api", role.GetName())
-	botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
-		&config.WorkloadIdentityAPIService{
-			Selector: bot.WorkloadIdentitySelector{
-				Name: workloadIdentity.GetMetadata().GetName(),
-			},
-			Listen: listenAddr.String(),
+
+	authAddr, err := process.AuthAddr()
+	require.NoError(t, err)
+
+	connCfg := connection.Config{
+		Address:     authAddr.Addr,
+		AddressKind: connection.AddressKindAuth,
+		Insecure:    true,
+	}
+	require.NoError(t, err)
+
+	trustBundleCache := workloadidentity.NewTrustBundleCacheFacade()
+	crlCache := workloadidentity.NewCRLCacheFacade()
+
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *onboarding,
+		Services: []bot.ServiceBuilder{
+			trustBundleCache.BuildService,
+			crlCache.BuildService,
+			WorkloadAPIServiceBuilder(
+				&WorkloadAPIConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: workloadIdentity.GetMetadata().GetName(),
+					},
+					Listen: listenAddr.String(),
+				},
+				trustBundleCache,
+				crlCache,
+				bot.DefaultCredentialLifetime,
+			),
 		},
-	}, defaultBotConfigOpts{
-		useAuthServer: true,
-		insecure:      true,
 	})
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
+	require.NoError(t, err)
 
 	// Spin up goroutine for bot to run in
 	botCtx, cancelBot := context.WithCancel(ctx)

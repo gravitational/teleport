@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package workloadidentity
 
 import (
 	"bytes"
@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/sds"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -59,21 +58,24 @@ import (
 	"github.com/gravitational/teleport/lib/uds"
 )
 
-func WorkloadIdentityAPIServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *config.WorkloadIdentityAPIService,
+func WorkloadAPIServiceBuilder(
+	cfg *WorkloadAPIConfig,
 	trustBundleCache TrustBundleGetter,
 	crlCache CRLGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		sidecar, credential := clientcredentials.NewSidecar(deps, botCfg.CredentialLifetime)
-		svc := &WorkloadIdentityAPIService{
-			svcIdentity:      credential,
-			botCfg:           botCfg,
-			cfg:              cfg,
-			trustBundleCache: trustBundleCache,
-			crlCache:         crlCache,
-			clientBuilder:    deps.ClientBuilder,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sidecar, credential := clientcredentials.NewSidecar(deps, defaultCredentialLifetime)
+		svc := &WorkloadAPIService{
+			svcIdentity:               credential,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			trustBundleCache:          trustBundleCache,
+			crlCache:                  crlCache,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
@@ -83,15 +85,7 @@ func WorkloadIdentityAPIServiceBuilder(
 	}
 }
 
-type TrustBundleGetter interface {
-	GetBundleSet(ctx context.Context) (*workloadidentity.BundleSet, error)
-}
-
-type CRLGetter interface {
-	GetCRLSet(ctx context.Context) (*workloadidentity.CRLSet, error)
-}
-
-// WorkloadIdentityAPIService implements a gRPC server that fulfills the SPIFFE
+// WorkloadAPIService implements a gRPC server that fulfills the SPIFFE
 // Workload API specification. It provides X509 SVIDs and trust bundles to
 // workloads that connect over the configured listener.
 //
@@ -100,17 +94,17 @@ type CRLGetter interface {
 // - https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Workload_API.md
 // - https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md
 // - https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
-type WorkloadIdentityAPIService struct {
+type WorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *clientcredentials.UnstableConfig
-	botCfg           *config.BotConfig
-	cfg              *config.WorkloadIdentityAPIService
-	log              *slog.Logger
-	statusReporter   readyz.Reporter
-	trustBundleCache TrustBundleGetter
-	crlCache         CRLGetter
-	clientBuilder    *client.Builder
+	svcIdentity               *clientcredentials.UnstableConfig
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *WorkloadAPIConfig
+	log                       *slog.Logger
+	statusReporter            readyz.Reporter
+	trustBundleCache          TrustBundleGetter
+	crlCache                  CRLGetter
+	clientBuilder             *client.Builder
 
 	// client holds the impersonated client for the service
 	client           *apiclient.Client
@@ -121,8 +115,8 @@ type WorkloadIdentityAPIService struct {
 // setup initializes the service, performing tasks such as determining the
 // trust domain, fetching the initial trust bundle and creating an impersonated
 // client.
-func (s *WorkloadIdentityAPIService) setup(ctx context.Context) (err error) {
-	ctx, span := tracer.Start(ctx, "WorkloadIdentityAPIService/setup")
+func (s *WorkloadAPIService) setup(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(ctx, "WorkloadAPIService/setup")
 	defer span.End()
 
 	// Wait for the impersonated identity to be ready for us to consume here.
@@ -161,15 +155,11 @@ func (s *WorkloadIdentityAPIService) setup(ctx context.Context) (err error) {
 		return trace.Wrap(err, "setting up workload attestation")
 	}
 
-	if s.statusReporter == nil {
-		s.statusReporter = readyz.NoopReporter()
-	}
-
 	return nil
 }
 
-func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "WorkloadIdentityAPIService/Run")
+func (s *WorkloadAPIService) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "WorkloadAPIService/Run")
 	defer span.End()
 
 	s.log.DebugContext(ctx, "Starting pre-run initialization")
@@ -209,7 +199,7 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
 		Logger:           s.log,
-		RenewalInterval:  s.botCfg.CredentialLifetime.RenewalInterval,
+		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)
@@ -271,7 +261,7 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *WorkloadIdentityAPIService) authenticateClient(
+func (s *WorkloadAPIService) authenticateClient(
 	ctx context.Context,
 ) (*slog.Logger, *attrs.WorkloadAttrs, error) {
 	p, ok := peer.FromContext(ctx)
@@ -326,7 +316,7 @@ func (s *WorkloadIdentityAPIService) authenticateClient(
 // It is a streaming RPC, and sends renewed SVIDs to the client before they
 // expire.
 // Implements the SPIFFE Workload API FetchX509SVID method.
-func (s *WorkloadIdentityAPIService) FetchX509SVID(
+func (s *WorkloadAPIService) FetchX509SVID(
 	_ *workloadpb.X509SVIDRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509SVIDServer,
 ) error {
@@ -349,7 +339,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 		return trace.Wrap(err, "fetching CRL set from cache")
 	}
 	renewalInterval := cmp.Or(
-		s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
+		s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
 	).RenewalInterval
 
 	var svids []*workloadpb.X509SVID
@@ -437,7 +427,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 // streaming RPC, and will send rotated trust bundles to the client for as long
 // as the client is connected.
 // Implements the SPIFFE Workload API FetchX509SVID method.
-func (s *WorkloadIdentityAPIService) FetchX509Bundles(
+func (s *WorkloadAPIService) FetchX509Bundles(
 	_ *workloadpb.X509BundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509BundlesServer,
 ) error {
@@ -480,13 +470,13 @@ func (s *WorkloadIdentityAPIService) FetchX509Bundles(
 
 // fetchX509SVIDs fetches the X.509 SVIDs for the bot's configured SVIDs and
 // returns them in the SPIFFE Workload API format.
-func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
+func (s *WorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
 	localBundle *spiffebundle.Bundle,
 	attest *attrs.WorkloadAttrs,
 ) ([]*workloadpb.X509SVID, error) {
-	ctx, span := tracer.Start(ctx, "WorkloadIdentityAPIService/fetchX509SVIDs")
+	ctx, span := tracer.Start(ctx, "WorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
 
 	creds, privateKey, err := workloadidentity.IssueX509WorkloadIdentity(
@@ -494,7 +484,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		log,
 		s.client,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		attest,
 	)
 	if err != nil {
@@ -556,7 +546,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 
 // FetchJWTSVID implements the SPIFFE Workload API FetchJWTSVID method.
 // See The SPIFFE Workload API (6.2.1).
-func (s *WorkloadIdentityAPIService) FetchJWTSVID(
+func (s *WorkloadAPIService) FetchJWTSVID(
 	ctx context.Context,
 	req *workloadpb.JWTSVIDRequest,
 ) (*workloadpb.JWTSVIDResponse, error) {
@@ -585,7 +575,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		s.client,
 		s.cfg.Selector,
 		req.Audience,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		attr,
 	)
 	if err != nil {
@@ -668,7 +658,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 
 // FetchJWTBundles implements the SPIFFE Workload API FetchJWTBundles method.
 // See The SPIFFE Workload API (6.2.2).
-func (s *WorkloadIdentityAPIService) FetchJWTBundles(
+func (s *WorkloadAPIService) FetchJWTBundles(
 	_ *workloadpb.JWTBundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchJWTBundlesServer,
 ) error {
@@ -711,7 +701,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTBundles(
 
 // ValidateJWTSVID implements the SPIFFE Workload API ValidateJWTSVID method.
 // See The SPIFFE Workload API (6.2.3).
-func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
+func (s *WorkloadAPIService) ValidateJWTSVID(
 	ctx context.Context,
 	req *workloadpb.ValidateJWTSVIDRequest,
 ) (*workloadpb.ValidateJWTSVIDResponse, error) {
@@ -753,9 +743,9 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 
 // String returns a human-readable string that can uniquely identify the
 // service.
-func (s *WorkloadIdentityAPIService) String() string {
+func (s *WorkloadAPIService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
-		fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen),
+		fmt.Sprintf("%s:%s", WorkloadAPIServiceType, s.cfg.Listen),
 	)
 }
