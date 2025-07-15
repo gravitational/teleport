@@ -41,7 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -186,7 +186,7 @@ func Test_filterBuffer(t *testing.T) {
 					},
 					verb: types.KubeVerbList,
 				}
-				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, utils.NewSlogLoggerForTests()), buf)
+				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, logtest.NewLogger()), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.

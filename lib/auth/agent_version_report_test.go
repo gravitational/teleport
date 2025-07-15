@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newFakeControlStream() fakeControlStream {
@@ -238,7 +238,7 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(twoMinutesAgo)
 			auth := &Server{
-				logger:   utils.NewSlogLoggerForTests(),
+				logger:   logtest.NewLogger(),
 				ServerID: uuid.NewString(),
 			}
 			controller := inventory.NewController(auth, nil, inventory.WithClock(clock))
@@ -300,7 +300,7 @@ func TestServer_reportAgentVersions(t *testing.T) {
 		clock:    clock,
 		ServerID: uuid.NewString(),
 		Services: &Services{AutoUpdateService: svc},
-		logger:   utils.NewSlogLoggerForTests(),
+		logger:   logtest.NewLogger(),
 	}
 	auth.Cache = auth.Services
 	controller := inventory.NewController(auth, nil, inventory.WithClock(clock))

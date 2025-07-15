@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestClientConn defines interface for client.Conn.
@@ -151,8 +152,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener = tls.NewListener(listener, tlsConfig)
 	}
 
-	log := utils.NewSlogLoggerForTests().With(
-		teleport.ComponentKey, defaults.ProtocolMySQL,
+	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMySQL,
 		"name", config.Name,
 	)
 	server := &TestServer{

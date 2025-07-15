@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
@@ -97,7 +98,7 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 func TestHSMRotation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "TestHSMRotation")
+	log := logtest.With(teleport.ComponentKey, "TestHSMRotation")
 
 	log.DebugContext(ctx, "starting auth server")
 	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clockwork.NewRealClock())
@@ -208,7 +209,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "TestHSMDualAuthRotation")
+	log := logtest.With(teleport.ComponentKey, "TestHSMDualAuthRotation")
 	storageConfig := liteBackendConfig(t)
 
 	// start a cluster with 1 auth server
@@ -390,7 +391,7 @@ func TestHSMMigrate(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "TestHSMMigrate")
+	log := logtest.With(teleport.ComponentKey, "TestHSMMigrate")
 	storageConfig := liteBackendConfig(t)
 
 	// start a dual auth non-hsm cluster
@@ -537,7 +538,7 @@ func TestHSMRevert(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "TestHSMRevert")
+	log := logtest.With(teleport.ComponentKey, "TestHSMRevert")
 
 	log.DebugContext(ctx, "starting auth server")
 	auth1Config := newHSMAuthConfig(t, liteBackendConfig(t), log, clock)

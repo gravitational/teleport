@@ -63,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/tlsca"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestTeleterm(t *testing.T) {
@@ -970,7 +970,7 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
 	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = libutils.NewSlogLoggerForTests()
+	nodeConfig.Logger = logtest.NewLogger()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -1045,7 +1045,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
 	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = libutils.NewSlogLoggerForTests()
+	nodeConfig.Logger = logtest.NewLogger()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())

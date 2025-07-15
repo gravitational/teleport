@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -1187,7 +1188,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	s.localAdminClient, err = authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewSlogLoggerForTests(),
+		Log:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
