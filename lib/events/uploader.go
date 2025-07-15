@@ -26,17 +26,22 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// UploadHandler is a function supplied by the user, it will upload
-// the file
+// UploadHandler uploads and downloads session-related files.
 type UploadHandler interface {
-	// Upload uploads session tarball and returns URL with uploaded file
-	// in case of success.
+	// Upload uploads a session recording and returns a URL with uploaded file in
+	// case of success.
 	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	// Download downloads session tarball and writes it to writer
+	// Download downloads a session recording and writes it to a writer.
 	Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error
+	// UploadSummary uploads a session summary and returns a URL with uploaded
+	// file in case of success.
+	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// DownloadSummary downloads a session summary and writes it to a writer.
+	DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error
 }
 
-// MultipartHandler handles both multipart uploads and downloads
+// MultipartHandler handles both multipart and standalone uploads and
+// downloads.
 type MultipartHandler interface {
 	UploadHandler
 	MultipartUploader
