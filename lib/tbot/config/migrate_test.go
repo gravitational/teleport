@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 func TestMigrate(t *testing.T) {
@@ -177,7 +178,7 @@ destinations:
 						Service:     "my-db-service",
 						Format:      database.CockroachDatabaseFormat,
 					},
-					&SSHHostOutput{
+					&ssh.HostOutputConfig{
 						Destination: &destination.Memory{},
 						Roles:       []string{"foo"},
 						Principals:  []string{"example.com", "second.example.com"},
@@ -594,7 +595,7 @@ oneshot: false
 					},
 				},
 				Services: ServiceConfigs{
-					&SSHHostOutput{
+					&ssh.HostOutputConfig{
 						Destination: &destination.Directory{
 							Path: "/opt/machine-id",
 						},

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package ssh
 
 import (
 	"context"
@@ -38,8 +38,8 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/resumption"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -276,7 +276,7 @@ func resolveTargetHostWithClient(
 }
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
-	identityPath := filepath.Join(destPath, config.IdentityFilePath)
+	identityPath := filepath.Join(destPath, internal.IdentityFilePath)
 	keyRing, err := identityfile.KeyRingFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

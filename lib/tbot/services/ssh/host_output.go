@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package ssh
 
 import (
 	"cmp"
@@ -39,22 +39,24 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-func SSHHostOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.SSHHostOutput) bot.ServiceBuilder {
+func HostOutputServiceBuilder(cfg *HostOutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &SSHHostOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			reloadCh:           deps.ReloadCh,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &HostOutputService{
+			botAuthClient:             deps.Client,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			reloadCh:                  deps.ReloadCh,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -65,35 +67,35 @@ func SSHHostOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.SSHHostOu
 	}
 }
 
-type SSHHostOutputService struct {
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.SSHHostOutput
-	log                *slog.Logger
-	statusReporter     readyz.Reporter
-	reloadCh           <-chan struct{}
-	identityGenerator  *identity.Generator
-	clientBuilder      *client.Builder
+type HostOutputService struct {
+	defaultCredentialLifetime bot.CredentialLifetime
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	cfg                       *HostOutputConfig
+	log                       *slog.Logger
+	statusReporter            readyz.Reporter
+	reloadCh                  <-chan struct{}
+	identityGenerator         *identity.Generator
+	clientBuilder             *client.Builder
 }
 
-func (s *SSHHostOutputService) String() string {
+func (s *HostOutputService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("ssh-host (%s)", s.cfg.Destination.String()),
 	)
 }
 
-func (s *SSHHostOutputService) OneShot(ctx context.Context) error {
+func (s *HostOutputService) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
-func (s *SSHHostOutputService) Run(ctx context.Context) error {
+func (s *HostOutputService) Run(ctx context.Context) error {
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
@@ -103,10 +105,10 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *SSHHostOutputService) generate(ctx context.Context) error {
+func (s *HostOutputService) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"SSHHostOutputService/generate",
+		"HostOutputService/generate",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
@@ -123,7 +125,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -162,7 +164,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL),
+		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL),
 	},
 	)
 	if err != nil {
@@ -174,7 +176,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: config.SSHHostCertPath,
+		OutputPath: SSHHostCertPath,
 		Writer:     internal.NewBotConfigWriter(ctx, s.cfg.Destination, ""),
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatOpenSSH,
@@ -198,7 +200,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	userCAPath := config.SSHHostCertPath + config.SSHHostUserCASuffix
+	userCAPath := SSHHostCertPath + SSHHostUserCASuffix
 	if err := s.cfg.Destination.Write(ctx, userCAPath, []byte(exportedCAs)); err != nil {
 		return trace.Wrap(err)
 	}
