@@ -24,8 +24,13 @@ function log_pre_install_info() {
     apt-file list "${package_name}"
 }
 
-# install_dependencies installs test dependencies.
+# install_dependencies installs test dependencies. Ensure the
+# source.list is correct for older versions of debian.
 function install_dependencies() {
+    source /etc/os-release
+    if (( VERSION_ID <= 10 )); then
+        sed -i 's|deb\.debian\.org|archive.debian.org/debian-archive|' /etc/apt/sources.list
+    fi
     apt-get "${APT_FLAGS[@]}" update
     apt-get "${APT_FLAGS[@]}" install curl apt-file apt-utils
 }
