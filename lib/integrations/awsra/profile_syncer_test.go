@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -51,9 +52,15 @@ for users who haven't set the environment variable.
 */
 
 func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
+		AuthPreferenceGetter: &mockCache{},
+	})
+	require.NoError(t, err)
+
 	baseParams := func() *AWSRolesAnywherProfileSyncerParams {
 		return &AWSRolesAnywherProfileSyncerParams{
-			KeyStoreManager:   keystore.NewSoftwareKeystoreForTests(t),
+			KeyStoreManager:   keyStoreManager,
 			Cache:             &mockCache{},
 			AppServerUpserter: &mockCache{},
 		}
@@ -187,9 +194,15 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		}
 	}
 
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
+		AuthPreferenceGetter: &mockCache{},
+	})
+	require.NoError(t, err)
+
 	baseParams := func(serverClient *mockCache) AWSRolesAnywherProfileSyncerParams {
 		return AWSRolesAnywherProfileSyncerParams{
-			KeyStoreManager:   keystore.NewSoftwareKeystoreForTests(t),
+			KeyStoreManager:   keyStoreManager,
 			Cache:             serverClient,
 			AppServerUpserter: serverClient,
 			Logger:            utils.NewSlogLoggerForTests(),
