@@ -401,7 +401,7 @@ type InitConfig struct {
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
 
-	// SummarizerResources manages summarization inference configuration resources.
+	// SummarizerResources manages summary inference configuration resources.
 	SummarizerResources services.SummarizerResources
 
 	// SummarizerWrapper is a wrapper around the summarizer service. It is used

@@ -39,6 +39,8 @@ type SummarizerResourcesService struct {
 
 var _ services.SummarizerResources = (*SummarizerResourcesService)(nil)
 
+// CreateInferenceModel creates a new session summary inference model in the
+// backend.
 func (s *SummarizerResourcesService) CreateInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) (*summarizerv1.InferenceModel, error) {
@@ -46,12 +48,16 @@ func (s *SummarizerResourcesService) CreateInferenceModel(
 	return res, trace.Wrap(err)
 }
 
+// DeleteInferenceModel deletes a session summary inference model from the
+// backend by name.
 func (s *SummarizerResourcesService) DeleteInferenceModel(
 	ctx context.Context, name string,
 ) error {
 	return trace.Wrap(s.modelService.DeleteResource(ctx, name))
 }
 
+// GetInferenceModel retrieves a session summary inference model from the
+// backend by name.
 func (s *SummarizerResourcesService) GetInferenceModel(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferenceModel, error) {
@@ -59,6 +65,8 @@ func (s *SummarizerResourcesService) GetInferenceModel(
 	return res, trace.Wrap(err)
 }
 
+// ListInferenceModels lists session summary inference models in the backend
+// with pagination support. Returns a slice of models and a next page token.
 func (s *SummarizerResourcesService) ListInferenceModels(
 	ctx context.Context, size int, pageToken string,
 ) ([]*summarizerv1.InferenceModel, string, error) {
@@ -66,6 +74,8 @@ func (s *SummarizerResourcesService) ListInferenceModels(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// UpdateInferenceModel updates an existing session summary inference model in
+// the backend.
 func (s *SummarizerResourcesService) UpdateInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) (*summarizerv1.InferenceModel, error) {
@@ -73,6 +83,8 @@ func (s *SummarizerResourcesService) UpdateInferenceModel(
 	return res, trace.Wrap(err)
 }
 
+// UpsertInferenceModel creates or updates a session summary inference model in
+// the backend. If the model already exists, it will be updated.
 func (s *SummarizerResourcesService) UpsertInferenceModel(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) (*summarizerv1.InferenceModel, error) {
@@ -80,6 +92,9 @@ func (s *SummarizerResourcesService) UpsertInferenceModel(
 	return res, trace.Wrap(err)
 }
 
+// CreateInferenceSecret creates a new session summary inference secret in the
+// backend. The returned object contains the secret value and should be handled
+// with care.
 func (s *SummarizerResourcesService) CreateInferenceSecret(
 	ctx context.Context, secret *summarizerv1.InferenceSecret,
 ) (*summarizerv1.InferenceSecret, error) {
@@ -87,11 +102,16 @@ func (s *SummarizerResourcesService) CreateInferenceSecret(
 	return res, trace.Wrap(err)
 }
 
+// DeleteInferenceSecret deletes a session summary inference secret from the
+// backend by name.
 func (s *SummarizerResourcesService) DeleteInferenceSecret(
 	ctx context.Context, name string) error {
 	return trace.Wrap(s.secretService.DeleteResource(ctx, name))
 }
 
+// GetInferenceSecret retrieves a session summary inference secret from the
+// backend by name. The returned object contains the secret value and should be
+// handled with care.
 func (s *SummarizerResourcesService) GetInferenceSecret(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferenceSecret, error) {
@@ -99,6 +119,10 @@ func (s *SummarizerResourcesService) GetInferenceSecret(
 	return res, trace.Wrap(err)
 }
 
+// ListInferenceSecrets lists session summary inference secrets in the backend
+// with pagination support. Returns a slice of secrets and a next page token.
+// The returned objects contain the secret values and should be handled with
+// care.
 func (s *SummarizerResourcesService) ListInferenceSecrets(
 	ctx context.Context, size int, pageToken string,
 ) ([]*summarizerv1.InferenceSecret, string, error) {
@@ -106,6 +130,9 @@ func (s *SummarizerResourcesService) ListInferenceSecrets(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// UpdateInferenceSecret updates an existing session summary inference secret
+// in the backend. The returned object contains the secret value and should be
+// handled with care.
 func (s *SummarizerResourcesService) UpdateInferenceSecret(
 	ctx context.Context, secret *summarizerv1.InferenceSecret,
 ) (*summarizerv1.InferenceSecret, error) {
@@ -113,6 +140,9 @@ func (s *SummarizerResourcesService) UpdateInferenceSecret(
 	return res, trace.Wrap(err)
 }
 
+// UpsertInferenceSecret creates or updates a session summary inference
+// secretin the backend. If the secret already exists, it will be updated. The
+// returned object contains the secret value and should be handled with care.
 func (s *SummarizerResourcesService) UpsertInferenceSecret(
 	ctx context.Context, secret *summarizerv1.InferenceSecret,
 ) (*summarizerv1.InferenceSecret, error) {
@@ -120,6 +150,8 @@ func (s *SummarizerResourcesService) UpsertInferenceSecret(
 	return res, trace.Wrap(err)
 }
 
+// CreateInferencePolicy creates a new session summary inference policy in the
+// backend.
 func (s *SummarizerResourcesService) CreateInferencePolicy(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) (*summarizerv1.InferencePolicy, error) {
@@ -127,12 +159,16 @@ func (s *SummarizerResourcesService) CreateInferencePolicy(
 	return res, trace.Wrap(err)
 }
 
+// DeleteInferencePolicy deletes a session summary inference policy from the
+// backend by name.
 func (s *SummarizerResourcesService) DeleteInferencePolicy(
 	ctx context.Context, name string,
 ) error {
 	return trace.Wrap(s.policyService.DeleteResource(ctx, name))
 }
 
+// GetInferencePolicy retrieves a session summary inference policy from the
+// backend by name.
 func (s *SummarizerResourcesService) GetInferencePolicy(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferencePolicy, error) {
@@ -140,6 +176,9 @@ func (s *SummarizerResourcesService) GetInferencePolicy(
 	return res, trace.Wrap(err)
 }
 
+// ListInferencePolicies lists session summary inference policies in the
+// backend with pagination support. Returns a slice of policies and a next page
+// token.
 func (s *SummarizerResourcesService) ListInferencePolicies(
 	ctx context.Context, size int, pageToken string,
 ) ([]*summarizerv1.InferencePolicy, string, error) {
@@ -147,6 +186,8 @@ func (s *SummarizerResourcesService) ListInferencePolicies(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// UpdateInferencePolicy updates an existing session summary inference policy
+// in the backend.
 func (s *SummarizerResourcesService) UpdateInferencePolicy(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) (*summarizerv1.InferencePolicy, error) {
@@ -154,6 +195,8 @@ func (s *SummarizerResourcesService) UpdateInferencePolicy(
 	return res, trace.Wrap(err)
 }
 
+// UpsertInferencePolicy creates or updates a session summary inference policy
+// in the backend. If the policy already exists, it will be updated.
 func (s *SummarizerResourcesService) UpsertInferencePolicy(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) (*summarizerv1.InferencePolicy, error) {
@@ -161,6 +204,8 @@ func (s *SummarizerResourcesService) UpsertInferencePolicy(
 	return res, trace.Wrap(err)
 }
 
+// AllInferencePolicies returns an iterator that retrieves all session summary
+// inference policies from the backend, without pagination.
 func (s *SummarizerResourcesService) AllInferencePolicies(
 	ctx context.Context,
 ) iter.Seq2[*summarizerv1.InferencePolicy, error] {

@@ -28,8 +28,9 @@ import (
 // Summarizer summarizes session recordings using language model inference.
 type Summarizer interface {
 	// Summarize summarizes a session recording with a given ID. The
-	// sessionEndEvent is optional, but should be specified if possible, as it
-	// lets us skip reading the session stream just to find the end event.
+	// sessionEndEvent is optional, but should be specified if possible, as an
+	// optimization to skip reading the session stream in order to find the end
+	// event.
 	Summarize(ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf) error
 }
 
@@ -40,14 +41,21 @@ type SummarizerWrapper struct {
 	Summarizer
 }
 
+// NewSummarizerWrapper creates a new SummarizerWrapper with an unimplemented
+// Summarizer.
 func NewSummarizerWrapper() *SummarizerWrapper {
 	return &SummarizerWrapper{
 		Summarizer: &UnimplementedSummarizer{},
 	}
 }
 
+// A [Summarizer] that returns an error indicating that summarization is only
+// available in the enterprise version of Teleport.
 type UnimplementedSummarizer struct{}
 
+// Summarize is supposed to return a summary of a session recording, but
+// returns an error indicating that this feature is only available in the
+// enterprise version of Teleport.
 func (s *UnimplementedSummarizer) Summarize(
 	ctx context.Context, sessionID session.ID, sessionEndEvent *events.OneOf,
 ) error {
