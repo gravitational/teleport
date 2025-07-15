@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // IdentityCommand implements `tbot start identity` and
@@ -67,7 +68,7 @@ func (c *IdentityCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.IdentityOutput{
+	cfg.Services = append(cfg.Services, &identity.OutputConfig{
 		Destination:  dest,
 		Cluster:      c.Cluster,
 		AllowReissue: c.AllowReissue,

@@ -68,8 +68,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -319,14 +321,14 @@ func TestBot(t *testing.T) {
 		t, rootClient, "test", defaultRoles...,
 	)
 
-	identityOutput := &config.IdentityOutput{
+	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &config.IdentityOutput{
+	identityOutputWithRoles := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 		Roles:       []string{mainRole},
 	}
-	identityOutputWithReissue := &config.IdentityOutput{
+	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
 	}
@@ -554,7 +556,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destin
 	require.NoError(t, err)
 	certBytes, err := dest.Read(ctx, identity.TLSCertKey)
 	require.NoError(t, err)
-	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
+	hostCABytes, err := dest.Read(ctx, internal.HostCAPath)
 	require.NoError(t, err)
 	_, tlsIdent, _, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
 	require.NoError(t, err)
@@ -689,7 +691,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	botConfig.Oneshot = false
 	outputDest := newWriteNotifier(&destination.Memory{})
 	require.NoError(t, outputDest.CheckAndSetDefaults())
-	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
+	botConfig.Services = append(botConfig.Services, &identitysvc.OutputConfig{
 		Destination: outputDest,
 	})
 	thirdBot := New(botConfig, log)
@@ -1226,7 +1228,7 @@ func TestBotJoiningURI(t *testing.T) {
 			Destination: &destination.Memory{},
 		},
 		Services: config.ServiceConfigs{
-			&config.IdentityOutput{
+			&identitysvc.OutputConfig{
 				Destination: &destination.Memory{},
 			},
 		},
