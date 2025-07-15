@@ -798,6 +798,8 @@ func (k *Key) SignOAuthRequest(claims any) (string, error) {
 	return k.sign(claims, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]interface{}{
 			// TODO: Switch on public key.
+			// TODO: Check OIDC discovery URL ("authorization_signing_alg_values_supported") to see
+			// if the algorithm is supported?
 			"alg": jose.RS256,
 		},
 	})
