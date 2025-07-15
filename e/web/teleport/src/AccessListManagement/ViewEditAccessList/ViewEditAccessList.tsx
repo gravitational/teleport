@@ -22,6 +22,7 @@ import {
   AccessListMemberKind,
   AccessListOrigin,
   accessManagementService,
+  isReviewable,
   type AccessList,
   type AccessListMember,
 } from 'e-teleport/services/accessmanagement';
@@ -449,8 +450,9 @@ const ReviewBanner = ({
 
   const canReview = perms.isOwner || perms.adminWhoCanEdit;
   const requiresReview =
-    (accessList.requiresReview || accessList.audit.nextDate < new Date()) &&
-    !isReadOnlyOktaList;
+    isReviewable(accessList.type) &&
+    !isReadOnlyOktaList &&
+    (accessList.requiresReview || accessList.audit.nextDate < new Date());
 
   if (!requiresReview && canReview && location.hash === '#review') {
     return (

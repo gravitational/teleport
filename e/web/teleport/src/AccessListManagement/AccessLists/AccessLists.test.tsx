@@ -9,6 +9,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   AccessList,
   AccessListMemberKind,
+  AccessListType,
   accessManagementService,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -312,6 +313,7 @@ function renderComponent(ctx: TeleportEContext) {
 
 const mockAccessListApple: AccessList = {
   id: 'id-apple',
+  type: AccessListType.Default,
   title: 'apple',
   description: '',
   owners: [
@@ -341,6 +343,7 @@ const mockAccessListApple: AccessList = {
 
 const mockAccessListBanana: AccessList = {
   id: 'id-banana',
+  type: AccessListType.Default,
   title: 'banana',
   description: '',
   owners: [

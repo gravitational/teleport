@@ -11,6 +11,7 @@ import {
   AccessListMember,
   AccessListOrigin,
   AccessListOwner,
+  AccessListType,
   AddMembersToAccessListRequest,
   IneligibleStatus,
   ReviewAccessListRequest,
@@ -192,6 +193,7 @@ function makeAccessList(json: any): AccessList {
   return {
     id: metadata?.name || '',
     origin: originFromMetadataLabel(metadata?.labels || {}),
+    type: spec.type || AccessListType.Default,
     title: spec.title || '',
     description: spec.description || '',
     owners: makeOwners(spec.owners),

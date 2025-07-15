@@ -5,6 +5,7 @@ import {
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
 import {
   AccessListMemberKind,
+  AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -196,6 +197,7 @@ const keepMembers = [
 
 const mockAccessList: AccessListModified = {
   id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+  type: AccessListType.Default,
   title: 'Interns',
   audit: {
     recurrence: {

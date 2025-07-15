@@ -7,7 +7,10 @@ import { User, UserList } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
-import { AccessListOrigin } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListOrigin,
+  isReviewable,
+} from 'e-teleport/services/accessmanagement';
 
 import { TruncatingLabel } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
@@ -58,6 +61,7 @@ export function AccessCard({
   // If list is Okta-synced and Okta Integration is set to read-only,
   // reviews are irrelevant as members and grants may not be edited in Teleport.
   const requiresReview =
+    isReviewable(accessList.type) &&
     needsReviewBy &&
     !isMember &&
     !(isOktaReadOnly && type === AccessListOrigin.Okta);

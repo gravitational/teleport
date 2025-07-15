@@ -11,6 +11,7 @@ import {
   AccessList,
   AccessListMemberKind,
   AccessListOrigin,
+  AccessListType,
   IneligibleStatus,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -28,6 +29,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
   expect(response).toStrictEqual([
     {
       id: '',
+      type: AccessListType.Default,
       origin: '',
       title: '',
       description: '',
@@ -81,6 +83,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     ownerGrants: { roles: [], traits: {} },
     inheritedMemberGrants: { roles: [], traits: {} },
     id: '',
+    type: AccessListType.Default,
     members: [],
     membersCount: undefined,
     memberListCount: undefined,
@@ -171,6 +174,7 @@ test('fetch an access list', async () => {
     await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual({
     id: 'some-id',
+    type: AccessListType.Default,
     origin: AccessListOrigin.Okta,
     title: 'some title',
     description: 'some description',
@@ -232,6 +236,7 @@ test('fetch an access list', async () => {
 describe('update an access list', () => {
   const originalAccessList: AccessList = {
     id: 'some-id',
+    type: AccessListType.Default,
     title: 'some title',
     description: 'some description',
     audit: {

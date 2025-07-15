@@ -45,6 +45,7 @@ export type AccessList = {
   title: string; // friendly name of id
   description?: string;
   origin?: AccessListOrigin;
+  type: AccessListType;
   audit: AccessListAudit;
   grants: AccessListGrant; // memberGrant
   ownerGrants: AccessListGrant;
@@ -183,11 +184,33 @@ export type ReviewAccessListRequest = {
 };
 
 /**
- * AccessListType specifies the name of an integration
+ * AccessListOrigin specifies the name of an integration
  * for which or from which the Access List was created.
  */
 export enum AccessListOrigin {
   Unspecified = '',
   Okta = 'okta',
   AwsIdentityCenter = 'aws-identity-center',
+}
+
+export enum AccessListType {
+  /**
+   * Dynamic Access Lists are the default type supposed to be managed with the web UI. They
+   * require periodic audit reviews.
+   */
+  Default = '',
+  /**
+   * Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
+   * reviews are not supported for them and the ownership is optional.
+   */
+  Static = 'static',
+  /**
+   * Scim Access Lists are created with the SCIM integration. Audit reviews are not supported
+   * for them and the ownership is optional.
+   */
+  Scim = 'scim',
+}
+
+export function isReviewable(type: AccessListType): boolean {
+  return type === AccessListType.Default;
 }

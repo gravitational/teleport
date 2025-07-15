@@ -2,6 +2,7 @@ import { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/Ac
 import {
   AccessListMemberKind,
   AccessListOrigin,
+  AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -291,6 +292,7 @@ describe('Access List Management Shared', () => {
   const mockAccessLists = [
     {
       id: '1',
+      type: AccessListType.Default,
       title: 'Admin List',
       description: 'Admins and superusers',
       owners: [
@@ -313,6 +315,7 @@ describe('Access List Management Shared', () => {
     },
     {
       id: '2',
+      type: AccessListType.Default,
       title: 'User List',
       description: 'Regular users',
       owners: [{ name: 'Charlie', membershipKind: AccessListMemberKind.User }],
@@ -332,6 +335,7 @@ describe('Access List Management Shared', () => {
     },
     {
       id: '3',
+      type: AccessListType.Default,
       title: 'Support List',
       description: 'Support staff and users',
       owners: [{ name: 'Bob', membershipKind: AccessListMemberKind.User }],
@@ -351,6 +355,7 @@ describe('Access List Management Shared', () => {
     },
     {
       id: '4',
+      type: AccessListType.Default,
       title: 'AWS IAM Identity Center List',
       description: 'AWS groups',
       owners: [{ name: 'AWSDev', membershipKind: AccessListMemberKind.User }],

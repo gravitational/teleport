@@ -9,6 +9,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   AccessList,
   AccessListMemberKind,
+  AccessListType,
   accessManagementService,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -93,6 +94,7 @@ test('back button uses default route if router state is not provided', async () 
 
 const mockAccessListApple: AccessList = {
   id: 'id-apple',
+  type: AccessListType.Default,
   title: 'apple',
   description: '',
   owners: [

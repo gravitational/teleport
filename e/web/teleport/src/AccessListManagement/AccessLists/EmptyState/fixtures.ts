@@ -2,6 +2,7 @@ import {
   AccessListMember,
   AccessListMemberKind,
   AccessListOrigin,
+  AccessListType,
   IneligibleStatus,
 } from 'e-teleport/services/accessmanagement';
 import { getIneligibleReason } from 'e-teleport/services/accessmanagement/accessmanagement';
@@ -11,6 +12,7 @@ import { AccessListWithModifiedGrants } from '../AccessLists';
 export const mockAccessLists: AccessListWithModifiedGrants[] = [
   {
     id: '1',
+    type: AccessListType.Default,
     title: 'All Employees',
     description: 'Adding new hires!',
     grants: { roles: ['core-apps'], traitList: [], traits: {} },
@@ -29,6 +31,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '2',
+    type: AccessListType.Default,
     title: 'Design',
     description: 'Allocating PostHog so Design Team...',
     grants: {
@@ -50,6 +53,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '3',
+    type: AccessListType.Default,
     title: 'Engineering',
     description: 'Adding new engineers to eng team res...',
     grants: {
@@ -71,6 +75,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '4',
+    type: AccessListType.Default,
     title: 'Finance',
     description: 'Removed deprecated procurement platform...',
     grants: {
@@ -92,6 +97,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '5',
+    type: AccessListType.Default,
     title: 'HR',
     origin: AccessListOrigin.AwsIdentityCenter,
     description: 'All things human resource...',
@@ -114,6 +120,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '6',
+    type: AccessListType.Default,
     title: 'Marketing',
     description: 'All things marketing...',
     grants: {
