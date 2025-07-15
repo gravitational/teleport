@@ -22,8 +22,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/cli"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 // onSSHProxyCommand is meant to be used as an OpenSSH/PuTTY proxy command. While this
@@ -39,7 +39,7 @@ func onSSHProxyCommand(ctx context.Context, globalCfg *cli.GlobalArgs, sshProxyC
 		sshProxyCmd.Port = "0"
 	}
 
-	proxySSHConfig := tbot.ProxySSHConfig{
+	proxySSHConfig := ssh.ProxySSHConfig{
 		Insecure:                  globalCfg.Insecure,
 		FIPS:                      globalCfg.FIPS,
 		DestinationPath:           sshProxyCmd.DestinationDir,
@@ -55,11 +55,11 @@ func onSSHProxyCommand(ctx context.Context, globalCfg *cli.GlobalArgs, sshProxyC
 		Log:                       log,
 	}
 
-	return trace.Wrap(tbot.ProxySSH(ctx, proxySSHConfig))
+	return trace.Wrap(ssh.ProxySSH(ctx, proxySSHConfig))
 }
 
 // onSSHMultiplexProxyCommand connects to an existing long-lived SSH multiplexer
 // service as opposed to onSSHProxyCommand which completes this on-the-fly.
 func onSSHMultiplexProxyCommand(ctx context.Context, socketPath string, target string) error {
-	return trace.Wrap(tbot.ConnectToSSHMultiplex(ctx, socketPath, target, os.Stdout))
+	return trace.Wrap(ssh.ConnectToSSHMultiplex(ctx, socketPath, target, os.Stdout))
 }
