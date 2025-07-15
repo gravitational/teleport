@@ -286,6 +286,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSigstorePolicy, nil
 	case types.KindHealthCheckConfig, types.KindHealthCheckConfig + "s", "hcc":
 		return types.KindHealthCheckConfig, nil
+	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
+		return scopedaccess.KindScopedRole, nil
+	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments":
+		return scopedaccess.KindScopedRoleAssignment, nil
 	case types.KindInferenceModel, "inference_models":
 		return types.KindInferenceModel, nil
 	case types.KindInferenceSecret, "inference_secrets":
@@ -976,6 +980,26 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return resource, nil
+}
+
+// UnmarshalProtoResourceArray unmarshals an array of ProtoResources from JSON using [UnmarshalProtoResource] on each
+// individual element.
+func UnmarshalProtoResourceArray[T ProtoResourcePtr[U], U any](data []byte, opts ...MarshalOption) ([]T, error) {
+	var msgs []json.RawMessage
+	if err := json.Unmarshal(data, &msgs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources := make([]T, 0, len(msgs))
+	for _, msg := range msgs {
+		resource, err := UnmarshalProtoResource[T](msg, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, resource)
+	}
+
+	return resources, nil
 }
 
 // FastMarshalProtoResourceDeprecated marshals a ProtoResource to JSON using [utils.FastMarshal] and respecting [opts].

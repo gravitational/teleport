@@ -217,6 +217,20 @@ func TestFromProtoNils(t *testing.T) {
 		_, err := FromProto(msg)
 		require.NoError(t, err)
 	})
+
+	t.Run("requires is not set to nil", func(t *testing.T) {
+		acl := newAccessList(t, "access-list")
+		acl.Spec.MembershipRequires = accesslist.Requires{}
+		acl.Spec.OwnershipRequires = accesslist.Requires{}
+		msg := ToProto(acl)
+		// Ensure Requires fields are not set to nil for backward compatibility.
+		// Older implementations of FromProto (e.g., in Teleport v16) may incorrectly set these fields to nil:
+		// https://github.com/gravitational/teleport/blob/branch/v16/api/types/accesslist/convert/v1/accesslist.go#L46
+		// Since FromProto is invoked client-side (e.g., by the Terraform provider),
+		// setting Requires to nil could introduce breaking changes for existing clients.
+		require.NotNil(t, msg.Spec.MembershipRequires)
+		require.NotNil(t, msg.Spec.OwnershipRequires)
+	})
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
@@ -324,8 +338,10 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Title:       "test access list",
-					Description: "test description",
+					Title:              "test access list",
+					Description:        "test description",
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Owners: []*accesslistv1.AccessListOwner{
 						{
 							Name: "test-user1",
@@ -364,8 +380,10 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Title:       "test access list",
-					Description: "test description",
+					Title:              "test access list",
+					Description:        "test description",
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Owners: []*accesslistv1.AccessListOwner{
 						{
 							Name: "test-user1",
@@ -402,10 +420,12 @@ func TestConvAccessList(t *testing.T) {
 					},
 				},
 				Spec: &accesslistv1.AccessListSpec{
-					Type:        string(accesslist.SCIM),
-					Title:       "test access list",
-					Description: "test description",
-					Owners:      []*accesslistv1.AccessListOwner{},
+					Type:               string(accesslist.SCIM),
+					Title:              "test access list",
+					Description:        "test description",
+					Owners:             []*accesslistv1.AccessListOwner{},
+					OwnershipRequires:  &accesslistv1.AccessListRequires{},
+					MembershipRequires: &accesslistv1.AccessListRequires{},
 					Grants: &accesslistv1.AccessListGrants{
 						Roles: []string{"role1"},
 					},
