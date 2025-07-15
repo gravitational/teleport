@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package workloadidentity
 
 import (
 	"context"
@@ -28,16 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const WorkloadIdentityX509OutputType = "workload-identity-x509"
+const JWTOutputServiceType = "workload-identity-jwt"
 
-var (
-	_ ServiceConfig = &WorkloadIdentityX509Service{}
-	_ Initable      = &WorkloadIdentityX509Service{}
-)
-
-// WorkloadIdentityX509Service is the configuration for the WorkloadIdentityX509Service
-// Emulates the output of https://github.com/spiffe/spiffe-helper
-type WorkloadIdentityX509Service struct {
+// X509OutputConfig is the configuration for the Workload Identity JWT output
+// service.
+type JWTOutputConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
@@ -45,9 +40,8 @@ type WorkloadIdentityX509Service struct {
 	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// IncludeFederatedTrustBundles controls whether to include federated trust
-	// bundles in the output.
-	IncludeFederatedTrustBundles bool `yaml:"include_federated_trust_bundles,omitempty"`
+	// Audiences is the list of audiences that the JWT should be valid for.
+	Audiences []string
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -55,68 +49,66 @@ type WorkloadIdentityX509Service struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o WorkloadIdentityX509Service) GetName() string {
+func (o JWTOutputConfig) GetName() string {
 	return o.Name
 }
 
 // Init initializes the destination.
-func (o *WorkloadIdentityX509Service) Init(ctx context.Context) error {
+func (o *JWTOutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-// GetDestination returns the destination.
-func (o *WorkloadIdentityX509Service) GetDestination() destination.Destination {
-	return o.Destination
-}
-
-// CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *WorkloadIdentityX509Service) CheckAndSetDefaults() error {
-	if err := validateOutputDestination(o.Destination); err != nil {
-		return trace.Wrap(err)
+// CheckAndSetDefaults checks the WorkloadIdentityJWTService values and sets any defaults.
+func (o *JWTOutputConfig) CheckAndSetDefaults() error {
+	if o.Destination == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := o.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
 	}
+	if len(o.Audiences) == 0 {
+		return trace.BadParameter("audiences: must have at least one value")
+	}
 	return nil
 }
 
-// Describe returns the file descriptions for the WorkloadIdentityX509Service.
-func (o *WorkloadIdentityX509Service) Describe() []bot.FileDescription {
+// JWTSVIDPath is the name of the artifact that a JWT SVID will be written to.
+const JWTSVIDPath = "jwt_svid"
+
+// Describe returns the file descriptions for the WorkloadIdentityJWTService.
+func (o *JWTOutputConfig) Describe() []bot.FileDescription {
 	fds := []bot.FileDescription{
 		{
-			Name: internal.SVIDPEMPath,
-		},
-		{
-			Name: internal.SVIDKeyPEMPath,
-		},
-		{
-			Name: internal.SVIDTrustBundlePEMPath,
-		},
-		{
-			Name: internal.SVIDCRLPemPath,
+			Name: internal.JWTSVIDPath,
 		},
 	}
 	return fds
 }
 
-func (o *WorkloadIdentityX509Service) Type() string {
-	return WorkloadIdentityX509OutputType
+func (o *JWTOutputConfig) Type() string {
+	return JWTOutputServiceType
 }
 
-// MarshalYAML marshals the WorkloadIdentityX509Service into YAML.
-func (o *WorkloadIdentityX509Service) MarshalYAML() (any, error) {
-	type raw WorkloadIdentityX509Service
-	return encoding.WithTypeHeader((*raw)(o), WorkloadIdentityX509OutputType)
+// MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
+func (o *JWTOutputConfig) MarshalYAML() (any, error) {
+	type raw JWTOutputConfig
+	return encoding.WithTypeHeader((*raw)(o), JWTOutputServiceType)
 }
 
-// UnmarshalYAML unmarshals the WorkloadIdentityX509Service from YAML.
-func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *JWTOutputConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *JWTOutputConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw WorkloadIdentityX509Service
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw JWTOutputConfig
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,7 +116,12 @@ func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *WorkloadIdentityX509Service) GetCredentialLifetime() bot.CredentialLifetime {
+// GetDestination returns the destination.
+func (o *JWTOutputConfig) GetDestination() destination.Destination {
+	return o.Destination
+}
+
+func (o *JWTOutputConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	lt := o.CredentialLifetime
 	lt.SkipMaxTTLValidation = true
 	return lt

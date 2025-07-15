@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tbot
+package workloadidentity
 
 import (
 	"cmp"
@@ -32,25 +32,28 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
-func WorkloadIdentityJWTServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *config.WorkloadIdentityJWTService,
+func JWTOutputServiceBuilder(
+	cfg *JWTOutputConfig,
 	trustBundleCache TrustBundleGetter,
+	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &WorkloadIdentityJWTService{
-			botAuthClient:     deps.Client,
-			botCfg:            botCfg,
-			cfg:               cfg,
-			getBotIdentity:    deps.BotIdentity,
-			identityGenerator: deps.IdentityGenerator,
-			clientBuilder:     deps.ClientBuilder,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &JWTOutputService{
+			botAuthClient:             deps.Client,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			getBotIdentity:            deps.BotIdentity,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -61,15 +64,15 @@ func WorkloadIdentityJWTServiceBuilder(
 	}
 }
 
-// WorkloadIdentityJWTService is a service that retrieves JWT workload identity
+// JWTOutputService is a service that retrieves JWT workload identity
 // credentials for WorkloadIdentity resources.
-type WorkloadIdentityJWTService struct {
-	botAuthClient  *apiclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityJWTService
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
-	statusReporter readyz.Reporter
+type JWTOutputService struct {
+	botAuthClient             *apiclient.Client
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *JWTOutputConfig
+	getBotIdentity            func() *identity.Identity
+	log                       *slog.Logger
+	statusReporter            readyz.Reporter
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache  TrustBundleGetter
@@ -78,7 +81,7 @@ type WorkloadIdentityJWTService struct {
 }
 
 // String returns a human-readable description of the service.
-func (s *WorkloadIdentityJWTService) String() string {
+func (s *JWTOutputService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("workload-identity-jwt (%s)", s.cfg.Destination.String()),
@@ -87,7 +90,7 @@ func (s *WorkloadIdentityJWTService) String() string {
 
 // OneShot runs the service once, generating the output and writing it to the
 // destination, before exiting.
-func (s *WorkloadIdentityJWTService) OneShot(ctx context.Context) error {
+func (s *JWTOutputService) OneShot(ctx context.Context) error {
 	res, err := s.requestJWTSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting JWT SVID")
@@ -97,7 +100,7 @@ func (s *WorkloadIdentityJWTService) OneShot(ctx context.Context) error {
 
 // Run runs the service in daemon mode, periodically generating the output and
 // writing it to the destination.
-func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
+func (s *JWTOutputService) Run(ctx context.Context) error {
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
@@ -141,7 +144,7 @@ func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
 				cred = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			cred = nil
 		case <-firstRun:
@@ -166,7 +169,7 @@ func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
 	}
 }
 
-func (s *WorkloadIdentityJWTService) requestJWTSVID(
+func (s *JWTOutputService) requestJWTSVID(
 	ctx context.Context,
 ) (
 	*workloadidentityv1pb.Credential,
@@ -174,11 +177,11 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 ) {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityJWTService/requestJWTSVID",
+		"JWTOutputService/requestJWTSVID",
 	)
 	defer span.End()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
@@ -234,13 +237,13 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	return credential, nil
 }
 
-func (s *WorkloadIdentityJWTService) render(
+func (s *JWTOutputService) render(
 	ctx context.Context,
 	cred *workloadidentityv1pb.Credential,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityJWTService/render",
+		"JWTOutputService/render",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Rendering output")
@@ -258,7 +261,7 @@ func (s *WorkloadIdentityJWTService) render(
 	}
 
 	if err := s.cfg.Destination.Write(
-		ctx, config.JWTSVIDPath, []byte(cred.GetJwtSvid().GetJwt()),
+		ctx, internal.JWTSVIDPath, []byte(cred.GetJwtSvid().GetJwt()),
 	); err != nil {
 		return trace.Wrap(err, "writing jwt svid")
 	}
