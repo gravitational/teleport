@@ -232,6 +232,21 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 	return member, trace.Wrap(err)
 }
 
+// GetStaticAccessListMember returns the specified access_list_member resource. If returns error if
+// the target access_list is not of type static.
+func (c *Client) GetStaticAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, &accesslistv1.GetStaticAccessListMemberRequest{
+		AccessList: accessList,
+		MemberName: memberName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	member, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
+	return member, trace.Wrap(err)
+}
+
 // GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
 //
 // Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
@@ -264,6 +279,19 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 	return responseMember, trace.Wrap(err)
 }
 
+// UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns error
+// and does nothing if the target access_list is not of type static.
+func (c *Client) UpsertStaticAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertStaticAccessListMember(ctx, &accesslistv1.UpsertStaticAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
+	return m, trace.Wrap(err)
+}
+
 // UpdateAccessListMember updates an access list member resource using a conditional update.
 func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
@@ -276,7 +304,16 @@ func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.
 	return responseMember, trace.Wrap(err)
 }
 
-// DeleteAccessListMember hard deletes the specified access list member resource.
+// DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error and
+// does nothing if the target access_list is not of static type.
+func (c *Client) DeleteStaticAccessListMember(ctx context.Context, accessList string, memberName string) error {
+	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, &accesslistv1.DeleteStaticAccessListMemberRequest{
+		AccessList: accessList,
+		MemberName: memberName,
+	})
+	return trace.Wrap(err)
+}
+
 func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
 	_, err := c.grpcClient.DeleteAccessListMember(ctx, &accesslistv1.DeleteAccessListMemberRequest{
 		AccessList: accessList,

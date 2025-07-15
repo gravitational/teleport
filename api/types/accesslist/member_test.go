@@ -50,19 +50,30 @@ func TestAccessListMemberDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("join date required for member", func(t *testing.T) {
+	// Joined is set by the UpsertAccessListMember and UpsertAccessListWithMembers
+	t.Run("join date not required", func(t *testing.T) {
 		uut := newValidAccessListMember()
 		uut.Spec.Joined = time.Time{}
 
 		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
-	t.Run("added-by required", func(t *testing.T) {
+	// AddedBy is set by the UpsertAccessListMember and UpsertAccessListWithMembers
+	t.Run("added-by not required", func(t *testing.T) {
 		uut := newValidAccessListMember()
 		uut.Spec.AddedBy = ""
 
 		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
+		require.NoError(t, err)
+	})
+
+	t.Run("name defaulted to metadata.name", func(t *testing.T) {
+		uut := newValidAccessListMember()
+		uut.Spec.Name = ""
+
+		err := uut.CheckAndSetDefaults()
+		require.NoError(t, err)
+		require.Equal(t, uut.GetMetadata().Name, uut.Spec.Name)
 	})
 }
