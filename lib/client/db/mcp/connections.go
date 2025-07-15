@@ -157,7 +157,7 @@ func NewConnectionsManager[T any, C CloseableDBConn[T]](ctx context.Context, cfg
 // no active connection, it will establish a new one.
 func (i *ConnectionsManager[T, C]) Get(ctx context.Context, id string) (*ManagedConn[T, C], error) {
 	if i.closed.Load() {
-		return nil, trace.AccessDenied("idle checker closed")
+		return nil, trace.AccessDenied("manager is closed")
 	}
 
 	i.mu.Lock()

@@ -98,16 +98,44 @@ func TestConnectionsManagerIdle(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, conn5.Conn().closed.Load(), "expected connection to be active")
 
+		// Release all connections, otherwise Close will be blocked.
+		conn4.Release()
+		conn5.Release()
+	})
+}
+
+func TestConnectionsManagerClose(t *testing.T) {
+	synctest.Run(func() {
+		maxIdleTime := time.Minute
+		manager, err := NewConnectionsManager(t.Context(), &ConnectionsManagerConfig{
+			MaxIdleTime: maxIdleTime,
+			Logger:      utils.NewSlogLoggerForTests(),
+		}, func(ctx context.Context, id string) (*fakeConn, error) {
+			return &fakeConn{}, nil
+		})
+		require.NoError(t, err)
+		defer manager.Close(t.Context())
+
+		conn1, err := manager.Get(t.Context(), "first")
+		require.NoError(t, err)
+		require.False(t, conn1.Conn().closed.Load(), "expected connection to be active")
+
 		// Close should wait until all connections are released.
 		go func() {
 			assert.NoError(t, manager.Close(t.Context()))
 		}()
 
-		conn4.Release()
-		conn5.Release()
 		synctest.Wait()
 
-		_, err = manager.Get(t.Context(), "first")
+		// After manager is closed or during the close proccess, any get should
+		// immediately return error.
+		require.False(t, conn1.Conn().closed.Load(), "expected connection to be active") // Ensures the close still in progress.
+		_, err = manager.Get(t.Context(), "random")
 		require.Error(t, err)
+
+		// Ensure close is done.
+		conn1.Release()
+		synctest.Wait()
+		require.True(t, conn1.Conn().closed.Load(), "expected connection to be closed")
 	})
 }
