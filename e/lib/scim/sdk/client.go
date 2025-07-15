@@ -79,7 +79,7 @@ func New(config *Config) (Client, error) {
 	return c, trace.Wrap(err)
 }
 
-func nativeClientProvider(config *Config) (*client, error) {
+func nativeClientProvider(config *Config) (Client, error) {
 	if err := config.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
