@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 type destinationMixinV1 struct {
@@ -318,7 +319,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		return &KubernetesOutput{
+		return &k8s.OutputV1Config{
 			Destination:       dest,
 			Roles:             c.Roles,
 			KubernetesCluster: c.KubernetesCluster,

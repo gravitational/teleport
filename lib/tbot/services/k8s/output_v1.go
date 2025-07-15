@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package k8s
 
 import (
 	"bytes"
@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -53,18 +52,21 @@ import (
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
 
-func KubernetesOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.KubernetesOutput) bot.ServiceBuilder {
+func OutputV1ServiceBuilder(cfg *OutputV1Config, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &KubernetesOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			proxyPinger:        deps.ProxyPinger,
-			reloadCh:           deps.ReloadCh,
-			executablePath:     autoupdate.StableExecutable,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &OutputV1Service{
+			botAuthClient:             deps.Client,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			cfg:                       cfg,
+			proxyPinger:               deps.ProxyPinger,
+			reloadCh:                  deps.ReloadCh,
+			executablePath:            autoupdate.StableExecutable,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey,
@@ -75,20 +77,20 @@ func KubernetesOutputServiceBuilder(botCfg *config.BotConfig, cfg *config.Kubern
 	}
 }
 
-// KubernetesOutputService produces credentials which can be used to connect to
+// OutputV1Service produces credentials which can be used to connect to
 // a Kubernetes Cluster through teleport.
-type KubernetesOutputService struct {
+type OutputV1Service struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.KubernetesOutput
-	log                *slog.Logger
-	proxyPinger        connection.ProxyPinger
-	statusReporter     readyz.Reporter
-	reloadCh           <-chan struct{}
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	defaultCredentialLifetime bot.CredentialLifetime
+	cfg                       *OutputV1Config
+	log                       *slog.Logger
+	proxyPinger               connection.ProxyPinger
+	statusReporter            readyz.Reporter
+	reloadCh                  <-chan struct{}
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
@@ -97,23 +99,23 @@ type KubernetesOutputService struct {
 	clientBuilder     *client.Builder
 }
 
-func (s *KubernetesOutputService) String() string {
+func (s *OutputV1Service) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String()),
 	)
 }
 
-func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
+func (s *OutputV1Service) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
-func (s *KubernetesOutputService) Run(ctx context.Context) error {
+func (s *OutputV1Service) Run(ctx context.Context) error {
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
@@ -123,10 +125,10 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *KubernetesOutputService) generate(ctx context.Context) error {
+func (s *OutputV1Service) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"KubernetesOutputService/generate",
+		"OutputV1Service/generate",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
@@ -143,7 +145,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -184,7 +186,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		"Generated identity for Kubernetes cluster",
 		"kubernetes_cluster",
 		kubeClusterName,
-		"identity", describeTLSIdentity(ctx, s.log, routedIdentity),
+		"identity", routedIdentity,
 	)
 
 	// Ping the proxy to resolve connection addresses.
@@ -229,7 +231,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	return s.render(ctx, status, routedIdentity, hostCAs, userCAs, databaseCAs)
 }
 
-func (s *KubernetesOutputService) render(
+func (s *OutputV1Service) render(
 	ctx context.Context,
 	status *kubernetesStatus,
 	routedIdentity *identity.Identity,
@@ -237,7 +239,7 @@ func (s *KubernetesOutputService) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"KubernetesOutputService/render",
+		"OutputV1Service/render",
 	)
 	defer span.End()
 
