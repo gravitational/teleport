@@ -153,7 +153,7 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 		},
 		Spec: AccessRequestSpecV3{
 			User:                 user,
-			Roles:                utils.CopyStrings(roles),
+			Roles:                slices.Clone(roles),
 			RequestedResourceIDs: append([]ResourceID{}, resourceIDs...),
 		},
 	}

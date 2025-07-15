@@ -1987,12 +1987,12 @@ message ProvisionTokenSpecV2BoundKeypair {
     // public key on first join, which may be used instead of preregistering a
     // public key with `initial_public_key`. If `initial_public_key` is set,
     // this value is ignored. Otherwise, if set, this value will be used to
-    // populate `.status.bound_keypair.intitial_join_secret`. If unset and no
+    // populate `.status.bound_keypair.registration_secret`. If unset and no
     // `initial_public_key` is provided, a random secure value will be generated
     // server-side to populate the status field.
     string RegistrationSecret = 2 [(gogoproto.jsontag) = "registration_secret,omitempty"];
 
-    // MustRegisterBefore is an optional time before which registeration via
+    // MustRegisterBefore is an optional time before which registration via
     // initial join secret must be performed. Attempts to register using an
     // initial join secret after this timestamp will not be allowed. This may be
     // modified after creation if necessary to allow the initial registration to
@@ -2066,7 +2066,7 @@ message ProvisionTokenStatusV2BoundKeypair {
   // RegistrationSecret contains a secret value that may be used for public key
   // registration during the initial join process if no public key is
   // preregistered. If `.spec.bound_keypair.onboarding.initial_public_key`
-  // is set, †his field will remain empty. Otherwise, if
+  // is set, this field will remain empty. Otherwise, if
   // `.spec.bound_keypair.onboarding.registration_secret` is set, that value
   // will be copied here. If that field is unset, a value will be randomly
   // generated.
@@ -2093,9 +2093,9 @@ message ProvisionTokenStatusV2BoundKeypair {
   uint32 RecoveryCount = 4 [(gogoproto.jsontag) = "recovery_count"];
 
   // LastRecoveredAt contains a timestamp of the last successful recovery
-  // attempt. Note that normal renewals do not count as a recovery attempt,
-  // however onboarding does,  either with a preregistered key or registration
-  // secret. This corresponds with the last time `bound_bot_instance_id` was
+  // attempt. Note that normal renewals with valid client certificates do not
+  // count as a recovery attempt, however the initial join during onboarding
+  // does. This corresponds with the last time `bound_bot_instance_id` was
   // updated.
   google.protobuf.Timestamp LastRecoveredAt = 5 [
     (gogoproto.stdtime) = true,
@@ -5233,6 +5233,9 @@ message OIDCConnectorSpecV3 {
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
   // PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
   string PKCEMode = 20 [(gogoproto.jsontag) = "pkce_mode,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 21 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5446,6 +5449,9 @@ message SAMLConnectorSpecV2 {
   // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
   // auth connector behavior and only use http-post binding if it is explicitly configured.
   string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5638,6 +5644,9 @@ message GithubConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
+  // match for identifier-first login.
+  repeated string UserMatchers = 10 [(gogoproto.jsontag) = "user_matchers,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -8249,6 +8258,12 @@ message IntegrationV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status is an Integration specification.
+  IntegrationStatusV1 Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
 }
 
 // IntegrationSpecV1 contains properties of all the supported integrations.
@@ -8266,6 +8281,12 @@ message IntegrationSpecV1 {
 
   // Credentials contains credentials for the integration.
   PluginCredentialsV1 credentials = 4;
+}
+
+// IntegrationStatusV1 contains the status of the integration.
+message IntegrationStatusV1 {
+  // AWSRolesAnywhere contains the specific status fields to related to the AWS Roles Anywhere Integration subkind.
+  AWSRAIntegrationStatusV1 AWSRolesAnywhere = 1 [(gogoproto.jsontag) = "aws_ra,omitempty"];
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -8337,6 +8358,55 @@ message AWSRolesAnywhereProfileSyncConfig {
   bool ProfileAcceptsRoleSessionName = 3 [(gogoproto.jsontag) = "profile_accepts_role_session_name"];
   // RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
   string RoleARN = 4 [(gogoproto.jsontag) = "role_arn"];
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be synchronized as application servers.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example:
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  repeated string ProfileNameFilters = 5 [(gogoproto.jsontag) = "profile_name_filters"];
+}
+
+// AWSRAIntegrationStatusV1 contains the status properties for the AWS IAM Roles Anywhere SubKind Integration.
+message AWSRAIntegrationStatusV1 {
+  // LastProfileSync is the summary of the last profile sync iteration.
+  AWSRolesAnywhereProfileSyncIterationSummary LastProfileSync = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_profile_sync"
+  ];
+}
+
+// AWSRolesAnywhereProfileSyncIterationSummary contains the summary of a single profile sync iteration.
+message AWSRolesAnywhereProfileSyncIterationSummary {
+  // StartTime is the time when the sync iteration started.
+  google.protobuf.Timestamp StartTime = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "start_time"
+  ];
+
+  // EndTime is the time when the sync iteration ended.
+  google.protobuf.Timestamp EndTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "end_time"
+  ];
+
+  // Status is the result of the sync iteration: SUCCESS or ERROR.
+  string Status = 3 [(gogoproto.jsontag) = "status"];
+
+  // ErrorMessage holds the error message when status is ERROR.
+  string ErrorMessage = 4 [(gogoproto.jsontag) = "error_message"];
+
+  // SyncedProfiles is the number of profiles synchronized as application servers.
+  int32 SyncedProfiles = 5 [(gogoproto.jsontag) = "synced_profiles"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

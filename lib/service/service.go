@@ -145,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -1061,6 +1062,24 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
+	}
+
+	// If PAM is enabled, make sure that Teleport was built with PAM support
+	// and the PAM library was found at runtime.
+	if cfg.SSH.PAM != nil && cfg.SSH.PAM.Enabled {
+		if !pam.BuildHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"Teleport binary was built without PAM support. To continue either download a \n" +
+				"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
+				"or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
+		if !pam.SystemHasPAM() {
+			const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				"system does not have the needed PAM library installed. To continue either \n" +
+				"install libpam or disable PAM in file configuration."
+			return nil, trace.BadParameter("%s", errorMessage)
+		}
 	}
 
 	// create the data directory if it's missing
@@ -2271,50 +2290,51 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer, err := auth.Init(
 		process.ExitContext(),
 		auth.InitConfig{
-			Backend:                 b,
-			VersionStorage:          process.storage,
-			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
-			Authority:               cfg.Keygen,
-			ClusterConfiguration:    clusterConfig,
-			AutoUpdateService:       cfg.AutoUpdateService,
-			ClusterAuditConfig:      cfg.Auth.AuditConfig,
-			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
-			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
-			ClusterName:             cn,
-			AuthServiceName:         cfg.Hostname,
-			DataDir:                 cfg.DataDir,
-			HostUUID:                cfg.HostUUID,
-			NodeName:                cfg.Hostname,
-			Authorities:             cfg.Auth.Authorities,
-			ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
-			BootstrapResources:      cfg.Auth.BootstrapResources,
-			ReverseTunnels:          cfg.ReverseTunnels,
-			Trust:                   cfg.Trust,
-			Presence:                cfg.Presence,
-			Events:                  cfg.Events,
-			Provisioner:             cfg.Provisioner,
-			Identity:                cfg.Identity,
-			Access:                  cfg.Access,
-			StaticTokens:            cfg.Auth.StaticTokens,
-			Roles:                   cfg.Auth.Roles,
-			AuthPreference:          cfg.Auth.Preference,
-			OIDCConnectors:          cfg.OIDCConnectors,
-			AuditLog:                process.auditLog,
-			CipherSuites:            cfg.CipherSuites,
-			KeyStore:                keyStore,
-			KeyStoreConfig:          cfg.Auth.KeyStore,
-			Emitter:                 checkingEmitter,
-			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
-			TraceClient:             traceClt,
-			FIPS:                    cfg.FIPS,
-			LoadAllCAs:              cfg.Auth.LoadAllCAs,
-			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
-			Clock:                   cfg.Clock,
-			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-			RecordingEncryption:     recordingEncryptionManager,
-			MultipartHandler:        uploadHandler,
-			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
-			Logger:                  logger,
+			Backend:                     b,
+			VersionStorage:              process.storage,
+			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
+			Authority:                   cfg.Keygen,
+			ClusterConfiguration:        clusterConfig,
+			AutoUpdateService:           cfg.AutoUpdateService,
+			ClusterAuditConfig:          cfg.Auth.AuditConfig,
+			ClusterNetworkingConfig:     cfg.Auth.NetworkingConfig,
+			SessionRecordingConfig:      cfg.Auth.SessionRecordingConfig,
+			ClusterName:                 cn,
+			AuthServiceName:             cfg.Hostname,
+			DataDir:                     cfg.DataDir,
+			HostUUID:                    cfg.HostUUID,
+			NodeName:                    cfg.Hostname,
+			Authorities:                 cfg.Auth.Authorities,
+			ApplyOnStartupResources:     cfg.Auth.ApplyOnStartupResources,
+			BootstrapResources:          cfg.Auth.BootstrapResources,
+			ReverseTunnels:              cfg.ReverseTunnels,
+			Trust:                       cfg.Trust,
+			Presence:                    cfg.Presence,
+			Events:                      cfg.Events,
+			Provisioner:                 cfg.Provisioner,
+			Identity:                    cfg.Identity,
+			Access:                      cfg.Access,
+			StaticTokens:                cfg.Auth.StaticTokens,
+			Roles:                       cfg.Auth.Roles,
+			AuthPreference:              cfg.Auth.Preference,
+			OIDCConnectors:              cfg.OIDCConnectors,
+			AuditLog:                    process.auditLog,
+			CipherSuites:                cfg.CipherSuites,
+			KeyStore:                    keyStore,
+			KeyStoreConfig:              cfg.Auth.KeyStore,
+			Emitter:                     checkingEmitter,
+			Streamer:                    events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
+			TraceClient:                 traceClt,
+			FIPS:                        cfg.FIPS,
+			LoadAllCAs:                  cfg.Auth.LoadAllCAs,
+			AccessMonitoringEnabled:     cfg.Auth.IsAccessMonitoringEnabled(),
+			Clock:                       cfg.Clock,
+			HTTPClientForAWSSTS:         cfg.Auth.HTTPClientForAWSSTS,
+			RecordingEncryption:         recordingEncryptionManager,
+			MultipartHandler:            uploadHandler,
+			Tracer:                      process.TracingProvider.Tracer(teleport.ComponentAuth),
+			Logger:                      logger,
+			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -2814,7 +2834,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessLists = services.AccessLists
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
-	cfg.Apps = services.Apps
+	cfg.Applications = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
@@ -2868,7 +2888,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AccessLists = client.AccessListClient()
 	cfg.AccessMonitoringRules = client.AccessMonitoringRuleClient()
 	cfg.AppSession = client
-	cfg.Apps = client
+	cfg.Applications = client
 	cfg.ClusterConfig = client
 	cfg.CrownJewels = client.CrownJewelServiceClient()
 	cfg.DatabaseObjects = client.DatabaseObjectsClient()
@@ -5378,6 +5398,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.OnExit("tls.config.generator", func(a any) {
+		clientTLSConfigGenerator.Close()
+	})
+
 	sshGRPCTLSConfig.GetConfigForClient = clientTLSConfigGenerator.GetConfigForClient
 
 	sshGRPCCreds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
@@ -5998,7 +6022,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("closer", func(payload any) {
+	process.OnExit("tls.config.generator", func(payload any) {
 		generator.Close()
 	})
 

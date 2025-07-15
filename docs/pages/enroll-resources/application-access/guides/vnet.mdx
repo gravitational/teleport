@@ -140,28 +140,38 @@ $ tsh login --proxy=leaf.example.com --user=email@example.com
 
 ### Accessing web apps through VNet
 
-VNet does not officially support [web apps](connecting-apps.mdx) yet. However, technically any web
-app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. You'll need to change
-`uri` of your application in the Application Service configuration file to use `tcp://` instead of
-`http://`. There's also a couple of caveats:
+VNet does not officially support [web apps](connecting-apps.mdx) yet.
+However, since all web apps are served over TCP, it's possible to convert a web
+app to [a TCP app](tcp.mdx) to make it available via VNet.
+You'll need to change the `uri` of the application to use `tcp://` instead of `https://`.
+
+Exposing plain HTTP web apps or APIs via VNet is not recommended.
+Untrusted websites can potentially use DNS rebinding attacks to bypass the
+browser’s Same-Origin Policy and issue plain HTTP requests to VNet IP addresses.
+It is strongly recommended to either avoid VNet for plain HTTP access or
+implement one or more of the following mitigations for DNS rebinding attacks:
+- upgrade these APIs to HTTPS or another protocol
+- enforce a Host header allowlist at the HTTP server
+- block browser access to HTTP websites
+
+There are a few more caveats when converting a Teleport web app to a TCP app:
 
 - The Teleport Web UI uses [HSTS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security).
-  If the application is going to be served from a subdomain of a Proxy Service, it means that the
-  application will not be accessible in browsers over plain HTTP, even with VNet running. It's
-  possible to work around this by setting a custom `public_addr` as explained above in this guide.
-- If the application needs to be accessible over HTTPS, it must handle TLS connections and return [a valid
-  cert](connecting-apps.mdx#step-23-optional-configure-tls-and-dns-for-your-web-applications) for the domain it is served on.
-- [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
+  If the application is going to be served from a subdomain of a Proxy Service
+  it must use HTTPS, it will not be accessible in browsers over plain HTTP.
+  It's possible to work around this by setting a custom `public_addr` as explained
+  above in this guide to an address that is not a subdomain of the proxy address.
+- HTTPS Applications must handle their own TLS connections and have
+  a valid certificate for the app `public_addr`.
+- [JWT Tokens](../jwt/introduction.mdx), [redirects](connecting-apps.mdx#rewrite-redirect) and
   [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
   chunks](../../../reference/architecture/session-recording.mdx) are not captured.
 
-When accessing an HTTP API through VNet, the same caveats apply as above, with one main exception.
-Since API clients don't need to respect HSTS, the API itself does not need to be served over HTTPS.
-
-The important thing to understand is that VNet doesn't do anything extra with a connection, other
-than passing it through a Teleport Proxy Service. Which application layer protocol is going to be
-used depends solely on the app itself and its clients.
+The important thing to understand is that VNet doesn't do anything extra with a
+TCP connection, it tunnels it directly to the target application's `uri`.
+The application layer protocol is determined solely by the app itself and its
+clients.
 
 ### Further reading
 

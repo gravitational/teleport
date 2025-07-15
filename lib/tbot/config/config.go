@@ -127,10 +127,10 @@ type GitlabOnboardingConfig struct {
 // BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
 // method
 type BoundKeypairOnboardingConfig struct {
-	// InitialJoinSecret is the name of the initial joining secret, if any. If
+	// RegistrationSecret is the name of the initial joining secret, if any. If
 	// not specified, a keypair must be created using `tbot keypair create` and
 	// registered with Teleport in advance.
-	InitialJoinSecret string
+	RegistrationSecret string `yaml:"registration_secret,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
@@ -218,6 +218,11 @@ type BotConfig struct {
 	// is embedded in a binary which does not differentiate between address types
 	// such as tctl or the Kubernetes operator.
 	AuthServerAddressMode AuthServerAddressMode `yaml:"-"`
+
+	// JoinURI is a joining URI, used to supply connection and authentication
+	// parameters in a single bundle. If set, the value is parsed and merged on
+	// top of the existing configuration during `CheckAndSetDefaults()`.
+	JoinURI string `yaml:"join_uri,omitempty"`
 
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 	Oneshot            bool               `yaml:"oneshot"`

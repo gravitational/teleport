@@ -29,11 +29,6 @@
     "nop": "exit 0"
   },
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "jsdom@^20.0.3>nwsapi@^2": "2.2.9"
-    }
-  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@ianvs/prettier-plugin-sort-imports": "^4.4.1",
@@ -44,28 +39,28 @@
     "@storybook/preview-api": "^8.6.12",
     "@storybook/react": "^8.6.12",
     "@storybook/react-vite": "^8.6.12",
-    "@storybook/test-runner": "^0.22.0",
+    "@storybook/test-runner": "^0.22.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/history": "^4.7.11",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.14.0",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.15.34",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "@types/react-highlight": "^0.12.8",
     "@types/react-router": "^5.1.20",
     "@types/react-router-dom": "^5.1.1",
     "@types/react-transition-group": "^4.4.12",
     "@types/wicg-file-system-access": "^2023.10.6",
-    "cspell": "^9.0.1",
-    "jest": "^29.7.0",
+    "cspell": "^9.1.2",
+    "jest": "^30.0.4",
     "jsdom-testing-mocks": "^1.13.1",
-    "msw": "^2.7.6",
-    "msw-storybook-addon": "^2.0.4",
+    "msw": "^2.10.1",
+    "msw-storybook-addon": "^2.0.5",
     "node-gyp": "^11.2.0",
-    "playwright": "^1.52.0",
-    "prettier": "^3.5.3",
+    "playwright": "^1.53.2",
+    "prettier": "^3.6.2",
     "react-select-event": "^5.5.1",
     "storybook": "^8.6.12",
     "svgo": "^4.0.0",
@@ -75,16 +70,16 @@
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
     "@codemirror/lang-sql": "^6.9.0",
-    "@codemirror/view": "^6.36.7",
-    "@floating-ui/react": "^0.27.8",
+    "@codemirror/view": "^6.38.0",
+    "@floating-ui/react": "^0.27.13",
     "@grpc/grpc-js": "1.13.4",
     "@lezer/highlight": "^1.2.1",
     "@nivo/bar": "^0.99.0",
-    "@protobuf-ts/runtime": "^2.10.0",
-    "@protobuf-ts/runtime-rpc": "^2.10.0",
-    "@tanstack/react-query": "^5.75.4",
-    "@uiw/codemirror-themes": "^4.23.12",
-    "@uiw/react-codemirror": "^4.23.12",
+    "@protobuf-ts/runtime": "^2.11.1",
+    "@protobuf-ts/runtime-rpc": "^2.11.1",
+    "@tanstack/react-query": "^5.81.5",
+    "@uiw/codemirror-themes": "^4.23.14",
+    "@uiw/react-codemirror": "^4.23.14",
     "d3-scale": "^4.0.2",
     "d3-time-format": "^4.1.0",
     "date-fns": "^2.28.0",
@@ -101,7 +96,7 @@
     "react-router-dom": "5.3.4",
     "react-select": "^5.10.1",
     "react-transition-group": "^4.4.5",
-    "styled-components": "^6.1.17",
+    "styled-components": "^6.1.19",
     "tslib": "^2.8.1",
     "use-immer": "^0.11.0",
     "whatwg-fetch": "^3.6.20"
@@ -111,7 +106,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977",
+  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184",
   "engines": {
     "node": "^22"
   }

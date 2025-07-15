@@ -122,6 +122,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/player"
@@ -2432,6 +2433,12 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
+
+			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
+			if _, ok := msg.(tdp.LatencyStats); ok {
+				msg, err = tdpClient.ReadMessage()
+				require.NoError(t, err)
+			}
 			require.IsType(t, tdp.Alert{}, msg)
 		})
 	}
@@ -2487,7 +2494,7 @@ func TestWebAgentForward(t *testing.T) {
 
 func TestActiveSessions(t *testing.T) {
 	// Use enterprise license (required for moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
@@ -2637,7 +2644,7 @@ type httpErrorResponse struct {
 }
 
 func TestLogin_PrivateKeyEnabledError(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		MockAttestationData: &keys.AttestationData{
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
@@ -2817,7 +2824,7 @@ func TestMotD(t *testing.T) {
 func TestPingAutomaticUpgrades(t *testing.T) {
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 			AutomaticUpgrades: true,
 		}})
 
@@ -2835,7 +2842,7 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 	})
 	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
 		// Disable Automatic Upgrades
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 			AutomaticUpgrades: false,
 		}})
 
@@ -2856,7 +2863,7 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
@@ -2930,7 +2937,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: false,
@@ -2987,7 +2994,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("oss or enterprise with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildOSS,
 			TestFeatures: modules.Features{
 				Cloud:             false,
@@ -3732,7 +3739,7 @@ func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
 
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildCommunity})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildCommunity})
 
 	// Users should be able to create Tokens even if they can't update them
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
@@ -4329,7 +4336,7 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.App: {Enabled: false},
@@ -4660,7 +4667,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               true,
 			IsUsageBasedBilling: true,
@@ -4728,7 +4735,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               false,
 			IsUsageBasedBilling: false,
@@ -4755,7 +4762,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
@@ -5766,7 +5773,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
@@ -5856,7 +5863,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
@@ -5958,7 +5965,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},
@@ -6127,6 +6134,205 @@ func TestParseSSORequestParams(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.expected, params)
 			}
+		})
+	}
+}
+
+// TestGetUserMatchedAuthConnectors tests that auth connectors are matched correctly to users.
+func TestGetUserMatchedAuthConnectors(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	// Create GitHub connectors with various matchers
+	githubConnectors := []struct {
+		name     string
+		matchers []string
+	}{
+		{
+			name:     "github-specific",
+			matchers: []string{"alice@example.com", "bob@example.com"},
+		},
+		{
+			name:     "github-domain",
+			matchers: []string{"*@company.com"},
+		},
+		{
+			name:     "github-fallback",
+			matchers: []string{"*"},
+		},
+	}
+
+	for _, connSpec := range githubConnectors {
+		connector, err := types.NewGithubConnector(connSpec.name, types.GithubConnectorSpecV3{
+			UserMatchers: connSpec.matchers,
+			TeamsToRoles: []types.TeamRolesMapping{
+				{
+					Organization: "octocats",
+					Team:         "devs",
+					Roles:        []string{"access"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertGithubConnector(ctx, connector)
+		require.NoError(t, err)
+	}
+
+	// Create SAML connectors with various matchers
+	samlConnectors := []struct {
+		name     string
+		matchers []string
+	}{
+		{
+			name:     "saml-specific",
+			matchers: []string{"charlie@example.com"},
+		},
+		{
+			name:     "saml-pattern",
+			matchers: []string{"*@saml-company.com"},
+		},
+		{
+			name:     "saml-fallback",
+			matchers: []string{"*"},
+		},
+		{
+			name:     "saml-fallback-and-explicit",
+			matchers: []string{"*", "*@example.com"},
+		},
+	}
+
+	for _, connSpec := range samlConnectors {
+		connector, err := types.NewSAMLConnector(connSpec.name, types.SAMLConnectorSpecV2{
+			UserMatchers:             connSpec.matchers,
+			AssertionConsumerService: "test",
+			SSO:                      "test",
+			EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+      <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:KeyDescriptor use="signing">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate></ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
+      </md:IDPSSODescriptor>
+    </md:EntityDescriptor>`,
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "test",
+					Value: "test",
+					Roles: []string{"default-implicit-role"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertSAMLConnector(ctx, connector)
+		require.NoError(t, err)
+	}
+
+	// Create OIDC connectors with various matchers
+	oidcConnectors := []struct {
+		name     string
+		matchers []string
+	}{
+		{
+			name:     "oidc-specific",
+			matchers: []string{"dave@example.com"},
+		},
+		{
+			name:     "oidc-fallback",
+			matchers: []string{"*"},
+		},
+	}
+
+	for _, connSpec := range oidcConnectors {
+		connector, err := types.NewOIDCConnector(connSpec.name, types.OIDCConnectorSpecV3{
+			UserMatchers: connSpec.matchers,
+			ClientID:     "test",
+			ClientSecret: "test",
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "team",
+					Value: "dev",
+					Roles: []string{"dev-team-access"},
+				},
+			},
+			RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertOIDCConnector(ctx, connector)
+		require.NoError(t, err)
+	}
+
+	testCases := []struct {
+		name               string
+		username           string
+		expectedConnectors []string
+	}{
+		{
+			name:               "explicit matches",
+			username:           "alice@example.com",
+			expectedConnectors: []string{"github-specific", "saml-fallback-and-explicit"},
+		},
+		{
+			name:               "domain matches",
+			username:           "user@company.com",
+			expectedConnectors: []string{"github-domain"},
+		},
+		{
+			name:               "multiple specific matches excludes fallbacks",
+			username:           "charlie@example.com",
+			expectedConnectors: []string{"saml-specific", "saml-fallback-and-explicit"},
+		},
+		{
+			name:               "mixed specific matches across connector types",
+			username:           "user@saml-company.com",
+			expectedConnectors: []string{"saml-pattern"},
+		},
+		{
+			name:               "fallbacks used when no specific matches",
+			username:           "unknown@nowhere.com",
+			expectedConnectors: []string{"github-fallback", "saml-fallback", "saml-fallback-and-explicit", "oidc-fallback"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reqPayload := struct {
+				Username string `json:"username"`
+			}{
+				Username: tc.username,
+			}
+
+			resp, err := pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "authconnectors"), reqPayload)
+			require.NoError(t, err, "failed to call getUserMatchedAuthConnectors endpoint")
+			require.Equal(t, http.StatusOK, resp.Code(), "unexpected status code")
+
+			var response struct {
+				Connectors []struct {
+					Name string `json:"name"`
+					Type string `json:"type"`
+				} `json:"connectors"`
+			}
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &response), "failed to unmarshal response")
+
+			var actualConnectors []string
+			for _, conn := range response.Connectors {
+				actualConnectors = append(actualConnectors, conn.Name)
+			}
+
+			sort.Strings(actualConnectors)
+			sort.Strings(tc.expectedConnectors)
+			require.Equal(t, tc.expectedConnectors, actualConnectors)
 		})
 	}
 }
@@ -9859,7 +10065,7 @@ func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, 
 // is allowed to access the host and start entering input and receiving
 // output until the moderator terminates the session.
 func TestModeratedSession(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
@@ -9941,7 +10147,7 @@ func TestModeratedSession(t *testing.T) {
 // presence checks are performed by the moderator. When presence checks are not performed
 // the session is aborted.
 func TestModeratedSessionWithMFA(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	const RPID = "localhost"
 

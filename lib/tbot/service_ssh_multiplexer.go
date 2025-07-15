@@ -53,8 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -105,8 +105,10 @@ type SSHMultiplexerService struct {
 	log                *slog.Logger
 	proxyPingCache     *proxyPingCache
 	reloadBroadcaster  *channelBroadcaster
-	resolver           reversetunnelclient.Resolver
 	statusReporter     readyz.Reporter
+
+	identityGenerator *identity.Generator
+	clientBuilder     *client.Builder
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
@@ -345,9 +347,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		ALPNConnUpgradeRequired: connUpgradeRequired,
 	})
 
-	authClient, err := clientForFacade(
-		ctx, s.log, s.botCfg, s.identity, s.resolver,
-	)
+	authClient, err := s.clientBuilder.Build(ctx, s.identity)
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
@@ -358,18 +358,10 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 // generateIdentity generates our impersonated identity which we will write to
 // the destination.
 func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity.Identity, error) {
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching default roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
-		nil,
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	id, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")

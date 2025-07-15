@@ -21,6 +21,7 @@ package authclient
 import (
 	"context"
 	"io"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -230,6 +231,12 @@ type ReadProxyAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -540,6 +547,12 @@ type ReadAppsAccessPoint interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
@@ -716,6 +729,13 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1002,6 +1022,12 @@ type Cache interface {
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, startKey, endKey string) iter.Seq2[types.Application, error]
+
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1242,7 +1268,7 @@ type Cache interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string) ([]*machineidv1.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
 }
 
 type NodeWrapper struct {

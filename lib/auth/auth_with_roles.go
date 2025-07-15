@@ -6166,6 +6166,34 @@ func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Applicati
 	return result, nil
 }
 
+// ListApps returns a page of application resources.
+func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	if err := a.authorizeAction(types.KindApp, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var result []types.Application
+	// Filter out apps user doesn't have access to.
+	for app, err := range a.authServer.Apps(ctx, startKey, "") {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		if err := a.checkAccessToApp(app); err == nil {
+			if len(result) == limit {
+				return result, app.GetName(), nil
+			}
+
+			result = append(result, app)
+		}
+	}
+	return result, "", nil
+}
+
 // DeleteApp removes the specified application resource.
 func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbDelete); err != nil {

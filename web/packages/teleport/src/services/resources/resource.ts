@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthProvider } from 'shared/services';
+
 import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
@@ -106,11 +108,22 @@ class ResourceService {
     return api.put(cfg.api.defaultConnectorPath, req, challengeResponse);
   }
 
-  async fetchRoles(params?: UrlListRolesParams): Promise<{
+  async getUserMatchedAuthConnectors(
+    username: string
+  ): Promise<AuthProvider[]> {
+    return api
+      .post(cfg.api.authConnectorsPath, { username })
+      .then(res => res.connectors || []);
+  }
+
+  async fetchRoles(
+    params?: UrlListRolesParams,
+    signal?: AbortSignal
+  ): Promise<{
     items: RoleResource[];
     startKey: string;
   }> {
-    return await api.get(cfg.getListRolesUrl(params));
+    return await api.get(cfg.getListRolesUrl(params), signal);
   }
 
   fetchPresetRoles() {

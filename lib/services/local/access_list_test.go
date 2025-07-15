@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -313,7 +314,7 @@ func TestAccessList_EntitlementLimits(t *testing.T) {
 					// target because the `newAccessListService()` fixture also sets the
 					// test modules, and that would clobber our test setup if we went
 					// first
-					modules.SetTestModules(t, &modules.TestModules{
+					modulestest.SetTestModules(t, modulestest.Modules{
 						TestBuildType: modules.BuildEnterprise,
 						TestFeatures: modules.Features{
 							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -890,6 +891,42 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_CreateAccessListReview_FailForNonReviewable(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	// Create a couple access lists.
+	accessList1 := newAccessList(t, "accessList1", clock, withType(accesslist.Static))
+	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.SCIM))
+
+	// Create both access lists.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, accessList2)
+	require.NoError(t, err)
+
+	accessList1Review := newAccessListReview(t, accessList1.GetName(), "al1-review")
+	accessList2Review := newAccessListReview(t, accessList2.GetName(), "al2-review")
+
+	// Add access list review.
+	_, _, err = service.CreateAccessListReview(ctx, accessList1Review)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "is not reviewable")
+	require.True(t, trace.IsBadParameter(err))
+	_, _, err = service.CreateAccessListReview(ctx, accessList2Review)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "is not reviewable")
+	require.True(t, trace.IsBadParameter(err))
+}
+
 func TestAccessListRequiresEqual(t *testing.T) {
 	t.Parallel()
 
@@ -1015,14 +1052,37 @@ func TestAccessListRequiresEqual(t *testing.T) {
 	}
 }
 
-func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
+type newAccessListOptions struct {
+	typ accesslist.Type
+}
+
+type newAccessListOpt func(*newAccessListOptions)
+
+func withType(typ accesslist.Type) newAccessListOpt {
+	return func(o *newAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
+
+	options := newAccessListOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	audit := accesslist.Audit{}
+	if options.typ.IsReviewable() {
+		audit.NextAuditDate = clock.Now()
+	}
 
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
 		},
 		accesslist.Spec{
+			Type:        options.typ,
 			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
@@ -1035,9 +1095,7 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 					Description: "test user 2",
 				},
 			},
-			Audit: accesslist.Audit{
-				NextAuditDate: clock.Now(),
-			},
+			Audit: audit,
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
@@ -1250,7 +1308,7 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity:    {Enabled: igsEnabled},

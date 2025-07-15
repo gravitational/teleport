@@ -575,9 +575,11 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, locks)
 
-	// The original client should now be locked out.
-	_, err = renewedClient.Ping(ctx)
-	require.ErrorContains(t, err, "access denied")
+	// The original client should be locked out.
+	require.Eventually(t, func() bool {
+		_, err = renewedClient.Ping(ctx)
+		return err != nil && strings.Contains(err.Error(), "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
