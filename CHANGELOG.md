@@ -4,7 +4,7 @@
 
 * Fixed backward compatibility for Access List 'membershipRequires is missing' for older terraform providers. [#56743](https://github.com/gravitational/teleport/pull/56743)
 * Fixed VNet DNS configuration on Windows hosts joined to Active Directory domains. [#56739](https://github.com/gravitational/teleport/pull/56739)
-* Updated Pyroscope's default client timeout and upload rate. [#56731](https://github.com/gravitational/teleport/pull/56731)
+* Updated default client timeout and upload rate for Pyroscope. [#56731](https://github.com/gravitational/teleport/pull/56731)
 * Bot instances are now sortable by latest heartbeat time in the web UI. [#56685](https://github.com/gravitational/teleport/pull/56685)
 * Updated Go to 1.23.11. [#56680](https://github.com/gravitational/teleport/pull/56680)
 * Fixed `tbot` SPIFFE Workload API failing to renew SPIFFE SVIDs. [#56663](https://github.com/gravitational/teleport/pull/56663)
