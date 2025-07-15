@@ -73,7 +73,10 @@ export function useConnectionDiagnostic() {
     try {
       if (!mfaAuthnResponse) {
         const mfaReq = getMfaRequest(req, resourceSpec);
-        const sessionMfa = await auth.checkMfaRequired(mfaReq);
+        const sessionMfa = await auth.checkMfaRequired(
+          ctx.storeUser.getClusterId(),
+          mfaReq
+        );
         if (sessionMfa.required) {
           setShowMfaDialog(true);
           return { mfaRequired: true };

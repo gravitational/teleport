@@ -17,10 +17,12 @@ limitations under the License.
 package accessmonitoring
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -30,6 +32,7 @@ import (
 type AccessRequestExpressionEnv struct {
 	Roles              []string
 	SuggestedReviewers []string
+	RequestedResources []types.ResourceWithLabels
 	Annotations        map[string][]string
 	User               string
 	RequestReason      string
@@ -53,6 +56,12 @@ func parseAccessRequestExpression(expr string) (accessRequestExpression, error) 
 		return nil, trace.Wrap(err, "parsing access monitoring rule condition expression")
 	}
 	return parsedExpr, nil
+}
+
+// NewAccessRequestConditionParser returns a new parser for access request
+// condition expressions.
+func NewAccessRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, any], error) {
+	return newRequestConditionParser()
 }
 
 func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, any], error) {
@@ -81,10 +90,45 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 			return env.Expiry, nil
 		}),
 
+		"access_request.spec.resource_labels_union": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			union := make(map[string][]string)
+			for _, resource := range env.RequestedResources {
+				for k, v := range resource.GetAllLabels() {
+					union[k] = append(union[k], v)
+				}
+			}
+			return expression.DictFromStringSliceMap(union), nil
+		}),
+		"access_request.spec.resource_labels_intersection": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			if len(env.RequestedResources) == 0 {
+				return expression.Dict{}, nil
+			}
+
+			intersection := make(map[string][]string)
+
+			// Get first resource labels.
+			labels := env.RequestedResources[0].GetAllLabels()
+			for k, v := range labels {
+				intersection[k] = append(intersection[k], v)
+			}
+
+			// Remove non-intersecting labels.
+			for _, resource := range env.RequestedResources {
+				labels := resource.GetAllLabels()
+				for k, v := range intersection {
+					if label, ok := labels[k]; !ok || !slices.Contains(v, label) {
+						delete(intersection, k)
+					}
+				}
+			}
+			return expression.DictFromStringSliceMap(intersection), nil
+		}),
+
 		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
 			return expression.DictFromStringSliceMap(env.UserTraits), nil
 		}),
 	}
+
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
 

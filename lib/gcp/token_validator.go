@@ -22,20 +22,16 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"time"
 
-	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/oidc"
 )
+
+const audience = "teleport.cluster.local"
 
 // IDTokenValidatorConfig is the config for IDTokenValidator.
 type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
 	// issuerHost is the host of the Issuer for tokens issued by Google, to be
 	// overridden in tests. Defaults to "accounts.google.com".
 	issuerHost string
@@ -50,9 +46,6 @@ type IDTokenValidator struct {
 }
 
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
 	if cfg.issuerHost == "" {
 		cfg.issuerHost = defaultIssuerHost
 	}
@@ -71,33 +64,17 @@ func (id *IDTokenValidator) issuerURL() string {
 
 // Validate validates an ID token.
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(ctx, id.issuerURL())
+	issuer := id.issuerURL()
+
+	// GCP does not set the authorized party to one of the listed audiences, so we must skip the optional azp check.
+	// TODO(Joerger): Use [rp.ValidateToken] once the authorized party check is made optional upstream, e.g. with an opt.
+	claims, err := oidc.ValidateTokenNoAuthorizedPartyCheck[*IDTokenClaims](ctx, issuer, audience, token)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: "teleport.cluster.local",
-		Now:      id.Clock.Now,
-	})
-
-	idToken, err := verifier.Verify(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "validating token")
 	}
 
 	if claims.Google.ComputeEngine != (ComputeEngine{}) {
-		return &claims, nil
+		return claims, nil
 	}
 
 	if gcpDefaultServiceAccountEmailRegex.MatchString(claims.Email) {
@@ -120,7 +97,7 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 	// Assign the project ID exatracted from the email to the Google claims.
 	claims.Google.ComputeEngine.ProjectID = matches[1]
 
-	return &claims, nil
+	return claims, nil
 }
 
 var (

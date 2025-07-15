@@ -22,6 +22,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -85,12 +86,8 @@ func (config *TSHConfig) Merge(otherConfig *TSHConfig) TSHConfig {
 	newConfig.ProxyTemplates = append(otherConfig.ProxyTemplates, baseConfig.ProxyTemplates...)
 
 	newConfig.Aliases = map[string]string{}
-	for key, value := range baseConfig.Aliases {
-		newConfig.Aliases[key] = value
-	}
-	for key, value := range otherConfig.Aliases {
-		newConfig.Aliases[key] = value
-	}
+	maps.Copy(newConfig.Aliases, baseConfig.Aliases)
+	maps.Copy(newConfig.Aliases, otherConfig.Aliases)
 
 	return newConfig
 }

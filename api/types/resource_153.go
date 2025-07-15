@@ -247,6 +247,14 @@ type resource153ToResourceWithLabelsAdapter[T Resource153] struct {
 	resource153ToLegacyAdapter[T]
 }
 
+// UnwrapT is an escape hatch for Resource153 instances that are piped down into
+// the codebase as a legacy Resource.
+//
+// Ideally you shouldn't depend on this.
+func (r *resource153ToResourceWithLabelsAdapter[T]) UnwrapT() T {
+	return r.inner
+}
+
 // Origin implements ResourceWithLabels for the adapter.
 func (r *resource153ToResourceWithLabelsAdapter[T]) Origin() string {
 	m := r.inner.GetMetadata()
@@ -307,46 +315,6 @@ func (r *resource153ToResourceWithLabelsAdapter[T]) MatchSearch(searchValues []s
 	}
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, searchValues, nil)
-}
-
-// ClonableResource153 adds a restriction on [Resource153] such that implementors
-// must have a CloneResource() method.
-type ClonableResource153 interface {
-	Resource153
-	CloneResource() ClonableResource153
-}
-
-// UnifiedResource represents the combined set of interfaces that a resource
-// must implement to be used with the Teleport Unified Resource Cache
-type UnifiedResource interface {
-	ResourceWithLabels
-	CloneResource() ResourceWithLabels
-}
-
-// Resource153ToUnifiedResource wraps an RFD153-style resource in a type that
-// implements the legacy [ResourceWithLabels] interface and is suitable for use
-// with the Teleport Unified Resources Cache.
-//
-// The same caveats that apply to [Resource153ToLegacy] apply.
-func Resource153ToUnifiedResource[T ClonableResource153](r T) UnifiedResource {
-	return &resource153ToUnifiedResourceAdapter[T]{
-		resource153ToResourceWithLabelsAdapter: resource153ToResourceWithLabelsAdapter[T]{
-			resource153ToLegacyAdapter[T]{
-				inner: r,
-			},
-		},
-	}
-}
-
-// resource153ToUnifiedResourceAdapter wraps a [resource153ToLegacyAdapter] to
-// provide an implementation of [UnifiedResource]
-type resource153ToUnifiedResourceAdapter[T ClonableResource153] struct {
-	resource153ToResourceWithLabelsAdapter[T]
-}
-
-// CloneResource clones the underlying resource and wraps it in
-func (r *resource153ToUnifiedResourceAdapter[T]) CloneResource() ResourceWithLabels {
-	return Resource153ToUnifiedResource(r.inner.CloneResource().(T))
 }
 
 // ProtoResource153 is a Resource153 implemented by a protobuf-generated struct.

@@ -94,6 +94,24 @@ export const tcpApp = makeApp({
   clusterId: 'one',
 });
 
+export const mcpApp = makeApp({
+  name: 'mcp-everything',
+  subKind: 'mcp',
+  description: 'Some MCP server',
+  uri: 'mcp+stdio://',
+  publicAddr: 'mcp-everything.teleport.example.com',
+  fqdn: 'mcp-everything.teleport.example.com',
+  labels: [
+    { name: 'env', value: 'dev' },
+    { name: 'cluster', value: 'one' },
+  ],
+  mcp: {
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-everything'],
+    runAsHostUser: 'hostuser',
+  },
+});
+
 export const apps = [
   {
     name: 'Jenkins',
@@ -259,7 +277,7 @@ export const apps = [
     fqdn: 'https://console.aws.amazon.com',
   },
 ].map(makeApp);
-apps.push(awsConsoleApp, awsIamIcAccountApp, tcpApp);
+apps.push(awsConsoleApp, awsIamIcAccountApp, tcpApp, mcpApp);
 
 export const gcpCloudApp = makeApp({
   name: 'cloud-app',

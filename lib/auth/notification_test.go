@@ -366,7 +366,7 @@ func TestNotifications(t *testing.T) {
 	// Verify that all the notifications are in the list and in correct order.
 	require.Equal(t, auditorExpectedNotifications, notificationsToTitlesList(t, finalOut))
 	// Verify that we've reached the end of both lists.
-	require.Equal(t, "", resp.NextPageToken)
+	require.Empty(t, resp.NextPageToken)
 
 	// Mark "auditor-2" and "auditor-5,manager-2" as dismissed.
 	_, err = auditorClient.UpsertUserNotificationState(ctx, auditorUsername, &notificationsv1.UserNotificationState{
@@ -410,7 +410,7 @@ func TestNotifications(t *testing.T) {
 
 	require.Equal(t, managerExpectedNotifications, notificationsToTitlesList(t, resp.Notifications))
 	// Verify that we've reached the end of both lists.
-	require.Equal(t, "", resp.NextPageToken)
+	require.Empty(t, resp.NextPageToken)
 
 	// Mark "manager-8-expires" as clicked.
 	_, err = managerClient.UpsertUserNotificationState(ctx, managerUsername, &notificationsv1.UserNotificationState{

@@ -1967,7 +1967,6 @@ func TestGetLabelEngineVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1997,7 +1996,7 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 				},
 			},
 			expectedErr: require.NoError,
-			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			expectedDB: func(t require.TestingT, i any, _ ...any) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
@@ -2052,7 +2051,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				},
 			},
 			expectedErr: require.NoError,
-			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			expectedDB: func(t require.TestingT, i any, _ ...any) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
@@ -2129,7 +2128,6 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			rid := makeAzureResourceID(subID, group, provider, tt.serverName)
@@ -2207,7 +2205,6 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			rid := makeAzureResourceID(subID, group, provider, tt.serverName)
@@ -2316,7 +2313,6 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			db, err := types.NewDatabaseV3(types.Metadata{

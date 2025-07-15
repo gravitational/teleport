@@ -36,6 +36,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -162,7 +163,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			a := newTestAuthServer(ctx, t)
 
 			allClusters := make(map[string]types.RemoteCluster)
-			for i := 0; i < tt.clustersTotal; i++ {
+			for i := range tt.clustersTotal {
 				rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%03d", i))
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
@@ -387,7 +388,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("Cloud prohibits adding leaf clusters", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{Cloud: true},
 		})
 

@@ -25,12 +25,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type mockEvents struct {
@@ -100,12 +101,12 @@ func (m mockInfoGetter) GetInfo() types.Server {
 
 type mockHostUsers struct {
 	HostUsers
-	upsertedUsers map[string]services.HostUsersInfo
+	upsertedUsers map[string]*decisionpb.HostUsersInfo
 }
 
-func (m *mockHostUsers) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
+func (m *mockHostUsers) UpsertUser(name string, ui *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error) {
 	if m.upsertedUsers == nil {
-		m.upsertedUsers = make(map[string]services.HostUsersInfo)
+		m.upsertedUsers = make(map[string]*decisionpb.HostUsersInfo)
 	}
 	m.upsertedUsers[name] = ui
 	return nil, nil
@@ -165,7 +166,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 		events           []types.Event
 		onEventsFinished func(ctx context.Context, clock *clockwork.FakeClock)
 		assert           assert.ErrorAssertionFunc
-		wantUsers        map[string]services.HostUsersInfo
+		wantUsers        map[string]*decisionpb.HostUsersInfo
 		wantSudoers      map[string][]string
 	}{
 		{
@@ -185,19 +186,19 @@ func TestStaticHostUserHandler(t *testing.T) {
 				},
 			},
 			assert: assert.NoError,
-			wantUsers: map[string]services.HostUsersInfo{
+			wantUsers: map[string]*decisionpb.HostUsersInfo{
 				"test-1": {
 					Groups: []string{"foo", "bar"},
-					Mode:   services.HostUserModeStatic,
-					UID:    "1234",
-					GID:    "5678",
+					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
+					Uid:    "1234",
+					Gid:    "5678",
 					Shell:  "/bin/bash",
 				},
 				"test-2": {
 					Groups: []string{"baz", "quux"},
-					Mode:   services.HostUserModeStatic,
-					UID:    "1234",
-					GID:    "5678",
+					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
+					Uid:    "1234",
+					Gid:    "5678",
 					Shell:  "/bin/bash",
 				},
 			},
@@ -278,12 +279,12 @@ func TestStaticHostUserHandler(t *testing.T) {
 				},
 			},
 			assert: assert.NoError,
-			wantUsers: map[string]services.HostUsersInfo{
+			wantUsers: map[string]*decisionpb.HostUsersInfo{
 				"test": {
 					Groups: []string{"bar"},
-					Mode:   services.HostUserModeStatic,
-					UID:    "1234",
-					GID:    "5678",
+					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
+					Uid:    "1234",
+					Gid:    "5678",
 					Shell:  "/bin/bash",
 				},
 			},
@@ -324,7 +325,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
-			utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+			testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 				Name: "event sender",
 				Task: func(ctx context.Context) error {
 					sendEvents(ctx, events, tc.events)

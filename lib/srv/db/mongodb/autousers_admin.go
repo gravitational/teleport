@@ -197,7 +197,7 @@ func makeBasicAdminClient(ctx context.Context, sessionCtx *common.Session, e *En
 		return nil, trace.Wrap(err)
 	}
 
-	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx)
+	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

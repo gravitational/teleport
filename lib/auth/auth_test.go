@@ -79,12 +79,15 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testPack struct {
@@ -226,7 +229,7 @@ func newAuthSuite(t *testing.T) *testPack {
 }
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
@@ -486,7 +489,7 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 
 func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -1144,22 +1147,21 @@ func TestLocalControlStream(t *testing.T) {
 	const serverID = "test-server"
 
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	s := newAuthSuite(t)
 
 	stream := s.a.MakeLocalInventoryControlStream()
 	defer stream.Close()
 
-	err := stream.Send(ctx, proto.UpstreamInventoryHello{
+	err := stream.Send(ctx, &proto.UpstreamInventoryHello{
 		ServerID: serverID,
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(proto.DownstreamInventoryHello)
+		_, ok := msg.(*proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
@@ -1181,8 +1183,7 @@ func TestLocalControlStream(t *testing.T) {
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(proto.DownstreamInventoryPing)
-		require.True(t, ok)
+		require.IsType(t, *new(*proto.DownstreamInventoryPing), msg)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
 	case <-time.After(time.Second * 10):
@@ -1445,7 +1446,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
-		SSO:                      "c",
+		SSO:                      "https://example.com",
 		AttributesToRoles: []types.AttributeMapping{
 			{
 				Name:  "dummy",
@@ -2250,7 +2251,6 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2379,7 +2379,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 }
 
 func TestGenerateUserCertIPPinning(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newAuthSuite(t)
 
@@ -2903,7 +2903,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			cap: types.AuthPreferenceSpecV2{
 				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
 				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
 			},
@@ -2916,7 +2916,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
 				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
 			},
@@ -2949,7 +2949,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     1234,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "unknown hardware key")
 			},
@@ -2983,7 +2983,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     87654321,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "unknown hardware key")
 			},
@@ -3002,14 +3002,14 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "no known hardware keys")
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				MockAttestationData: tt.mockAttestationData,
 			})
 
@@ -3800,7 +3800,6 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tokenID := "test-token-not-found"
@@ -3947,7 +3946,7 @@ func TestFilterResources(t *testing.T) {
 	const resourceCount = 100
 	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
 
-	for i := 0; i < resourceCount; i++ {
+	for range resourceCount {
 		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
 		require.NoError(t, err)
 		nodes = append(nodes, s)
@@ -3963,7 +3962,7 @@ func TestFilterResources(t *testing.T) {
 		{
 			name:  "ListResources fails",
 			cache: mockCache{resourcesError: fail},
-			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errorAssertion: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, i...)
 				require.ErrorIs(t, err, fail)
 			},
@@ -3979,7 +3978,7 @@ func TestFilterResources(t *testing.T) {
 		{
 			name:  "fatal errors are propagated",
 			cache: mockCache{resources: nodes},
-			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errorAssertion: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err, i...)
 				require.ErrorIs(t, err, fail)
 			},
@@ -3998,7 +3997,6 @@ func TestFilterResources(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -4014,6 +4012,12 @@ func TestFilterResources(t *testing.T) {
 	}
 }
 
+type fakeAuthPreferenceGetter struct{}
+
+func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
+}
+
 func TestCAGeneration(t *testing.T) {
 	ctx := context.Background()
 	const (
@@ -4024,16 +4028,20 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	keyStore := keystore.NewSoftwareKeystoreForTests(t,
-		keystore.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
+	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{},
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
-		}),
-	)
+		},
+	})
+	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
 			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+
+			keySet, err := newKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
 			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
@@ -4196,6 +4204,50 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	require.Equal(t, "APPROVED", arc.RequestState)
 }
 
+func testCreateRole(t *testing.T, server *TestTLSServer, name string, setup func(*types.RoleSpecV6)) types.Role {
+	t.Helper()
+	ctx := context.Background()
+
+	spec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Reason: &types.AccessRequestConditionsReason{},
+			},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+		Deny: types.RoleConditions{
+			Request:        &types.AccessRequestConditions{},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+	}
+	setup(&spec)
+
+	role, err := types.NewRole(name, spec)
+	require.NoError(t, err, "types.NewRole")
+
+	createdRole, err := server.AuthServer.AuthServer.UpsertRole(ctx, role)
+	require.NoError(t, err, "AuthServer.UpsertRole")
+
+	return createdRole
+}
+
+func testCreateUserWithRoles(t *testing.T, server *TestTLSServer, user string, roles ...string) (TestIdentity, *authclient.Client) {
+	t.Helper()
+	ctx := context.Background()
+
+	u, err := types.NewUser(user)
+	require.NoError(t, err, "types.NewUser")
+	u.SetRoles(roles)
+	_, err = server.AuthServer.AuthServer.UpsertUser(ctx, u)
+	require.NoError(t, err, "AuthServer.UpsertUser")
+
+	identity := TestUser(user)
+	client, err := server.NewClient(identity)
+	require.NoError(t, err, "server.NewClient")
+
+	return identity, client
+}
+
 func TestAccessRequestNotifications(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -4214,55 +4266,26 @@ func TestAccessRequestNotifications(t *testing.T) {
 	requesterUsername := "requester"
 	requestRoleName := "requestRole"
 
-	reviewerRole, err := types.NewRole(reviewerUsername, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins: []string{"user"},
-			ReviewRequests: &types.AccessReviewConditions{
-				Roles: []string{"requestRole"},
-			},
-		},
+	reviewerRole := testCreateRole(t, testTLSServer, reviewerUsername, func(spec *types.RoleSpecV6) {
+		spec.Allow.Logins = []string{"user"}
+		spec.Allow.ReviewRequests.Roles = []string{"requestRole"}
 	})
-	require.NoError(t, err)
 
-	requesterRole, err := types.NewRole(requesterUsername, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				Roles: []string{requestRoleName},
-			},
-		},
+	requesterRole := testCreateRole(t, testTLSServer, requesterUsername, func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{requestRoleName}
 	})
-	require.NoError(t, err)
 
-	requestedRole, err := types.NewRole(requestRoleName, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				Roles: []string{requestRoleName},
-			},
-		},
+	requestRole := testCreateRole(t, testTLSServer, requestRoleName, func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{requestRoleName}
 	})
-	require.NoError(t, err)
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, requestedRole)
-	require.NoError(t, err)
 
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, reviewerRole)
-	require.NoError(t, err)
-	reviewer, err := types.NewUser(reviewerUsername)
-	require.NoError(t, err)
-	reviewer.SetRoles([]string{reviewerUsername})
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, reviewer)
-	require.NoError(t, err)
+	reviewer, reviewerClient := testCreateUserWithRoles(t, testTLSServer, reviewerUsername, reviewerRole.GetName())
 
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, requesterRole)
-	require.NoError(t, err)
-	requester, err := types.NewUser(requesterUsername)
-	require.NoError(t, err)
-	requester.SetRoles([]string{requesterUsername})
-	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, requester)
-	require.NoError(t, err)
+	requester, _ := testCreateUserWithRoles(t, testTLSServer, requesterUsername, requesterRole.GetName())
 
-	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requesterUsername, requestRoleName)
+	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requester.GetUsername(), requestRole.GetName())
 	require.NoError(t, err)
-	req, err := testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requesterUsername).I.GetIdentity())
+	req, err := testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, reviewer.I.GetIdentity())
 	require.NoError(t, err)
 
 	// Verify that a global notification was created which matches for users who can review the requestRole.
@@ -4270,12 +4293,8 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, globalNotifsResp, 1)
 	require.Equal(t, &types.AccessReviewConditions{
-		Roles: []string{requestRoleName},
+		Roles: []string{requestRole.GetName()},
 	}, globalNotifsResp[0].GetSpec().GetByPermissions().GetRoleConditions()[0].ReviewRequests)
-
-	reviewerIdentity := TestUser(reviewerUsername)
-	reviewerClient, err := testTLSServer.NewClient(reviewerIdentity)
-	require.NoError(t, err)
 
 	// Approve the request
 	_, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
@@ -4292,9 +4311,9 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.Contains(t, userNotifsResp[0].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer approved your access request")
 
 	// Create another access request.
-	accessRequest, err = types.NewAccessRequest(uuid.NewString(), requesterUsername, requestRoleName)
+	accessRequest, err = types.NewAccessRequest(uuid.NewString(), requester.GetUsername(), requestRole.GetName())
 	require.NoError(t, err)
-	req, err = testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requesterUsername).I.GetIdentity())
+	req, err = testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requester.GetUsername()).I.GetIdentity())
 	require.NoError(t, err)
 
 	// Deny the request.
@@ -4310,6 +4329,165 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, userNotifsResp, 2)
 	require.Contains(t, userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer denied your access request")
+}
+
+func testNewAccessRequest(t *testing.T, user string, roles ...string) types.AccessRequest {
+	t.Helper()
+	r, err := types.NewAccessRequest(uuid.NewString(), user, roles...)
+	require.NoError(t, err, "types.NewAccessRequest")
+	return r
+}
+
+func TestAccessRequestDryRunEnrichment(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	testTLSServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+
+	someRole := testCreateRole(t, testTLSServer, "some-role", func(spec *types.RoleSpecV6) {})
+
+	someRoleRequesterRole := testCreateRole(t, testTLSServer, "some-role-requester", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{someRole.GetName()}
+	})
+
+	someRoleRequesterRoleRequiringReason := testCreateRole(t, testTLSServer, "some-role-requester-requiring-reason", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.Roles = []string{someRole.GetName()}
+		spec.Allow.Request.Reason.Mode = types.RequestReasonModeRequired
+	})
+
+	globalPromptRole1 := testCreateRole(t, testTLSServer, "prompt-role-1", func(spec *types.RoleSpecV6) {
+		spec.Options.RequestPrompt = "test prompt #1"
+	})
+	globalPromptRole2 := testCreateRole(t, testTLSServer, "prompt-role-2", func(spec *types.RoleSpecV6) {
+		spec.Options.RequestPrompt = "test prompt #2"
+	})
+
+	t.Run("requesting-role-no-reason-required-no-prompts", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeOptional, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Empty(t, resp.GetDryRunEnrichment().ReasonPrompts)
+	})
+
+	t.Run("requesting-role-reason-required", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRoleRequiringReason.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeRequired, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Empty(t, resp.GetDryRunEnrichment().ReasonPrompts)
+	})
+
+	t.Run("requesting-role-multiple-prompts", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+			globalPromptRole1.GetName(),
+			globalPromptRole2.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeOptional, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Len(t, resp.GetDryRunEnrichment().ReasonPrompts, 2)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole1.GetOptions().RequestPrompt)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole2.GetOptions().RequestPrompt)
+	})
+
+	t.Run("requesting-role-reason-required-and-multiple-prompts", func(t *testing.T) {
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+			someRoleRequesterRoleRequiringReason.GetName(),
+			globalPromptRole1.GetName(),
+			globalPromptRole2.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check reason mode
+		require.Equal(t, types.RequestReasonModeRequired, resp.GetDryRunEnrichment().ReasonMode)
+		// check prompts
+		require.Len(t, resp.GetDryRunEnrichment().ReasonPrompts, 2)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole1.GetOptions().RequestPrompt)
+		require.Contains(t, resp.GetDryRunEnrichment().ReasonPrompts, globalPromptRole2.GetOptions().RequestPrompt)
+	})
+
+	t.Run("requesting-role-prompts-sorted-and-duplicated", func(t *testing.T) {
+		globalPromptRole1 := testCreateRole(t, testTLSServer, "prompt-role-1", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "C test prompt"
+		})
+		globalPromptRole2 := testCreateRole(t, testTLSServer, "prompt-role-2", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "A test prompt"
+		})
+		globalPromptRole3 := testCreateRole(t, testTLSServer, "prompt-role-3", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "B test prompt"
+		})
+		globalPromptRole4 := testCreateRole(t, testTLSServer, "prompt-role-4", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "B test prompt"
+		})
+		globalPromptRole5 := testCreateRole(t, testTLSServer, "prompt-role-5", func(spec *types.RoleSpecV6) {
+			spec.Options.RequestPrompt = "C test prompt"
+		})
+
+		requester, requesterClient := testCreateUserWithRoles(t, testTLSServer, "requester",
+			someRoleRequesterRole.GetName(),
+			globalPromptRole1.GetName(),
+			globalPromptRole2.GetName(),
+			globalPromptRole3.GetName(),
+			globalPromptRole4.GetName(),
+			globalPromptRole5.GetName(),
+		)
+
+		dryRunAccessRequest := testNewAccessRequest(t, requester.GetUsername(), someRole.GetName())
+		dryRunAccessRequest.SetDryRun(true)
+
+		resp, err := requesterClient.CreateAccessRequestV2(ctx, dryRunAccessRequest)
+		require.NoError(t, err)
+
+		require.NotNil(t, resp.GetDryRunEnrichment())
+		// check prompts
+		require.Len(t, resp.GetDryRunEnrichment().ReasonPrompts, 3)
+		require.Equal(t, "A test prompt", resp.GetDryRunEnrichment().ReasonPrompts[0])
+		require.Equal(t, "B test prompt", resp.GetDryRunEnrichment().ReasonPrompts[1])
+		require.Equal(t, "C test prompt", resp.GetDryRunEnrichment().ReasonPrompts[2])
+	})
 }
 
 func TestCleanupNotifications(t *testing.T) {
@@ -4347,7 +4525,7 @@ func TestCleanupNotifications(t *testing.T) {
 	var createdNotifications []notificationInfo
 
 	createNotifications := func(username string, count int, expiryDuration time.Duration) {
-		for i := 0; i < count; i++ {
+		for i := range count {
 			var id string
 			if username != "" {
 				notification := newUserNotificationWithExpiry(t, username, fmt.Sprintf("%s-notification-%d", username, i+1), timestamppb.New(fakeClock.Now().Add(expiryDuration)))
@@ -4448,7 +4626,7 @@ func TestCleanupNotifications(t *testing.T) {
 func TestCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -4481,33 +4659,6 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	client, err := testServer.NewClient(TestUser(testUsername))
 	require.NoError(t, err)
 
-	// Helper to create access lists with specific next audit dates
-	createAccessList := func(t *testing.T, name string, nextAuditDate time.Time) {
-		al, err := accesslist.NewAccessList(header.Metadata{
-			Name: name,
-		}, accesslist.Spec{
-			Title:       fmt.Sprintf("Access List %s", name),
-			Description: fmt.Sprintf("Test access list %s", name),
-			Owners: []accesslist.Owner{{
-				Name:           testUsername,
-				Description:    "",
-				MembershipKind: "",
-			}},
-			Audit: accesslist.Audit{
-				NextAuditDate: nextAuditDate,
-				Recurrence:    accesslist.Recurrence{},
-				Notifications: accesslist.Notifications{},
-			},
-			Grants: accesslist.Grants{
-				Roles: []string{"grant"},
-			},
-		})
-		require.NoError(t, err)
-
-		_, err = authServer.UpsertAccessList(ctx, al)
-		require.NoError(t, err)
-	}
-
 	// Create access lists with different expiry times
 	accessLists := []struct {
 		name      string
@@ -4531,7 +4682,12 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	for _, al := range accessLists {
-		createAccessList(t, al.name, authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour))
+		createAccessList(t, authServer, al.name+"-static", withType(accesslist.Static))
+		createAccessList(t, authServer, al.name+"-scim", withType(accesslist.SCIM))
+		createAccessList(t, authServer, al.name,
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
 	}
 
 	// Run CreateAccessListReminderNotifications()
@@ -4555,17 +4711,74 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	require.Len(t, resp.Notifications, 6)
 }
 
+type createAccessListOptions struct {
+	typ           accesslist.Type
+	nextAuditDate time.Time
+	owners        []accesslist.Owner
+}
+
+type createAccessListOpt func(*createAccessListOptions)
+
+func withType(typ accesslist.Type) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withNextAuditDate(nextAuditDate time.Time) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.nextAuditDate = nextAuditDate
+	}
+}
+
+func withOwners(owners []accesslist.Owner) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.owners = owners
+	}
+}
+
+func createAccessList(t *testing.T, authServer *Server, name string, opts ...createAccessListOpt) {
+	t.Helper()
+	ctx := t.Context()
+
+	options := createAccessListOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: name,
+	}, accesslist.Spec{
+		Type:        options.typ,
+		Title:       fmt.Sprintf("Test Access List %s", name),
+		Description: fmt.Sprintf("Test Access List %s description", name),
+		Owners:      options.owners,
+		Audit: accesslist.Audit{
+			NextAuditDate: options.nextAuditDate,
+			Recurrence:    accesslist.Recurrence{},
+			Notifications: accesslist.Notifications{},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+}
+
 func TestServer_GetAnonymizationKey(t *testing.T) {
 	tests := []struct {
 		name        string
-		testModules *modules.TestModules
+		testModules modulestest.Modules
 		license     *license.License
 		want        string
 		errCheck    require.ErrorAssertionFunc
 	}{
 		{
 			name: "returns CloudAnonymizationKey if present",
-			testModules: &modules.TestModules{
+			testModules: modulestest.Modules{
 				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
 			},
 			license: &license.License{
@@ -4576,7 +4789,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:        "Returns license AnonymizationKey if no Cloud Key is present",
-			testModules: &modules.TestModules{},
+			testModules: modulestest.Modules{},
 			license: &license.License{
 				AnonymizationKey: []byte("license-key"),
 			},
@@ -4585,7 +4798,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:        "Returns clusterID if no cloud key nor license key is present",
-			testModules: &modules.TestModules{},
+			testModules: modulestest.Modules{},
 			license:     &license.License{},
 			want:        "cluster-id",
 			errCheck:    require.NoError,
@@ -4606,7 +4819,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
 
-			modules.SetTestModules(t, tt.testModules)
+			modulestest.SetTestModules(t, tt.testModules)
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
@@ -4843,6 +5056,91 @@ func TestValidServerHostname(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := validServerHostname(tt.hostname)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCreateAuthPreference(t *testing.T) {
+	cases := []struct {
+		name       string
+		modules    *modulestest.Modules
+		preference func(p types.AuthPreference)
+		assertion  func(t *testing.T, created types.AuthPreference, err error)
+	}{
+		{
+			name: "creation prevented when hardware key policy is set in open source",
+			preference: func(p types.AuthPreference) {
+				pp := p.(*types.AuthPreferenceV2)
+				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
+			},
+			assertion: func(t *testing.T, created types.AuthPreference, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected hardware key policy to be rejected in OSS", err)
+			},
+		},
+		{
+			name:    "creation allowed when hardware key policy is set in enterprise",
+			modules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
+			preference: func(p types.AuthPreference) {
+				pp := p.(*types.AuthPreferenceV2)
+				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
+			},
+			assertion: func(t *testing.T, created types.AuthPreference, err error) {
+				require.NoError(t, err, "got (%v), expected auth role to create auth mutator", err)
+				require.NotNil(t, created)
+			},
+		},
+		{
+			name: "creation prevented when hardware key policy is set in open source",
+			preference: func(p types.AuthPreference) {
+				p.SetDeviceTrust(&types.DeviceTrust{
+					Mode: constants.DeviceTrustModeRequired,
+				})
+			},
+			assertion: func(t *testing.T, created types.AuthPreference, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected device trust mode conflict to prevent creation", err)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.modules != nil {
+				modulestest.SetTestModules(t, *test.modules)
+			}
+
+			bk, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+
+			clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+				ClusterName: "test.localhost",
+			})
+
+			require.NoError(t, err)
+
+			clusterConfigService, err := local.NewClusterConfigurationService(bk)
+			require.NoError(t, err)
+
+			server, err := NewServer(&InitConfig{
+				DataDir:                t.TempDir(),
+				Backend:                bk,
+				ClusterName:            clusterName,
+				VersionStorage:         NewFakeTeleportVersion(),
+				Authority:              testauthority.New(),
+				Emitter:                &eventstest.MockRecorderEmitter{},
+				ClusterConfiguration:   clusterConfigService,
+				SkipPeriodicOperations: true,
+			})
+			require.NoError(t, err)
+
+			pref := types.DefaultAuthPreference()
+			if test.preference != nil {
+				test.preference(pref)
+			}
+
+			created, err := server.CreateAuthPreference(context.Background(), pref)
+			test.assertion(t, created, err)
 		})
 	}
 }

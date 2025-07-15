@@ -131,7 +131,11 @@ type TLSIdentity struct {
 	// DeviceExtensions holds device-aware extensions for the identity.
 	DeviceExtensions *DeviceExtensions `protobuf:"bytes,34,opt,name=device_extensions,json=deviceExtensions,proto3" json:"device_extensions,omitempty"`
 	// UserType indicates if the User was created by an SSO Provider or locally.
-	UserType      string `protobuf:"bytes,35,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	UserType string `protobuf:"bytes,35,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	// JoinToken is the name of the join token used when a bot joins; it does not
+	// apply to other identity types, or to bots using the traditional `token`
+	// join method.
+	JoinToken     string `protobuf:"bytes,36,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -411,6 +415,13 @@ func (x *TLSIdentity) GetUserType() string {
 	return ""
 }
 
+func (x *TLSIdentity) GetJoinToken() string {
+	if x != nil {
+		return x.JoinToken
+	}
+	return ""
+}
+
 // RouteToApp holds routing information for applications.
 type RouteToApp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -439,9 +450,13 @@ type RouteToApp struct {
 	// for multi-port TCP apps. It is appended to the hostname from the URI in the
 	// app spec, since the URI from RouteToApp is not used as the source of truth
 	// for routing.
-	TargetPort    int32 `protobuf:"varint,9,opt,name=target_port,json=targetPort,proto3" json:"target_port,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TargetPort int32 `protobuf:"varint,9,opt,name=target_port,json=targetPort,proto3" json:"target_port,omitempty"`
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AwsCredentialprocessCredentials string `protobuf:"bytes,10,opt,name=aws_credentialprocess_credentials,json=awsCredentialprocessCredentials,proto3" json:"aws_credentialprocess_credentials,omitempty"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *RouteToApp) Reset() {
@@ -535,6 +550,13 @@ func (x *RouteToApp) GetTargetPort() int32 {
 		return x.TargetPort
 	}
 	return 0
+}
+
+func (x *RouteToApp) GetAwsCredentialprocessCredentials() string {
+	if x != nil {
+		return x.AwsCredentialprocessCredentials
+	}
+	return ""
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -774,7 +796,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xb6\f\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xd5\f\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -816,7 +838,9 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\x12private_key_policy\x18  \x01(\tR\x10privateKeyPolicy\x128\n" +
 	"\x18connection_diagnostic_id\x18! \x01(\tR\x16connectionDiagnosticId\x12Y\n" +
 	"\x11device_extensions\x18\" \x01(\v2,.teleport.decision.v1alpha1.DeviceExtensionsR\x10deviceExtensions\x12\x1b\n" +
-	"\tuser_type\x18# \x01(\tR\buserType\"\xaf\x02\n" +
+	"\tuser_type\x18# \x01(\tR\buserType\x12\x1d\n" +
+	"\n" +
+	"join_token\x18$ \x01(\tR\tjoinToken\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
@@ -831,7 +855,9 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\x13gcp_service_account\x18\a \x01(\tR\x11gcpServiceAccount\x12\x10\n" +
 	"\x03uri\x18\b \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_port\x18\t \x01(\x05R\n" +
-	"targetPort\"\x9e\x01\n" +
+	"targetPort\x12J\n" +
+	"!aws_credentialprocess_credentials\x18\n" +
+	" \x01(\tR\x1fawsCredentialprocessCredentials\"\x9e\x01\n" +
 	"\x0fRouteToDatabase\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1a\n" +

@@ -18,6 +18,7 @@
 
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
+  createDesktopSessionDocument,
   DocumentGateway,
   DocumentOrigin,
   WorkspacesService,
@@ -25,13 +26,14 @@ import {
 import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
+  getDesktopDocumentByConnection,
   getGatewayDocumentByConnection,
   getGatewayKubeDocumentByConnection,
-  getKubeDocumentByConnection,
   getServerDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,
+  TrackedDesktopConnection,
   TrackedGatewayConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
@@ -51,6 +53,8 @@ export class TrackedConnectionOperationsFactory {
         return this.getConnectionGatewayOperations(connection);
       case 'connection.kube':
         return this.getConnectionGatewayKubeOperations(connection);
+      case 'connection.desktop':
+        return this.getConnectionDesktopOperations(connection);
     }
   }
 
@@ -216,17 +220,52 @@ export class TrackedConnectionOperationsFactory {
                 .forEach(document => {
                   documentsService.close(document.uri);
                 });
-
-              // Remove deprecated doc.terminal_tsh_kube documents.
-              // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-              documentsService
-                .getDocuments()
-                .filter(getKubeDocumentByConnection(connection))
-                .forEach(document => {
-                  documentsService.close(document.uri);
-                });
             })
         );
+      },
+      remove: async () => {},
+    };
+  }
+
+  private getConnectionDesktopOperations(
+    connection: TrackedDesktopConnection
+  ): TrackedConnectionOperations {
+    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
+      connection.desktopUri
+    ).params;
+    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
+      rootClusterId,
+      leafClusterId,
+    });
+
+    const documentsService =
+      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+    return {
+      rootClusterUri,
+      leafClusterUri,
+      activate: params => {
+        let doc = documentsService
+          .getDocuments()
+          .find(getDesktopDocumentByConnection(connection));
+
+        if (!doc) {
+          doc = createDesktopSessionDocument({
+            desktopUri: connection.desktopUri,
+            login: connection.login,
+            origin: params.origin,
+          });
+          documentsService.add(doc);
+        }
+        documentsService.open(doc.uri);
+      },
+      disconnect: async () => {
+        documentsService
+          .getDocuments()
+          .filter(getDesktopDocumentByConnection(connection))
+          .forEach(document => {
+            documentsService.close(document.uri);
+          });
       },
       remove: async () => {},
     };

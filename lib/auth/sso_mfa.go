@@ -21,6 +21,7 @@ import (
 	"crypto/subtle"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -53,11 +54,14 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		chal.RequestId = resp.ID
 		chal.RedirectUrl = resp.RedirectURL
 	case constants.OIDC:
+		codeVerifier := oauth2.GenerateVerifier()
+
 		resp, err := a.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
 			ConnectorID:       sso.ConnectorId,
 			Type:              sso.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
 			ProxyAddress:      proxyAddress,
+			PkceVerifier:      codeVerifier,
 			CheckUser:         true,
 		})
 		if err != nil {

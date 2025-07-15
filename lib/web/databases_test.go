@@ -92,7 +92,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -104,7 +104,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -116,7 +116,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "",
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -133,7 +133,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -150,7 +150,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:     "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -167,7 +167,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -184,7 +184,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					Subnets:    []string{"subnet-123", "subnet-321"},
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -238,7 +238,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr(""),
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -248,7 +248,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr("ca_cert"),
 			},
-			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+			errAssert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},

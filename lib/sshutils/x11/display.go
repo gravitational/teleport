@@ -180,7 +180,7 @@ func ParseDisplay(displayString string) (Display, error) {
 	// check the display for illegal characters in case of code injection attempt
 	allowedSpecialChars := ":/.-_" // chars used for hostname or display delimiters.
 	for _, c := range displayString {
-		if !(unicode.IsLetter(c) || unicode.IsNumber(c) || strings.ContainsRune(allowedSpecialChars, c)) {
+		if !unicode.IsLetter(c) && !unicode.IsNumber(c) && !strings.ContainsRune(allowedSpecialChars, c) {
 			return Display{}, trace.BadParameter("display contains invalid character %q", c)
 		}
 	}

@@ -42,12 +42,12 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSessionEndError(t *testing.T) {
@@ -92,7 +92,6 @@ func TestSessionEndError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var (
@@ -283,7 +282,7 @@ func Test_session_trackSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := &session{
-				log: utils.NewSlogLoggerForTests(),
+				log: logtest.NewLogger(),
 				id:  uuid.New(),
 				req: &http.Request{
 					URL: &url.URL{
@@ -292,7 +291,7 @@ func Test_session_trackSession(t *testing.T) {
 				},
 				podName:         "podName",
 				podNamespace:    "podNamespace",
-				accessEvaluator: auth.NewSessionAccessEvaluator(tt.args.policies, types.KubernetesSessionKind, "username"),
+				accessEvaluator: moderation.NewSessionAccessEvaluator(tt.args.policies, types.KubernetesSessionKind, "username"),
 				ctx: authContext{
 					Context: authz.Context{
 						User: &types.UserV2{

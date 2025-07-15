@@ -106,15 +106,20 @@ func (a *AuthProxyArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 type sharedStartArgs struct {
 	*AuthProxyArgs
 
-	JoinMethod      string
-	Token           string
-	CAPins          []string
-	CertificateTTL  time.Duration
-	RenewalInterval time.Duration
-	Storage         string
+	JoiningURI         string
+	JoinMethod         string
+	Token              string
+	CAPins             []string
+	CertificateTTL     time.Duration
+	RenewalInterval    time.Duration
+	Storage            string
+	RegistrationSecret string
+	Keypair            string
 
 	Oneshot  bool
 	DiagAddr string
+
+	oneshotSetByUser bool
 }
 
 // newSharedStartArgs initializes shared arguments on the given parent command.
@@ -126,15 +131,16 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 		"(%s)",
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
-
 	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&args.Token)
 	cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&args.CAPins)
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
 	cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&args.RenewalInterval)
 	cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&args.JoinMethod, config.SupportedJoinMethods...)
-	cmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&args.Oneshot)
+	cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&args.oneshotSetByUser).BoolVar(&args.Oneshot)
 	cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&args.DiagAddr)
 	cmd.Flag("storage", "A destination URI for tbot's internal storage, e.g. file:///foo/bar").StringVar(&args.Storage)
+	cmd.Flag("registration-secret", "For bound keypair joining, specifies a registration secret for use at first join.").StringVar(&args.RegistrationSecret)
+	cmd.Flag("join-uri", "An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.").StringVar(&args.JoiningURI)
 
 	return args
 }
@@ -142,14 +148,18 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	// Note: Debug, FIPS, and Insecure are included from globals.
 
+	if s.JoiningURI != "" {
+		cfg.JoinURI = s.JoiningURI
+	}
+
 	if s.AuthProxyArgs != nil {
 		if err := s.AuthProxyArgs.ApplyConfig(cfg, l); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if s.Oneshot {
-		cfg.Oneshot = true
+	if s.oneshotSetByUser {
+		cfg.Oneshot = s.Oneshot
 	}
 
 	if s.CertificateTTL != 0 {
@@ -231,6 +241,14 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 			JoinMethod: types.JoinMethod(s.JoinMethod),
 		}
 		cfg.Onboarding.SetToken(s.Token)
+	}
+
+	if s.JoinMethod != string(types.JoinMethodBoundKeypair) && s.RegistrationSecret != "" {
+		return trace.BadParameter("--registration-secret is only valid with --join-method=%s", types.JoinMethodBoundKeypair)
+	}
+
+	if s.RegistrationSecret != "" {
+		cfg.Onboarding.BoundKeypair.RegistrationSecret = s.RegistrationSecret
 	}
 
 	return nil

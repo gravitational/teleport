@@ -47,6 +47,11 @@ func (m *mockTeleportClient) SubmitAccessReview(ctx context.Context, review type
 	return (types.AccessRequest)(nil), args.Error(1)
 }
 
+func (m *mockTeleportClient) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	args := m.Called(ctx, name, withSecrets)
+	return args.Get(0).(types.User), args.Error(1)
+}
+
 type mockMessagingBot struct {
 	mock.Mock
 	MessagingBot
@@ -62,7 +67,7 @@ func TestGetLoginsByRole(t *testing.T) {
 	teleportClient.On("GetRole", mock.Anything, "admin").Return(&types.RoleV6{
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Logins: []string{"root", "foo", "bar"},
+				Logins: []string{"root", "foo", "bar", "{{internal.logins}}"},
 			},
 		},
 	}, (error)(nil))
@@ -80,6 +85,13 @@ func TestGetLoginsByRole(t *testing.T) {
 			},
 		},
 	}, (error)(nil))
+	teleportClient.On("GetUser", mock.Anything, "admin", mock.Anything).Return(&types.UserV2{
+		Spec: types.UserSpecV2{
+			Traits: map[string][]string{
+				"logins": {"buz"},
+			},
+		},
+	}, nil)
 
 	app := App{
 		apiClient: teleportClient,
@@ -87,13 +99,14 @@ func TestGetLoginsByRole(t *testing.T) {
 	ctx := context.Background()
 	loginsByRole, err := app.getLoginsByRole(ctx, &types.AccessRequestV3{
 		Spec: types.AccessRequestSpecV3{
+			User:  "admin",
 			Roles: []string{"admin", "foo", "dev"},
 		},
 	})
 	require.NoError(t, err)
 
 	expected := map[string][]string{
-		"admin": {"root", "foo", "bar"},
+		"admin": {"root", "foo", "bar", "buz"},
 		"foo":   {"foo"},
 		"dev":   {},
 	}

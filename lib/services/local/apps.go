@@ -20,9 +20,11 @@ package local
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,6 +38,75 @@ type AppService struct {
 // NewAppService creates a new AppService.
 func NewAppService(backend backend.Backend) *AppService {
 	return &AppService{Backend: backend}
+}
+
+// Apps returns application resources within the range [start, end).
+func (s *AppService) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+	return func(yield func(types.Application, error) bool) {
+		appKey := backend.NewKey(appPrefix)
+		endKey := backend.RangeEnd(appKey)
+		if end != "" {
+			endKey = appKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+		}
+		for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: appKey.AppendKey(backend.KeyFromString(start)),
+			EndKey:   endKey,
+		}) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			app, err := services.UnmarshalApp(item.Value,
+				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			if err != nil {
+				continue
+			}
+
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			if end != "" && app.GetName() >= end {
+				return
+			}
+
+			if !yield(app, nil) {
+				return
+			}
+		}
+	}
+}
+
+// ListApps returns a page of application resources.
+func (s *AppService) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	appKey := backend.NewKey(appPrefix)
+	var out []types.Application
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: appKey.AppendKey(backend.KeyFromString(startKey)),
+		EndKey:   backend.RangeEnd(appKey),
+		Limit:    limit + 1,
+	}) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		app, err := services.UnmarshalApp(item.Value,
+			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			continue
+		}
+
+		if len(out) == limit {
+			return out, app.GetName(), nil
+		}
+
+		out = append(out, app)
+	}
+
+	return out, "", nil
 }
 
 // GetApps returns all application resources.

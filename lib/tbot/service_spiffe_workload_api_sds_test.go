@@ -50,7 +50,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -67,7 +68,7 @@ func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*workloadident
 // It tests the generation of the DiscoveryResponses and that authentication
 // is enforced.
 func TestSDS_FetchSecrets(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 
 	td, err := spiffeid.TrustDomainFromString("example.com")
@@ -216,7 +217,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	}
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
@@ -296,7 +297,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	b := New(botConfig, log)
 
 	// Run bot in the background for the remainder of the test.
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "bot",
 		Task: b.Run,
 	})

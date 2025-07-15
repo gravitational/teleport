@@ -18,8 +18,6 @@ package cache
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -28,7 +26,6 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -50,10 +47,6 @@ func newIdentityCenterAccount(id string) *identitycenterv1.Account {
 
 // TestIdentityCenterAccount asserts that an Identoty Ceneter Account can be cached
 func TestIdentityCenterAccount(t *testing.T) {
-	slog.SetDefault(
-		slog.New(logutils.NewSlogTextHandler(
-			os.Stderr, logutils.SlogTextHandlerConfig{Level: slog.LevelDebug})))
-
 	t.Parallel()
 
 	fixturePack := newTestPack(t, ForAuth)
@@ -94,8 +87,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 				ctx, services.IdentityCenterAccountID(id)))
 		},
 		deleteAll: func(ctx context.Context) error {
-			_, err := fixturePack.identityCenter.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
-			return trace.Wrap(err)
+			return trace.Wrap(fixturePack.identityCenter.DeleteAllIdentityCenterAccounts(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]services.IdentityCenterAccount, error) {
 			var result []services.IdentityCenterAccount
@@ -141,29 +133,11 @@ func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.Principal
 	}
 }
 
-// TestIdentityCenterPrincpialAssignment asserts that an Identity Center PrincipalAssignment can be cached
+// TestIdentityCenterPrincipalAssignment asserts that an Identity Center PrincipalAssignment can be cached
 func TestIdentityCenterPrincipalAssignment(t *testing.T) {
+	t.Parallel()
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
-
-	collect := func(ctx context.Context, src identityCenterPrincipalAssignmentGetter) ([]*identitycenterv1.PrincipalAssignment, error) {
-		var result []*identitycenterv1.PrincipalAssignment
-		var pageToken pagination.PageRequestToken
-		for {
-			page, nextPage, err := src.ListPrincipalAssignments(ctx, 0, &pageToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			result = append(result, page...)
-
-			if nextPage == pagination.EndOfList {
-				break
-			}
-
-			pageToken.Update(nextPage)
-		}
-		return result, nil
-	}
 
 	testResources153(t, fixturePack, testFuncs153[*identitycenterv1.PrincipalAssignment]{
 		newResource: func(s string) (*identitycenterv1.PrincipalAssignment, error) {
@@ -178,21 +152,49 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*identitycenterv1.PrincipalAssignment, error) {
-			return collect(ctx, fixturePack.identityCenter)
+			var result []*identitycenterv1.PrincipalAssignment
+			var pageToken pagination.PageRequestToken
+			for {
+				page, nextPage, err := fixturePack.identityCenter.ListPrincipalAssignments(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, page...)
+
+				if nextPage == pagination.EndOfList {
+					break
+				}
+
+				pageToken.Update(nextPage)
+			}
+			return result, nil
 		},
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeletePrincipalAssignment(ctx, services.PrincipalAssignmentID(id)))
 		},
 		deleteAll: func(ctx context.Context) error {
-			_, err := fixturePack.identityCenter.DeleteAllPrincipalAssignments(ctx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{})
-			return trace.Wrap(err)
+			return trace.Wrap(fixturePack.identityCenter.DeleteAllPrincipalAssignments(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*identitycenterv1.PrincipalAssignment, error) {
-			return collect(ctx, fixturePack.cache.identityCenterCache)
+			var result []*identitycenterv1.PrincipalAssignment
+			var pageToken pagination.PageRequestToken
+			for {
+				page, nextPage, err := fixturePack.cache.ListPrincipalAssignments(ctx, 0, &pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, page...)
+
+				if nextPage == pagination.EndOfList {
+					break
+				}
+
+				pageToken.Update(nextPage)
+			}
+			return result, nil
 		},
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.PrincipalAssignment, error) {
-			r, err := fixturePack.cache.identityCenterCache.GetPrincipalAssignment(
-				ctx, services.PrincipalAssignmentID(id))
+			r, err := fixturePack.cache.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(id))
 			return r, trace.Wrap(err)
 		},
 	})
@@ -218,6 +220,7 @@ func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssi
 // TestIdentityCenterAccountAssignment asserts that an Identity Center
 // AccountAssignment can be cached
 func TestIdentityCenterAccountAssignment(t *testing.T) {
+	t.Parallel()
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
@@ -256,8 +259,7 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id)))
 		},
 		deleteAll: func(ctx context.Context) error {
-			_, err := fixturePack.identityCenter.DeleteAllAccountAssignments(ctx, &identitycenterv1.DeleteAllAccountAssignmentsRequest{})
-			return trace.Wrap(err)
+			return trace.Wrap(fixturePack.identityCenter.DeleteAllAccountAssignments(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]services.IdentityCenterAccountAssignment, error) {
 			var result []services.IdentityCenterAccountAssignment

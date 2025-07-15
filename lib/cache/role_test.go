@@ -21,10 +21,23 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
+
+func TestRoleNotFound(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForNode)
+	t.Cleanup(p.Close)
+
+	_, err := p.cache.GetRole(t.Context(), "test-role")
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err))
+	assert.Equal(t, "role test-role is not found", err.Error())
+}
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {
@@ -36,7 +49,7 @@ func TestRoles(t *testing.T) {
 	t.Run("GetRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
 			newResource: func(name string) (types.Role, error) {
-				return types.NewRole("role1", types.RoleSpecV6{
+				return types.NewRole(name, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
@@ -67,7 +80,7 @@ func TestRoles(t *testing.T) {
 	t.Run("ListRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
 			newResource: func(name string) (types.Role, error) {
-				return types.NewRole("role1", types.RoleSpecV6{
+				return types.NewRole(name, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},

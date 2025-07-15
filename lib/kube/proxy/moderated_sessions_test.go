@@ -46,11 +46,12 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestModeratedSessions(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s: {Enabled: true},
 		},
@@ -246,7 +247,6 @@ func TestModeratedSessions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		if tt.want.sessionEndEvent {
 			numberOfExpectedSessionEnds++
 		}
@@ -501,7 +501,7 @@ func validateSessionTracker(testCtx *TestContext, sessionID string, reason strin
 // Lock watcher connection to be stale and it takes ~5 minutes to happen.
 func TestInteractiveSessionsNoAuth(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s: {Enabled: true},
 		},
@@ -649,7 +649,6 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

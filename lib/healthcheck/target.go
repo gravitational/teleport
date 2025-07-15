@@ -48,6 +48,8 @@ type Target struct {
 	onHealthCheck func(lastResultErr error)
 	// onConfigUpdate is called after each config update.
 	onConfigUpdate func()
+	// onClose is called after the target's worker closes.
+	onClose func()
 }
 
 func (t *Target) checkAndSetDefaults() error {

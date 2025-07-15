@@ -1401,7 +1401,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 			devices = nil
 		case i == 1:
 			devices = append(devices, dev2)
-			for j := 0; j < 20; j++ {
+			for range 20 {
 				dev, err := services.NewTOTPDevice(uuid.NewString(), base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 				require.NoError(t, err, "creating otp device failed")
 				devices = append(devices, dev)

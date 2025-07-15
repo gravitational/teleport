@@ -54,6 +54,23 @@ func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUs
 	}, nil
 }
 
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*api.ListDatabaseServersResponse, error) {
+	resp, err := s.DaemonService.ListDatabaseServers(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.ListDatabaseServersResponse{
+		NextKey: resp.NextKey,
+	}
+
+	for _, server := range resp.Servers {
+		response.Resources = append(response.Resources, newAPIDatabaseServer(server))
+	}
+	return response, nil
+}
+
 func newAPIDatabase(db clusters.Database) *api.Database {
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(db.GetAllLabels()))
 
@@ -64,5 +81,23 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 		Protocol: db.GetProtocol(),
 		Type:     db.GetType(),
 		Labels:   apiLabels,
+		TargetHealth: &api.TargetHealth{
+			Status:  db.TargetHealth.Status,
+			Error:   db.TargetHealth.TransitionError,
+			Message: db.TargetHealth.Message,
+		},
+	}
+}
+
+func newAPIDatabaseServer(dbServer clusters.DatabaseServer) *api.DatabaseServer {
+	return &api.DatabaseServer{
+		Uri:      dbServer.URI.String(),
+		Hostname: dbServer.GetHostname(),
+		HostId:   dbServer.GetHostID(),
+		TargetHealth: &api.TargetHealth{
+			Status:  dbServer.GetTargetHealth().Status,
+			Error:   dbServer.GetTargetHealth().TransitionError,
+			Message: dbServer.GetTargetHealth().Message,
+		},
 	}
 }

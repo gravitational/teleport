@@ -65,11 +65,11 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/token"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func renewBotCerts(
@@ -170,7 +170,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	certs := result.Certs
 
 	// Renew the cert a bunch of times.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Ensure the state of the bot instance before renewal is sane.
 		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
@@ -550,7 +550,11 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	renewedClient, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	require.NoError(t, err)
+
+	// This client should be able to ping.
+	_, err = renewedClient.Ping(ctx)
 	require.NoError(t, err)
 
 	// Check the generation, it should be 2.
@@ -565,12 +569,18 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// The user should now be locked.
+	// The bot instance should now be locked.
 	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
-		User: "bot-test",
+		BotInstanceID: impersonatedIdent.BotInstanceID,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, locks)
+
+	// The original client should be locked out.
+	require.Eventually(t, func() bool {
+		_, err = renewedClient.Ping(ctx)
+		return err != nil && strings.Contains(err.Error(), "access denied")
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
@@ -831,7 +841,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 		nil /* clock */)
 	require.NoError(t, err)
 
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
@@ -918,9 +928,9 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
-		if token == k8sTokenName {
-			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
@@ -1073,9 +1083,9 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
-		if token == k8sTokenName {
-			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
@@ -1235,7 +1245,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 
 	require.NotEqual(t, initialInstanceA, initialInstanceB)
 
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		_, certsA, err = renewBotCerts(ctx, srv, certsA.TLS, bot.Status.UserName, resultA.PrivateKey)
 		require.NoError(t, err)
 

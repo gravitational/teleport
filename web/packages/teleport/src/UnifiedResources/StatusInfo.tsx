@@ -24,7 +24,6 @@ import {
 } from 'shared/components/UnifiedResources';
 import { UnhealthyStatusInfo } from 'shared/components/UnifiedResources/shared/StatusInfo';
 
-import { ResourcesResponse } from 'teleport/services/agents';
 import { fetchDatabaseServers } from 'teleport/services/databases/databases';
 
 export function StatusInfo({
@@ -41,30 +40,27 @@ export function StatusInfo({
     fetch: fetchResourceServers,
     resources: resourceServers,
     attempt: fetchResourceServersAttempt,
-  } = useResourceServersFetch({
+  } = useResourceServersFetch<SharedResourceServer>({
     fetchFunc: async (params, signal) => {
-      let response: ResourcesResponse<SharedResourceServer>;
-
       if (resource.kind === 'db') {
-        const resp = await fetchDatabaseServers({
+        const response = await fetchDatabaseServers({
           clusterId,
           params: {
             ...params,
             query: `name == "${resource.name}"`,
+            searchAsRoles: resource.requiresRequest ? 'yes' : '',
           },
           signal,
         });
-        const servers: DatabaseServer[] = resp.agents.map(d => ({
+        const servers: DatabaseServer[] = response.agents.map(d => ({
           kind: 'db_server',
           ...d,
         }));
-        response = {
+        return {
           agents: servers,
-          startKey: resp.startKey,
+          startKey: response.startKey,
         };
       }
-
-      return response;
     },
   });
 

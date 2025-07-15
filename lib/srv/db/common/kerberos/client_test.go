@@ -19,45 +19,47 @@
 package kerberos
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
+	"log/slog"
 	"os"
-	"os/exec"
-	"path/filepath"
+	"path"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jcmturner/gokrb5/v8/client"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 //go:embed kinit/testdata/kinit.cache
-var cacheData []byte
+var fixedCacheData []byte
 
-type staticCache struct {
-	t    *testing.T
-	pass bool
-}
+//go:embed testuser.keytab
+var keytabData []byte
 
-func (s *staticCache) CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cachePath := args[len(args)-1]
-	require.NotEmpty(s.t, cachePath)
-	err := os.WriteFile(cachePath, cacheData, 0664)
-	require.NoError(s.t, err)
-
-	if s.pass {
-		return exec.Command("echo")
-	}
-	cmd := exec.Command("")
-	cmd.Err = errors.New("bad command")
-	return cmd
-}
+// expectedKeytabDataPrefix is result of loading keytabData up until the random SessionID.
+const expectedKeytabDataPrefix = `Credentials:
+{
+  "Username": "alice",
+  "DisplayName": "alice",
+  "Realm": "example.com",
+  "Keytab": true,
+  "Password": false,
+  "ValidUntil": "0001-01-01T00:00:00Z",
+  "Authenticated": false,
+  "Human": true,
+  "AuthTime": "0001-01-01T00:00:00Z",
+`
 
 const (
 	mockCA = `-----BEGIN CERTIFICATE-----
@@ -99,104 +101,108 @@ HDKyflZ05nt/zvM6W/WIeMI7VMPw/Ryr7iynMqAYAhJhTFKdSwuNLDY8eFbOUnbw
  }`
 )
 
-type mockAuth struct{}
+type mockClientProvider struct{}
 
-func (m *mockAuth) GenerateWindowsDesktopCert(ctx context.Context, request *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	return nil, nil
-}
-
-func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return nil, nil
-}
-
-func (m *mockAuth) GetClusterName(_ context.Context) (types.ClusterName, error) {
-	return types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterName: "TestCluster",
-		ClusterID:   "TestClusterID",
-	})
-}
-
-func (m *mockAuth) GenerateDatabaseCert(_ context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	if req.GetRequesterName() != proto.DatabaseCertRequest_UNSPECIFIED {
-		return nil, trace.BadParameter("db agent should not specify requester name")
+func (m *mockClientProvider) CreateClient(ctx context.Context, username string) (*client.Client, error) {
+	cfg, err := config.NewFromString(krb5Conf)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return &proto.DatabaseCertResponse{Cert: []byte(mockCA), CACerts: [][]byte{[]byte(mockCA)}}, nil
+	credentialsCache := &credentials.CCache{}
+	err = credentialsCache.Unmarshal(fixedCacheData)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return client.NewFromCCache(credentialsCache, cfg, client.DisablePAFXFAST(true))
 }
 
 func TestConnectorKInitClient(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	dir := t.TempDir()
+	keytabFile := path.Join(dir, "example.keytab")
+	require.NoError(t, os.WriteFile(keytabFile, keytabData, 0600))
 
-	provider := newClientProvider(&mockAuth{}, dir)
-	provider.kinitCommandGenerator = &staticCache{t: t, pass: true}
+	krb5ConfFile := path.Join(dir, "krb5.conf")
+	require.NoError(t, os.WriteFile(krb5ConfFile, []byte(krb5Conf), 0600))
 
-	krbConfPath := filepath.Join(dir, "krb5.conf")
-	err := os.WriteFile(krbConfPath, []byte(krb5Conf), 0664)
-	require.NoError(t, err)
+	t.Log("keytab:", keytabFile)
 
 	for i, tt := range []struct {
-		desc         string
-		databaseSpec types.DatabaseSpecV3
-		errAssertion require.ErrorAssertionFunc
+		name           string
+		databaseSpec   types.DatabaseSpecV3
+		errorMessage   string
+		validateClient func(*testing.T, *client.Client)
 	}{
 		{
-			desc: "AD-x509-Loads_and_fails_with_expired_cache",
+			name: "keytab from cached data",
+			databaseSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver:1443",
+				AD: types.AD{
+					Domain:     "example.com",
+					KeytabFile: keytabFile,
+					Krb5File:   krb5ConfFile,
+				},
+			},
+			validateClient: func(t *testing.T, clt *client.Client) {
+				var bw bytes.Buffer
+				clt.Print(&bw)
+				prefix, _, found := strings.Cut(bw.String(), `  "SessionID":`)
+				require.True(t, found)
+				require.Equal(t, expectedKeytabDataPrefix, prefix)
+			},
+		},
+		{
+			name: "keytab without Kerberos config",
+			databaseSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver:1443",
+				AD: types.AD{
+					KeytabFile: keytabFile,
+				},
+			},
+			errorMessage: "no Kerberos configuration file provided",
+		},
+		{
+			name: "kinit from cached credentials",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver:1443",
 				AD: types.AD{
 					LDAPCert:    mockCA,
 					KDCHostName: "kdc.example.com",
-					Krb5File:    krbConfPath,
 				},
 			},
-			// When using a non-Azure database, the connector should attempt to get a kinit client
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.Error(t, err)
-				// we can't get a new TGT without an actual kerberos implementation, so we are relying on the existing
-				// credentials cache being expired
-				require.ErrorContains(t, err, "cannot login, no user credentials available and no valid existing session")
+			validateClient: func(t *testing.T, clt *client.Client) {
+				var bw bytes.Buffer
+				clt.Print(&bw)
+
+				require.Contains(t, bw.String(), `"Username": "chris"`)
+				require.Contains(t, bw.String(), `"Realm": "ALISTANIS.EXAMPLE.COM"`)
 			},
 		},
 		{
-			desc: "AD-x509-Fails_to_load_with_bad_config",
+			name: "invalid AD config",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver:1443",
 				AD:       types.AD{},
 			},
-			// When using a non-Azure database, the connector should attempt to get a kinit client
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.Error(t, err)
-				// we can't get a new TGT without an actual kerberos implementation, so we are relying on the existing
-				// credentials cache being expired
-				require.ErrorIs(t, err, errBadKerberosConfig)
-			},
+			errorMessage: "configuration must have either keytab_file or kdc_host_name and ldap_cert",
 		},
 		{
-			desc: "AD-x509-Fails_with_invalid_certificate",
+			name: "kinit invalid certificate",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver:1443",
 				AD: types.AD{
 					LDAPCert:    "BEGIN CERTIFICATE",
 					KDCHostName: "kdc.example.com",
-					Krb5File:    krbConfPath,
 				},
 			},
-			// When using a non-Azure database, the connector should attempt to get a kinit client
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.Error(t, err)
-				// we can't get a new TGT without an actual kerberos implementation, so we are relying on the existing
-				// credentials cache being expired
-				require.ErrorIs(t, err, errBadCertificate)
-			},
+			errorMessage: "invalid certificate was provided via AD configuration",
 		},
 	} {
-		t.Run(tt.desc, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
@@ -204,12 +210,20 @@ func TestConnectorKInitClient(t *testing.T) {
 
 			databaseUser := "alice"
 
-			client, err := provider.GetKerberosClient(ctx, database.GetAD(), databaseUser)
-			if client == nil {
-				tt.errAssertion(t, err)
+			mockAuth := struct{ winpki.AuthInterface }{} // dummy implementation: none of the mockAuth methods should actually be called.
+			provider := newClientProvider(mockAuth, slog.Default())
+			provider.providerFun = func(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (kinit.ClientProvider, error) {
+				return &mockClientProvider{}, nil
+			}
+			provider.skipLogin = true
+
+			clt, err := provider.GetKerberosClient(context.Background(), database.GetAD(), databaseUser)
+			if tt.errorMessage != "" {
+				require.ErrorContains(t, err, tt.errorMessage)
+				require.Nil(t, clt)
 			} else {
-				err = client.Login()
-				tt.errAssertion(t, err)
+				require.NoError(t, err)
+				tt.validateClient(t, clt)
 			}
 		})
 	}

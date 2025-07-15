@@ -70,7 +70,7 @@ func (req *ListDatabasesRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("region is required")
 	}
 
-	if !(req.RDSType == rdsTypeCluster || req.RDSType == rdsTypeInstance) {
+	if req.RDSType != rdsTypeCluster && req.RDSType != rdsTypeInstance {
 		return trace.BadParameter("invalid rds type, supported values: instance, cluster")
 	}
 

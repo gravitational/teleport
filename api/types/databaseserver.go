@@ -57,6 +57,14 @@ type DatabaseServer interface {
 	SetDatabase(Database) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetTargetHealth returns the database server's target health.
+	GetTargetHealth() TargetHealth
+	// SetTargetHealth sets the database server's target health.
+	SetTargetHealth(h TargetHealth)
+	// GetTargetHealthStatus returns target health status
+	GetTargetHealthStatus() TargetHealthStatus
+	// SetTargetHealthStatus sets target health status
+	SetTargetHealthStatus(status TargetHealthStatus)
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -283,6 +291,35 @@ func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *DatabaseServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetTargetHealth returns the database server's target health.
+func (s *DatabaseServerV3) GetTargetHealth() TargetHealth {
+	if s.Status.TargetHealth == nil {
+		return TargetHealth{}
+	}
+	return *s.Status.TargetHealth
+}
+
+// SetTargetHealth sets the database server's target health status.
+func (s *DatabaseServerV3) SetTargetHealth(h TargetHealth) {
+	s.Status.TargetHealth = &h
+}
+
+// GetTargetHealthStatus returns target health status
+func (s *DatabaseServerV3) GetTargetHealthStatus() TargetHealthStatus {
+	if s.Status.TargetHealth == nil {
+		return ""
+	}
+	return TargetHealthStatus(s.Status.TargetHealth.Status)
+}
+
+// SetTargetHealthStatus sets target health status
+func (s *DatabaseServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
+	if s.Status.TargetHealth == nil {
+		s.Status.TargetHealth = &TargetHealth{}
+	}
+	s.Status.TargetHealth.Status = string(status)
 }
 
 // DatabaseServers represents a list of database servers.

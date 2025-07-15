@@ -34,6 +34,8 @@ var (
 
 // WorkloadIdentityJWTService is the configuration for the WorkloadIdentityJWTService
 type WorkloadIdentityJWTService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Selector is the selector for the WorkloadIdentity resource that will be
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
@@ -45,6 +47,11 @@ type WorkloadIdentityJWTService struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
+}
+
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o WorkloadIdentityJWTService) GetName() string {
+	return o.Name
 }
 
 // Init initializes the destination.
@@ -84,7 +91,7 @@ func (o *WorkloadIdentityJWTService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityJWTService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityJWTService) MarshalYAML() (any, error) {
 	type raw WorkloadIdentityJWTService
 	return withTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
 }

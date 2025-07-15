@@ -16,6 +16,8 @@ rules:
       - teleportrolesv6/status
       - teleportrolesv7
       - teleportrolesv7/status
+      - teleportrolesv8
+      - teleportrolesv8/status
       - teleportusers
       - teleportusers/status
       - teleportgithubconnectors
@@ -42,6 +44,14 @@ rules:
       - teleportbotsv1/status
       - teleportworkloadidentitiesv1
       - teleportworkloadidentitiesv1/status
+      - teleportappsv3
+      - teleportappsv3/status
+      - teleportdatabasesv3
+      - teleportdatabasesv3/status
+      - teleportautoupdateconfigsv1
+      - teleportautoupdateconfigsv1/status
+      - teleportautoupdateversionsv1
+      - teleportautoupdateversionsv1/status
     verbs:
       - get
       - list

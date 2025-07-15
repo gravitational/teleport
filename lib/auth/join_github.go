@@ -40,15 +40,14 @@ type ghaIDTokenJWKSValidator func(
 	now time.Time, jwksData []byte, token string,
 ) (*githubactions.IDTokenClaims, error)
 
-func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
+func (a *Server) checkGitHubJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*githubactions.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for Github join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
@@ -68,6 +67,7 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 	}
 
 	var claims *githubactions.IDTokenClaims
+	var err error
 	if token.Spec.GitHub.StaticJWKS != "" {
 		claims, err = a.ghaIDTokenJWKSValidator(
 			a.clock.Now().UTC(),

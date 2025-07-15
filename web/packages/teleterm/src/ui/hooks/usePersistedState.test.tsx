@@ -148,6 +148,28 @@ it('properly handles existing state when given a function to setState', () => {
   expect(state).toEqual({ foo: 3, bar: 1 });
 });
 
+it('keeps the identity of the setter stable', () => {
+  const { result } = renderHook(
+    () =>
+      usePersistedState<'counters', { counters: { foo: number } }>('counters', {
+        foo: 1,
+      }),
+    { wrapper: MockAppContextProvider }
+  );
+
+  let [, setState] = result.current;
+  const originalSetState = setState;
+  act(() => {
+    setState({ foo: 5 });
+  });
+  expect(result.current[1]).toBe(originalSetState);
+
+  act(() => {
+    setState(state => ({ ...state, foo: state.foo + 1 }));
+  });
+  expect(result.current[1]).toBe(originalSetState);
+});
+
 type TestState = { counter: number; boolean: boolean };
 
 const Counter = () => {

@@ -115,41 +115,20 @@ func (c *Client) GetSecurityAuditQueryResult(ctx context.Context, resultID, next
 	return resp, nil
 }
 
-// GetSecurityReportsStates returns all security reports states.
-func (c *Client) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
-	return nil, trace.NotImplemented("GetSecurityReportsStates is not supported in the gRPC client")
-}
-
-// ListSecurityReportsStates returns all security reports states.
-func (c *Client) ListSecurityReportsStates(ctx context.Context, i int, s string) ([]*secreports.ReportState, string, error) {
-	return nil, "", trace.NotImplemented("ListSecurityReportsStates is not supported in the gRPC client")
-}
-
 // UpsertSecurityReportsState upserts security reports state.
 func (c *Client) UpsertSecurityReportsState(ctx context.Context, item *secreports.ReportState) error {
 	return trace.NotImplemented("UpsertSecurityReportsState is not supported in the gRPC client")
 }
 
-// DeleteSecurityReportsState deletes security reports state by name.
-func (c *Client) DeleteSecurityReportsState(ctx context.Context, name string) error {
-	return trace.NotImplemented("DeleteSecurityReportsState is not supported in the gRPC client")
-}
-
-// DeleteAllSecurityReportsStates deletes all security reports states.
-func (c *Client) DeleteAllSecurityReportsStates(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllSecurityReportsStates is not supported in the gRPC client")
-}
-
-// DeleteAllSecurityReports deletes all security reports.
-func (c *Client) DeleteAllSecurityReports(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllSecurityReportsStates is not supported in the gRPC client")
-}
-
-// DeleteAllSecurityAuditQueries deletes all security audit queries.
-func (c *Client) DeleteAllSecurityAuditQueries(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllSecurityAuditQueries is not supported in the gRPC client")
-}
-
 func (c *Client) GetSecurityReportState(ctx context.Context, name string) (*secreports.ReportState, error) {
-	return nil, trace.NotImplemented("GetSecurityReportState is not supported in the gRPC client")
+	resp, err := c.grpcClient.GetReportState(ctx, &pb.GetReportStateRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := v1.FromProtoReportState(resp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }

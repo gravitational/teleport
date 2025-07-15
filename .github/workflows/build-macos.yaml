@@ -38,7 +38,6 @@ jobs:
           echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
           echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
           echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo WASM_PACK_VERSION=$(make -s -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
           echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
 
       - name: Print versions
@@ -47,7 +46,6 @@ jobs:
           echo "node: ${NODE_VERSION}"
           echo "go: ${GOLANG_VERSION}"
           echo "rust: ${RUST_VERSION}"
-          echo "wasm-pack: ${WASM_PACK_VERSION}"
 
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
@@ -69,8 +67,7 @@ jobs:
           rustup override set ${{ env.RUST_VERSION }}
 
       - name: Install wasm-pack
-        run: |
-          cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
+        run: make ensure-wasm-deps
 
       - name: Build
         run: make binaries

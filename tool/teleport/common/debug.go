@@ -196,7 +196,7 @@ func convertToReadableErr(err error, dataDir, socketPath string) error {
 
 	switch {
 	case errors.Is(err, context.Canceled):
-		return fmt.Errorf("Request canceled")
+		return trace.Errorf("request canceled")
 	case trace.IsConnectionProblem(err):
 		return trace.BadParameter("Unable to reach debug service socket at %q."+
 			"\n\nVerify if you have enough permissions to open the socket and if the path"+

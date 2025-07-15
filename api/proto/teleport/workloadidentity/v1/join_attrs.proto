@@ -47,6 +47,8 @@ message JoinAttrs {
   JoinAttrsKubernetes kubernetes = 12;
   // Attributes that are specific to the Oracle (`oracle`) join method.
   JoinAttrsOracle oracle = 13;
+  // Attributes that are specific to the Azure Devops (`azure_devops`) join method.
+  JoinAttrsAzureDevops azure_devops = 14;
 }
 
 // The collection of attributes that result from the join process but are not
@@ -321,4 +323,38 @@ message JoinAttrsOracle {
   string compartment_id = 2;
   // The ID of the instance.
   string instance_id = 3;
+}
+
+// Attributes that are specific to the Azure Devops (`azure_devops`) join method.
+message JoinAttrsAzureDevops {
+  // Attributes specific to joins that occur with the pipeline ID token.
+  JoinAttrsAzureDevopsPipeline pipeline = 1;
+}
+
+// Attributes that are specific to the Azure DevOps join method when the
+// pipeline ID token is used for authentication
+message JoinAttrsAzureDevopsPipeline {
+  // The `sub` claim of the Azure DevOps pipeline ID token that was used to join.
+  string sub = 1;
+  // The name of the organization that the pipeline is running within.
+  string organization_name = 2;
+  // The name of the project that the pipeline is running within.
+  string project_name = 3;
+  // The name of the pipeline that is running.
+  string pipeline_name = 4;
+  // The ID of the organization that the pipeline is running within.
+  string organization_id = 5;
+  // The ID of the project that the pipeline is running within.
+  string project_id = 6;
+  // The ID of the pipeline that is running.
+  string definition_id = 7;
+  // The ID of the repository that the pipeline is running within.
+  string repository_id = 8;
+  // The version of the repository that the pipeline is running against.
+  // For Git this will be the commit SHA.
+  string repository_version = 9;
+  // The ref of the repository that the pipeline is running against.
+  string repository_ref = 10;
+  // The ID of the run that is being executed.
+  string run_id = 11;
 }

@@ -18,37 +18,38 @@ package cache
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const userStoreNameIndex = "name"
+type userIndex string
 
-func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User], error) {
+const userNameIndex userIndex = "name"
+
+func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
 	if u == nil {
 		return nil, trace.BadParameter("missing parameter UsersService")
 	}
 
-	return &collection[types.User]{
-		store: newStore(map[string]func(types.User) string{
-			userStoreNameIndex: func(u types.User) string {
-				return u.GetName()
-			},
-		}),
+	return &collection[types.User, userIndex]{
+		store: newStore(
+			types.KindUser,
+			types.User.Clone,
+			map[userIndex]func(types.User) string{
+				userNameIndex: types.User.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
 			return u.GetUsers(ctx, loadSecrets)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.User {
 			return &types.UserV2{
-				Kind:    types.KindUser,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -78,7 +79,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		return user, trace.Wrap(err)
 	}
 
-	u, err := rg.store.get(userStoreNameIndex, name)
+	u, err := rg.store.get(userNameIndex, name)
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -121,7 +122,7 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	}
 
 	users := make([]types.User, 0, rg.store.len())
-	for u := range rg.store.resources(userStoreNameIndex, "", "") {
+	for u := range rg.store.resources(userNameIndex, "", "") {
 		if withSecrets {
 			users = append(users, u.Clone())
 		} else {
@@ -160,7 +161,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	}
 
 	var resp userspb.ListUsersResponse
-	for u := range rg.store.resources(userStoreNameIndex, req.PageToken, "") {
+	for u := range rg.store.resources(userNameIndex, req.PageToken, "") {
 		uv2, ok := u.(*types.UserV2)
 		if !ok {
 			continue
@@ -171,8 +172,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		}
 
 		if len(resp.Users) == pageSize {
-			key := backend.RangeEnd(backend.ExactKey(u.GetName())).String()
-			resp.NextPageToken = strings.Trim(key, string(backend.Separator))
+			resp.NextPageToken = u.GetName()
 			break
 		}
 

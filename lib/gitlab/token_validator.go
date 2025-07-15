@@ -24,14 +24,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/go-oidc"
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 type clusterNameGetter interface {
@@ -84,42 +83,15 @@ func (id *IDTokenValidator) issuerURL(domain string) string {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, domain string, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(domain),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: clusterNameResource.GetClusterName(),
-		Now:      id.Clock.Now,
-	})
+	audience := clusterNameResource.GetClusterName()
+	issuer := id.issuerURL(domain)
 
-	idToken, err := verifier.Verify(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
 }
 
 // ValidateTokenWithJWKS validates a token using the provided JWKS data.

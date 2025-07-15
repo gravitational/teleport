@@ -25,27 +25,30 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const proxyServerStoreNameIndex = "name"
+type proxyServerIndex string
 
-func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collection[types.Server], error) {
+const proxyServerNameIndex = "name"
+
+func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, proxyServerIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.Server]{
-		store: newStore(map[string]func(types.Server) string{
-			proxyServerStoreNameIndex: func(u types.Server) string {
-				return u.GetName()
-			},
-		}),
+	return &collection[types.Server, proxyServerIndex]{
+		store: newStore(
+			types.KindProxy,
+			types.Server.DeepCopy,
+			map[proxyServerIndex]func(types.Server) string{
+				proxyServerNameIndex: types.Server.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
 			servers, err := p.GetProxies()
 			return servers, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
-				Kind:    types.KindProxy,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.GetName(),
 				},
@@ -72,7 +75,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	}
 
 	servers := make([]types.Server, 0, rg.store.len())
-	for s := range rg.store.resources(proxyServerStoreNameIndex, "", "") {
+	for s := range rg.store.resources(proxyServerNameIndex, "", "") {
 		servers = append(servers, s.DeepCopy())
 	}
 

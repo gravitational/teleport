@@ -28,7 +28,7 @@ import (
 )
 
 // Fields represents a generic string-keyed map.
-type Fields map[string]interface{}
+type Fields map[string]any
 
 // GetString returns a string representation of a field.
 func (f Fields) GetString(key string) string {
@@ -49,7 +49,7 @@ func (f Fields) GetStrings(key string) []string {
 	if ok {
 		return strings
 	}
-	slice, _ := val.([]interface{})
+	slice, _ := val.([]any)
 	res := make([]string, 0, len(slice))
 	for _, v := range slice {
 		s, ok := v.(string)

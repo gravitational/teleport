@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func Test_processEntityDescriptorFlag(t *testing.T) {
@@ -102,7 +101,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := types.SAMLConnectorSpecV2{}
-			err := processEntityDescriptorFlag(context.Background(), &spec, tt.entityDescriptor, slog.New(logutils.DiscardHandler{}))
+			err := processEntityDescriptorFlag(context.Background(), &spec, tt.entityDescriptor, slog.New(slog.DiscardHandler))
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

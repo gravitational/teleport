@@ -64,7 +64,7 @@ func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Reques
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }

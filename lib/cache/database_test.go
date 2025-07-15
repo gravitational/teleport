@@ -22,10 +22,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -41,7 +40,7 @@ func TestDatabaseServices(t *testing.T) {
 	testResources(t, p, testFuncs[types.DatabaseService]{
 		newResource: func(name string) (types.DatabaseService, error) {
 			return types.NewDatabaseServiceV1(types.Metadata{
-				Name: uuid.NewString(),
+				Name: name,
 			}, types.DatabaseServiceSpecV1{
 				ResourceMatchers: []*types.DatabaseResourceMatcher{
 					{Labels: &types.Labels{"env": []string{"prod"}}},
@@ -50,20 +49,18 @@ func TestDatabaseServices(t *testing.T) {
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
 		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-			})
-			require.NoError(t, err)
-			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
 		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
-			listServicesResp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-			})
-			require.NoError(t, err)
-			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+			resources, err := listAllResource(t, p.cache, types.KindDatabaseService)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
 		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
 		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
@@ -142,54 +139,18 @@ func TestDatabaseServers(t *testing.T) {
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindDatabaseServer,
+				resources, err := listAllResource(t, p.presenceS, types.KindDatabaseServer)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
-
-				var out []types.DatabaseServer
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.DatabaseServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
+				return types.ResourcesWithLabels(resources).AsDatabaseServers()
 			},
 			cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindDatabaseServer,
+				resources, err := listAllResource(t, p.cache, types.KindDatabaseServer)
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
-
-				var out []types.DatabaseServer
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.DatabaseServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
-				}
-
-				return out, nil
+				return types.ResourcesWithLabels(resources).AsDatabaseServers()
 			},
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			deleteAll: func(ctx context.Context) error {
@@ -197,5 +158,55 @@ func TestDatabaseServers(t *testing.T) {
 			},
 		})
 	})
+}
 
+func TestDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
+		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
+			return newDatabaseObject(t, name), nil
+		},
+		create: func(ctx context.Context, item *dbobjectv1.DatabaseObject) error {
+			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			token := ""
+			var objects []*dbobjectv1.DatabaseObject
+
+			for {
+				resp, nextToken, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, token)
+				if err != nil {
+					return err
+				}
+
+				objects = append(objects, resp...)
+
+				if nextToken == "" {
+					break
+				}
+				token = nextToken
+			}
+
+			for _, object := range objects {
+				err := p.databaseObjects.DeleteDatabaseObject(ctx, object.GetMetadata().GetName())
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	})
 }

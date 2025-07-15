@@ -86,7 +86,7 @@ func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req 
 		return
 	}
 
-	err = r.p.Client.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+	_, err = r.p.Client.UpsertSessionRecordingConfig(ctx, sessionRecordingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 		return
@@ -210,7 +210,7 @@ func (r resourceTeleportSessionRecordingConfig) Update(ctx context.Context, req 
 		return
 	}
 
-	err = r.p.Client.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+	_, err = r.p.Client.UpsertSessionRecordingConfig(ctx, sessionRecordingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 		return

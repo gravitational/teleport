@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -152,8 +153,8 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
-			originalTraits[k] = utils.CopyStrings(v)
-			traits[k] = utils.CopyStrings(v)
+			originalTraits[k] = slices.Clone(v)
+			traits[k] = slices.Clone(v)
 		}
 	}
 
@@ -171,9 +172,9 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 			Name:   user.GetName(),
 			Labels: user.GetAllLabels(),
 		}, userloginstate.Spec{
-			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
+			OriginalRoles:  slices.Clone(user.GetRoles()),
 			OriginalTraits: originalTraits,
-			Roles:          utils.CopyStrings(user.GetRoles()),
+			Roles:          slices.Clone(user.GetRoles()),
 			Traits:         traits,
 			UserType:       user.GetUserType(),
 			GitHubIdentity: githubIdentity,
@@ -190,9 +191,7 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 
 	if !pure {
 		// Preserve states like GitHub identities across logins.
-		// TODO(greedy52) implement a way to remove the identity or find a way to
-		// avoid keeping the identity forever.
-		if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
+		if err := UpdatePreservedAttributes(ctx, uls, ulsService); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -432,22 +431,27 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	return nil
 }
 
-func (g *Generator) maybePreserveGitHubIdentity(ctx context.Context, uls *userloginstate.UserLoginState, ulsService services.UserLoginStates) error {
-	// Use the new one.
-	if uls.Spec.GitHubIdentity != nil {
+// UpdatePreservedAttributes retrieves attributes that can be preserved in user
+// login state cross logins.
+func UpdatePreservedAttributes(ctx context.Context, user services.UserState, ulsService services.UserLoginStates) error {
+	// Use the new/existing GitHubIdentities.
+	// TODO(greedy52) implement a way to remove the identity or find a way to
+	// avoid keeping the identity forever in user login state.
+	if len(user.GetGithubIdentities()) > 0 {
 		return nil
 	}
 
 	// Find the old state if exists.
-	oldUls, err := ulsService.GetUserLoginState(ctx, uls.GetName())
+	old, err := ulsService.GetUserLoginState(ctx, user.GetName())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	if oldUls.Spec.GitHubIdentity != nil {
-		uls.Spec.GitHubIdentity = oldUls.Spec.GitHubIdentity
+
+	if githubIdentities := old.GetGithubIdentities(); len(githubIdentities) > 0 {
+		user.SetGithubIdentities(githubIdentities)
 	}
 	return nil
 }

@@ -71,7 +71,7 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 			name:       "File Not Exists bubbles up",
 			fileNames:  []string{"not", "found"},
 			fsContents: map[string]*InMemoryFile{},
-			assert: func(t require.TestingT, err error, i ...interface{}) {
+			assert: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.ErrorIs(t, err, fs.ErrNotExist)
 			},

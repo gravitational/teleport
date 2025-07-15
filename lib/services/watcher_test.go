@@ -87,7 +87,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	step := w.MaxRetryPeriod / 5.0
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		// wait for watcher to reload
 		select {
 		case duration := <-w.ResetC:
@@ -244,7 +244,7 @@ func TestLockWatcher(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	// Subscribe to lock watcher updates.
-	target := types.LockTarget{Node: "node"}
+	target := types.LockTarget{ServerID: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
@@ -354,7 +354,7 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	}
 
 	// Subscribe to lock watcher updates with an empty target.
-	target := types.LockTarget{Node: "node"}
+	target := types.LockTarget{ServerID: "node"}
 	sub, err := w.Subscribe(ctx, target, types.LockTarget{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -432,7 +432,7 @@ func TestLockWatcherStale(t *testing.T) {
 	}
 
 	// Subscribe to lock watcher updates.
-	target := types.LockTarget{Node: "node"}
+	target := types.LockTarget{ServerID: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
@@ -656,7 +656,7 @@ func TestAppWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	type client struct {
-		services.Apps
+		services.Applications
 		types.Events
 	}
 
@@ -666,8 +666,8 @@ func TestAppWatcher(t *testing.T) {
 			Component:      "test",
 			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
-				Apps:   appService,
-				Events: local.NewEventsService(bk),
+				Applications: appService,
+				Events:       local.NewEventsService(bk),
 			},
 		},
 		AppGetter: appService,
@@ -926,7 +926,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 
 	// Add some servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -978,7 +978,7 @@ func TestNodeWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -1064,7 +1064,7 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	// Add some kube servers.
 	kubeServers := make([]types.KubeServer, 0, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		kubeServer := newKubeServer(t, fmt.Sprintf("kube_cluster-%d", i), "addr", fmt.Sprintf("host-%d", i))
 		_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 		require.NoError(t, err)
@@ -1430,7 +1430,7 @@ func TestGitServerWatcher(t *testing.T) {
 
 	// Add some git servers.
 	servers := make([]types.Server, 0, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		server := newGitServer(t, fmt.Sprintf("org%v", i+1))
 		_, err = gitServerService.CreateGitServer(ctx, server)
 		require.NoError(t, err)

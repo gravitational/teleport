@@ -20,6 +20,7 @@ package sigstore
 import (
 	"context"
 	"log/slog"
+	"net/netip"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -36,9 +37,10 @@ const maxPayloads = 25
 
 // DiscoveryConfig contains configuration for the Sigstore discovery process.
 type DiscoveryConfig struct {
-	Logger               *slog.Logger
-	Keychain             authn.Keychain
-	AdditionalRegistries []string
+	Logger                        *slog.Logger
+	Keychain                      authn.Keychain
+	AdditionalRegistries          []string
+	AllowedPrivateNetworkPrefixes []string
 }
 
 // Discover signatures and attestations for the given image digest.
@@ -62,11 +64,21 @@ func Discover(ctx context.Context, image, digest string, cfg DiscoveryConfig) ([
 		return nil, trace.Wrap(err, "parsing image digest")
 	}
 
+	allowedPrefixes := make([]netip.Prefix, len(cfg.AllowedPrivateNetworkPrefixes))
+	for idx, prefix := range cfg.AllowedPrivateNetworkPrefixes {
+		nip, err := netip.ParsePrefix(prefix)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing allowed network prefix [%d]: %q", idx, prefix)
+		}
+		allowedPrefixes[idx] = nip
+	}
+	transport := buildSafeTransport(allowedPrefixes)
+
 	payloads := make([]*workloadidentityv1.SigstoreVerificationPayload, 0)
 	for _, reg := range registries {
 		name := reg.Repo(ref.Context().RepositoryStr())
 
-		repo, err := NewRepository(name, cfg.Logger, cfg.Keychain)
+		repo, err := NewRepository(name, cfg.Logger, cfg.Keychain, transport)
 		if err != nil {
 			return nil, trace.Wrap(err, "constructing repository")
 		}

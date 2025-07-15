@@ -114,6 +114,8 @@ func (o SVIDRequestRule) LogValue() slog.Value {
 // SPIFFEWorkloadAPIService is the configuration for the SPIFFE Workload API
 // service.
 type SPIFFEWorkloadAPIService struct {
+	// Name of the service for logs and the /readyz endpoint.
+	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which the SPIFFE Workload API server should
 	// listen. This should either be prefixed with "unix://" or "tcp://".
 	Listen string `yaml:"listen"`
@@ -132,11 +134,16 @@ type SPIFFEWorkloadAPIService struct {
 	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
+// GetName returns the user-given name of the service, used for validation purposes.
+func (o *SPIFFEWorkloadAPIService) GetName() string {
+	return o.Name
+}
+
 func (s *SPIFFEWorkloadAPIService) Type() string {
 	return SPIFFEWorkloadAPIServiceType
 }
 
-func (s *SPIFFEWorkloadAPIService) MarshalYAML() (interface{}, error) {
+func (s *SPIFFEWorkloadAPIService) MarshalYAML() (any, error) {
 	type raw SPIFFEWorkloadAPIService
 	return withTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
 }

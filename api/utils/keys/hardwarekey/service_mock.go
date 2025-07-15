@@ -51,6 +51,9 @@ type MockHardwareKeyService struct {
 
 	fakeHardwarePrivateKeys    map[hardwareKeySlot]*fakeHardwarePrivateKey
 	fakeHardwarePrivateKeysMux sync.Mutex
+
+	// mock a PIV slot with a key but no teleport metadata cert.
+	unknownAgentKey map[hardwareKeySlot]bool
 }
 
 // NewMockHardwareKeyService returns a [mockHardwareKeyService] for use in tests.
@@ -60,6 +63,7 @@ func NewMockHardwareKeyService(prompt Prompt) *MockHardwareKeyService {
 		prompt:                  prompt,
 		mockTouch:               make(chan struct{}),
 		fakeHardwarePrivateKeys: map[hardwareKeySlot]*fakeHardwarePrivateKey{},
+		unknownAgentKey:         map[hardwareKeySlot]bool{},
 	}
 }
 
@@ -141,10 +145,16 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, k
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
-	priv, ok := s.fakeHardwarePrivateKeys[hardwareKeySlot{
+	slot := hardwareKeySlot{
 		serialNumber: serialNumber,
 		slot:         ref.SlotKey,
-	}]
+	}
+
+	if keyInfo.AgentKeyInfo.UnknownAgentKey && s.unknownAgentKey[slot] {
+		return nil, trace.BadParameter("unknown agent key")
+	}
+
+	priv, ok := s.fakeHardwarePrivateKeys[slot]
 	if !ok {
 		return nil, trace.NotFound("key not found in slot 0x%x", ref.SlotKey)
 	}
@@ -191,6 +201,13 @@ func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
 	s.promptMu.Lock()
 	defer s.promptMu.Unlock()
 	s.prompt = prompt
+}
+
+func (s *MockHardwareKeyService) AddUnknownAgentKey(ref *PrivateKeyRef) {
+	s.unknownAgentKey[hardwareKeySlot{
+		serialNumber: ref.SerialNumber,
+		slot:         ref.SlotKey,
+	}] = true
 }
 
 // TODO(Joerger): DELETE IN v19.0.0

@@ -359,7 +359,7 @@ We had a choice, either start a security consulting business or build a solution
 
 * [Teleport Getting Started](https://goteleport.com/docs/get-started/)
 * [Teleport
-  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
+  Architecture](https://goteleport.com/docs/reference/architecture/)
 * [Reference](https://goteleport.com/docs/reference/)
 * [FAQ](https://goteleport.com/docs/faq)
 

@@ -38,7 +38,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -56,8 +55,9 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -98,7 +98,7 @@ func ValidRandomResourceName(prefix string) string {
 }
 
 func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -129,7 +129,9 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		Allow: types.RoleConditions{
 			// the operator has wildcard noe labs to be able to see them
 			// but has no login allowed, so it cannot SSH into them
-			NodeLabels: types.Labels{"*": []string{"*"}},
+			NodeLabels:     types.Labels{"*": []string{"*"}},
+			AppLabels:      types.Labels{"*": []string{"*"}},
+			DatabaseLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
@@ -142,6 +144,10 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindTrustedCluster, unrestricted),
 				types.NewRule(types.KindBot, unrestricted),
 				types.NewRule(types.KindWorkloadIdentity, unrestricted),
+				types.NewRule(types.KindAutoUpdateConfig, unrestricted),
+				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
+				types.NewRule(types.KindApp, unrestricted),
+				types.NewRule(types.KindDatabase, unrestricted),
 			},
 		},
 	})
@@ -206,13 +212,13 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 			SkipNameValidation: ptr.To(true),
 		},
 		// We enable cache to ensure the tests are close to how the manager is created when running in a real cluster
-		Client: ctrlclient.Options{Cache: &ctrlclient.CacheOptions{Unstructured: true}},
+		Client: kclient.Options{Cache: &kclient.CacheOptions{Unstructured: true}},
 	})
 	require.NoError(t, err)
 
 	slogLogger := s.log
 	if slogLogger == nil {
-		slogLogger = utils.NewSlogLoggerForTests()
+		slogLogger = logtest.NewLogger()
 	}
 
 	logger := logr.FromSlogHandler(slogLogger.Handler())

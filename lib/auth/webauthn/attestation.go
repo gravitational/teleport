@@ -151,7 +151,7 @@ func getChainFromX5C(obj protocol.AttestationObject) ([]*x509.Certificate, error
 		return nil, trace.BadParameter(
 			"%q attestation: self attestation not allowed; includes Touch ID in non-Apple browsers", obj.Format)
 	}
-	x5cArray, ok := x5c.([]interface{})
+	x5cArray, ok := x5c.([]any)
 	if !ok {
 		return nil, trace.BadParameter("%q attestation: unexpected x5c type: %T", obj.Format, x5c)
 	}

@@ -22,7 +22,11 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/netip"
 
+	"code.dny.dev/ssrf"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -36,20 +40,22 @@ const MaxLayerSize = 10 << 20 // 10MiB
 
 // Repository is a handle on a repository in an OCI registry.
 type Repository struct {
-	repo     name.Repository
-	logger   *slog.Logger
-	keychain authn.Keychain
+	repo      name.Repository
+	logger    *slog.Logger
+	keychain  authn.Keychain
+	transport http.RoundTripper
 }
 
 // NewRepository creates a new Repository with the given reference.
-func NewRepository(repo name.Repository, logger *slog.Logger, keychain authn.Keychain) (*Repository, error) {
+func NewRepository(repo name.Repository, logger *slog.Logger, keychain authn.Keychain, transport http.RoundTripper) (*Repository, error) {
 	if keychain == nil {
 		keychain = authn.DefaultKeychain
 	}
 	return &Repository{
-		repo:     repo,
-		logger:   logger,
-		keychain: keychain,
+		repo:      repo,
+		logger:    logger,
+		keychain:  keychain,
+		transport: transport,
 	}, nil
 }
 
@@ -60,6 +66,7 @@ func (r *Repository) Manifest(ctx context.Context, ref Reference) (*v1.Manifest,
 		ref.String(r.repo),
 		crane.WithContext(ctx),
 		crane.WithAuthFromKeychain(r.keychain),
+		crane.WithTransport(r.transport),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching manifest")
@@ -78,6 +85,7 @@ func (r *Repository) Layer(ctx context.Context, digest v1.Hash) ([]byte, error) 
 		Digest(digest.String()).String(r.repo),
 		crane.WithContext(ctx),
 		crane.WithAuthFromKeychain(r.keychain),
+		crane.WithTransport(r.transport),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "pulling layer")
@@ -130,6 +138,7 @@ func (r *Repository) Referrers(ctx context.Context, digest v1.Hash) (*v1.IndexMa
 		r.repo.Digest(digest.String()),
 		remote.WithContext(ctx),
 		remote.WithAuthFromKeychain(r.keychain),
+		remote.WithTransport(r.transport),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "finding referrers")
@@ -173,4 +182,32 @@ type DigestReference string
 // String satisfies the Reference interface.
 func (t DigestReference) String(repo name.Repository) string {
 	return repo.Digest(string(t)).Name()
+}
+
+// buildSafeTransport builds an http.RoundTripper which refuses to access private
+// network addresses by default to prevent SSRF attacks. You can override this on
+// a per-address basis by passing a list of allowed prefixes (i.e. CIDR blocks).
+func buildSafeTransport(allowedPrefixes []netip.Prefix) http.RoundTripper {
+	var v4, v6 []netip.Prefix
+	for _, prefix := range allowedPrefixes {
+		if prefix.Addr().Is4() {
+			v4 = append(v4, prefix)
+		} else {
+			v6 = append(v6, prefix)
+		}
+	}
+	return &http.Transport{
+		DialContext: (&net.Dialer{
+			// By default, ssrf.New blocks all private IPv4 and IPv6 addresses
+			// including the loopback addresses, RFC 1918, link local addresses,
+			// broadcast addresses, and some other special cases.
+			//
+			// It also only allows port 80 and 443, but we relax that requirement.
+			Control: ssrf.New(
+				ssrf.WithAnyPort(),
+				ssrf.WithAllowedV4Prefixes(v4...),
+				ssrf.WithAllowedV6Prefixes(v6...),
+			).Safe,
+		}).DialContext,
+	}
 }

@@ -40,6 +40,8 @@ type OktaImportRule interface {
 
 	// GetMappings will return the list of mappings for the Okta import rule.
 	GetMappings() []OktaImportRuleMapping
+	// Clone returns a copy of the Okta import rule.
+	Clone() OktaImportRule
 }
 
 // NewOktaImportRule returns a new OktaImportRule.
@@ -54,6 +56,11 @@ func NewOktaImportRule(metadata Metadata, spec OktaImportRuleSpecV1) (OktaImport
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+// Clone returns a copy of the Okta import rule.
+func (o *OktaImportRuleV1) Clone() OktaImportRule {
+	return utils.CloneProtoMsg(o)
 }
 
 // GetPriority will return the priority of the Okta import rule.
@@ -523,17 +530,31 @@ func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
 }
 
 func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
-	if o == nil {
+	if !o.GetEnableAppGroupSync() {
 		return false
 	}
 	return o.SyncAccessLists
 }
 
 func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
-	if !o.GetEnableAccessListSync() {
+	if !o.GetEnableAppGroupSync() {
 		return false
 	}
 	return !o.DisableBidirectionalSync
+}
+
+func (o *PluginOktaSyncSettings) GetEnableSystemLogExport() bool {
+	if o == nil {
+		return false
+	}
+	return o.EnableSystemLogExport
+}
+
+func (o *PluginOktaSyncSettings) GetAssignDefaultRoles() bool {
+	if o == nil {
+		return false
+	}
+	return !o.DisableAssignDefaultRoles
 }
 
 type OktaUserSyncSource string

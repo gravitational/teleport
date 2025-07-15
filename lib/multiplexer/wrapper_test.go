@@ -170,3 +170,91 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 		})
 	}
 }
+
+func TestWrapperConn(t *testing.T) {
+	const proto = "tcp"
+	const listenAddr = "127.0.0.1:0"
+	listener, err := net.Listen(proto, listenAddr)
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	connCh := make(chan net.Conn)
+	errCh := make(chan error)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			errCh <- err
+			return
+
+		}
+
+		connCh <- conn
+	}()
+
+	_, err = net.Dial(proto, listener.Addr().String())
+	require.NoError(t, err)
+
+	var c net.Conn
+	select {
+	case c = <-connCh:
+	case err := <-errCh:
+		require.NoError(t, err, "Received error while trying to accept connection")
+	case <-time.After(time.Millisecond * 500):
+		require.Fail(t, "Time out while accepting connection")
+	}
+
+	// Without a proxy line the RemoteAddr should just be a passthru to the underlying
+	// net.Conn
+	connNoProxy := Conn{
+		Conn:     c,
+		protocol: ProtoProxy,
+	}
+	require.Equal(t, c.RemoteAddr().String(), connNoProxy.RemoteAddr().String())
+
+	// With a proxy line, the RemoteAddr should return the source address
+	// present in the proxy line. This test case also guards against a
+	// regression where genuine class E source addresses in a ProxyLine were
+	// being ignored in favor of a nil original address in the TLVs
+	classEAddr := net.TCPAddr{
+		IP: []byte{classEPrefix, 0, 0, 1},
+	}
+
+	connWithProxy := Conn{
+		Conn:     c,
+		protocol: ProtoProxy,
+		proxyLine: &ProxyLine{
+			Protocol: proto,
+			Source:   classEAddr,
+		},
+	}
+	require.Equal(t, classEAddr.String(), connWithProxy.RemoteAddr().String())
+
+	// With a downgraded proxy line , the RemoteAddr should return the original
+	// source address present in the TLVs.
+	downgradeAddr := net.TCPAddr{
+		IP: []byte{192, 168, 0, 1},
+	}
+	tlvs, err := MarshalTLVs([]TLV{
+		{
+			Type:  PP2Type(PP2TeleportSubtypeOriginalAddr),
+			Value: []byte(downgradeAddr.String()),
+		},
+	})
+	require.NoError(t, err)
+	connWithDowngrade := Conn{
+		Conn:     c,
+		protocol: ProtoProxy,
+		proxyLine: &ProxyLine{
+			Protocol: proto,
+			Source:   classEAddr,
+			TLVs: []TLV{
+				{
+					Type:  PP2TypeTeleport,
+					Value: tlvs,
+				},
+			},
+		},
+	}
+
+	require.Equal(t, downgradeAddr.String(), connWithDowngrade.RemoteAddr().String())
+}
