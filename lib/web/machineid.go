@@ -317,11 +317,19 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		}
 	}
 
+	var sort *types.SortBy
+	if r.URL.Query().Has("sort") {
+		sortString := r.URL.Query().Get("sort")
+		s := types.GetSortByFromString(sortString)
+		sort = &s
+	}
+
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),
 		PageToken:        r.URL.Query().Get("page_token"),
 		FilterSearchTerm: r.URL.Query().Get("search"),
+		Sort:             sort,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
