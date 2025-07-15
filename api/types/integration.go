@@ -53,7 +53,7 @@ const (
 const (
 	// IntegrationAWSRolesAnywhereProfileSyncStatusSuccess indicates that the profile sync was successful.
 	IntegrationAWSRolesAnywhereProfileSyncStatusSuccess = "SUCCESS"
-	// IntegrationAWSRolesAnywhereProfileSyncStatusInProgress indicates that the profile sync failed.
+	// IntegrationAWSRolesAnywhereProfileSyncStatusError indicates that the profile sync failed.
 	IntegrationAWSRolesAnywhereProfileSyncStatusError = "ERROR"
 )
 

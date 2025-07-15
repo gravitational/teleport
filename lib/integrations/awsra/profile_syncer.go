@@ -229,7 +229,7 @@ func truncateErrorMessage(err error) string {
 	errorMessage := err.Error()
 
 	if len(errorMessage) <= defaults.DefaultMaxErrorMessageSize {
-		return err.Error()
+		return errorMessage
 	}
 
 	return errorMessage[:defaults.DefaultMaxErrorMessageSize]
