@@ -38,6 +38,7 @@ type NewServerConfig struct {
 	Databases []*Database
 }
 
+// CheckAndSetDefaults checks and set default values for the config.
 func (c *NewServerConfig) CheckAndSetDefaults() error {
 	if c.Logger == nil {
 		c.Logger = slog.Default()
