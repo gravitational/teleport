@@ -366,13 +366,6 @@ func TestUserUpdate(t *testing.T) {
 				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
-		{
-			name: "empty mcp tools",
-			args: []string{"--set-mcp-tools", ""},
-			wantTraits: map[string][]string{
-				constants.TraitMCPTools: nil,
-			},
-		},
 	}
 
 	for _, tc := range tests {

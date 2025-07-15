@@ -350,9 +350,6 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 // ["one", "two", "three"]
 func flattenSlice(slice []string) (retval []string) {
 	for i := range slice {
-		if slice[i] == "" {
-			continue
-		}
 		for role := range strings.SplitSeq(slice[i], ",") {
 			retval = append(retval, strings.TrimSpace(role))
 		}
@@ -506,14 +503,7 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	}
 	fmt.Printf("User %v has been updated:\n", user.GetName())
 	for field, values := range updateMessages {
-		switch len(values) {
-		// Print "New xxx: null" if new value is an empty slice. Empty slice can be
-		// set by the user by passing an empty string like --set-mcp-tools "".
-		case 0:
-			fmt.Printf("\tNew %v: null\n", field)
-		default:
-			fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
-		}
+		fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
 	}
 	return nil
 }
