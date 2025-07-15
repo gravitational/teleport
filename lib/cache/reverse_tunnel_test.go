@@ -52,8 +52,8 @@ func TestReverseTunnels(t *testing.T) {
 		},
 		deleteAll: p.presenceS.DeleteAllReverseTunnels,
 
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListReverseTunnels))
+		cacheList: func(ctx context.Context, pageSize int) ([]types.ReverseTunnel, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListReverseTunnels, pageSize))
 		},
 	})
 }
