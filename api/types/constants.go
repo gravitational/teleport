@@ -1134,9 +1134,14 @@ const (
 	// should not change these resources.
 	SystemResource = "system"
 
-	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
+	// PresetResource are resources that will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
 	PresetResource = "preset"
+
+	// DemoResource are resources that demonstrates specific Teleport features.
+	// These resources are typically managed internally by Teleport and enabled
+	// via flags. Users should not change these resources.
+	DemoResource = "demo"
 
 	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
 	// used by reverse tunnel agents to keep track of multiple independent sets
