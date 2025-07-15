@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_canStartHaltOnError(t *testing.T) {
@@ -135,7 +135,7 @@ func Test_canStartHaltOnError(t *testing.T) {
 
 func Test_progressGroupsHaltOnError(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	fewSecondsAgo := clock.Now().Add(-3 * time.Second)
 	fewMinutesAgo := clock.Now().Add(-5 * time.Minute)

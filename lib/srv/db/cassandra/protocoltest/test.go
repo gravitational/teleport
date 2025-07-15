@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // Session alias for easier use.
@@ -148,7 +148,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		tlsConfig: tlsConfig,
 		server:    server,
 		ct:        ct,
-		logger: utils.NewSlogLoggerForTests().With(
+		logger: logtest.With(
 			teleport.ComponentKey, defaults.ProtocolCassandra,
 			"name", config.Name,
 		),
