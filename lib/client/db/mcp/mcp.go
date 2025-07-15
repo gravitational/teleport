@@ -22,7 +22,6 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/mcp"
@@ -37,8 +36,6 @@ type NewServerConfig struct {
 	RootServer *RootServer
 	// Databases is the list of databases being served by the MCP server.
 	Databases []*Database
-	// Clock is an optional clock to use.
-	Clock clockwork.Clock
 }
 
 func (c *NewServerConfig) CheckAndSetDefaults() error {
@@ -50,9 +47,6 @@ func (c *NewServerConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.Databases) == 0 {
 		return trace.BadParameter("server must serve at least one database")
-	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }

@@ -20,17 +20,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net"
-	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgproto3"
-	"github.com/jonboulle/clockwork"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
@@ -40,7 +34,6 @@ import (
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/listener"
-	"github.com/gravitational/trace"
 )
 
 func TestFormatResult(t *testing.T) {
@@ -231,181 +224,6 @@ func TestFormatErrors(t *testing.T) {
 			require.Empty(t, res.Data)
 			tc.expectErrorMessage(t, res.ErrorMessage)
 		})
-	}
-}
-
-func TestIdleConnections(t *testing.T) {
-	dbName := "local"
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name:   dbName,
-		Labels: map[string]string{"env": "test"},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-	})
-	require.NoError(t, err)
-
-	dbConnsCh, dialDBFunc := newTestDatabaseServer(t)
-	dbMCP := &dbmcp.Database{
-		DB:           db,
-		ClusterName:  "root",
-		DatabaseUser: "postgres",
-		DatabaseName: "postgres",
-		LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
-			return []string{"memory"}, nil
-		},
-		DialContextFunc: dialDBFunc,
-	}
-
-	clock := clockwork.NewFakeClock()
-	logger := slog.New(slog.DiscardHandler)
-	rootServer := dbmcp.NewRootServer(logger)
-	srv, err := NewServer(t.Context(), &dbmcp.NewServerConfig{
-		Logger:     logger,
-		RootServer: rootServer,
-		Clock:      clock,
-		Databases:  []*dbmcp.Database{dbMCP},
-	})
-	require.NoError(t, err)
-	pgSrv := srv.(*Server)
-
-	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]any{
-		queryToolDatabaseParam: dbMCP.ResourceURI().WithoutParams().String(),
-		queryToolQueryParam:    "INSERT (something) VALUES (other)",
-	}
-
-	// First query should initialize a new connection.
-	runResult, err := pgSrv.runQuery(t.Context(), req)
-	require.NoError(t, err)
-	require.False(t, runResult.IsError, "expected query execution to succeed")
-
-	var conn *testDatabaseConn
-	select {
-	case conn = <-dbConnsCh:
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "expected database connection but got nothing")
-	}
-
-	require.True(t, conn.connected.Load(), "expected connection to be established: %s", conn.err.Load())
-	require.False(t, conn.closed.Load(), "expected connection to not be closed: %s", conn.err.Load())
-
-	// Issue no queries to server and advance clock to close the connection due
-	// to inactivity.
-	clock.Advance(connectionMaxIdleTime + 1)
-	require.Eventually(t, func() bool {
-		return conn.closed.Load()
-	}, 5*time.Second, 100*time.Millisecond, "expected connection to be closed: %s", conn.err.Load())
-
-	// Issuing a new query should bring a brand new connection alive.
-	runResult, err = pgSrv.runQuery(t.Context(), req)
-	require.NoError(t, err)
-	require.False(t, runResult.IsError, "expected query execution to succeed")
-
-	select {
-	case conn = <-dbConnsCh:
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "expected database connection but got nothing")
-	}
-
-	require.True(t, conn.connected.Load(), "expected connection to be established: %s", conn.err.Load())
-	require.False(t, conn.closed.Load(), "expected connection to not be closed: %s", conn.err.Load())
-}
-
-type testDatabaseConn struct {
-	closeOnce     sync.Once
-	pgBackend     pgproto3.Backend
-	rawClientConn net.Conn
-	rawServerConn net.Conn
-
-	err       atomic.Value
-	closed    atomic.Bool
-	connected atomic.Bool
-}
-
-func (td *testDatabaseConn) close() {
-	td.closeOnce.Do(func() {
-		td.rawClientConn.Close()
-		td.rawServerConn.Close()
-	})
-	td.closed.Store(true)
-}
-
-func (td *testDatabaseConn) processMessages() {
-	defer td.close()
-
-	startupMessage, err := td.pgBackend.ReceiveStartupMessage()
-	if err != nil {
-		td.err.Store(err)
-		return
-	}
-
-	switch msg := startupMessage.(type) {
-	case *pgproto3.StartupMessage:
-		// Accept auth and send ready for query.
-		td.pgBackend.Send(&pgproto3.AuthenticationOk{})
-		// Values on the backend key data are not relavant since we don't
-		// support canceling requests.
-		td.pgBackend.Send(&pgproto3.BackendKeyData{ProcessID: 0, SecretKey: 123})
-		td.pgBackend.Send(&pgproto3.ReadyForQuery{})
-		if err := td.pgBackend.Flush(); err != nil {
-			td.err.Store(err)
-			return
-		}
-	default:
-		td.err.Store(trace.BadParameter("expected *pgproto3.StartupMessage, got: %T", msg))
-		return
-	}
-
-	td.connected.Store(true)
-	for {
-		message, err := td.pgBackend.Receive()
-		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				return
-			}
-
-			td.err.Store(trace.Wrap(err))
-			return
-		}
-
-		switch message.(type) {
-		case *pgproto3.Query:
-			td.pgBackend.Send(&pgproto3.CommandComplete{CommandTag: []byte("INSERT 0 1")})
-			td.pgBackend.Send(&pgproto3.ReadyForQuery{})
-			if err := td.pgBackend.Flush(); err != nil {
-				td.err.Store(err)
-				return
-			}
-		case *pgproto3.Terminate:
-			return
-		default:
-			td.err.Store(trace.BadParameter("unsupported message %#v", message))
-			return
-		}
-	}
-}
-
-func newTestDatabaseServer(t *testing.T) (chan *testDatabaseConn, dbmcp.DialContextFunc) {
-	ch := make(chan *testDatabaseConn, 1)
-
-	return ch, func(ctx context.Context, _, _ string) (net.Conn, error) {
-		clientConn, serverConn := net.Pipe()
-		pgBackend := pgproto3.NewBackend(serverConn, serverConn)
-		td := &testDatabaseConn{
-			rawClientConn: clientConn,
-			rawServerConn: serverConn,
-			pgBackend:     *pgBackend,
-		}
-		t.Cleanup(td.close)
-		go td.processMessages()
-
-		select {
-		case <-t.Context().Done():
-			return nil, trace.ConnectionProblem(t.Context().Err(), "connection failure")
-		case ch <- td:
-		}
-		return clientConn, nil
 	}
 }
 
