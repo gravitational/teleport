@@ -713,12 +713,11 @@ $ tbot install systemd \
 
 ## tbot keypair create
 
-Generates a keypair for use with
-[`bound_keypair` joining](../machine-id/bound-keypair.mdx) and stores it in the
-specified bot internal storage directory. If a key already exists in the
-storage directory, no new key will be generated and the existing public key will
-be printed to the console; use the `--overwrite` flag to force the generation of
-a new keypair.
+Generates a keypair for use with `bound_keypair` joining and stores it in the
+specified bot internal storage directory. If a key already exists in the storage
+directory, no new key will be generated and the existing public key will be
+printed to the console; use the `--overwrite` flag to force the generation of a
+new keypair.
 
 ### Flags
 
@@ -748,8 +747,12 @@ To register the keypair with Teleport, include this public key in the token's
 
 This public key, including the algorithm identifier (`ssh-ed25519`, but may vary
 depending on your cluster configuration) can then be copied into a Bound Keypair
-join token to be used as a
+join token to be used as a preregistered key.
+
+{/*
+TODO: Replace with a link into the admin guide once the follow up PR has merged.
 [preregistered key](../machine-id/bound-keypair.mdx#preregistered-key-example).
+*/}
 
 Note that the Teleport Proxy Service address is required to fetch the currently
 enabled [signature suite](../signature-algorithms.mdx). No authentication takes
