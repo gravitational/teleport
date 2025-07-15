@@ -24,6 +24,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,50 +42,72 @@ This file is also protected by a build tag to ensure that `go test` doesn't fail
 for users who haven't set the environment variable.
 */
 
-func TestIdleConnectionsCheckerIdle(t *testing.T) {
+func TestConnectionsManagerIdle(t *testing.T) {
 	synctest.Run(func() {
 		maxIdleTime := time.Minute
-		checker, err := NewIdleConnectionsChecker(t.Context(), &IdleConnectionsCheckerConfig{
+		manager, err := NewConnectionsManager(t.Context(), &ConnectionsManagerConfig{
 			MaxIdleTime: maxIdleTime,
 			Logger:      utils.NewSlogLoggerForTests(),
 		}, func(ctx context.Context, id string) (*fakeConn, error) {
 			return &fakeConn{}, nil
 		})
 		require.NoError(t, err)
-		defer checker.Close(t.Context())
+		defer manager.Close(t.Context())
 
-		conn1, err := checker.Get(t.Context(), "first")
+		conn1, err := manager.Get(t.Context(), "first")
 		require.NoError(t, err)
-		require.False(t, conn1.closed.Load(), "expected connection to be active")
+		require.False(t, conn1.Conn().closed.Load(), "expected connection to be active")
 
-		// Retrieving during the active period should return the same connection.
-		conn2, err := checker.Get(t.Context(), "first")
-		require.NoError(t, err)
-		require.False(t, conn1.closed.Load(), "expected connection to be active")
-		require.Same(t, conn1, conn2, "expected to be the exact same connection but got different")
+		// Retrieving during the active period should block and only return once
+		// the other active connection is released.
+		var releasedConn *fakeConn
+		go func() {
+			conn2, err := manager.Get(t.Context(), "first")
+			assert.NoError(t, err)
+			assert.False(t, conn2.Conn().closed.Load(), "expected connection to be active")
+			conn2.Release()
+			releasedConn = conn2.Conn()
+		}()
+
+		conn1.Release()
+		synctest.Wait()
 
 		// Each database identifier should have its own active connection
-		conn3, err := checker.Get(t.Context(), "second")
+		conn3, err := manager.Get(t.Context(), "second")
 		require.NoError(t, err)
-		require.False(t, conn1.closed.Load(), "expected connection to be active")
-		require.NotSame(t, conn3, conn1, "expected to be be different connection but got the same")
+		require.False(t, conn1.Conn().closed.Load(), "expected connection to be active")
 
-		// Advancing in time should cause all inactive connections to be closed.
-		time.Sleep(maxIdleTime + 1)
+		// Advancing in time should cause all released connections to be closed.
+		time.Sleep(maxIdleTime * 2)
 		synctest.Wait()
-		require.True(t, conn1.closed.Load(), "expected connection to be closed")
-		require.True(t, conn2.closed.Load(), "expected connection to be closed")
-		require.True(t, conn3.closed.Load(), "expected connection to be closed")
+		require.True(t, releasedConn.closed.Load(), "expected connection to be closed")
+		require.False(t, conn3.Conn().closed.Load(), "expected connection to be active") // conn3 wasn't released
+
+		// Advance in time to get all remaining closed.
+		conn3.Release()
+		time.Sleep(maxIdleTime * 2)
+		synctest.Wait()
+		require.True(t, conn3.Conn().closed.Load(), "expected connection to be closed")
 
 		// After the connections are closed, fetching connections should bring
 		// brand new connections.
-		conn4, err := checker.Get(t.Context(), "first")
+		conn4, err := manager.Get(t.Context(), "first")
 		require.NoError(t, err)
-		require.False(t, conn4.closed.Load(), "expected connection to be active")
-		require.NotSame(t, conn4, conn1)
-		conn5, err := checker.Get(t.Context(), "second")
+		require.False(t, conn4.Conn().closed.Load(), "expected connection to be active")
+		conn5, err := manager.Get(t.Context(), "second")
 		require.NoError(t, err)
-		require.False(t, conn5.closed.Load(), "expected connection to be active")
-		require.NotSame(t, conn5, conn3)
+		require.False(t, conn5.Conn().closed.Load(), "expected connection to be active")
+
+		// Close should wait until all connections are released.
+		go func() {
+			assert.NoError(t, manager.Close(t.Context()))
+		}()
+
+		conn4.Release()
+		conn5.Release()
+		synctest.Wait()
+
+		_, err = manager.Get(t.Context(), "first")
+		require.Error(t, err)
 	})
 }

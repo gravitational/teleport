@@ -54,7 +54,7 @@ type database struct {
 type Server struct {
 	logger      *slog.Logger
 	databases   map[string]*database
-	idleChecker *dbmcp.IdleConnectionsChecker[pgconn.PgConn, *pgconn.PgConn]
+	connManager *dbmcp.ConnectionsManager[pgconn.PgConn, *pgconn.PgConn]
 }
 
 // NewServer initializes a PostgreSQL MCP server, creating the database
@@ -85,7 +85,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 		}
 	}
 
-	checker, err := dbmcp.NewIdleConnectionsChecker(ctx, &dbmcp.IdleConnectionsCheckerConfig{
+	checker, err := dbmcp.NewConnectionsManager(ctx, &dbmcp.ConnectionsManagerConfig{
 		MaxIdleTime: connectionMaxIdleTime,
 		Logger:      cfg.Logger,
 	}, func(ctx context.Context, id string) (*pgconn.PgConn, error) {
@@ -105,14 +105,14 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 		return nil, trace.Wrap(err)
 	}
 
-	s.idleChecker = checker
+	s.connManager = checker
 	cfg.RootServer.AddTool(queryTool, s.runQuery)
 	return s, nil
 }
 
 // Close implements dbmcp.Server.
 func (s *Server) Close(ctx context.Context) error {
-	return trace.Wrap(s.idleChecker.Close(ctx))
+	return trace.Wrap(s.connManager.Close(ctx))
 }
 
 // RunQueryResult is the run query tool result.
@@ -150,15 +150,20 @@ func (s *Server) runQuery(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return s.wrapErrorResult(ctx, trace.Wrap(err))
 	}
 
-	conn, err := s.getDatabaseConn(ctx, uri)
+	if !clientmcp.IsDatabaseResourceURI(uri) {
+		return s.wrapErrorResult(ctx, dbmcp.WrongDatabaseURIFormatError)
+	}
+
+	conn, err := s.connManager.Get(ctx, uri)
 	if err != nil {
 		return s.wrapErrorResult(ctx, err)
 	}
+	defer conn.Release()
 
 	// TODO(gabrielcorado): ensure the connection used is consistent for the
 	// session, making most of its queries to be present in a single audit
 	// session/recording.
-	queryRes, err := conn.Exec(ctx, sql).ReadAll()
+	queryRes, err := conn.Conn().Exec(ctx, sql).ReadAll()
 	if err != nil {
 		return s.wrapErrorResult(ctx, err)
 	}
@@ -225,19 +230,6 @@ func buildQueryResult(results []*pgconn.Result) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func (s *Server) getDatabaseConn(ctx context.Context, uri string) (*pgconn.PgConn, error) {
-	if !clientmcp.IsDatabaseResourceURI(uri) {
-		return nil, dbmcp.WrongDatabaseURIFormatError
-	}
-
-	dbConn, err := s.idleChecker.Get(ctx, uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dbConn, nil
-}
-
 func buildConnConfig(db *dbmcp.Database) (*pgconn.Config, error) {
 	// No need to provide a valid address here as the Lookup and DialContext
 	// will handle the connection.
@@ -279,7 +271,4 @@ const (
 	// connectionMaxIdleTime is the max connection idle time before it gets closed
 	// automatically.
 	connectionMaxIdleTime = 30 * time.Minute
-	// idleCheckerInterval is the interval which we'll check if the database
-	// connections are idle.
-	idleCheckerInterval = connectionMaxIdleTime / 2
 )

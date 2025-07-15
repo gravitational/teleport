@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestIdleConnectionsCheckerCloseAllConnections(t *testing.T) {
+func TestConnectionsManagerCloseAll(t *testing.T) {
 	maxIdleTime := time.Minute
-	checker, err := NewIdleConnectionsChecker(t.Context(), &IdleConnectionsCheckerConfig{
+	manager, err := NewConnectionsManager(t.Context(), &ConnectionsManagerConfig{
 		MaxIdleTime: maxIdleTime,
 		Logger:      utils.NewSlogLoggerForTests(),
 	}, func(ctx context.Context, id string) (*fakeConn, error) {
@@ -39,23 +39,29 @@ func TestIdleConnectionsCheckerCloseAllConnections(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		// It is safe to close the checker multiple times.
-		assert.NoError(t, checker.Close(t.Context()))
+		assert.NoError(t, manager.Close(t.Context()))
 	})
 
-	conn1, err := checker.Get(t.Context(), "first")
+	conn1, err := manager.Get(t.Context(), "first")
 	require.NoError(t, err)
-	require.False(t, conn1.closed.Load(), "expected connection to be active")
-	conn2, err := checker.Get(t.Context(), "second")
+	require.False(t, conn1.Conn().closed.Load(), "expected connection to be active")
+	conn2, err := manager.Get(t.Context(), "second")
 	require.NoError(t, err)
-	require.False(t, conn2.closed.Load(), "expected connection to be active")
-	conn3, err := checker.Get(t.Context(), "third")
+	require.False(t, conn2.Conn().closed.Load(), "expected connection to be active")
+	conn3, err := manager.Get(t.Context(), "third")
 	require.NoError(t, err)
-	require.False(t, conn3.closed.Load(), "expected connection to be active")
+	require.False(t, conn3.Conn().closed.Load(), "expected connection to be active")
 
-	require.NoError(t, checker.Close(t.Context()))
-	require.True(t, conn1.closed.Load(), "expected connection to be closed")
-	require.True(t, conn2.closed.Load(), "expected connection to be closed")
-	require.True(t, conn3.closed.Load(), "expected connection to be closed")
+	conn1.Release()
+	conn2.Release()
+	conn3.Release()
+	require.NoError(t, manager.Close(t.Context()))
+	require.True(t, conn1.Conn().closed.Load(), "expected connection to be closed")
+	require.True(t, conn2.Conn().closed.Load(), "expected connection to be closed")
+	require.True(t, conn3.Conn().closed.Load(), "expected connection to be closed")
+
+	_, err = manager.Get(t.Context(), "first")
+	require.Error(t, err)
 }
 
 type fakeConn struct {
