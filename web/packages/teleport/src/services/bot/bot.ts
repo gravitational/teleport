@@ -49,9 +49,16 @@ export function createBot(
   );
 }
 
-export async function getBot(name: string): Promise<FlatBot | null> {
+export async function getBot(
+  variables: {
+    name: string;
+  },
+  signal?: AbortSignal
+): Promise<FlatBot | null> {
   try {
-    return await api.get(cfg.getBotUrlWithName(name)).then(makeBot);
+    return await api
+      .get(cfg.getBotUrlWithName(variables.name), signal)
+      .then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
     if (err?.response?.status === 404) {
@@ -131,11 +138,12 @@ export async function listBotInstances(
     pageToken: string;
     pageSize: number;
     searchTerm?: string;
+    sort?: string;
     botName?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, searchTerm, botName } = variables;
+  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
 
   const path = cfg.listBotInstancesUrl();
   const qs = new URLSearchParams();
@@ -144,6 +152,9 @@ export async function listBotInstances(
   qs.set('page_token', pageToken);
   if (searchTerm) {
     qs.set('search', searchTerm);
+  }
+  if (sort) {
+    qs.set('sort', sort);
   }
   if (botName) {
     qs.set('bot_name', botName);

@@ -306,10 +306,6 @@ func convertAuditToProto(audit accesslist.Audit) *accesslistv1.AccessListAudit {
 }
 
 func convertRequiresToProto(requires accesslist.Requires) *accesslistv1.AccessListRequires {
-	if len(requires.Roles) == 0 && len(requires.Traits) == 0 {
-		return nil
-	}
-
 	return &accesslistv1.AccessListRequires{
 		Roles:  requires.Roles,
 		Traits: traitv1.ToProto(requires.Traits),

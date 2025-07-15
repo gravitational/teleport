@@ -157,6 +157,9 @@ type Options struct {
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+	// RSAKeyPairSource is an optional function used by the software keystore when
+	// generating RSA keys.
+	RSAKeyPairSource RSAKeyPairSource
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -199,7 +202,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: opts.RSAKeyPairSource})
 	var backendForNewKeys backend = softwareBackend
 	usableSigningBackends := []backend{softwareBackend}
 
