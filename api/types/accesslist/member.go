@@ -99,15 +99,7 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 	}
 
 	if a.Spec.Name == "" {
-		return trace.BadParameter("member name is missing")
-	}
-
-	if a.Spec.Joined.IsZero() || a.Spec.Joined.Unix() == 0 {
-		return trace.BadParameter("member %s: joined field empty or missing", a.Spec.Name)
-	}
-
-	if a.Spec.AddedBy == "" {
-		return trace.BadParameter("member %s: added_by field is empty", a.Spec.Name)
+		a.Spec.Name = a.GetName()
 	}
 
 	return nil
