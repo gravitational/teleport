@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package example
 
 import (
 	"cmp"
@@ -24,18 +24,29 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/trace"
 )
 
-// ExampleService is a temporary example service for testing purposes. It is
-// not intended to be used and exists to demonstrate how a user configurable
+// ServiceBuilder returns an example service builder.
+func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
+	return func(bot.ServiceDependencies) (bot.Service, error) {
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &Service{cfg: cfg}, nil
+	}
+}
+
+// Service is a temporary example service for testing purposes. It is not
+// intended to be used and exists to demonstrate how a user configurable
 // service integrates with the tbot service manager.
-type ExampleService struct {
-	cfg     *config.ExampleService
+type Service struct {
+	cfg     *Config
 	Message string `yaml:"message"`
 }
 
-func (s *ExampleService) Run(ctx context.Context) error {
+func (s *Service) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -46,9 +57,9 @@ func (s *ExampleService) Run(ctx context.Context) error {
 	}
 }
 
-func (s *ExampleService) String() string {
+func (s *Service) String() string {
 	return cmp.Or(
 		s.cfg.Name,
-		fmt.Sprintf("%s:%s", config.ExampleServiceType, s.Message),
+		fmt.Sprintf("%s:%s", ServiceType, s.Message),
 	)
 }

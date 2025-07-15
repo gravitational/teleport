@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
@@ -217,8 +218,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, legacyspiffe.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
 			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
-		case *config.ExampleService:
-			services = append(services, bot.LiteralService(&ExampleService{cfg: svcCfg}))
+		case *example.Config:
+			services = append(services, example.ServiceBuilder(svcCfg))
 		case *ssh.MultiplexerConfig:
 			services = append(services, ssh.MultiplexerServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, clientMetrics))
 		case *k8s.OutputV1Config:
