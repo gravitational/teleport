@@ -234,10 +234,20 @@ func (h *Handler) Close() error {
 	return h.gcsClient.Close()
 }
 
-// Upload uploads object to GCS bucket, reads the contents of the object from reader
-// and returns the target GCS bucket path in case of successful upload.
+// Upload reads the content of a session recording from a reader and uploads it
+// to a GCS bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path := h.path(sessionID)
+	return h.uploadFile(ctx, h.recordingPath(sessionID), reader)
+}
+
+// UploadSummary reads the content of a session summary from a reader and
+// uploads it to a GCS bucket. If successful, it returns URL of the uploaded
+// object.
+func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
+}
+
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
 	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
 
 	// Make sure we don't overwrite an existing recording.
@@ -246,7 +256,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 		if err != nil {
 			return "", convertGCSError(err)
 		}
-		return "", trace.AlreadyExists("recording for session %q already exists in GCS", sessionID)
+		return "", trace.AlreadyExists("file %q already exists in GCS", path)
 	}
 
 	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
@@ -265,10 +275,11 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.Bucket, path), nil
 }
 
-// Download downloads recorded session from GCS bucket and writes the results into writer
-// return trace.NotFound error is object is not found
+// Download downloads a session recording from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	path := h.path(sessionID)
+	path := h.recordingPath(sessionID)
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
 	writer, ok := writerAt.(io.Writer)
 	if !ok {
@@ -292,11 +303,25 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt i
 	return nil
 }
 
-func (h *Handler) path(sessionID session.ID) string {
+// DownloadSummary downloads a session summary from a GCS bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+	return trace.NotImplemented("DownloadSummary is not implemented for GCS handler")
+}
+
+func (h *Handler) recordingPath(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
+}
+
+func (h *Handler) summaryPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".summary.json"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
