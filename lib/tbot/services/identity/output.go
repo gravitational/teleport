@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package identity
 
 import (
 	"cmp"
@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -46,23 +45,29 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func IdentityOutputServiceBuilder(
-	botCfg *config.BotConfig,
-	cfg *config.IdentityOutput,
+func OutputServiceBuilder(
+	cfg *OutputConfig,
 	alpnUpgradeCache *internal.ALPNUpgradeCache,
+	defaultCredentialLifetime bot.CredentialLifetime,
+	insecure, fips bool,
 ) bot.ServiceBuilder {
 	return func(deps bot.ServiceDependencies) (bot.Service, error) {
-		svc := &IdentityOutputService{
-			botAuthClient:      deps.Client,
-			botIdentityReadyCh: deps.BotIdentityReadyCh,
-			botCfg:             botCfg,
-			cfg:                cfg,
-			reloadCh:           deps.ReloadCh,
-			executablePath:     autoupdate.StableExecutable,
-			alpnUpgradeCache:   alpnUpgradeCache,
-			proxyPinger:        deps.ProxyPinger,
-			identityGenerator:  deps.IdentityGenerator,
-			clientBuilder:      deps.ClientBuilder,
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &OutputService{
+			botAuthClient:             deps.Client,
+			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			defaultCredentialLifetime: defaultCredentialLifetime,
+			insecure:                  insecure,
+			fips:                      fips,
+			cfg:                       cfg,
+			reloadCh:                  deps.ReloadCh,
+			executablePath:            autoupdate.StableExecutable,
+			alpnUpgradeCache:          alpnUpgradeCache,
+			proxyPinger:               deps.ProxyPinger,
+			identityGenerator:         deps.IdentityGenerator,
+			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.Logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
@@ -72,20 +77,21 @@ func IdentityOutputServiceBuilder(
 	}
 }
 
-// IdentityOutputService produces credentials which can be used to connect to
+// OutputService produces credentials which can be used to connect to
 // Teleport's API or SSH.
-type IdentityOutputService struct {
+type OutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient      *apiclient.Client
-	botIdentityReadyCh <-chan struct{}
-	botCfg             *config.BotConfig
-	cfg                *config.IdentityOutput
-	log                *slog.Logger
-	proxyPinger        connection.ProxyPinger
-	statusReporter     readyz.Reporter
-	reloadCh           <-chan struct{}
+	botAuthClient             *apiclient.Client
+	botIdentityReadyCh        <-chan struct{}
+	defaultCredentialLifetime bot.CredentialLifetime
+	insecure, fips            bool
+	cfg                       *OutputConfig
+	log                       *slog.Logger
+	proxyPinger               connection.ProxyPinger
+	statusReporter            readyz.Reporter
+	reloadCh                  <-chan struct{}
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath    func() (string, error)
@@ -94,23 +100,23 @@ type IdentityOutputService struct {
 	clientBuilder     *client.Builder
 }
 
-func (s *IdentityOutputService) String() string {
+func (s *OutputService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
 		fmt.Sprintf("identity-output (%s)", s.cfg.Destination.String()),
 	)
 }
 
-func (s *IdentityOutputService) OneShot(ctx context.Context) error {
+func (s *OutputService) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
-func (s *IdentityOutputService) Run(ctx context.Context) error {
+func (s *OutputService) Run(ctx context.Context) error {
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
@@ -120,10 +126,10 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *IdentityOutputService) generate(ctx context.Context) error {
+func (s *OutputService) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"IdentityOutputService/generate",
+		"OutputService/generate",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
@@ -140,7 +146,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -186,7 +192,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if s.cfg.SSHConfigMode == config.SSHConfigModeOn {
+	if s.cfg.SSHConfigMode == SSHConfigModeOn {
 		clusterNames, err := internal.GetClusterNames(ctx, impersonatedClient, id.Get().ClusterName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -204,7 +210,8 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			s.botAuthClient,
 			s.executablePath,
 			s.alpnUpgradeCache,
-			s.botCfg,
+			s.insecure,
+			s.fips,
 		); err != nil {
 			return trace.Wrap(err)
 		}
@@ -213,14 +220,14 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	return nil
 }
 
-func (s *IdentityOutputService) render(
+func (s *OutputService) render(
 	ctx context.Context,
 	id *identity.Identity,
 	hostCAs, userCAs, databaseCAs []types.CertAuthority,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"IdentityOutputService/render",
+		"OutputService/render",
 	)
 	defer span.End()
 
@@ -266,7 +273,7 @@ func renderSSHConfig(
 	certAuthGetter certAuthGetter,
 	getExecutablePath func() (string, error),
 	alpnTester alpnTester,
-	botCfg *config.BotConfig,
+	insecure, fips bool,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -337,7 +344,7 @@ func renderSSHConfig(
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = alpnTester.IsUpgradeRequired(
-			ctx, proxyAddr, botCfg.Insecure,
+			ctx, proxyAddr, insecure,
 		)
 		if err != nil {
 			return trace.Wrap(err, "determining if ALPN upgrade is required")
@@ -357,8 +364,8 @@ func renderSSHConfig(
 		DestinationDir:      absDestPath,
 
 		PureTBotProxyCommand: true,
-		Insecure:             botCfg.Insecure,
-		FIPS:                 botCfg.FIPS,
+		Insecure:             insecure,
+		FIPS:                 fips,
 		TLSRouting:           proxyPing.Proxy.TLSRoutingEnabled,
 		ConnectionUpgrade:    connUpgradeRequired,
 		// Session resumption is enabled by default, this can be
@@ -387,8 +394,8 @@ func renderSSHConfig(
 			ExecutablePath:      executablePath,
 			DestinationDir:      absDestPath,
 
-			Insecure:          botCfg.Insecure,
-			FIPS:              botCfg.FIPS,
+			Insecure:          insecure,
+			FIPS:              fips,
 			TLSRouting:        proxyPing.Proxy.TLSRoutingEnabled,
 			ConnectionUpgrade: connUpgradeRequired,
 			// Session resumption is enabled by default, this can be

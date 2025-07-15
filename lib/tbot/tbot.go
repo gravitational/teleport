@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
@@ -232,8 +233,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *database.OutputConfig:
 			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
-		case *config.IdentityOutput:
-			services = append(services, IdentityOutputServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
+		case *identitysvc.OutputConfig:
+			services = append(services, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
