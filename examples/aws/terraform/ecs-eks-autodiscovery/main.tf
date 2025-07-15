@@ -129,6 +129,9 @@ resource "aws_ecs_task_definition" "teleport_discovery_kube_services" {
               method     = "iam"
             }
             proxy_server = var.teleport_proxy_server
+            log = {
+              severity = "DEBUG"
+            }
           }
           auth_service = {
             enabled = "no"
