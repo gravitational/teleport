@@ -169,7 +169,7 @@ type WindowsServiceConfig struct {
 	ShowDesktopWallpaper bool
 	// LDAPConfig contains parameters for connecting to an LDAP server.
 	// LDAP functionality is disabled if Addr is empty.
-	winpki.LDAPConfig
+	servicecfg.LDAPConfig
 	// PKIDomain optionally configures a separate Active Directory domain
 	// for PKI operations. If empty, the domain from the LDAP config is used.
 	// This can be useful for cases where PKI is configured in a root domain
@@ -269,6 +269,10 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 
+	if !cfg.LocateServer.Enabled && cfg.LocateServer.Site != "" {
+		cfg.Logger.WarnContext(context.Background(), "site is set, but locate_server is false. site will be ignored.")
+	}
+
 	return nil
 }
 
@@ -356,7 +360,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
 		Logger:      slog.Default(),
 		ClusterName: s.clusterName,
-		LC:          &cfg.LDAPConfig,
+		LC: &winpki.LDAPConfig{
+			Logger:       s.cfg.Logger,
+			Username:     s.cfg.LDAPConfig.Username,
+			SID:          s.cfg.LDAPConfig.SID,
+			Domain:       s.cfg.LDAPConfig.Domain,
+			Addr:         s.cfg.LDAPConfig.Addr,
+			LocateServer: winpki.LocateServer(s.cfg.LDAPConfig.LocateServer),
+		},
 	})
 
 	if err := s.startServiceHeartbeat(); err != nil {
@@ -1103,38 +1114,30 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
-		// Find the user's SID
-		filter := winpki.CombineLDAPFilters([]string{
-			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
-		})
-		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
-		domainDN := winpki.DomainDN(s.cfg.LDAPConfig.Domain)
-
 		tc, err := s.tlsConfigForLDAP()
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		ldapClient, err := winpki.DialLDAP(ctx, &s.cfg.LDAPConfig, tc)
+		ldapClient, err := winpki.DialLDAP(ctx, &winpki.LDAPConfig{
+			Logger:       s.cfg.Logger,
+			Username:     s.cfg.LDAPConfig.Username,
+			SID:          s.cfg.LDAPConfig.SID,
+			Domain:       s.cfg.LDAPConfig.Domain,
+			Addr:         s.cfg.LDAPConfig.Addr,
+			LocateServer: winpki.LocateServer(s.cfg.LDAPConfig.LocateServer),
+		}, tc)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		defer ldapClient.Close()
 
-		entries, err := ldapClient.ReadWithFilter(ctx, domainDN, filter, []string{winpki.AttrObjectSid})
+		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
+		activeDirectorySID, err = ldapClient.GetActiveDirectorySID(ctx, username)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		if len(entries) == 0 {
-			return nil, nil, trace.NotFound("could not find Windows account %q", username)
-		} else if len(entries) > 1 {
-			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
-		}
-		activeDirectorySID, err = winpki.ADSIDStringFromLDAPEntry(entries[0])
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
+
 		s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{

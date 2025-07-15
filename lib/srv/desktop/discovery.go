@@ -66,20 +66,9 @@ const (
 
 	// attrDNSHostName is the DNS Host name of an LDAP object.
 	attrDNSHostName = "dNSHostName" // unusual capitalization is correct
-
-	// attrSAMAccountName is the SAM Account name of an LDAP object.
-	attrSAMAccountName = "sAMAccountName"
-
-	// attrSAMAccountType is the SAM Account type for an LDAP object.
-	attrSAMAccountType = "sAMAccountType"
 )
 
 const (
-	// AccountTypeUser is the SAM account type for user accounts.
-	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
-	// (SAM_USER_OBJECT)
-	AccountTypeUser = "805306368"
-
 	// ClassComputer is the object class for computers in Active Directory.
 	ClassComputer = "computer"
 
@@ -155,7 +144,18 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		return nil
 	}
 
-	ldapClient, err := winpki.DialLDAP(s.closeCtx, &s.cfg.LDAPConfig, tc)
+	ldapClient, err := winpki.DialLDAP(
+		s.closeCtx,
+		&winpki.LDAPConfig{
+			Logger:       s.cfg.Logger,
+			Username:     s.cfg.LDAPConfig.Username,
+			SID:          s.cfg.LDAPConfig.SID,
+			Domain:       s.cfg.LDAPConfig.Domain,
+			Addr:         s.cfg.LDAPConfig.Addr,
+			LocateServer: winpki.LocateServer(s.cfg.LDAPConfig.LocateServer),
+		},
+		tc,
+	)
 	if err != nil {
 		s.cfg.Logger.WarnContext(s.closeCtx, "could not dial LDAP server", "error", err)
 		return nil

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
@@ -174,4 +175,19 @@ type LDAPConfig struct {
 	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
+}
+
+// CheckAndSetDefaults verifies this LDAPConfig
+func (cfg *LDAPConfig) CheckAndSetDefaults() error {
+	if cfg.Addr == "" && !cfg.LocateServer.Enabled {
+		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
+	}
+	if cfg.Domain == "" {
+		return trace.BadParameter("missing Domain in LDAPConfig")
+	}
+	if cfg.Username == "" {
+		return trace.BadParameter("missing Username in LDAPConfig")
+	}
+
+	return nil
 }

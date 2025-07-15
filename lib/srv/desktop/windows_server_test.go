@@ -55,7 +55,7 @@ func TestConfigWildcardBaseDN(t *testing.T) {
 				BaseDN: "*",
 			},
 		},
-		LDAPConfig: winpki.LDAPConfig{
+		LDAPConfig: servicecfg.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
@@ -173,7 +173,7 @@ func TestGenerateCredentials(t *testing.T) {
 		w := &WindowsService{
 			clusterName: clusterName,
 			cfg: WindowsServiceConfig{
-				LDAPConfig: winpki.LDAPConfig{
+				LDAPConfig: servicecfg.LDAPConfig{
 					Domain: domain,
 				},
 				AuthClient: client,

@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func (process *TeleportProcess) initWindowsDesktopService() {
@@ -229,16 +228,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper: cfg.WindowsDesktop.ShowDesktopWallpaper,
-		LDAPConfig: winpki.LDAPConfig{
-			Addr:               cfg.WindowsDesktop.LDAP.Addr,
-			Domain:             cfg.WindowsDesktop.LDAP.Domain,
-			Username:           cfg.WindowsDesktop.LDAP.Username,
-			SID:                cfg.WindowsDesktop.LDAP.SID,
-			InsecureSkipVerify: cfg.WindowsDesktop.LDAP.InsecureSkipVerify,
-			ServerName:         cfg.WindowsDesktop.LDAP.ServerName,
-			CA:                 cfg.WindowsDesktop.LDAP.CA,
-			LocateServer:       winpki.LocateServer(cfg.WindowsDesktop.LDAP.LocateServer),
-		},
+		LDAPConfig:           cfg.WindowsDesktop.LDAP,
 		KDCAddr:              cfg.WindowsDesktop.KDCAddr,
 		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
 		Discovery:            cfg.WindowsDesktop.Discovery,

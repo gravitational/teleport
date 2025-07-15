@@ -19,10 +19,8 @@
 package winpki
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -34,7 +32,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -74,35 +71,8 @@ type LDAPConfig struct {
 	Username string
 	// SID is the SID for the user specified by Username.
 	SID string
-	// InsecureSkipVerify decides whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
-	InsecureSkipVerify bool
-	// ServerName is the name of the LDAP server for TLS.
-	ServerName string
-	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate
 	// Logger is the logger for the service.
 	Logger *slog.Logger
-}
-
-// CheckAndSetDefaults verifies this LDAPConfig
-func (cfg *LDAPConfig) CheckAndSetDefaults() error {
-	if cfg.Addr == "" && !cfg.LocateServer.Enabled {
-		return trace.BadParameter("Addr is required if locate_server is false in LDAPConfig")
-	}
-	if cfg.Domain == "" {
-		return trace.BadParameter("missing Domain in LDAPConfig")
-	}
-	if cfg.Username == "" {
-		return trace.BadParameter("missing Username in LDAPConfig")
-	}
-
-	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, "ldap"))
-
-	if !cfg.LocateServer.Enabled && cfg.LocateServer.Site != "" {
-		cfg.Logger.WarnContext(context.Background(), "Site is set, but locate_server is false. Site will be ignored.")
-	}
-
-	return nil
 }
 
 // LDAPClient is an LDAP client designed for Active Directory environments.
@@ -154,6 +124,16 @@ const (
 	AttrObjectSid = "objectSid"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
+
+	// AttrSAMAccountType is the SAM Account type for an LDAP object.
+	AttrSAMAccountType = "sAMAccountType"
+	// AccountTypeUser is the SAM account type for user accounts.
+	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
+	// (SAM_USER_OBJECT)
+	AccountTypeUser = "805306368"
+
+	// AttrSAMAccountName is the SAM Account name of an LDAP object.
+	AttrSAMAccountName = "sAMAccountName"
 )
 
 // searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
@@ -189,6 +169,32 @@ func convertLDAPError(err error) error {
 	}
 
 	return err
+}
+
+// GetActiveDirectorySID makes an LDAP query to retrieve the security identifier (SID)
+// for the specified Active Directory user.
+func (l *LDAPClient) GetActiveDirectorySID(ctx context.Context, username string) (string, error) {
+	filter := CombineLDAPFilters([]string{
+		fmt.Sprintf("(%s=%s)", AttrSAMAccountType, AccountTypeUser),
+		fmt.Sprintf("(%s=%s)", AttrSAMAccountName, username),
+	})
+
+	entries, err := l.ReadWithFilter(ctx, DomainDN(l.cfg.Domain), filter, []string{AttrObjectSid})
+	switch {
+	case err != nil:
+		return "", trace.Wrap(err)
+	case len(entries) == 0:
+		return "", trace.NotFound("could not find Windows account %q", username)
+	case len(entries) > 1:
+		l.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "user", username)
+	}
+
+	sid, err := ADSIDStringFromLDAPEntry(entries[0])
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return sid, nil
 }
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
