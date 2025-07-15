@@ -20,6 +20,8 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -312,6 +314,24 @@ func renderCommon(report *Report, width int) string {
 	)
 	runtimeContent := boxedView("Go Runtime Stats", runtimeTable, columnWidth)
 
+	serviceKeys := slices.Sorted(maps.Keys(report.Service))
+	serviceCounts := []string{}
+	for _, k := range serviceKeys {
+		serviceCounts = append(serviceCounts, humanize.FormatFloat("#.", report.Service[k]))
+	}
+	servicesTable := tableView(
+		columnWidth,
+		column{
+			width:   columnWidth * 8 / 10,
+			content: serviceKeys,
+		},
+		column{
+			width:   columnWidth * 2 / 10,
+			content: serviceCounts,
+		},
+	)
+	servicesContent := boxedView("Services", servicesTable, columnWidth)
+
 	certLatencyContent := boxedView("Generate Server Certificates Percentiles", "No data", columnWidth)
 
 	style := lipgloss.NewStyle().
@@ -326,6 +346,7 @@ func renderCommon(report *Report, width int) string {
 				clusterContent,
 				processContent,
 				runtimeContent,
+				servicesContent,
 			),
 		),
 		style.Render(certLatencyContent),
