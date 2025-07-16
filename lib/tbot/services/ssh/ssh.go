@@ -1,8 +1,6 @@
-//go:build windows
-
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,18 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tbot
+package ssh
 
-import (
-	"context"
-	"os"
+import "go.opentelemetry.io/otel"
 
-	"github.com/gravitational/trace"
-)
-
-// ConnectToSSHMultiplex connects to the SSH multiplexer and sends the target
-// to the multiplexer. It then returns the connection to the SSH multiplexer
-// over stdout.
-func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string, stdout *os.File) error {
-	return trace.NotImplemented("SSH Multiplexing not supported on Windows.")
-}
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/ssh")

@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package ssh
 
 import (
 	"github.com/gravitational/trace"
@@ -24,18 +24,19 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-// SSHMultiplexerServiceType is the type of the `ssh-proxy` service.
-const SSHMultiplexerServiceType = "ssh-multiplexer"
+// MultiplexerServiceType is the type of the `ssh-proxy` service.
+const MultiplexerServiceType = "ssh-multiplexer"
 
-// SSHMultiplexerService is the configuration for the `ssh-proxy` service
-type SSHMultiplexerService struct {
+// MultiplexerConfig is the configuration for the `ssh-proxy` service
+type MultiplexerConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the config and tunnel should be written to. It
-	// should be a DestinationDirectory.
+	// should be a Directory.
 	Destination destination.Destination `yaml:"destination"`
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
@@ -59,41 +60,45 @@ type SSHMultiplexerService struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *SSHMultiplexerService) GetName() string {
+func (o *MultiplexerConfig) GetName() string {
 	return o.Name
 }
 
-func (s *SSHMultiplexerService) SessionResumptionEnabled() bool {
+func (s *MultiplexerConfig) SessionResumptionEnabled() bool {
 	if s.EnableResumption == nil {
 		return true
 	}
 	return *s.EnableResumption
 }
 
-func (s *SSHMultiplexerService) Type() string {
-	return SSHMultiplexerServiceType
+func (s *MultiplexerConfig) Type() string {
+	return MultiplexerServiceType
 }
 
-func (s *SSHMultiplexerService) MarshalYAML() (any, error) {
-	type raw SSHMultiplexerService
-	return encoding.WithTypeHeader((*raw)(s), SSHMultiplexerServiceType)
+func (s *MultiplexerConfig) MarshalYAML() (any, error) {
+	type raw MultiplexerConfig
+	return encoding.WithTypeHeader((*raw)(s), MultiplexerServiceType)
 }
 
-func (s *SSHMultiplexerService) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *MultiplexerConfig) UnmarshalYAML(*yaml.Node) error {
+	return trace.NotImplemented("unmarshaling %T with UnmarshalYAML is not supported, use UnmarshalConfig instead", o)
+}
+
+func (o *MultiplexerConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *yaml.Node) error {
+	dest, err := internal.ExtractOutputDestination(ctx, node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw SSHMultiplexerService
-	if err := node.Decode((*raw)(s)); err != nil {
+	// Alias type to remove UnmarshalYAML to avoid getting our "not implemented" error
+	type raw MultiplexerConfig
+	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
-	s.Destination = dest
+	o.Destination = dest
 	return nil
 }
 
-func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
+func (s *MultiplexerConfig) CheckAndSetDefaults() error {
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}
@@ -101,12 +106,12 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	if !ok {
 		return trace.BadParameter("destination: must be of type `directory`")
 	}
-	if err := validateOutputDestination(s.Destination); err != nil {
-		return trace.Wrap(err)
+	if err := s.Destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating destination")
 	}
 	return nil
 }
 
-func (o *SSHMultiplexerService) GetCredentialLifetime() bot.CredentialLifetime {
+func (o *MultiplexerConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return o.CredentialLifetime
 }
