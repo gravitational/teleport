@@ -94,80 +94,6 @@ $ tsh mcp db config --db-user=postgres --db-name=employees --config-client=/path
 ```
 </TabItem>
 
-
-<TabItem label="VS Code">
-Currently, `tsh` doesn't support generating the configuration for VS Code.
-However, you can still use the config command to create the command and update
-it to match VS Code format.
-
-First, generate the configuration example for your database:
-
-```code
-$ tsh mcp db config --db-user=postgres --db-name=employees postgres-dev
-Here is a sample JSON configuration for launching Teleport MCP servers:
-{
-  "mcpServers": {
-    "teleport-databases": {
-      "command": "/path/to/tsh",
-      "args": [
-        "mcp",
-        "db",
-        "start",
-        "teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres"
-      ]
-    }
-  }
-}
-
-If you already have an entry for "teleport-databases" server, add the following database resource URI to the command arguments list:
-teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres
-```
-
-With that, you can access your MCP server configuration within your project,
-usually found at `/path/to/project/.vscode/mcp.json`, and copy the
-`teleport-databases` server definition.
-
-```diff
-{
-  "mcp": {
-    "servers": {
-+     "teleport-databases": {
-+       "command": "/path/to/tsh",
-+       "args": [
-+         "mcp",
-+         "db",
-+         "start",
-+         "teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres"
-+       ]
-+     }
-    }
-  }
-}
-```
-
-If you already have a `tsh` command, you can copy the URI it generates and add
-it to your arguments list.
-
-```diff
-{
-  "mcp": {
-    "servers": {
-      "teleport-databases": {
-        "command": "/path/to/tsh",
-        "args": [
-          "mcp",
-          "db",
-          "start",
-          "teleport://clusters/teleport.example.com/databases/postgres-prod?dbName=prod&dbUser=readonly",
-+         "teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres"
-        ]
-      }
-    }
-  }
-}
-```
-</TabItem>
-
 <TabItem label="Others">
 Currently, `tsh` only supports generating the `mcpServers` format and some
 client-specific formats. Running the config command without any specific options
@@ -180,7 +106,7 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
 {
   "mcpServers": {
     "teleport-databases": {
-      "command": "/path/to/tsh",
+      "command": "tsh",
       "args": [
         "mcp",
         "db",
