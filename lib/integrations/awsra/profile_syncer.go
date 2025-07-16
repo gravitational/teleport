@@ -177,37 +177,15 @@ func RunAWSRolesAnywherProfileSyncer(ctx context.Context, params AWSRolesAnywher
 		}
 
 		for _, integration := range integrations {
-			startTime := params.Clock.Now()
-
-			var syncError error
-			var syncedProfiles int32
-			syncSummary, err := syncProfileForIntegration(ctx, params, integration, proxyPublicAddr)
-			if err != nil {
+			syncSummary := syncProfileForIntegration(ctx, params, integration, proxyPublicAddr)
+			if syncSummary.setupError != nil {
+				// Only log the error if there was a set up error (eg, invalid sync configuration, missing permissions, ...).
+				// Profile specific errors (eg, invalid application url) were already logged.
 				params.Logger.WarnContext(ctx, "failed to sync AWS Roles Anywhere Profiles for integration", "error", err)
-				syncError = err
 			}
 
-			if syncSummary != nil {
-				syncError = trace.NewAggregate(syncSummary.profileErrors...)
-				syncedProfiles = int32(syncSummary.syncedProfiles)
-			}
+			integration = updateIntegrationStatus(integration, syncSummary)
 
-			status := types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess
-			if syncError != nil {
-				status = types.IntegrationAWSRolesAnywhereProfileSyncStatusError
-			}
-
-			integration.SetStatus(types.IntegrationStatusV1{
-				AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
-					LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
-						StartTime:      startTime,
-						EndTime:        params.Clock.Now(),
-						Status:         status,
-						SyncedProfiles: syncedProfiles,
-						ErrorMessage:   truncateErrorMessage(syncError),
-					},
-				},
-			})
 			if _, err := params.StatusReporter.UpdateIntegration(ctx, integration); err != nil {
 				params.Logger.ErrorContext(ctx, "failed to update integration status", "integration", integration.GetName(), "error", err)
 			}
@@ -220,6 +198,32 @@ func RunAWSRolesAnywherProfileSyncer(ctx context.Context, params AWSRolesAnywher
 		case <-params.Clock.After(params.SyncPollInterval):
 		}
 	}
+}
+
+func updateIntegrationStatus(integration types.Integration, syncSummary *syncSummary) types.Integration {
+	syncError := syncSummary.setupError
+	if syncError == nil {
+		syncError = trace.NewAggregate(syncSummary.profileErrors...)
+	}
+
+	status := types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess
+	if syncError != nil {
+		status = types.IntegrationAWSRolesAnywhereProfileSyncStatusError
+	}
+
+	integration.SetStatus(types.IntegrationStatusV1{
+		AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
+			LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
+				StartTime:      syncSummary.startTime,
+				EndTime:        syncSummary.endTime,
+				Status:         status,
+				SyncedProfiles: int32(syncSummary.syncedProfiles),
+				ErrorMessage:   truncateErrorMessage(syncError),
+			},
+		},
+	})
+
+	return integration
 }
 
 func truncateErrorMessage(err error) string {
@@ -328,18 +332,43 @@ func buildAWSRolesAnywhereClientForIntegration(ctx context.Context, params AWSRo
 }
 
 type syncSummary struct {
+	startTime time.Time
+	endTime   time.Time
+
+	// set up error is the error that occurred while setting up the syncer
+	// Examples:
+	// - invalid Integration configuration which prevents creating the AWS SDK client (ie, invalid trust anchor ARN, profile ARN, or role ARN)
+	// - failure to generate credentials to obtain the AWS SDK client
+	// - failure to list IAM Roles Anywhere Profiles (eg, IAM Role has an invalid policy)
+	setupError error
+
+	// syncedProfiles is the number of profiles that were successfully synced.
 	syncedProfiles int
-	profileErrors  []error
+
+	// Profile errors are errors that occurred while processing individual profiles.
+	// Examples:
+	// - failure in converting a Profile to an AppServer (eg, invalid URL)
+	// - failure creating an AppServer from a Profile
+	//
+	// Always empty if setupError is not nil.
+	profileErrors []error
 }
 
-func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfileSyncerParams, integration types.Integration, proxyPublicAddr string) (*syncSummary, error) {
+func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfileSyncerParams, integration types.Integration, proxyPublicAddr string) *syncSummary {
 	logger := params.Logger.With("integration", integration.GetName())
 
-	ret := &syncSummary{}
+	ret := &syncSummary{
+		startTime: params.Clock.Now(),
+	}
+
+	defer func() {
+		ret.endTime = params.Clock.Now()
+	}()
 
 	raClient, err := buildAWSRolesAnywhereClientForIntegration(ctx, params, integration)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		ret.setupError = trace.Wrap(err)
+		return ret
 	}
 
 	var nextPage *string
@@ -347,7 +376,8 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 		const useAPIDefaultPageSize = 0
 		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, nextPage, useAPIDefaultPageSize)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			ret.setupError = trace.Wrap(err)
+			return ret
 		}
 
 		for _, profile := range profilesListResp {
@@ -378,7 +408,7 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywherProfil
 		nextPage = respNextToken
 	}
 
-	return ret, nil
+	return ret
 }
 
 var (
