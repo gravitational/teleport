@@ -144,12 +144,7 @@ func (h *Handler) listProvisionTokens(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.Wrap(err)
 	}
 
-	tokens := make([]types.ProvisionToken, len(items))
-	for i, token := range items {
-		tokens[i] = token
-	}
-
-	uiTokens, err := webui.MakeJoinTokens(tokens)
+	uiTokens, err := webui.MakeJoinTokens(items)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
