@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"testing"
@@ -28,10 +28,10 @@ import (
 
 func TestKubernetesV2Output_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[KubernetesV2Output]{
+	tests := []testYAMLCase[OutputV2Config]{
 		{
 			name: "full",
-			in: KubernetesV2Output{
+			in: OutputV2Config{
 				Destination:       dest,
 				DisableExecPlugin: true,
 				Selectors: []*KubernetesSelector{
@@ -59,7 +59,7 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: KubernetesV2Output{
+			in: OutputV2Config{
 				Destination: dest,
 				Selectors: []*KubernetesSelector{
 					{
@@ -74,11 +74,11 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 }
 
 func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*KubernetesV2Output]{
+	tests := []testCheckAndSetDefaultsCase[*OutputV2Config]{
 		{
 			name: "valid_name",
-			in: func() *KubernetesV2Output {
-				return &KubernetesV2Output{
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
 					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{Name: "foo", Labels: map[string]string{}},
@@ -88,8 +88,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "valid_label",
-			in: func() *KubernetesV2Output {
-				return &KubernetesV2Output{
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
 					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{
@@ -101,8 +101,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *KubernetesV2Output {
-				return &KubernetesV2Output{
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
 					Destination: nil,
 					Selectors: []*KubernetesSelector{
 						{Name: "foo"},
@@ -113,8 +113,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing selectors",
-			in: func() *KubernetesV2Output {
-				return &KubernetesV2Output{
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
 					Destination: destination.NewMemory(),
 				}
 			},
@@ -122,8 +122,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "empty selector",
-			in: func() *KubernetesV2Output {
-				return &KubernetesV2Output{
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
 					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{},
@@ -134,8 +134,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "both name and label in selector",
-			in: func() *KubernetesV2Output {
-				return &KubernetesV2Output{
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
 					Destination: destination.NewMemory(),
 					Selectors: []*KubernetesSelector{
 						{

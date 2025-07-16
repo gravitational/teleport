@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -219,10 +220,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, bot.LiteralService(&ExampleService{cfg: svcCfg}))
 		case *config.SSHMultiplexerService:
 			services = append(services, SSHMultiplexerServiceBuilder(b.cfg, svcCfg, alpnUpgradeCache))
-		case *config.KubernetesOutput:
-			services = append(services, KubernetesOutputServiceBuilder(b.cfg, svcCfg))
-		case *config.KubernetesV2Output:
-			services = append(services, KubernetesV2OutputServiceBuilder(b.cfg, svcCfg))
+		case *k8s.OutputV1Config:
+			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+		case *k8s.OutputV2Config:
+			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *legacyspiffe.SVIDOutputConfig:
 			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *config.SSHHostOutput:

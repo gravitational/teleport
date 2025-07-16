@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"testing"
@@ -28,10 +28,10 @@ import (
 
 func TestKubernetesOutput_YAML(t *testing.T) {
 	dest := &destination.Memory{}
-	tests := []testYAMLCase[KubernetesOutput]{
+	tests := []testYAMLCase[OutputV1Config]{
 		{
 			name: "full",
-			in: KubernetesOutput{
+			in: OutputV1Config{
 				Destination:       dest,
 				Roles:             []string{"access"},
 				KubernetesCluster: "k8s.example.com",
@@ -43,7 +43,7 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 		},
 		{
 			name: "minimal",
-			in: KubernetesOutput{
+			in: OutputV1Config{
 				Destination:       dest,
 				KubernetesCluster: "k8s.example.com",
 			},
@@ -53,11 +53,11 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 }
 
 func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*KubernetesOutput]{
+	tests := []testCheckAndSetDefaultsCase[*OutputV1Config]{
 		{
 			name: "valid",
-			in: func() *KubernetesOutput {
-				return &KubernetesOutput{
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
 					Destination:       destination.NewMemory(),
 					Roles:             []string{"access"},
 					KubernetesCluster: "my-cluster",
@@ -66,8 +66,8 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *KubernetesOutput {
-				return &KubernetesOutput{
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
 					Destination:       nil,
 					KubernetesCluster: "my-cluster",
 				}
@@ -76,8 +76,8 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing kubernetes_config",
-			in: func() *KubernetesOutput {
-				return &KubernetesOutput{
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
 					Destination: destination.NewMemory(),
 				}
 			},

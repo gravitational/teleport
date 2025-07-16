@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package k8s
 
 import (
 	"testing"
@@ -68,20 +68,20 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 
 	tests := []struct {
 		name string
-		dest *DestinationKubernetesSecret
+		dest *SecretDestination
 
 		wantErr string
 	}{
 		{
 			name: "no existing secret",
-			dest: &DestinationKubernetesSecret{
+			dest: &SecretDestination{
 				Name: "my-secret",
 				k8s:  fakeClientSet(),
 			},
 		},
 		{
 			name: "labels",
-			dest: &DestinationKubernetesSecret{
+			dest: &SecretDestination{
 				Name: "my-secret",
 				Labels: map[string]string{
 					"key": "value",
@@ -92,7 +92,7 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 		},
 		{
 			name: "existing secret",
-			dest: &DestinationKubernetesSecret{
+			dest: &SecretDestination{
 				Name: "my-secret",
 				k8s: fakeClientSet(&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -140,21 +140,19 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*DestinationKubernetesSecret]{
+	tests := []testCheckAndSetDefaultsCase[*SecretDestination]{
 		{
 			name: "valid",
-			in: func() *DestinationKubernetesSecret {
-				return &DestinationKubernetesSecret{
+			in: func() *SecretDestination {
+				return &SecretDestination{
 					Name: "my-secret",
 				}
 			},
 		},
 		{
 			name: "missing name",
-			in: func() *DestinationKubernetesSecret {
-				return &DestinationKubernetesSecret{
-					Name: "",
-				}
+			in: func() *SecretDestination {
+				return &SecretDestination{}
 			},
 			wantErr: "name must not be empty",
 		},
@@ -163,10 +161,10 @@ func TestDestinationKubernetesSecret_CheckAndSetDefaults(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_YAML(t *testing.T) {
-	tests := []testYAMLCase[*DestinationKubernetesSecret]{
+	tests := []testYAMLCase[*SecretDestination]{
 		{
 			name: "full",
-			in: &DestinationKubernetesSecret{
+			in: &SecretDestination{
 				Name: "my-secret",
 			},
 		},
@@ -175,5 +173,5 @@ func TestDestinationKubernetesSecret_YAML(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_String(t *testing.T) {
-	require.Equal(t, "kubernetes_secret: my-secret", (&DestinationKubernetesSecret{Name: "my-secret"}).String())
+	require.Equal(t, "kubernetes_secret: my-secret", (&SecretDestination{Name: "my-secret"}).String())
 }

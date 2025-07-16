@@ -43,6 +43,7 @@ import (
 )
 
 const (
+	mockClusterName = "tele.blackmesa.gov"
 	// mockProxyAddr is the address of the mock proxy server, used in tests
 	mockProxyAddr    = "tele.blackmesa.gov:443"
 	mockProxySSHAddr = "tele.blackmesa.gov:3023"
@@ -50,6 +51,12 @@ const (
 	// client
 	mockRemoteClusterName = "tele.aperture.labs"
 )
+
+// fakeGetExecutablePath can be injected into outputs to ensure they output the
+// same path in tests across multiple systems.
+func fakeGetExecutablePath() (string, error) {
+	return "/path/to/tbot", nil
+}
 
 type mockCertAuthorityGetter struct {
 	remoteClusterName string
