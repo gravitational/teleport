@@ -80,11 +80,70 @@ resource "teleport_access_list_member" "crane_operator" {
   }
   spec = {
     access_list = teleport_access_list.crane_operation.id
-    // membership_kind is 1 for "MEMBERSHIP_KIND_USER" or 2 for "MEMBERSHIP_KIND_LIST"
+    # membership_kind is 1 for "MEMBERSHIP_KIND_USER" or 2 for "MEMBERSHIP_KIND_LIST"
     membership_kind = 1
-    // expires is optional. The member will stay in the list after it expires but will lose the
-    // grants. expires can be updated.
+    # expires is optional. The member will stay in the list after it expires but will lose the
+    # grants. expires can be updated.
     expires = "2025-07-28T22:00:00Z"
+  }
+}
+```
+
+It is also possible to add a nested Access List member. The Access Lists members can be created
+manually or with an integration (i.e. it also works for Access Lists created with [Okta
+integration](https://goteleport.com/docs/identity-governance/okta/app-and-group-sync/) and
+[Microsoft Entra ID
+integration](https://goteleport.com/docs/identity-security/integrations/entra-id/#how-it-works)).
+
+For example to add an Access List member to the *crane-operation* Access List defined above:
+
+```hcl
+resource "teleport_access_list" "nested" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "nested"
+    }
+  }
+  spec = {
+    title = "Nested Access List example"
+    description = "Used to present how to create a nested Access List member."
+    owners = [
+       { name = "nested_list_owner" },
+    ]
+    grants = {
+      roles = ["nester"]
+    }
+  }
+}
+
+resource "teleport_access_list_member" "crane_operation_nested" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = teleport_access_list.nested.id
+    }
+  }
+  spec = {
+    access_list = teleport_access_list.crane_operation.id # defined in the example above
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+To add a member which is an Access List created for an Okta group:
+
+```hcl
+resource "teleport_access_list_member" "crane_operation_okta_group" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "00gt3c8z9ukePm5uF697" # taken from Access List URL: https://my-company.teleport.sh/web/accesslists/00gt3c8z9ukePm5uF697
+    }
+  }
+  spec = {
+    access_list = teleport_access_list.crane_operation.id # defined in the example above
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
   }
 }
 ```
