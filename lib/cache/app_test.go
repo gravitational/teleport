@@ -60,7 +60,7 @@ func TestApps(t *testing.T) {
 		},
 		cacheGet: p.cache.GetApp,
 		cacheList: func(ctx context.Context) ([]types.Application, error) {
-			return stream.Collect(p.apps.Apps(ctx, "", ""))
+			return stream.Collect(p.cache.Apps(ctx, "", ""))
 		},
 		update:    p.apps.UpdateApp,
 		deleteAll: p.apps.DeleteAllApps,
