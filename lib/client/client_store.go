@@ -316,6 +316,10 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 		profiles = append(profiles, status)
 	}
 
+	if currentProfile == nil && len(profiles) == 0 {
+		return nil, nil, trace.NotFound("no active profiles")
+	}
+
 	return currentProfile, profiles, nil
 }
 
