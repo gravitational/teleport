@@ -64,8 +64,9 @@ jobs:
           role-duration-seconds: 900
 
       - name: Load environment values
-        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        uses: gravitational/shared-workflows/tools/env-loader@e28b4323d6c036f904996b9a4a77578e52560570 # tools/env-loader/v0.0.5
         with:
+          tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
           # Mac signing secrets are needed for signing the macOS plugins
           value-sets: mac-signing
@@ -330,8 +331,9 @@ jobs:
           sparse-checkout: .environments
 
       - name: Load environment values
-        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        uses: gravitational/shared-workflows/tools/env-loader@e28b4323d6c036f904996b9a4a77578e52560570 # tools/env-loader/v0.0.5
         with:
+          tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
 
       # generic-arm64 may need a bit of setup before using
@@ -399,8 +401,9 @@ jobs:
           sparse-checkout: .environments
 
       - name: Load environment values
-        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        uses: gravitational/shared-workflows/tools/env-loader@e28b4323d6c036f904996b9a4a77578e52560570 # tools/env-loader/v0.0.5
         with:
+          tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
           
       - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
