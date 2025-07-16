@@ -20,6 +20,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import * as Icon from 'design/Icon';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
@@ -34,7 +35,6 @@ import {
   AddAuthDeviceWizard,
   DeleteAuthDeviceWizard,
 } from './ManageDevices/wizards';
-import { useNotification } from './NotificationContext';
 import { PasswordBox } from './PasswordBox';
 import { Headings } from './SideNav';
 import { StatePill } from './StatePill';
@@ -81,7 +81,7 @@ export function SecuritySettings({
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: SecuritySettingsProps) {
-  const { addNotification } = useNotification();
+  const { addNotification } = useToastNotifications();
 
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
@@ -106,7 +106,6 @@ export function SecuritySettings({
   function onPasswordChange() {
     addNotification('info', {
       title: 'Your password has been changed.',
-      isAutoRemovable: true,
     });
     onPasswordChangeCb();
   }
